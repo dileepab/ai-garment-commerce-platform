@@ -1,0 +1,53 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="860" fill="#EEF5FA"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" fill="#FEFFFF"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" stroke="#C8DDEB" stroke-width="2"/>
+  <rect x="56" y="52" width="1088" height="156" rx="36" fill="#1F2B34"/>
+  <path d="M56 172C56 152.118 72.1178 136 92 136H1108C1127.88 136 1144 152.118 1144 172V208H56V172Z" fill="#1F2B34"/>
+  <text x="88" y="112" fill="#D9EAF4" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="3">WOMEN'S SIZE GUIDE</text>
+  <text x="88" y="154" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">Pants</text>
+  <text x="88" y="187" fill="#BCD5E3" font-family="Arial, Helvetica, sans-serif" font-size="22">Body measurements in inches for pants, trousers, and jeans.</text>
+
+  <rect x="88" y="248" width="1024" height="88" rx="22" fill="#E5F0F7"/>
+  <text x="130" y="302" fill="#4A6474" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">SIZE</text>
+  <text x="322" y="302" fill="#4A6474" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">WAIST</text>
+  <text x="532" y="302" fill="#4A6474" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">HIP</text>
+  <text x="724" y="302" fill="#4A6474" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">INSEAM</text>
+  <text x="920" y="302" fill="#4A6474" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">UK</text>
+
+  <rect x="88" y="356" width="1024" height="70" rx="18" fill="#F9FCFE"/>
+  <rect x="88" y="438" width="1024" height="70" rx="18" fill="#EEF6FB"/>
+  <rect x="88" y="520" width="1024" height="70" rx="18" fill="#F9FCFE"/>
+  <rect x="88" y="602" width="1024" height="70" rx="18" fill="#EEF6FB"/>
+  <rect x="88" y="684" width="1024" height="70" rx="18" fill="#F9FCFE"/>
+
+  <text x="120" y="402" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">XS</text>
+  <text x="334" y="402" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">24</text>
+  <text x="544" y="402" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">34</text>
+  <text x="736" y="402" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">29</text>
+  <text x="930" y="402" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">6</text>
+
+  <text x="130" y="484" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">S</text>
+  <text x="334" y="484" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">26</text>
+  <text x="544" y="484" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">36</text>
+  <text x="736" y="484" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">29.5</text>
+  <text x="930" y="484" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">8</text>
+
+  <text x="124" y="566" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">M</text>
+  <text x="334" y="566" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">28</text>
+  <text x="544" y="566" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">38</text>
+  <text x="736" y="566" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">30</text>
+  <text x="930" y="566" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">10</text>
+
+  <text x="130" y="648" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">L</text>
+  <text x="334" y="648" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">30</text>
+  <text x="544" y="648" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">40</text>
+  <text x="736" y="648" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">30.5</text>
+  <text x="930" y="648" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">12</text>
+
+  <text x="122" y="730" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">XL</text>
+  <text x="334" y="730" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">32</text>
+  <text x="544" y="730" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">42</text>
+  <text x="736" y="730" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">31</text>
+  <text x="930" y="730" fill="#1D2831" font-family="Arial, Helvetica, sans-serif" font-size="28">14</text>
+</svg>

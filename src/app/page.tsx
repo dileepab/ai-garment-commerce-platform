@@ -1,65 +1,225 @@
-import Image from "next/image";
+import Link from 'next/link';
+import prisma from '@/lib/prisma';
+import { isActiveOrderStatus } from '@/lib/order-status-display';
+import {
+  buildSupportContactLine,
+  hasDirectSupportContactConfigured,
+} from '@/lib/customer-support';
 
-export default function Home() {
+const DASHBOARD_LINKS = [
+  {
+    href: '/products',
+    title: 'Products & Inventory',
+    description: 'Review catalog coverage, color and size variants, and live stock movement.',
+    accentClass: 'app-chip-accent',
+  },
+  {
+    href: '/orders',
+    title: 'Order Management',
+    description: 'Track active orders with item variants, customer details, and quantities in one place.',
+    accentClass: 'app-chip-warning',
+  },
+  {
+    href: '/production',
+    title: 'Production Batches',
+    description: 'Monitor planned output, batch status, and progress across styles.',
+    accentClass: 'app-chip-neutral',
+  },
+  {
+    href: '/operators',
+    title: 'Operator Performance',
+    description: 'See operator output, efficiency, and active skill assignments clearly.',
+    accentClass: 'app-chip-accent',
+  },
+  {
+    href: '/support',
+    title: 'Support Inbox',
+    description: 'Review escalated customer conversations, complaint summaries, and handoff context in one place.',
+    accentClass: 'app-chip-danger',
+  },
+];
+
+function formatMetricValue(value: number): string {
+  return new Intl.NumberFormat('en-LK').format(value);
+}
+
+export default async function Dashboard() {
+  const supportContactConfigured = hasDirectSupportContactConfigured();
+  const supportContactLine = buildSupportContactLine();
+  const [productCount, orders, operatorCount, batchCount, lowStockCount, openUnits, openEscalationCount] =
+    await Promise.all([
+      prisma.product.count(),
+      prisma.order.findMany({
+        select: {
+          orderStatus: true,
+        },
+      }),
+      prisma.operator.count(),
+      prisma.productionBatch.count(),
+      prisma.inventory.count({
+        where: {
+          availableQty: {
+            lte: 3,
+          },
+        },
+      }),
+      prisma.orderItem.aggregate({
+        where: {
+          order: {
+            orderStatus: {
+              notIn: ['cancelled', 'delivered'],
+            },
+          },
+        },
+        _sum: {
+          quantity: true,
+        },
+      }),
+      prisma.supportEscalation.count({
+        where: {
+          status: {
+            not: 'resolved',
+          },
+        },
+      }),
+    ]);
+
+  const openOrdersCount = orders.filter((order) => isActiveOrderStatus(order.orderStatus)).length;
+
+  const metrics = [
+    { label: 'Products', value: formatMetricValue(productCount), note: 'Active catalog entries' },
+    { label: 'Open Orders', value: formatMetricValue(openOrdersCount), note: 'Not delivered or cancelled' },
+    { label: 'Units On Order', value: formatMetricValue(openUnits._sum.quantity || 0), note: 'Across active orders' },
+    { label: 'Operators', value: formatMetricValue(operatorCount), note: 'Registered production staff' },
+    { label: 'Batches', value: formatMetricValue(batchCount), note: 'Production records' },
+    { label: 'Low Stock', value: formatMetricValue(lowStockCount), note: 'Items with 3 or fewer left' },
+    { label: 'Support Cases', value: formatMetricValue(openEscalationCount), note: 'Open escalations waiting for follow-up' },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="app-shell">
+      <div className="app-container space-y-8">
+        <section className="app-panel overflow-hidden px-6 py-8 md:px-10 md:py-10">
+          <div className="grid gap-8 lg:grid-cols-[1.35fr_0.85fr]">
+            <div>
+              <p className="app-kicker">Garment Operations Hub</p>
+              <h1 className="app-title mt-3 max-w-2xl">
+                A clearer control room for catalog, orders, production, and AI-driven selling.
+              </h1>
+              <p className="app-subtitle">
+                This dashboard now uses stronger contrast, warmer surfaces, and cleaner navigation so day-to-day
+                decisions are easier to read quickly. Use the sections below to jump directly into the area you need.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/orders" className="app-link bg-[color:var(--accent)] text-white hover:text-white">
+                  Review Orders
+                </Link>
+                <Link href="/products" className="app-link">
+                  Check Inventory
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-[26px] border border-[color:var(--border)] bg-[linear-gradient(160deg,rgba(15,118,110,0.11),rgba(255,255,255,0.9)_46%,rgba(255,239,199,0.7))] p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
+                    AI Conversation Engine
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-slate-700">
+                    Customer support, order capture, complaint handoff, and size-chart routing are live and ready for testing.
+                  </p>
+                </div>
+                <span className="app-chip app-chip-accent">Online</span>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
+                    Focus
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900">Readable order detail</p>
+                </div>
+                <div className="rounded-2xl bg-white/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
+                    Next
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900">Human handoff and support follow-up</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className={`rounded-[26px] border px-6 py-5 ${
+            supportContactConfigured
+              ? 'border-emerald-200 bg-emerald-50/80'
+              : 'border-amber-200 bg-amber-50/90'
+          }`}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--foreground-soft)]">
+                Support Handoff
+              </p>
+              <p className="mt-3 text-base font-semibold text-slate-900">
+                {supportContactConfigured
+                  ? 'Direct support contact is configured for customer handoff.'
+                  : 'Direct support phone or WhatsApp is not configured yet.'}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{supportContactLine}</p>
+              {!supportContactConfigured ? (
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  Add `STORE_SUPPORT_PHONE` and/or `STORE_SUPPORT_WHATSAPP` in `.env` to show a real contact number in bot replies.
+                </p>
+              ) : null}
+            </div>
+            <span className={`app-chip ${supportContactConfigured ? 'app-chip-accent' : 'app-chip-warning'}`}>
+              {supportContactConfigured ? 'Configured' : 'Needs Setup'}
+            </span>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {metrics.map((metric) => (
+            <div key={metric.label} className="app-metric">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--foreground-soft)]">
+                {metric.label}
+              </p>
+              <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{metric.value}</p>
+              <p className="mt-2 text-sm text-[color:var(--foreground-soft)]">{metric.note}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="space-y-4">
+          <div className="app-header mb-0">
+            <div>
+              <p className="app-kicker">Workspace</p>
+              <h2 className="app-title text-2xl md:text-3xl">Navigate by workflow</h2>
+            </div>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            {DASHBOARD_LINKS.map((item) => (
+              <Link key={item.href} href={item.href} className="app-card block">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <span className={`app-chip ${item.accentClass}`}>Open module</span>
+                    <h3 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">{item.title}</h3>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-600">
+                    View
+                  </span>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-[color:var(--foreground-soft)]">{item.description}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }

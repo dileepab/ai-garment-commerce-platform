@@ -1,0 +1,49 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="860" fill="#F2F7FB"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" fill="#FEFFFF"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" stroke="#CCDEEC" stroke-width="2"/>
+  <rect x="56" y="52" width="1088" height="156" rx="36" fill="#1D2B35"/>
+  <path d="M56 172C56 152.118 72.1178 136 92 136H1108C1127.88 136 1144 152.118 1144 172V208H56V172Z" fill="#1D2B35"/>
+  <text x="88" y="112" fill="#D3E6F1" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="3">MODABELLA</text>
+  <text x="88" y="154" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">Classic Office Shirt</text>
+  <text x="88" y="187" fill="#B7D2E2" font-family="Arial, Helvetica, sans-serif" font-size="22">Garment measurements in inches for a polished everyday office fit.</text>
+
+  <rect x="88" y="248" width="1024" height="88" rx="22" fill="#E6F0F7"/>
+  <text x="126" y="302" fill="#456272" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">SIZE</text>
+  <text x="300" y="302" fill="#456272" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">BUST</text>
+  <text x="476" y="302" fill="#456272" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">WAIST</text>
+  <text x="652" y="302" fill="#456272" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">SHOULDER</text>
+  <text x="878" y="302" fill="#456272" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">LENGTH</text>
+
+  <rect x="88" y="356" width="1024" height="74" rx="18" fill="#F9FCFE"/>
+  <rect x="88" y="442" width="1024" height="74" rx="18" fill="#EEF6FB"/>
+  <rect x="88" y="528" width="1024" height="74" rx="18" fill="#F9FCFE"/>
+  <rect x="88" y="614" width="1024" height="74" rx="18" fill="#EEF6FB"/>
+
+  <text x="132" y="402" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">S</text>
+  <text x="310" y="402" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">34</text>
+  <text x="486" y="402" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">30</text>
+  <text x="694" y="402" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">14</text>
+  <text x="914" y="402" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">24</text>
+
+  <text x="126" y="488" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">M</text>
+  <text x="310" y="488" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">36</text>
+  <text x="486" y="488" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">32</text>
+  <text x="694" y="488" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">14.5</text>
+  <text x="914" y="488" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">25</text>
+
+  <text x="132" y="574" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">L</text>
+  <text x="310" y="574" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">38</text>
+  <text x="486" y="574" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">34</text>
+  <text x="694" y="574" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">15</text>
+  <text x="914" y="574" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">26</text>
+
+  <text x="120" y="660" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">XL</text>
+  <text x="310" y="660" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">40</text>
+  <text x="486" y="660" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">36</text>
+  <text x="694" y="660" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">15.5</text>
+  <text x="914" y="660" fill="#1B2831" font-family="Arial, Helvetica, sans-serif" font-size="28">27</text>
+
+  <rect x="88" y="704" width="1024" height="60" rx="18" fill="#EAF4FA" stroke="#C9DFED" stroke-width="2"/>
+  <text x="124" y="735" fill="#5A7383" font-family="Arial, Helvetica, sans-serif" font-size="18">For the best office fit, match bust first, then compare shoulder and length. Allow a 0.5 to 1 inch variation due to manual measuring.</text>
+</svg>

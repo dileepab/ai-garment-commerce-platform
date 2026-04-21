@@ -32,6 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local dev data / scratch
+prisma/*.db
+prisma/*.db-*
+scratch.js
+user_a_order_id.txt
 
 # vercel
 .vercel
@@ -39,3 +46,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma

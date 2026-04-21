@@ -1,0 +1,38 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="860" fill="#F5F0FA"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" fill="#FFFEFF"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" stroke="#D7CBE7" stroke-width="2"/>
+  <rect x="56" y="52" width="1088" height="156" rx="36" fill="#261B33"/>
+  <path d="M56 172C56 152.118 72.1178 136 92 136H1108C1127.88 136 1144 152.118 1144 172V208H56V172Z" fill="#261B33"/>
+  <text x="88" y="112" fill="#E3D9F4" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="3">CLEOPATRA</text>
+  <text x="88" y="154" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">Premium Evening Gown</text>
+  <text x="88" y="187" fill="#CDB9EA" font-family="Arial, Helvetica, sans-serif" font-size="22">Body measurements in inches. Best measured while wearing your planned innerwear.</text>
+
+  <rect x="88" y="248" width="1024" height="88" rx="22" fill="#EEE7F8"/>
+  <text x="126" y="302" fill="#58436E" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">SIZE</text>
+  <text x="310" y="302" fill="#58436E" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">BUST</text>
+  <text x="500" y="302" fill="#58436E" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">WAIST</text>
+  <text x="690" y="302" fill="#58436E" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">HIP</text>
+  <text x="892" y="302" fill="#58436E" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">FULL LENGTH</text>
+
+  <rect x="88" y="356" width="1024" height="104" rx="20" fill="#FBF9FE"/>
+  <rect x="88" y="474" width="1024" height="104" rx="20" fill="#F4EFFA"/>
+
+  <text x="122" y="422" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">M</text>
+  <text x="320" y="422" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">34</text>
+  <text x="510" y="422" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">28</text>
+  <text x="700" y="422" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">38</text>
+  <text x="944" y="422" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">58</text>
+
+  <text x="128" y="540" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">L</text>
+  <text x="320" y="540" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">36</text>
+  <text x="510" y="540" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">30</text>
+  <text x="700" y="540" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">40</text>
+  <text x="944" y="540" fill="#22182D" font-family="Arial, Helvetica, sans-serif" font-size="30">59</text>
+
+  <rect x="88" y="608" width="1024" height="166" rx="24" fill="#F6F1FB" stroke="#D9CDEA" stroke-width="2"/>
+  <text x="124" y="666" fill="#624C79" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Styling note:</text>
+  <text x="248" y="666" fill="#624C79" font-family="Arial, Helvetica, sans-serif" font-size="20">Compare your bust, waist, and hip first, then check the gown length.</text>
+  <text x="124" y="702" fill="#7D6991" font-family="Arial, Helvetica, sans-serif" font-size="18">If your measurements fall between sizes, choose the larger size for easier tailoring and evening comfort.</text>
+  <text x="124" y="734" fill="#7D6991" font-family="Arial, Helvetica, sans-serif" font-size="18">Allow a 0.5 to 1 inch variation due to manual measuring.</text>
+</svg>

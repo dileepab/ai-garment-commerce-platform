@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f1e7;
+  --background-strong: #fffdf8;
+  --foreground: #1f2937;
+  --foreground-soft: #5f6b7a;
+  --border: #d8cab3;
+  --border-strong: #bfa57d;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --accent-soft: #d8efe6;
+  --warning: #b45309;
+  --warning-soft: #ffefc7;
+  --danger: #9f1239;
+  --danger-soft: #ffe0e8;
+  --shadow: 0 20px 55px rgba(71, 46, 17, 0.1);
 }
 
 @theme inline {
@@ -12,15 +24,133 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(255, 235, 193, 0.92), transparent 28%),
+    radial-gradient(circle at top right, rgba(207, 234, 226, 0.95), transparent 26%),
+    linear-gradient(180deg, #fbf7f1 0%, var(--background) 44%, #efe4d4 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), "Avenir Next", "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  border-color: var(--border);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.2);
+  color: var(--foreground);
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen px-4 py-6 md:px-8 md:py-8;
+  }
+
+  .app-container {
+    @apply mx-auto max-w-7xl;
+  }
+
+  .app-header {
+    @apply mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between;
+  }
+
+  .app-kicker {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+  }
+
+  .app-title {
+    @apply text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl;
+  }
+
+  .app-subtitle {
+    @apply mt-3 max-w-3xl text-sm leading-6 md:text-base;
+    color: var(--foreground-soft);
+  }
+
+  .app-link {
+    @apply inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium shadow-sm transition;
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.8);
+    color: #374151;
+  }
+
+  .app-link:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    color: #0f172a;
+  }
+
+  .app-panel {
+    @apply rounded-[28px] border backdrop-blur-sm;
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: var(--shadow);
+  }
+
+  .app-card {
+    @apply rounded-[26px] border p-6 transition;
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: var(--shadow);
+  }
+
+  .app-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 24px 65px rgba(71, 46, 17, 0.14);
+  }
+
+  .app-chip {
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-wide;
+  }
+
+  .app-chip-neutral {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+  }
+
+  .app-chip-accent {
+    border-color: transparent;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .app-chip-warning {
+    border-color: transparent;
+    background: var(--warning-soft);
+    color: var(--warning);
+  }
+
+  .app-chip-danger {
+    border-color: transparent;
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+
+  .app-muted {
+    @apply text-sm;
+    color: var(--foreground-soft);
+  }
+
+  .app-metric {
+    @apply rounded-[24px] border p-5 shadow-sm;
+    border-color: var(--border);
+    background: var(--background-strong);
+  }
 }

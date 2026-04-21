@@ -1,0 +1,45 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="860" fill="#F7F2ED"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" fill="#FFFDFC"/>
+  <rect x="56" y="52" width="1088" height="756" rx="36" stroke="#E8D9CC" stroke-width="2"/>
+  <rect x="56" y="52" width="1088" height="156" rx="36" fill="#251C18"/>
+  <path d="M56 172C56 152.118 72.1178 136 92 136H1108C1127.88 136 1144 152.118 1144 172V208H56V172Z" fill="#251C18"/>
+  <text x="88" y="112" fill="#F8E7DB" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="3">HAPPYBY</text>
+  <text x="88" y="154" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">Oversized Casual Top</text>
+  <text x="88" y="187" fill="#E6C7B1" font-family="Arial, Helvetica, sans-serif" font-size="22">Garment measurements in inches. Oversized fit by design.</text>
+
+  <rect x="88" y="248" width="1024" height="88" rx="22" fill="#F3E5D8"/>
+  <text x="126" y="302" fill="#5B4335" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">SIZE</text>
+  <text x="310" y="302" fill="#5B4335" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">BUST</text>
+  <text x="482" y="302" fill="#5B4335" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">SHOULDER</text>
+  <text x="700" y="302" fill="#5B4335" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">SLEEVE</text>
+  <text x="910" y="302" fill="#5B4335" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">LENGTH</text>
+
+  <rect x="88" y="356" width="1024" height="86" rx="20" fill="#FFF6EF"/>
+  <rect x="88" y="454" width="1024" height="86" rx="20" fill="#FAEFE6"/>
+  <rect x="88" y="552" width="1024" height="86" rx="20" fill="#FFF6EF"/>
+
+  <text x="134" y="410" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">S</text>
+  <text x="320" y="410" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">40</text>
+  <text x="520" y="410" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">20</text>
+  <text x="728" y="410" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">8</text>
+  <text x="940" y="410" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">25</text>
+
+  <text x="128" y="508" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">M</text>
+  <text x="320" y="508" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">42</text>
+  <text x="520" y="508" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">21</text>
+  <text x="728" y="508" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">8.5</text>
+  <text x="940" y="508" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">26</text>
+
+  <text x="134" y="606" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">L</text>
+  <text x="320" y="606" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">44</text>
+  <text x="520" y="606" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">22</text>
+  <text x="728" y="606" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">9</text>
+  <text x="940" y="606" fill="#241B17" font-family="Arial, Helvetica, sans-serif" font-size="30">27</text>
+
+  <rect x="88" y="672" width="1024" height="102" rx="24" fill="#FDF1E7" stroke="#E7CBB5" stroke-width="2"/>
+  <text x="124" y="724" fill="#6A4B39" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Fit note:</text>
+  <text x="230" y="724" fill="#6A4B39" font-family="Arial, Helvetica, sans-serif" font-size="20">This style is intentionally roomy.</text>
+  <text x="230" y="751" fill="#6A4B39" font-family="Arial, Helvetica, sans-serif" font-size="20">If you prefer a neater fit, choose one size down.</text>
+  <text x="124" y="772" fill="#8A6954" font-family="Arial, Helvetica, sans-serif" font-size="18">Allow a 0.5 to 1 inch variation due to manual measuring.</text>
+</svg>
