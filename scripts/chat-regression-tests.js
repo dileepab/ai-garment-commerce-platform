@@ -127,6 +127,42 @@ async function getLatestOrderForSender(senderId) {
   };
 }
 
+async function getOrdersForSender(senderId) {
+  const customer = await prisma.customer.findUnique({
+    where: {
+      externalId: senderId,
+    },
+    include: {
+      orders: {
+        orderBy: {
+          createdAt: 'asc',
+        },
+        include: {
+          orderItems: true,
+        },
+      },
+    },
+  });
+
+  return customer?.orders || [];
+}
+
+async function getConversationState(senderId, channel = 'messenger') {
+  const record = await prisma.conversationState.findUnique({
+    where: {
+      senderId_channel: {
+        senderId,
+        channel,
+      },
+    },
+    select: {
+      stateJson: true,
+    },
+  });
+
+  return record?.stateJson ? JSON.parse(record.stateJson) : null;
+}
+
 function buildSender(runId, slug) {
   return `chat-regression-${runId}-${slug}`;
 }
@@ -164,6 +200,151 @@ async function main() {
             escalation.reason === 'human_request',
             `Expected reason human_request, received ${escalation.reason}.`
           );
+
+          const conversationState = await getConversationState(senderId);
+          assert(
+            conversationState?.supportMode === 'handoff_requested',
+            `Expected supportMode handoff_requested, received ${String(conversationState?.supportMode)}.`
+          );
+        },
+      },
+      {
+        name: 'Support handoff pauses normal bot flow until the case is resolved',
+        senderId: buildSender(runId, 'handoff-paused'),
+        messages: [
+          'I need to talk to a real person',
+          'What are the available items?',
+          'Are you there?',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[1].bot, [
+            'Our support team has your message and will follow up shortly.',
+            'Please call or WhatsApp our team on 0701234567',
+          ], 'Paused handoff reply');
+          assert(
+            !transcript[1].bot.includes('Oversized Casual Top'),
+            `Paused handoff reply incorrectly resumed bot catalog flow.\n\nActual reply:\n${transcript[1].bot}`
+          );
+          assert(
+            transcript[2].bot === '[no assistant reply recorded]',
+            `Expected no bot reply after the first waiting message during handoff.\n\nActual reply:\n${transcript[2].bot}`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(escalation, 'Expected an escalation to remain open during paused handoff test.');
+          assert(
+            escalation.status === 'open',
+            `Expected open escalation during paused handoff test, received ${escalation.status}.`
+          );
+        },
+      },
+      {
+        name: 'Human active support mode stays silent until resolved',
+        senderId: buildSender(runId, 'human-active-silent'),
+        messages: ['I need to talk to a real person'],
+        verify: async ({ senderId }) => {
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(escalation, 'Expected an escalation before switching to human active mode.');
+
+          await prisma.supportEscalation.update({
+            where: {
+              id: escalation.id,
+            },
+            data: {
+              status: 'in_progress',
+            },
+          });
+
+          await prisma.conversationState.update({
+            where: {
+              senderId_channel: {
+                senderId,
+                channel: 'messenger',
+              },
+            },
+            data: {
+              stateJson: JSON.stringify({
+                ...(await getConversationState(senderId)),
+                supportMode: 'human_active',
+              }),
+            },
+          });
+
+          const followUpTranscript = await runConversation({
+            senderId,
+            messages: ['Can you update me?'],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(followUpTranscript));
+
+          assert(
+            followUpTranscript[0].bot === '[no assistant reply recorded]',
+            `Expected no bot reply while human support is active.\n\nActual reply:\n${followUpTranscript[0].bot}`
+          );
+        },
+      },
+      {
+        name: 'Resolved support handoff resumes the bot on the next customer message',
+        senderId: buildSender(runId, 'handoff-resolved'),
+        messages: ['I need to talk to a real person'],
+        verify: async ({ senderId }) => {
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(escalation, 'Expected an escalation before resolving the support handoff.');
+
+          await prisma.supportEscalation.update({
+            where: {
+              id: escalation.id,
+            },
+            data: {
+              status: 'resolved',
+              resolvedAt: new Date(),
+            },
+          });
+
+          await prisma.conversationState.update({
+            where: {
+              senderId_channel: {
+                senderId,
+                channel: 'messenger',
+              },
+            },
+            data: {
+              stateJson: JSON.stringify({
+                ...(await getConversationState(senderId)),
+                supportMode: 'resolved',
+              }),
+            },
+          });
+
+          const followUpTranscript = await runConversation({
+            senderId,
+            messages: ['What are the available items?'],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(followUpTranscript));
+
+          assertIncludes(followUpTranscript[0].bot, [
+            'We currently have the following items available:',
+            'Oversized Casual Top',
+          ], 'Resolved handoff follow-up reply');
         },
       },
       {
@@ -246,6 +427,26 @@ async function main() {
         },
       },
       {
+        name: 'Draft total question stays tied to the current order draft',
+        senderId: buildSender(runId, 'draft-total'),
+        messages: [
+          'I want Oversized Casual Top in black, M size',
+          'Please send me the total with delivery charges',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[1].bot, [
+            'The total for your order is Rs',
+            'Order Summary',
+            'Product: Oversized Casual Top',
+            'Color: Black',
+          ], 'Draft total reply');
+          assert(
+            !transcript[1].bot.includes('Order Details'),
+            `Draft total reply leaked a stored order instead of the pending draft.\n\nActual reply:\n${transcript[1].bot}`
+          );
+        },
+      },
+      {
         name: 'Gift instructions update the latest order directly',
         senderId: buildSender(runId, 'gift-update'),
         messages: [
@@ -270,6 +471,37 @@ async function main() {
           assert(
             latestOrder.giftNote === 'Happy Birthday',
             `Expected gift note Happy Birthday, received ${latestOrder.giftNote}.`
+          );
+        },
+      },
+      {
+        name: 'Gift follow-up can apply to the last active order',
+        senderId: buildSender(runId, 'gift-follow-up'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Gift Followup Customer',
+          '12 Main Street, Kurunegala',
+          '0771001212',
+          'yes correct',
+          'yes correct',
+          'Can I send this as a gift to my friend?',
+          'Do it for the last order and add a Happy Birthday note',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'Yes, we can pack order #',
+          ], 'Gift capability pre-check reply');
+          assertIncludes(transcript[7].bot, [
+            'I have updated order #',
+            'Gift wrap requested',
+            'Gift Note: Happy Birthday',
+          ], 'Gift follow-up apply reply');
+
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder?.giftWrap, 'Expected gift wrap to be applied from follow-up instruction.');
+          assert(
+            latestOrder?.giftNote === 'Happy Birthday',
+            `Expected follow-up gift note Happy Birthday, received ${latestOrder?.giftNote}.`
           );
         },
       },
@@ -334,6 +566,82 @@ async function main() {
         },
       },
       {
+        name: 'Support contact requests return direct contact details and polite closure',
+        senderId: buildSender(runId, 'support-contact'),
+        messages: [
+          'I want Oversized Casual Top in black, M size',
+          'Support Contact Customer',
+          '460/2, Temple Road, Bingiriya',
+          '0702694269',
+          'yes correct',
+          'yes correct',
+          'I want support center contact number',
+          'can I have contact number',
+          'okay thank you',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'You can reach our support team directly.',
+            'Please call or WhatsApp our team on 0701234567',
+          ], 'Support center contact reply');
+          assert(
+            !transcript[6].bot.includes('flagged this conversation'),
+            `Support contact reply should not create a handoff escalation.\n\nActual reply:\n${transcript[6].bot}`
+          );
+          assertIncludes(transcript[7].bot, [
+            'You can reach our support team directly.',
+            'Please call or WhatsApp our team on 0701234567',
+          ], 'Generic contact number follow-up reply');
+          assertIncludes(transcript[8].bot, [
+            'You are welcome.',
+            'Please call or WhatsApp our team on 0701234567',
+          ], 'Support contact thanks acknowledgement');
+          assert(
+            !transcript[8].bot.includes('Hello'),
+            `Thanks acknowledgement incorrectly restarted with a greeting.\n\nActual reply:\n${transcript[8].bot}`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(!escalation, 'Did not expect a support escalation for a simple support contact request.');
+        },
+      },
+      {
+        name: 'Multiple size chart types can be requested in one follow-up',
+        senderId: buildSender(runId, 'multi-size-chart'),
+        messages: [
+          'Do you have a size chart?',
+          'Dresses and Tops',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[1].bot, [
+            'Here are our',
+            'Tops',
+            'Dresses',
+            'size charts',
+          ], 'Multi size chart reply');
+        },
+      },
+      {
+        name: 'Explicit missing order lookup keeps the same missing ID on follow-up',
+        senderId: buildSender(runId, 'missing-order'),
+        messages: [
+          'Can you send me the order status of #9999',
+          'check again',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'I could not find order #9999 for this conversation.',
+          ], 'Missing order reply');
+          assertIncludes(transcript[1].bot, [
+            'I could not find order #9999 for this conversation.',
+          ], 'Missing order follow-up reply');
+        },
+      },
+      {
         name: 'Order status reply uses stage wording',
         senderId: buildSender(runId, 'status'),
         messages: [
@@ -350,6 +658,108 @@ async function main() {
             'currently at the Confirmed stage',
             'queued for packing',
           ], 'Order status reply');
+        },
+      },
+      {
+        name: 'Reorder after cancellation reuses the cancelled order details cleanly',
+        senderId: buildSender(runId, 'reorder-cancelled'),
+        messages: [
+          'I want Oversized Casual Top in black, M size',
+          'Reorder Customer',
+          '12 Main Street, Kurunegala',
+          '0771006666',
+          'yes correct',
+          'yes correct',
+          'Cancel my order',
+          'I want to re order the same item',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'Cancelled Order ID: #',
+          ], 'Cancellation reply');
+          assertIncludes(transcript[7].bot, [
+            'Please confirm if these delivery details are correct:',
+            'Name: Reorder Customer',
+            'Address: 12 Main Street, Kurunegala',
+            'Phone Number: 0771006666',
+          ], 'Reorder contact confirmation reply');
+
+          const orders = await getOrdersForSender(senderId);
+          assert(
+            orders.length === 1 && orders[0].orderStatus === 'cancelled',
+            `Expected only the original cancelled order to exist before reorder confirmation, received ${orders.length} order(s).`
+          );
+        },
+      },
+      {
+        name: 'Stock cap follow-up keeps the quantity update flow contextual',
+        senderId: buildSender(runId, 'stock-cap'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Stock Cap Customer',
+          '12 Main Street, Kurunegala',
+          '0771007878',
+          'yes correct',
+          'yes correct',
+          'can you increase order count of last order to 999',
+          'okay',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[6].bot, [
+            'I can update order #',
+            'Please send a lower quantity.',
+          ], 'Stock cap reply');
+          assertIncludes(transcript[7].bot, [
+            'Please send the quantity you want for order #',
+          ], 'Stock cap follow-up reply');
+          assert(
+            !transcript[7].bot.includes('Your order has been confirmed successfully'),
+            `Stock cap follow-up incorrectly confirmed an order.\n\nActual reply:\n${transcript[7].bot}`
+          );
+        },
+      },
+      {
+        name: 'Explicit order detail lookup returns the requested order instead of the latest one',
+        senderId: buildSender(runId, 'explicit-order'),
+        messages: [
+          'I want Oversized Casual Top in black, M size',
+          'Explicit Lookup Customer',
+          '12 Main Street, Kurunegala',
+          '0771008888',
+          'yes correct',
+          'yes correct',
+          'I want Relaxed Linen Pants in beige, M size',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ senderId }) => {
+          const orders = await getOrdersForSender(senderId);
+          assert(orders.length === 2, `Expected two orders for explicit lookup test, received ${orders.length}.`);
+
+          const [firstOrder, secondOrder] = orders;
+          assert(
+            firstOrder.id !== secondOrder.id,
+            'Expected two distinct orders for explicit order lookup test.'
+          );
+
+          const followUpTranscript = await runConversation({
+            senderId,
+            messages: [`Send me order details of #${firstOrder.id}`],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(followUpTranscript));
+
+          assertIncludes(followUpTranscript[0].bot, [
+            `Order ID: #${firstOrder.id}`,
+            'Product: Oversized Casual Top',
+          ], 'Explicit order lookup reply');
+          assert(
+            !followUpTranscript[0].bot.includes(`Order ID: #${secondOrder.id}`),
+            `Explicit order lookup leaked the latest order instead of the requested order.\n\nActual reply:\n${followUpTranscript[0].bot}`
+          );
         },
       },
     ];

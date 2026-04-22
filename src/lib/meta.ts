@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { logDebug, logError } from '@/lib/app-log';
+import { getPublicAssetUrl } from '@/lib/runtime-config';
 
 const reusableAttachmentCache = new Map<string, string>();
 
@@ -28,7 +30,7 @@ async function sendMessengerPayload(senderId: string, payload: Record<string, un
   const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
 
   if (!PAGE_ACCESS_TOKEN) {
-    console.error('Missing META_PAGE_ACCESS_TOKEN in environment variables.');
+    logError('Meta', 'Missing META_PAGE_ACCESS_TOKEN in environment variables.');
     return;
   }
 
@@ -46,12 +48,12 @@ async function sendMessengerPayload(senderId: string, payload: Record<string, un
 
     const data = await response.json();
     if (!response.ok) {
-      console.error('Meta API Error:', data);
+      logError('Meta', 'Messenger send failed.', data);
     } else {
-      console.log(`[Meta Messenger Send] Message sent successfully to ${senderId}`);
+      logDebug('Meta', `Messenger payload sent successfully to ${senderId}.`);
     }
   } catch (error) {
-    console.error('Error sending message to Meta:', error);
+    logError('Meta', 'Error sending message to Meta.', error);
   }
 }
 
@@ -61,11 +63,52 @@ export async function sendMessengerMessage(senderId: string, messageText: string
   });
 }
 
+interface CarouselProduct {
+  id: number;
+  name: string;
+  price: number;
+  sizes: string;
+  colors: string;
+  imageUrl?: string;
+}
+
+function buildOrderNowPayload(product: CarouselProduct): string {
+  const encodedName = encodeURIComponent(product.name);
+  return `ORDER_NOW|productId=${product.id}|productName=${encodedName}`;
+}
+
+export async function sendMessengerCarousel(senderId: string, products: CarouselProduct[]) {
+  const elements = products.map((product) => ({
+    title: `${product.name} (Rs ${product.price})`,
+    image_url: product.imageUrl || 'https://placehold.co/600x400/png',
+    subtitle: `Sizes: ${product.sizes} | Colors: ${product.colors}`,
+    buttons: [
+      {
+        type: 'postback',
+        title: `Order Now`,
+        payload: buildOrderNowPayload(product),
+      },
+    ],
+  })).slice(0, 10); // Meta graph API limits generic templates to 10 elements
+
+  await sendMessengerPayload(senderId, {
+    message: {
+      attachment: {
+        type: 'template',
+        payload: {
+          template_type: 'generic',
+          elements,
+        },
+      },
+    },
+  });
+}
+
 async function uploadReusableMessengerAttachment(publicPath: string): Promise<string | null> {
   const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
 
   if (!PAGE_ACCESS_TOKEN) {
-    console.error('Missing META_PAGE_ACCESS_TOKEN in environment variables.');
+    logError('Meta', 'Missing META_PAGE_ACCESS_TOKEN in environment variables.');
     return null;
   }
 
@@ -107,7 +150,7 @@ async function uploadReusableMessengerAttachment(publicPath: string): Promise<st
 
     const data = await response.json();
     if (!response.ok) {
-      console.error('Meta Attachment Upload Error:', data);
+      logError('Meta', `Reusable attachment upload failed for ${publicPath}.`, data);
       return null;
     }
 
@@ -120,7 +163,7 @@ async function uploadReusableMessengerAttachment(publicPath: string): Promise<st
 
     return attachmentId;
   } catch (error) {
-    console.error('Error uploading Messenger attachment:', error);
+    logError('Meta', `Error uploading Messenger attachment for ${publicPath}.`, error);
     return null;
   }
 }
@@ -143,20 +186,42 @@ export async function sendMessengerImage(senderId: string, imagePathOrUrl: strin
 
   const attachmentId = await uploadReusableMessengerAttachment(imagePathOrUrl);
 
-  if (!attachmentId) {
+  if (attachmentId) {
+    await sendMessengerPayload(senderId, {
+      message: {
+        attachment: {
+          type: 'image',
+          payload: {
+            attachment_id: attachmentId,
+          },
+        },
+      },
+    });
     return;
   }
 
-  await sendMessengerPayload(senderId, {
-    message: {
-      attachment: {
-        type: 'image',
-        payload: {
-          attachment_id: attachmentId,
+  const publicUrl = getPublicAssetUrl(imagePathOrUrl);
+
+  if (publicUrl) {
+    logDebug('Meta', `Falling back to public asset URL for ${imagePathOrUrl}.`);
+    await sendMessengerPayload(senderId, {
+      message: {
+        attachment: {
+          type: 'image',
+          payload: {
+            url: publicUrl,
+            is_reusable: true,
+          },
         },
       },
-    },
-  });
+    });
+    return;
+  }
+
+  logError(
+    'Meta',
+    `Messenger image could not be sent for ${imagePathOrUrl}. Configure APP_BASE_URL to enable public media fallback.`
+  );
 }
 
 export async function getUserProfile(senderId: string): Promise<{ firstName: string; lastName: string; gender: string } | null> {
@@ -171,7 +236,10 @@ export async function getUserProfile(senderId: string): Promise<{ firstName: str
     const data = await response.json();
 
     if (response.ok && data.first_name) {
-      console.log(`[Meta Profile] ${data.first_name} ${data.last_name || ''} (${data.gender || 'unknown'})`);
+      logDebug(
+        'Meta',
+        `Loaded Messenger profile for ${data.first_name} ${data.last_name || ''} (${data.gender || 'unknown'}).`
+      );
       return {
         firstName: data.first_name,
         lastName: data.last_name || '',
@@ -180,7 +248,7 @@ export async function getUserProfile(senderId: string): Promise<{ firstName: str
     }
     return null;
   } catch (error) {
-    console.error('Error fetching user profile:', error);
+    logError('Meta', `Error fetching user profile for sender ${senderId}.`, error);
     return null;
   }
 }

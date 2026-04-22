@@ -9,6 +9,8 @@ import {
   mergeContactDetails,
 } from '@/lib/contact-profile';
 import { buildHumanSupportReply, buildSupportContactLine } from '@/lib/customer-support';
+import { logDebug, logError } from '@/lib/app-log';
+import { logRuntimeWarnings } from '@/lib/runtime-config';
 
 const MODEL_CHAIN = [
   'gemini-3.1-flash-lite-preview',
@@ -62,6 +64,7 @@ export async function getAiStockReply(
   }
 ) {
   try {
+    logRuntimeWarnings('AI');
     const persistConversation = options?.persistConversation ?? true;
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -122,7 +125,7 @@ export async function getAiStockReply(
         storedName = cleanStoredContactValue(customer.name);
         storedPhone = customer.phone || '';
         storedAddress = customer.orders[0]?.deliveryAddress || '';
-        console.log(`[AI Profile] Found customer: ${storedName}, Phone: ${storedPhone}`);
+        logDebug('AI', `Loaded stored profile for sender ${senderId}.`);
       }
 
       const detailsFromHistory = collectContactDetailsFromMessages(previousMessages, {
@@ -232,6 +235,22 @@ PERSONALITY:
 - Do not greet twice in the same reply.
 - Emojis only at the end of confirmations (e.g. ✅), never excessively.
 
+LANGUAGE RULE:
+- Detect the customer's language from their message.
+- If the customer writes in Sinhala (සිංහල), reply entirely in Sinhala using natural, conversational Sinhala script.
+- If the customer writes in Tamil (தமிழ்), reply entirely in Tamil.
+- If the customer writes in English, reply in English.
+- Always mirror the customer's language. Never switch languages mid-conversation unless the customer does.
+- If the language is ambiguous or mixed, reply in the language that appears dominant. If truly unclear, ask a short clarification in Sinhala first (as it is the most common local language), e.g. "ඔබ සිංහලෙන් කතා කරනවාද? / Would you prefer English?"
+- Product names, order IDs, and prices should always use their original form (e.g. "Rs 1650") regardless of language.
+
+CONVERSION & FOLLOW-UP RULES:
+- Never leave a message hanging. ALWAYS end with a helpful, low-friction question to drive the sale.
+- IF CUSTOMER ASKS PRICE/AVAILABILITY: Answer directly, then follow up with: "Would you like to see the size chart?" or "Shall I check if we can deliver this to your area by tomorrow?"
+- IF STOCK IS LOW (< 5 pieces): Create subtle urgency, e.g., "Only 3 pieces left in this color! Should I reserve one for you while you decide?"
+- IF CUSTOMER IS UNDECIDED: Offer a benefit, e.g., "This fabric is perfect for the current weather. Would you like to see more close-up photos?"
+- IF ORDERING: Instead of just asking for details, use: "To get this delivered to you quickly, could you share your name, address, and phone number?"
+
 YOUR STOCK (use ONLY this data):
 ${stockContext}
 
@@ -273,7 +292,7 @@ Name: [customer name]
 Address: [delivery address]
 Phone Number: [phone number]
 
-Then ask: "Is this summary correct? Please let me know if any changes are needed."
+Then ask: "Does everything look perfect? Shall I go ahead and confirm this for you so we can dispatch it as soon as possible? 😊"
 
 5. COMPLETION:
    - If they say "Yes" or similar, confirm the order is successfully placed.
@@ -310,18 +329,18 @@ IMPORTANT:
     for (let i = 0; i < MODEL_CHAIN.length; i++) {
       const model = MODEL_CHAIN[i];
       try {
-        console.log(`[AI] Trying model: ${model}`);
+        logDebug('AI', `Trying model ${model}.`);
         const response = await ai.models.generateContent({
           model,
           ...requestParams,
         });
-        console.log(`[AI] ✅ Success with: ${model}`);
+        logDebug('AI', `Model ${model} responded successfully.`);
         reply = response.text || reply;
         break;
       } catch (error: unknown) {
         const status = getErrorStatus(error);
         if ((status === 429 || status === 503 || status === 404) && i < MODEL_CHAIN.length - 1) {
-          console.log(`[AI] ⚠️ ${model} returned ${status}, falling back to ${MODEL_CHAIN[i + 1]}...`);
+          logDebug('AI', `${model} returned ${status}; falling back to ${MODEL_CHAIN[i + 1]}.`);
           continue;
         }
         throw error;
@@ -342,7 +361,7 @@ IMPORTANT:
 
     return reply;
   } catch (error: unknown) {
-    console.error('AI Error:', error);
+    logError('AI', 'Failed to generate AI stock reply.', error);
     return getErrorMessage(error) === 'fetch failed'
       ? buildHumanSupportReply({
           reason: 'unclear_request',
@@ -350,5 +369,101 @@ IMPORTANT:
       : buildHumanSupportReply({
           reason: 'unclear_request',
         });
+  }
+}
+
+export async function getAiCommentReply(
+  comment: string,
+  brand?: string
+) {
+  try {
+    logRuntimeWarnings('AI Comment');
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return "Hi 😊 Please check inbox for full details.";
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    // 1. Fetch real-time products & inventory context
+    const whereClause = brand ? { brand } : {};
+    const products = await prisma.product.findMany({
+      where: whereClause,
+      include: { inventory: true }
+    });
+
+    const stockContext = products.map(p =>
+      `- ${p.name}: Rs ${p.price} | Style: ${p.style} | Sizes: ${p.sizes} | Colors: ${p.colors} | Stock: ${p.inventory?.availableQty || 0} available`
+    ).join('\n');
+
+    const brandName = brand || 'our store';
+
+    const systemPrompt = `You are an AI sales assistant for a Sri Lankan women’s clothing brand.
+Your goal: Convert social media comments into direct messages and sales.
+
+---
+Context:
+Brand: ${brandName}
+Catalog Content:
+${stockContext}
+
+---
+Instructions:
+- Reply in the SAME language as the customer (Sinhala / Tamil / English)
+- Keep reply SHORT (max 1–2 sentences)
+- Friendly and natural tone
+- If asking price → include price from Catalog Content
+- If asking size → mention available sizes from Catalog Content
+- If asking availability → mention stock from Catalog Content
+- If unclear → give general helpful reply
+
+Rules:
+- ALWAYS encourage DM (e.g. "Check inbox", "Inbox for details"). Use high-conversion CTAs.
+- EXAMPLE CTA: "Sent more photos to your inbox! Shall I check your size for you?", "Details sent to DM. We only have few pieces left!"
+- DO NOT hallucinate or guess missing data. If the specific product is not clear from the comment, give a general store reply.
+- DO NOT give long explanations
+- DO NOT mention AI
+- Use simple emojis if appropriate (😊😍)
+
+Fallback:
+If product/price/stock context for the specific query is unknown:
+Reply: "Hi 😊 I've sent our latest collection to your DM. You'll love the new designs!"
+
+Output:
+ONLY the final reply text`;
+
+    const requestParams = {
+      contents: `Customer Comment: "${comment}"`,
+      config: {
+        systemInstruction: systemPrompt,
+      }
+    };
+
+    let reply = "Hi 😊 Please check inbox for full details.";
+
+    for (const model of MODEL_CHAIN) {
+      try {
+        logDebug('AI Comment', `Trying model ${model}.`);
+        const response = await ai.models.generateContent({
+          model,
+          ...requestParams,
+        });
+        logDebug('AI Comment', `Model ${model} responded successfully.`);
+        reply = response.text || reply;
+        break;
+      } catch (error: unknown) {
+        const status = getErrorStatus(error);
+        if ((status === 429 || status === 503 || status === 404) && MODEL_CHAIN.indexOf(model) < MODEL_CHAIN.length - 1) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    return reply;
+  } catch (error: unknown) {
+    logError('AI Comment', 'Failed to generate AI comment reply.', error);
+    return "Hi 😊 Please check inbox for full details.";
   }
 }

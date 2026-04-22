@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      reply: result.reply,
+      reply: result.reply ?? '',
       imageUrl: result.imagePath ?? null,
       imageUrls: result.imagePaths ?? null,
       orderId: result.orderId ?? null,

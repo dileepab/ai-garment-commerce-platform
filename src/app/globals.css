@@ -96,6 +96,29 @@ a {
     color: #0f172a;
   }
 
+  .app-button-primary {
+    @apply inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition;
+    border-color: transparent;
+    background: var(--accent);
+    color: white;
+  }
+
+  .app-button-primary:hover {
+    background: var(--accent-strong);
+  }
+
+  .app-button-secondary {
+    @apply inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition;
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--foreground);
+  }
+
+  .app-button-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent-strong);
+  }
+
   .app-panel {
     @apply rounded-[28px] border backdrop-blur-sm;
     border-color: var(--border);
@@ -113,6 +136,86 @@ a {
   .app-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 24px 65px rgba(71, 46, 17, 0.14);
+  }
+
+  .app-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--foreground-soft);
+  }
+
+  .app-subpanel {
+    @apply rounded-[22px] border p-4;
+    border-color: var(--border);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 253, 248, 0.86));
+  }
+
+  .app-soft-panel {
+    @apply rounded-[24px] border p-5;
+    border-color: rgba(191, 165, 125, 0.45);
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.96), rgba(247, 241, 231, 0.9));
+  }
+
+  .app-stat-strip {
+    @apply rounded-[22px] border px-4 py-3;
+    border-color: rgba(191, 165, 125, 0.35);
+    background: rgba(255, 255, 255, 0.78);
+  }
+
+  .app-key-value {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .app-key-value-row {
+    @apply rounded-2xl border px-4 py-3;
+    border-color: rgba(191, 165, 125, 0.35);
+    background: rgba(255, 255, 255, 0.78);
+  }
+
+  .app-key {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em];
+    color: var(--foreground-soft);
+  }
+
+  .app-value {
+    @apply mt-2 text-sm font-semibold leading-6 text-slate-900;
+  }
+
+  .app-note {
+    @apply mt-1 text-sm leading-6;
+    color: var(--foreground-soft);
+  }
+
+  .app-list {
+    @apply space-y-3;
+  }
+
+  .app-item-card {
+    @apply rounded-[22px] border p-4;
+    border-color: rgba(191, 165, 125, 0.42);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 241, 231, 0.74));
+  }
+
+  .app-badge-stack {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .app-highlight-value {
+    @apply text-2xl font-semibold tracking-tight text-slate-950;
+  }
+
+  .app-accent-block {
+    @apply rounded-[24px] border p-5;
+    border-color: rgba(15, 118, 110, 0.18);
+    background: linear-gradient(155deg, rgba(216, 239, 230, 0.95), rgba(255, 255, 255, 0.92));
+  }
+
+  .app-warning-block {
+    @apply rounded-[24px] border p-5;
+    border-color: rgba(180, 83, 9, 0.2);
+    background: linear-gradient(155deg, rgba(255, 239, 199, 0.85), rgba(255, 255, 255, 0.9));
   }
 
   .app-chip {
@@ -152,5 +255,53 @@ a {
     @apply rounded-[24px] border p-5 shadow-sm;
     border-color: var(--border);
     background: var(--background-strong);
+  }
+
+  .app-transcript {
+    @apply space-y-3 rounded-[22px] border p-4;
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.82);
+  }
+
+  .app-transcript-bubble {
+    @apply rounded-2xl px-4 py-3 text-sm leading-6;
+  }
+
+  .app-transcript-user {
+    background: rgba(15, 118, 110, 0.12);
+    color: var(--foreground);
+  }
+
+  .app-transcript-assistant {
+    background: rgba(191, 165, 125, 0.18);
+    color: var(--foreground);
+  }
+
+  .app-transcript-operator {
+    background: rgba(15, 118, 110, 0.18);
+    color: var(--foreground);
+  }
+
+  .app-transcript-note {
+    background: rgba(180, 83, 9, 0.12);
+    color: var(--foreground);
+  }
+
+  .app-input,
+  .app-textarea {
+    @apply w-full rounded-2xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition;
+    border-color: var(--border);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  .app-input:focus,
+  .app-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+  }
+
+  .app-textarea {
+    min-height: 112px;
+    resize: vertical;
   }
 }

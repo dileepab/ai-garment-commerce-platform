@@ -1,7 +1,7 @@
 import prisma from '@/lib/prisma';
 import { isClearConfirmation } from '@/lib/order-confirmation';
 import { OrderRequestError, updateSingleItemOrderQuantityById } from '@/lib/orders';
-import { getDeliveryChargeForAddress } from '@/lib/order-draft';
+import { getDeliveryChargeForAddress } from './pricing';
 
 interface OrderQuantityUpdateParams {
   senderId: string;

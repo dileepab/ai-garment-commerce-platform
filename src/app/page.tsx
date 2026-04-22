@@ -5,6 +5,9 @@ import {
   buildSupportContactLine,
   hasDirectSupportContactConfigured,
 } from '@/lib/customer-support';
+import { getRuntimeWarnings } from '@/lib/runtime-config';
+
+export const dynamic = 'force-dynamic';
 
 const DASHBOARD_LINKS = [
   {
@@ -46,6 +49,7 @@ function formatMetricValue(value: number): string {
 export default async function Dashboard() {
   const supportContactConfigured = hasDirectSupportContactConfigured();
   const supportContactLine = buildSupportContactLine();
+  const runtimeWarnings = getRuntimeWarnings();
   const [productCount, orders, operatorCount, batchCount, lowStockCount, openUnits, openEscalationCount] =
     await Promise.all([
       prisma.product.count(),
@@ -181,6 +185,30 @@ export default async function Dashboard() {
             </span>
           </div>
         </section>
+
+        {runtimeWarnings.length > 0 ? (
+          <section className="rounded-[26px] border border-amber-200 bg-amber-50/90 px-6 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--warning)]">
+                  Runtime Notes
+                </p>
+                <p className="mt-3 text-base font-semibold text-slate-900">
+                  A few configuration items still need attention before production traffic.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {runtimeWarnings.map((warning) => (
+                    <div key={warning.key} className="rounded-2xl border border-amber-200 bg-white/80 px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-900">{warning.key}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-700">{warning.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <span className="app-chip app-chip-warning">{runtimeWarnings.length} note(s)</span>
+            </div>
+          </section>
+        ) : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {metrics.map((metric) => (

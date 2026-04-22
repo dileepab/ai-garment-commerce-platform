@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Product {
@@ -15,8 +16,8 @@ model Product {
   style      String
   price      Float
   fabric     String?
-  sizes      String      // Store as JSON or comma-separated string
-  colors     String      // Store as JSON or comma-separated string
+  sizes      String // Store as JSON or comma-separated string
+  colors     String // Store as JSON or comma-separated string
   stock      Int         @default(0)
   status     String      @default("active")
   createdAt  DateTime    @default(now())
@@ -25,40 +26,40 @@ model Product {
 }
 
 model Inventory {
-  id                Int       @id @default(autoincrement())
-  productId         Int       @unique
-  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  availableQty      Int       @default(0)
-  reservedQty       Int       @default(0)
-  inProductionQty   Int       @default(0)
-  updatedAt         DateTime  @updatedAt
+  id              Int      @id @default(autoincrement())
+  productId       Int      @unique
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  availableQty    Int      @default(0)
+  reservedQty     Int      @default(0)
+  inProductionQty Int      @default(0)
+  updatedAt       DateTime @updatedAt
 }
 
 model Customer {
-  id             Int       @id @default(autoincrement())
-  externalId     String?   @unique // Meta sender ID or other integration ID
-  name           String
-  phone          String?
-  channel        String?
-  preferredBrand String?
-  createdAt      DateTime  @default(now())
-  orders         Order[]
+  id                 Int                 @id @default(autoincrement())
+  externalId         String?             @unique // Meta sender ID or other integration ID
+  name               String
+  phone              String?
+  channel            String?
+  preferredBrand     String?
+  createdAt          DateTime            @default(now())
+  orders             Order[]
   supportEscalations SupportEscalation[]
 }
 
 model Order {
-  id              Int          @id @default(autoincrement())
-  customerId      Int
-  customer        Customer     @relation(fields: [customerId], references: [id])
-  brand           String?
-  orderStatus     String       @default("pending")
-  totalAmount     Float
-  paymentMethod   String?
-  deliveryAddress String?
-  giftWrap        Boolean      @default(false)
-  giftNote        String?
-  createdAt       DateTime     @default(now())
-  orderItems      OrderItem[]
+  id                 Int                 @id @default(autoincrement())
+  customerId         Int
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  brand              String?
+  orderStatus        String              @default("pending")
+  totalAmount        Float
+  paymentMethod      String?
+  deliveryAddress    String?
+  giftWrap           Boolean             @default(false)
+  giftNote           String?
+  createdAt          DateTime            @default(now())
+  orderItems         OrderItem[]
   supportEscalations SupportEscalation[]
 }
 
@@ -88,13 +89,13 @@ model ProductionBatch {
 }
 
 model Operator {
-  id               Int               @id @default(autoincrement())
-  name             String
-  skill            String?
-  salaryBase       Float             @default(0)
-  efficiency       Float             @default(0)
-  status           String            @default("active")
-  operatorOutputs  OperatorOutput[]
+  id              Int              @id @default(autoincrement())
+  name            String
+  skill           String?
+  salaryBase      Float            @default(0)
+  efficiency      Float            @default(0)
+  status          String           @default("active")
+  operatorOutputs OperatorOutput[]
 }
 
 model OperatorOutput {
@@ -109,11 +110,11 @@ model OperatorOutput {
 }
 
 model Fabric {
-  id         Int      @id @default(autoincrement())
+  id         Int     @id @default(autoincrement())
   fabricType String
   color      String?
-  meters     Float    @default(0)
-  status     String   @default("available")
+  meters     Float   @default(0)
+  status     String  @default("available")
 }
 
 model Analytics {
@@ -127,9 +128,9 @@ model Analytics {
 
 model ChatMessage {
   id        Int      @id @default(autoincrement())
-  senderId  String   // Meta sender ID or phone number
+  senderId  String // Meta sender ID or phone number
   channel   String   @default("messenger") // messenger, instagram, whatsapp
-  role      String   // "user" or "assistant"
+  role      String // "user" or "assistant"
   message   String
   createdAt DateTime @default(now())
 }
@@ -146,23 +147,30 @@ model ConversationState {
 }
 
 model SupportEscalation {
-  id                  Int       @id @default(autoincrement())
-  senderId            String
-  channel             String    @default("messenger")
-  customerId          Int?
-  customer            Customer? @relation(fields: [customerId], references: [id])
-  orderId             Int?
-  order               Order?    @relation(fields: [orderId], references: [id])
-  brand               String?
-  reason              String
-  status              String    @default("open")
-  contactName         String?
-  contactPhone        String?
+  id                    Int       @id @default(autoincrement())
+  senderId              String
+  channel               String    @default("messenger")
+  customerId            Int?
+  customer              Customer? @relation(fields: [customerId], references: [id])
+  orderId               Int?
+  order                 Order?    @relation(fields: [orderId], references: [id])
+  brand                 String?
+  reason                String
+  status                String    @default("open")
+  contactName           String?
+  contactPhone          String?
   latestCustomerMessage String?
-  summary             String
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  resolvedAt          DateTime?
+  summary               String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  resolvedAt            DateTime?
 
   @@index([senderId, channel, status])
+}
+
+model CommentLog {
+  id        String   @id // The Meta comment ID
+  channel   String   @default("facebook") // facebook or instagram
+  brand     String?
+  repliedAt DateTime @default(now())
 }

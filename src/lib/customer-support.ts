@@ -95,6 +95,29 @@ export function buildSupportContactLine(options?: { orderId?: number | null }): 
   return formatSupportContactLine(getSupportContactConfig(), options);
 }
 
+export function buildSupportContactReply(options?: { orderId?: number | null }): string {
+  return `You can reach our support team directly. ${buildSupportContactLine(options)}`;
+}
+
+export function buildSupportContactAcknowledgement(options?: { orderId?: number | null }): string {
+  return `You are welcome. ${buildSupportContactLine(options)}`;
+}
+
+export function buildSupportWaitingReply(params: {
+  mode: 'handoff_requested' | 'human_active';
+  orderId?: number | null;
+}): string {
+  const contactLine = buildSupportContactLine({
+    orderId: params.orderId,
+  });
+
+  if (params.mode === 'human_active') {
+    return `A support team member is already handling this conversation. ${contactLine}`;
+  }
+
+  return `Our support team has your message and will follow up shortly. ${contactLine}`;
+}
+
 export function buildHumanSupportReply(params: {
   reason: SupportIssueReason;
   orderId?: number | null;

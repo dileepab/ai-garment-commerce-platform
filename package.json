@@ -5,14 +5,27 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
-    "test:chat": "npm run build && node scripts/chat-regression-tests.js"
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:migrate:sqlite-to-postgres": "node scripts/migrate-sqlite-to-postgres.js",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "check:meta": "node scripts/check-meta-subscription.js",
+    "test:chat": "npm run build && node scripts/chat-regression-tests.js",
+    "reset:chat": "node scripts/reset-dev-chat-data.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@google/genai": "^1.49.0",
     "@prisma/client": "^5.22.0",
     "next": "16.2.3",
+    "next-auth": "^5.0.0-beta.31",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

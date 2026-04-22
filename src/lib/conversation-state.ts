@@ -11,6 +11,26 @@ export type PendingConversationStep =
   | 'order_confirmation'
   | 'quantity_update_confirmation';
 
+export type SupportWorkflowMode =
+  | 'bot_active'
+  | 'handoff_requested'
+  | 'human_active'
+  | 'resolved';
+
+export type AssistantReplyKind =
+  | 'generic'
+  | 'greeting'
+  | 'support_contact'
+  | 'support_handoff'
+  | 'support_waiting'
+  | 'contact_confirmation'
+  | 'order_summary'
+  | 'order_confirmed'
+  | 'order_status'
+  | 'order_details'
+  | 'quantity_prompt'
+  | 'quantity_update_summary';
+
 export interface PendingQuantityUpdate {
   orderId: number;
   productName: string;
@@ -35,6 +55,8 @@ export interface ConversationStateData {
   lastReferencedOrderId: number | null;
   lastMissingOrderId: number | null;
   lastSizeChartCategory: SizeChartCategory | null;
+  supportMode: SupportWorkflowMode;
+  lastAssistantReplyKind: AssistantReplyKind;
 }
 
 const VALID_PENDING_STEPS = new Set<PendingConversationStep>([
@@ -54,6 +76,28 @@ const VALID_SIZE_CHART_CATEGORIES = new Set<SizeChartCategory>([
   'skirts',
 ]);
 
+const VALID_ASSISTANT_REPLY_KINDS = new Set<AssistantReplyKind>([
+  'generic',
+  'greeting',
+  'support_contact',
+  'support_handoff',
+  'support_waiting',
+  'contact_confirmation',
+  'order_summary',
+  'order_confirmed',
+  'order_status',
+  'order_details',
+  'quantity_prompt',
+  'quantity_update_summary',
+]);
+
+const VALID_SUPPORT_MODES = new Set<SupportWorkflowMode>([
+  'bot_active',
+  'handoff_requested',
+  'human_active',
+  'resolved',
+]);
+
 export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   pendingStep: 'none',
   orderDraft: null,
@@ -61,6 +105,8 @@ export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   lastReferencedOrderId: null,
   lastMissingOrderId: null,
   lastSizeChartCategory: null,
+  supportMode: 'bot_active',
+  lastAssistantReplyKind: 'generic',
 };
 
 function parseConversationState(value?: string | null): Partial<ConversationStateData> {
@@ -92,6 +138,18 @@ function normalizeSizeChartCategory(value?: string | null): SizeChartCategory | 
     : null;
 }
 
+function normalizeAssistantReplyKind(value?: string | null): AssistantReplyKind {
+  return VALID_ASSISTANT_REPLY_KINDS.has(value as AssistantReplyKind)
+    ? (value as AssistantReplyKind)
+    : 'generic';
+}
+
+function normalizeSupportMode(value?: string | null): SupportWorkflowMode {
+  return VALID_SUPPORT_MODES.has(value as SupportWorkflowMode)
+    ? (value as SupportWorkflowMode)
+    : 'bot_active';
+}
+
 export function normalizeConversationState(
   value?: Partial<ConversationStateData> | null
 ): ConversationStateData {
@@ -110,6 +168,8 @@ export function normalizeConversationState(
         ? nextState.lastMissingOrderId
         : null,
     lastSizeChartCategory: normalizeSizeChartCategory(nextState.lastSizeChartCategory),
+    supportMode: normalizeSupportMode(nextState.supportMode),
+    lastAssistantReplyKind: normalizeAssistantReplyKind(nextState.lastAssistantReplyKind),
   };
 }
 
@@ -166,5 +226,7 @@ export function clearPendingConversationState(
     ...DEFAULT_CONVERSATION_STATE,
     lastReferencedOrderId: state.lastReferencedOrderId,
     lastSizeChartCategory: state.lastSizeChartCategory,
+    supportMode: state.supportMode,
+    lastAssistantReplyKind: state.lastAssistantReplyKind,
   };
 }
