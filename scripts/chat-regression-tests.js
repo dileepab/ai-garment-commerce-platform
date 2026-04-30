@@ -209,7 +209,7 @@ async function main() {
         },
       },
       {
-        name: 'Support handoff pauses normal bot flow until the case is resolved',
+        name: 'Support handoff stays silent until the case is resolved',
         senderId: buildSender(runId, 'handoff-paused'),
         messages: [
           'I need to talk to a real person',
@@ -217,17 +217,13 @@ async function main() {
           'Are you there?',
         ],
         verify: async ({ transcript, senderId }) => {
-          assertIncludes(transcript[1].bot, [
-            'Our support team has your message and will follow up shortly.',
-            'Please call or WhatsApp our team on 0701234567',
-          ], 'Paused handoff reply');
           assert(
-            !transcript[1].bot.includes('Oversized Casual Top'),
-            `Paused handoff reply incorrectly resumed bot catalog flow.\n\nActual reply:\n${transcript[1].bot}`
+            transcript[1].bot === '[no assistant reply recorded]',
+            `Expected no bot reply after support handoff.\n\nActual reply:\n${transcript[1].bot}`
           );
           assert(
             transcript[2].bot === '[no assistant reply recorded]',
-            `Expected no bot reply after the first waiting message during handoff.\n\nActual reply:\n${transcript[2].bot}`
+            `Expected no bot reply while the support case remains open.\n\nActual reply:\n${transcript[2].bot}`
           );
 
           const escalation = await prisma.supportEscalation.findFirst({
@@ -240,10 +236,14 @@ async function main() {
             escalation.status === 'open',
             `Expected open escalation during paused handoff test, received ${escalation.status}.`
           );
+          assert(
+            escalation.latestCustomerMessage === 'Are you there?',
+            `Expected latestCustomerMessage to keep tracking customer replies during handoff, received ${String(escalation.latestCustomerMessage)}.`
+          );
         },
       },
       {
-        name: 'Human active support mode stays silent until resolved',
+        name: 'Human active support case stays silent until resolved',
         senderId: buildSender(runId, 'human-active-silent'),
         messages: ['I need to talk to a real person'],
         verify: async ({ senderId }) => {
@@ -273,7 +273,7 @@ async function main() {
             data: {
               stateJson: JSON.stringify({
                 ...(await getConversationState(senderId)),
-                supportMode: 'human_active',
+                supportMode: 'bot_active',
               }),
             },
           });
@@ -342,8 +342,7 @@ async function main() {
           console.log(formatTranscript(followUpTranscript));
 
           assertIncludes(followUpTranscript[0].bot, [
-            'We currently have the following items available:',
-            'Oversized Casual Top',
+            'Here is what we have available right now:',
           ], 'Resolved handoff follow-up reply');
         },
       },
@@ -354,8 +353,7 @@ async function main() {
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
             'We do not have any dresses available in Happyby right now.',
-            'Currently available items are:',
-            'Relaxed Linen Pants',
+            'Here are the available items:',
           ], 'Unavailable dresses reply');
         },
       },

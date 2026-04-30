@@ -23,18 +23,26 @@ const STATUS_LABELS: Record<string, string> = { pending: "Pending", confirmed: "
 const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A" };
 const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct" };
 
-interface Order {
+export interface OrderDrawerOrder {
   id: number;
   orderStatus: string;
   totalAmount: number;
-  createdAt: Date;
+  createdAt: Date | string;
   customer: { name: string; phone?: string | null };
   deliveryAddress?: string | null;
   brand?: string | null;
-  channel?: string; // We might need to add this to schema or mock it
+  channel?: string;
 }
 
-export function OrderDrawer({ order, onClose }: { order: any | null, onClose: () => void }) {
+export interface OrderPipelineStats {
+  pending: number;
+  confirmed: number;
+  packing: number;
+  shipped: number;
+  delivered: number;
+}
+
+export function OrderDrawer({ order, onClose }: { order: OrderDrawerOrder | null, onClose: () => void }) {
   const open = !!order;
   const status = order?.orderStatus || 'pending';
   const stepIdx = STATUS_STEPS.indexOf(status);
@@ -123,7 +131,7 @@ export function OrderDrawer({ order, onClose }: { order: any | null, onClose: ()
   );
 }
 
-export function OrderPipeline({ stats }: { stats: any }) {
+export function OrderPipeline({ stats }: { stats: OrderPipelineStats }) {
   const pipeline = [
     { key: "pending", label: "Pending", color: "#E8C840", count: stats.pending },
     { key: "confirmed", label: "Confirmed", color: "#4A7AA8", count: stats.confirmed },

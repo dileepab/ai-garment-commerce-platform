@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ProductThumb, ProductDrawer } from '@/components/ProductComponents';
+import { ProductThumb, ProductDrawer, type Product } from '@/components/ProductComponents';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -23,10 +23,19 @@ const STATUS_TABS = [
   { key: "out-of-stock", label: "Out of Stock" },
 ];
 
-export default function ProductsPageClient({ initialProducts, stats }: { initialProducts: any[], stats: any }) {
+interface ProductsPageStats {
+  totalProducts: number;
+  inventoryValue: number;
+  lowStock: number;
+  criticalStock: number;
+}
+
+type ProductStatusFilter = (typeof STATUS_TABS)[number]['key'];
+
+export default function ProductsPageClient({ initialProducts, stats }: { initialProducts: Product[], stats: ProductsPageStats }) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>("all");
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const filteredProducts = useMemo(() => initialProducts.filter(p => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
@@ -35,7 +44,7 @@ export default function ProductsPageClient({ initialProducts, stats }: { initial
   }), [initialProducts, search, statusFilter]);
 
   const counts = useMemo(() => {
-    const c: any = { all: initialProducts.length };
+    const c: Record<ProductStatusFilter, number> = { all: initialProducts.length };
     STATUS_TABS.slice(1).forEach(t => {
       c[t.key] = initialProducts.filter(p => p.status === t.key).length;
     });

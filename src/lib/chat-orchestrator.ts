@@ -5,6 +5,7 @@ import {
   extractRequestedProductTypes,
   inferSupportIssueReason,
   isGreetingMessage,
+  looksLikeExplicitHumanHandoffRequest,
   isLowerQuantityPrompt,
   isNeutralAcknowledgement,
   looksLikeGiftRequest,
@@ -52,7 +53,6 @@ import { isClearConfirmation } from '@/lib/order-confirmation';
 import {
   buildHumanSupportReply,
   buildSupportConversationSummary,
-  buildSupportWaitingReply,
   upsertSupportEscalation,
   type SupportIssueReason,
 } from '@/lib/customer-support';
@@ -240,24 +240,23 @@ export async function routeCustomerMessage(
   const persistedSupportMode = state.supportMode;
   const conversationSupportMode =
     persistedSupportMode === 'resolved' ? 'bot_active' : persistedSupportMode;
-  const activeSupportEscalation =
-    conversationSupportMode === 'bot_active'
-      ? null
-      : await prisma.supportEscalation.findFirst({
-          where: {
-            senderId: input.senderId,
-            channel: input.channel,
-            status: {
-              not: 'resolved',
-            },
-          },
-          orderBy: {
-            updatedAt: 'desc',
-          },
-        });
+  const activeSupportEscalation = await prisma.supportEscalation.findFirst({
+    where: {
+      senderId: input.senderId,
+      channel: input.channel,
+      status: {
+        not: 'resolved',
+      },
+    },
+    orderBy: {
+      updatedAt: 'desc',
+    },
+  });
   const currentSupportMode: SupportWorkflowMode =
     activeSupportEscalation?.status === 'in_progress'
       ? 'human_active'
+      : activeSupportEscalation
+        ? 'handoff_requested'
       : conversationSupportMode;
 
   function findProductByName(productName?: string | null) {
@@ -458,38 +457,10 @@ export async function routeCustomerMessage(
     });
   }
 
-  async function finalizeSupportPausedReply(mode: 'handoff_requested' | 'human_active') {
-    const targetOrderId =
-      activeSupportEscalation?.orderId ??
-      state.lastReferencedOrderId ??
-      latestActiveOrder?.id ??
-      latestOrder?.id ??
-      null;
-
-    await syncActiveSupportEscalation({
-      orderId: targetOrderId,
-      mode,
-    });
-
-    return finalizeReply({
-      reply: buildSupportWaitingReply({
-        mode,
-        orderId: targetOrderId,
-      }),
-      orderId: targetOrderId,
-      assistantReplyKind: 'support_waiting',
-      nextState: {
-        ...clearPendingConversationState(state),
-        supportMode: mode,
-        lastReferencedOrderId: targetOrderId,
-        lastMissingOrderId: null,
-      },
-    });
-  }
-
   async function finalizeSupportSilentHold(mode: 'handoff_requested' | 'human_active') {
     const targetOrderId =
       activeSupportEscalation?.orderId ??
+      explicitOrderId ??
       state.lastReferencedOrderId ??
       latestActiveOrder?.id ??
       latestOrder?.id ??
@@ -517,19 +488,7 @@ export async function routeCustomerMessage(
     const pausedSupportMode =
       currentSupportMode === 'human_active' ? 'human_active' : 'handoff_requested';
 
-    if (pausedSupportMode === 'human_active') {
-      return finalizeSupportSilentHold('human_active');
-    }
-
-    if (state.lastAssistantReplyKind === 'support_handoff') {
-      return finalizeSupportPausedReply('handoff_requested');
-    }
-
-    if (state.lastAssistantReplyKind === 'support_waiting') {
-      return finalizeSupportSilentHold('handoff_requested');
-    }
-
-    return finalizeSupportPausedReply('handoff_requested');
+    return finalizeSupportSilentHold(pausedSupportMode);
   }
 
   if (isGreetingMessage(input.currentMessage) && state.pendingStep === 'none') {
@@ -697,10 +656,13 @@ export async function routeCustomerMessage(
     });
   }
 
+  const inferredSupportIssueReason = inferSupportIssueReason(input.currentMessage);
   const supportIssueReason =
-    aiAction.action === 'support_contact_request' || aiAction.action === 'thanks_acknowledgement'
+    aiAction.action === 'thanks_acknowledgement' ||
+    (aiAction.action === 'support_contact_request' &&
+      !looksLikeExplicitHumanHandoffRequest(input.currentMessage))
       ? null
-      : inferSupportIssueReason(input.currentMessage);
+      : inferredSupportIssueReason;
   if (supportIssueReason) {
     const relatedOrderId =
       explicitOrderId ??
