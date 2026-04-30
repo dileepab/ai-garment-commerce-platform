@@ -32,21 +32,47 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="app-shell flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-md">
-        <div className="app-card p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Garment Command Center
-            </h1>
-            <p className="mt-2 text-sm text-[color:var(--foreground-soft)]">
-              Sign in to access the admin dashboard
-            </p>
-          </div>
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--background)',
+        padding: '24px',
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: 400 }}>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{
+            width: 44, height: 44, background: '#C4622D', borderRadius: 11,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/>
+            </svg>
+          </div>
+          <h1 style={{
+            fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em',
+            color: 'var(--foreground)', lineHeight: 1.2,
+          }}>
+            Garment<span style={{ color: '#C4622D', fontWeight: 300 }}>OS</span>
+          </h1>
+          <p style={{ marginTop: 6, fontSize: 13, color: 'var(--foreground-soft)' }}>
+            Sign in to your operations dashboard
+          </p>
+        </div>
+
+        <div className="app-card" style={{ padding: 28 }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label
+                htmlFor="email"
+                style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--foreground)', marginBottom: 6 }}
+              >
                 Email
               </label>
               <input
@@ -56,13 +82,16 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                className="app-input"
                 placeholder="admin@example.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label
+                htmlFor="password"
+                style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--foreground)', marginBottom: 6 }}
+              >
                 Password
               </label>
               <input
@@ -72,24 +101,27 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                className="app-input"
                 placeholder="••••••••"
               />
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 font-medium">{error}</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)' }}>{error}</p>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="app-button-primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 14, opacity: loading ? 0.6 : 1 }}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Signing in…' : 'Sign In'}
             </button>
+
           </form>
         </div>
+
       </div>
     </main>
   );

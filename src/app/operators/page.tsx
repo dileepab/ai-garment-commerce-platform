@@ -19,39 +19,40 @@ export default async function OperatorsPage() {
         <div className="app-header">
           <div>
             <p className="app-kicker">Operators</p>
-            <h1 className="app-title">Operator performance with better contrast</h1>
+            <h1 className="app-title">Operator performance</h1>
             <p className="app-subtitle">
-              Output totals, skills, and current status are easier to scan in a card layout that works better on both
-              desktop and smaller screens.
+              Output totals, skills, and current status across your production floor.
             </p>
           </div>
-          <Link href="/" className="app-link">
-            Back to Dashboard
-          </Link>
         </div>
 
         {operators.length === 0 ? (
           <section className="app-panel px-6 py-12 text-center">
-            <h2 className="text-2xl font-semibold text-slate-900">No operators registered yet</h2>
-            <p className="mt-3 text-sm text-[color:var(--foreground-soft)]">
+            <h2 className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>No operators registered yet</h2>
+            <p className="mt-3 text-sm" style={{ color: 'var(--foreground-soft)' }}>
               Operator records will appear here once added to the system.
             </p>
           </section>
         ) : (
           <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {operators.map((operator) => {
-              const totalOutput = operator.operatorOutputs.reduce((acc, current) => acc + current.outputQty, 0);
-              const totalDefects = operator.operatorOutputs.reduce((acc, current) => acc + current.defects, 0);
+              const totalOutput = operator.operatorOutputs.reduce((acc, cur) => acc + cur.outputQty, 0);
+              const totalDefects = operator.operatorOutputs.reduce((acc, cur) => acc + cur.defects, 0);
+              const efficiency = operator.efficiency ?? 0;
+              const efficiencyColor =
+                efficiency >= 90 ? 'var(--success)' :
+                efficiency >= 75 ? 'var(--warning)' :
+                'var(--danger)';
 
               return (
                 <article key={operator.id} className="app-card">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                        Operator #{operator.id}
-                      </p>
-                      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">{operator.name}</h2>
-                      <p className="mt-2 text-sm text-[color:var(--foreground-soft)]">
+                      <p className="app-section-label">Operator #{operator.id}</p>
+                      <h2 className="mt-3 text-2xl font-semibold tracking-tight" style={{ color: 'var(--foreground)' }}>
+                        {operator.name}
+                      </h2>
+                      <p className="mt-2 text-sm" style={{ color: 'var(--foreground-soft)' }}>
                         Skill: {operator.skill || 'Unassigned'}
                       </p>
                     </div>
@@ -59,25 +60,31 @@ export default async function OperatorsPage() {
                   </div>
 
                   <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--background-strong)] px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                        Total output
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-950">{totalOutput}</p>
+                    <div className="app-stat-strip">
+                      <p className="app-section-label">Total output</p>
+                      <p className="mt-2 text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>{totalOutput}</p>
                     </div>
-                    <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--background-strong)] px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                        Defects logged
+                    <div className="app-stat-strip">
+                      <p className="app-section-label">Defects logged</p>
+                      <p className="mt-2 text-2xl font-semibold" style={{ color: totalDefects > 0 ? 'var(--warning)' : 'var(--foreground)' }}>
+                        {totalDefects}
                       </p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-950">{totalDefects}</p>
                     </div>
                   </div>
 
-                  <div className="mt-6 rounded-[22px] border border-[color:var(--border)] bg-white/70 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground-soft)]">
-                      Stored efficiency
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900">{operator.efficiency}%</p>
+                  <div className="app-subpanel mt-6">
+                    <div className="flex items-center justify-between">
+                      <p className="app-section-label">Efficiency</p>
+                      <p className="text-xl font-bold" style={{ color: efficiencyColor, letterSpacing: '-0.02em' }}>
+                        {efficiency}%
+                      </p>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${efficiency}%`, background: efficiencyColor }}
+                      />
+                    </div>
                   </div>
                 </article>
               );
