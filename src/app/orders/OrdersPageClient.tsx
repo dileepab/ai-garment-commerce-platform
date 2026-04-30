@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { OrderDrawer, OrderPipeline } from '@/components/OrderComponents';
+import {
+  OrderDrawer,
+  OrderPipeline,
+  type OrderDrawerOrder,
+  type OrderPipelineStats,
+} from '@/components/OrderComponents';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -23,10 +28,25 @@ const STATUS_TABS = [
   { key: "delivered", label: "Delivered", dot: "#1E6B45" },
 ];
 
-export default function OrdersPageClient({ initialOrders, stats }: { initialOrders: any[], stats: any }) {
+interface OrdersPageOrderItem {
+  quantity: number;
+}
+
+interface OrdersPageOrder extends OrderDrawerOrder {
+  orderItems: OrdersPageOrderItem[];
+}
+
+interface OrdersPageStats extends OrderPipelineStats {
+  total: number;
+  revenueToday: number;
+}
+
+type OrderStatusFilter = (typeof STATUS_TABS)[number]['key'];
+
+export default function OrdersPageClient({ initialOrders, stats }: { initialOrders: OrdersPageOrder[], stats: OrdersPageStats }) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("all");
+  const [selectedOrder, setSelectedOrder] = useState<OrderDrawerOrder | null>(null);
 
   const filteredOrders = useMemo(() => initialOrders.filter(o => {
     if (statusFilter !== "all" && o.orderStatus !== statusFilter) return false;
@@ -35,7 +55,7 @@ export default function OrdersPageClient({ initialOrders, stats }: { initialOrde
   }), [initialOrders, search, statusFilter]);
 
   const counts = useMemo(() => {
-    const c: any = { all: initialOrders.length };
+    const c: Record<OrderStatusFilter, number> = { all: initialOrders.length };
     STATUS_TABS.slice(1).forEach(t => {
       c[t.key] = initialOrders.filter(o => o.orderStatus === t.key).length;
     });
@@ -47,7 +67,7 @@ export default function OrdersPageClient({ initialOrders, stats }: { initialOrde
       <div className="topbar">
         <div className="topbar-title-group">
           <div className="topbar-title">Orders</div>
-          <div className="topbar-subtitle">{stats.total} open orders · Today's Revenue: ₺{stats.revenueToday.toLocaleString()}</div>
+          <div className="topbar-subtitle">{stats.total} open orders · Today&apos;s Revenue: ₺{stats.revenueToday.toLocaleString()}</div>
         </div>
         <div className="topbar-actions">
           <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export</button>
@@ -126,7 +146,7 @@ export default function OrdersPageClient({ initialOrders, stats }: { initialOrde
                   <td><span style={{ fontSize: 12 }}>{o.brand || 'N/A'}</span></td>
                   <td>
                     <span className="var-chip" style={{ fontSize: 11 }}>
-                      {o.orderItems.reduce((acc: number, item: any) => acc + item.quantity, 0)} units
+                      {o.orderItems.reduce((acc, item) => acc + item.quantity, 0)} units
                     </span>
                   </td>
                   <td style={{ textAlign: "right", fontWeight: 700 }}>₺{o.totalAmount.toLocaleString()}</td>

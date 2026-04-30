@@ -6,9 +6,6 @@ export const dynamic = 'force-dynamic';
 
 // ── Helpers ──────────────────────────────────────────────────
 function fmt(n: number) { return new Intl.NumberFormat('en-LK').format(n); }
-function fmtCurrency(n: number) {
-  return new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', maximumFractionDigits: 0 }).format(n);
-}
 function fmtDate(d: Date) {
   const now = new Date();
   const diff = Math.round((now.getTime() - d.getTime()) / 60000);
@@ -263,7 +260,7 @@ export default async function Dashboard() {
           {/* Order Pipeline */}
           <div style={card}>
             <div style={cardHeader}>
-              <span style={cardTitle}>Today's Order Pipeline</span>
+              <span style={cardTitle}>Today&apos;s Order Pipeline</span>
               <Link href="/orders" style={cardAction}>View all {openOrders.length} →</Link>
             </div>
             <div style={{ padding: '12px 16px 0' }}>

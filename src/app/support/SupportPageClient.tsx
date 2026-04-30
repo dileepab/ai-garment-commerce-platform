@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Thread } from '@/components/SupportComponents';
+import { SUPPORT_THREAD_POLL_MS } from './format';
 import type { SupportStats, SupportThread } from './types';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
@@ -29,7 +30,39 @@ interface SupportPageClientProps {
 
 type SupportFilter = "all" | "escalated" | "resolved";
 
+interface SupportInboxResponse {
+  success: boolean;
+  data?: {
+    escalations: SupportThread[];
+    stats: SupportStats;
+  };
+  error?: string;
+}
+
+function mergeEscalationList(
+  currentEscalations: SupportThread[],
+  nextEscalations: SupportThread[]
+): SupportThread[] {
+  const currentById = new Map(
+    currentEscalations.map((escalation) => [escalation.id, escalation])
+  );
+
+  return nextEscalations.map((nextEscalation) => {
+    const currentEscalation = currentById.get(nextEscalation.id);
+
+    if (!currentEscalation) return nextEscalation;
+
+    return {
+      ...nextEscalation,
+      hasOlderMessages: currentEscalation.hasOlderMessages,
+      messages: currentEscalation.messages,
+    };
+  });
+}
+
 export default function SupportPageClient({ initialEscalations, stats }: SupportPageClientProps) {
+  const [escalations, setEscalations] = useState(initialEscalations);
+  const [liveStats, setLiveStats] = useState(stats);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<SupportFilter>("all");
   const [selectedId, setSelectedId] = useState<number | null>(
@@ -38,7 +71,51 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
       null
   );
 
-  const filtered = useMemo(() => initialEscalations.filter(e => {
+  useEffect(() => {
+    setEscalations(initialEscalations);
+  }, [initialEscalations]);
+
+  useEffect(() => {
+    setLiveStats(stats);
+  }, [stats]);
+
+  const updateEscalation = useCallback((id: number, patch: Partial<SupportThread>) => {
+    setEscalations((currentEscalations) =>
+      currentEscalations.map((escalation) =>
+        escalation.id === id ? { ...escalation, ...patch } : escalation
+      )
+    );
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshInbox = async () => {
+      try {
+        const response = await fetch('/api/support/escalations', { cache: 'no-store' });
+        const payload = (await response.json()) as SupportInboxResponse;
+
+        if (cancelled || !response.ok || !payload.success || !payload.data) return;
+
+        setEscalations((currentEscalations) =>
+          mergeEscalationList(currentEscalations, payload.data!.escalations)
+        );
+        setLiveStats(payload.data.stats);
+      } catch (error) {
+        console.error('Failed to refresh support inbox', error);
+      }
+    };
+
+    void refreshInbox();
+    const intervalId = window.setInterval(refreshInbox, SUPPORT_THREAD_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const filtered = useMemo(() => escalations.filter(e => {
     if (filter === "escalated" && !["escalated", "open", "pending", "in_progress"].includes(e.status)) return false;
     if (filter === "resolved" && e.status !== "resolved") return false;
     if (search) {
@@ -52,11 +129,11 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
       if (!searchableText.includes(query)) return false;
     }
     return true;
-  }), [initialEscalations, search, filter]);
+  }), [escalations, search, filter]);
 
   const activeConvo = useMemo(
-    () => initialEscalations.find(e => e.id === selectedId) || null,
-    [initialEscalations, selectedId]
+    () => escalations.find(e => e.id === selectedId) || null,
+    [escalations, selectedId]
   );
 
   return (
@@ -66,13 +143,13 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
           <div className="topbar-title">Support Inbox</div>
           <div className="topbar-subtitle" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="live-dot" />
-            {stats.open} active cases · Bot paused during handoff · {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {liveStats.open} active cases · Bot paused during handoff · {liveStats.dateLabel}
           </div>
         </div>
         <div className="topbar-actions">
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>
             <Icon d={ic.zap} size={12} color="var(--color-accent)" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{stats.open > 0 ? "Bot Paused" : "AI Live"}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{liveStats.open > 0 ? "Bot Paused" : "AI Live"}</span>
           </div>
         </div>
       </div>
@@ -80,12 +157,12 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
       <div className="stat-strip">
         <div className="stat-cell">
           <div className="stat-label">Open Cases</div>
-          <div className="stat-val">{stats.open}</div>
+          <div className="stat-val">{liveStats.open}</div>
           <div className="stat-note">across 2 channels</div>
         </div>
         <div className="stat-cell">
           <div className="stat-label">Linked Orders</div>
-          <div className="stat-val" style={{ color: "#8B2020" }}>{stats.linkedOrders}</div>
+          <div className="stat-val" style={{ color: "#8B2020" }}>{liveStats.linkedOrders}</div>
           <div className="stat-note">need human reply</div>
         </div>
         <div className="stat-cell">
@@ -95,8 +172,8 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
         </div>
         <div className="stat-cell">
           <div className="stat-label">Bot Lock</div>
-          <div className="stat-val" style={{ color: stats.open > 0 ? "#9B6B00" : "#1E6B45" }}>{stats.open > 0 ? "On" : "Off"}</div>
-          <div className="stat-note">{stats.open > 0 ? "support active" : "bot handling"}</div>
+          <div className="stat-val" style={{ color: liveStats.open > 0 ? "#9B6B00" : "#1E6B45" }}>{liveStats.open > 0 ? "On" : "Off"}</div>
+          <div className="stat-note">{liveStats.open > 0 ? "support active" : "bot handling"}</div>
         </div>
       </div>
 
@@ -126,7 +203,7 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
               >
                 <div className="convo-item-top">
                   <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
-                  <span className="convo-item-time">{new Date(e.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="convo-item-time">{e.updatedAtLabel}</span>
                 </div>
                 <div className="convo-item-mid">
                   <span className={`badge-ch ${CHANNEL_CLASS[e.channel] || ''}`}>
@@ -147,7 +224,7 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
             )}
           </div>
         </div>
-        <Thread convo={activeConvo} />
+        <Thread convo={activeConvo} onConvoUpdate={updateEscalation} />
       </div>
     </main>
   );

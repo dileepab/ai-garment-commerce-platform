@@ -1,5 +1,4 @@
 import prisma from '@/lib/prisma';
-import { ProductThumb, ProductDrawer } from '@/components/ProductComponents';
 import ProductsPageClient from './ProductsPageClient';
 
 export const dynamic = 'force-dynamic';

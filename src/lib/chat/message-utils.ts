@@ -269,6 +269,12 @@ export function looksLikeHumanSupportRequest(message: string): boolean {
     );
 }
 
+export function looksLikeExplicitHumanHandoffRequest(message: string): boolean {
+  return /\b(?:human|real person|agent|representative|team member|talk to someone|speak to someone|talk to a person|speak to a person|talk to your team|speak to your team)\b/i.test(
+    normalizeText(message)
+  );
+}
+
 export function looksLikeDeliveryComplaint(message: string): boolean {
   return (
     /\b(late|delayed|delay|not received|didn t receive|where is my parcel|where is my package|parcel not arrived|package not arrived|courier issue|still haven t received|still haven t got)\b/i.test(
