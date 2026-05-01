@@ -143,13 +143,13 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
           <div className="topbar-title">Support Inbox</div>
           <div className="topbar-subtitle" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="live-dot" />
-            {liveStats.open} active cases · Bot paused during handoff · <span suppressHydrationWarning>{liveStats.dateLabel || new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            {liveStats.open} active case locks · AI replies continue for other customers · <span suppressHydrationWarning>{liveStats.dateLabel || new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
         </div>
         <div className="topbar-actions">
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>
             <Icon d={ic.zap} size={12} color="var(--color-accent)" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{liveStats.open > 0 ? "Bot Paused" : "AI Live"}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{liveStats.open > 0 ? `${liveStats.open} Case Lock${liveStats.open === 1 ? "" : "s"}` : "AI Live"}</span>
           </div>
         </div>
       </div>
@@ -171,9 +171,9 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
           <div className="stat-note">↑ above 1h target</div>
         </div>
         <div className="stat-cell">
-          <div className="stat-label">Bot Lock</div>
-          <div className="stat-val" style={{ color: liveStats.open > 0 ? "#9B6B00" : "#1E6B45" }}>{liveStats.open > 0 ? "On" : "Off"}</div>
-          <div className="stat-note">{liveStats.open > 0 ? "support active" : "bot handling"}</div>
+          <div className="stat-label">Case Locks</div>
+          <div className="stat-val" style={{ color: liveStats.open > 0 ? "#9B6B00" : "#1E6B45" }}>{liveStats.open}</div>
+          <div className="stat-note">{liveStats.open > 0 ? "conversation-level" : "all bot handled"}</div>
         </div>
       </div>
 

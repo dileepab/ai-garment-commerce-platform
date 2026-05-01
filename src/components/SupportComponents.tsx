@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { SupportThread, SupportThreadMessage } from '@/app/support/types';
 import { SUPPORT_THREAD_POLL_MS } from '@/app/support/format';
 import { updateEscalationWorkflowAction, sendSupportReplyAction } from '@/app/support/actions';
@@ -40,8 +40,27 @@ function getMessageRole(role: string): 'customer' | 'ai' | 'agent' {
   return 'agent';
 }
 
-function getMessageText(msg: SupportThreadMessage | any): string {
-  return msg.message || msg.text || msg.content || '';
+interface SupportMessagesPayload {
+  messages: SupportThreadMessage[];
+  hasMoreOlder?: boolean;
+  escalation: {
+    status: string;
+    latestCustomerMessage: string | null;
+    summary: string;
+    updatedAt: string;
+    updatedAtLabel: string;
+    resolvedAt: string | null;
+  };
+}
+
+interface SupportMessagesResponse {
+  success: boolean;
+  data?: SupportMessagesPayload;
+  error?: string;
+}
+
+function getMessageText(msg: SupportThreadMessage): string {
+  return msg.message;
 }
 
 function mergeMessages(messages: SupportThreadMessage[]): SupportThreadMessage[] {
@@ -50,7 +69,7 @@ function mergeMessages(messages: SupportThreadMessage[]): SupportThreadMessage[]
   return Array.from(byId.values()).sort((a, b) => a.id - b.id);
 }
 
-function getEscalationPatch(data: any): Partial<SupportThread> {
+function getEscalationPatch(data: SupportMessagesPayload): Partial<SupportThread> {
   return {
     status: data.escalation.status,
     latestCustomerMessage: data.escalation.latestCustomerMessage,
@@ -74,9 +93,14 @@ export function Thread({
   const messagesRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
+  const convoRef = useRef(convo);
 
   const selectedConvoId = convo?.id;
   const selectedConvoStatus = convo?.status;
+
+  useEffect(() => {
+    convoRef.current = convo;
+  }, [convo]);
 
   useEffect(() => {
     shouldStickToBottomRef.current = true;
@@ -87,6 +111,41 @@ export function Thread({
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [selectedConvoId, convo?.messages?.length]);
+
+  const loadOlderMessages = useCallback(async () => {
+    const currentConvo = convoRef.current;
+    if (!currentConvo || isLoadingOlder) return;
+    setIsLoadingOlder(true);
+    shouldStickToBottomRef.current = false;
+
+    try {
+      const beforeId = currentConvo.messages[0]?.id;
+      if (!beforeId) return;
+
+      const res = await fetch(`/api/support/escalations/${currentConvo.id}/messages?beforeId=${beforeId}`);
+      const payload = (await res.json()) as SupportMessagesResponse;
+
+      if (payload.success && payload.data) {
+        const prevScrollHeight = messagesRef.current?.scrollHeight || 0;
+
+        onConvoUpdate(currentConvo.id, {
+          hasOlderMessages: payload.data.hasMoreOlder ?? false,
+          messages: mergeMessages([...payload.data.messages, ...currentConvo.messages]),
+        });
+
+        // Wait for the prepended messages to render before restoring the viewport.
+        setTimeout(() => {
+          if (messagesRef.current) {
+            messagesRef.current.scrollTop = messagesRef.current.scrollHeight - prevScrollHeight;
+          }
+        }, 0);
+      }
+    } catch (error) {
+      console.error('Failed to load older messages', error);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [isLoadingOlder, onConvoUpdate]);
 
   const handleMessagesScroll = () => {
     if (!messagesRef.current) return;
@@ -99,40 +158,6 @@ export function Thread({
     }
   };
 
-  const loadOlderMessages = async () => {
-    if (!convo || isLoadingOlder) return;
-    setIsLoadingOlder(true);
-    shouldStickToBottomRef.current = false;
-
-    try {
-      const beforeId = convo.messages[0]?.id;
-      if (!beforeId) return;
-
-      const res = await fetch(`/api/support/escalations/${convo.id}/messages?beforeId=${beforeId}`);
-      const payload = await res.json();
-
-      if (payload.success) {
-        const prevScrollHeight = messagesRef.current?.scrollHeight || 0;
-
-        onConvoUpdate(convo.id, {
-          hasOlderMessages: payload.data.hasMoreOlder,
-          messages: mergeMessages([...payload.data.messages, ...convo.messages]),
-        });
-
-        // We'll use a timeout to ensure the DOM has updated before we adjust the scroll
-        setTimeout(() => {
-          if (messagesRef.current) {
-            messagesRef.current.scrollTop = messagesRef.current.scrollHeight - prevScrollHeight;
-          }
-        }, 0);
-      }
-    } catch (error) {
-      console.error('Failed to load older messages', error);
-    } finally {
-      setIsLoadingOlder(false);
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
 
@@ -141,19 +166,19 @@ export function Thread({
       pollingRef.current = true;
 
       try {
-        const currentConvo = convo;
+        const currentConvo = convoRef.current;
         if (!currentConvo) return;
 
         const latestMessageId = currentConvo.messages[currentConvo.messages.length - 1]?.id;
         const url = `/api/support/escalations/${selectedConvoId}/messages${latestMessageId ? `?afterId=${latestMessageId}` : ''}`;
 
         const response = await fetch(url, { cache: 'no-store' });
-        const payload = await response.json();
+        const payload = (await response.json()) as SupportMessagesResponse;
 
-        if (cancelled || !response.ok || !payload.success) return;
+        if (cancelled || !response.ok || !payload.success || !payload.data) return;
 
         const { data } = payload;
-        const latestConvo = convo;
+        const latestConvo = convoRef.current;
         if (!latestConvo || latestConvo.id !== currentConvo.id) return;
 
         const nextMessages = latestMessageId
