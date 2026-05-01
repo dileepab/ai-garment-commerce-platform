@@ -147,6 +147,13 @@ async function getOrdersForSender(senderId) {
   return customer?.orders || [];
 }
 
+async function getProductInventoryByName(name) {
+  return prisma.product.findFirst({
+    where: { name },
+    include: { inventory: true },
+  });
+}
+
 async function getConversationState(senderId, channel = 'messenger') {
   const record = await prisma.conversationState.findUnique({
     where: {
@@ -407,6 +414,149 @@ async function main() {
         },
       },
       {
+        name: 'Duplicate order confirmation does not create a second order',
+        senderId: buildSender(runId, 'duplicate-confirm'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Duplicate Confirm Customer',
+          '12 Main Street, Kurunegala',
+          '0771009090',
+          'yes correct',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'already confirmed',
+          ], 'Duplicate confirmation acknowledgement');
+
+          const orders = await getOrdersForSender(senderId);
+          assert(
+            orders.length === 1,
+            `Expected one order after duplicate confirmation, received ${orders.length}.`
+          );
+          assert(
+            orders[0].orderStatus === 'confirmed',
+            `Expected duplicate confirmation order to remain confirmed, received ${orders[0].orderStatus}.`
+          );
+        },
+      },
+      {
+        name: 'Cancelling a pending draft does not cancel an existing order',
+        senderId: buildSender(runId, 'draft-cancel'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Draft Cancel Customer',
+          '12 Main Street, Kurunegala',
+          '0771009191',
+          'yes correct',
+          'yes correct',
+          'I want Oversized Casual Top in black, M size',
+          'cancel my order',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[7].bot, [
+            'No order has been placed yet',
+            'nothing was processed',
+          ], 'Draft cancellation reply');
+
+          const orders = await getOrdersForSender(senderId);
+          assert(
+            orders.length === 1,
+            `Expected the previous confirmed order to remain the only order, received ${orders.length}.`
+          );
+          assert(
+            orders[0].orderStatus === 'confirmed',
+            `Expected previous order to remain confirmed, received ${orders[0].orderStatus}.`
+          );
+        },
+      },
+      {
+        name: 'Cancel during contact_collection clears the draft without placing an order',
+        senderId: buildSender(runId, 'contact-cancel'),
+        messages: [
+          'I want Oversized Casual Top in black, M size',
+          'cancel',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[1].bot, [
+            'No order has been placed yet',
+            'nothing was processed',
+          ], 'Cancel during contact collection reply');
+
+          const orders = await getOrdersForSender(senderId);
+          assert(
+            orders.length === 0,
+            `Expected no orders after draft cancellation, received ${orders.length}.`
+          );
+
+          const conversationState = await getConversationState(senderId);
+          assert(
+            conversationState?.pendingStep === 'none',
+            `Expected pendingStep none after draft cancellation, received ${String(conversationState?.pendingStep)}.`
+          );
+          assert(
+            !conversationState?.orderDraft,
+            'Expected orderDraft to be null after draft cancellation.'
+          );
+        },
+      },
+      {
+        name: 'Quantity update confirmation reserves only the delta once',
+        senderId: buildSender(runId, 'quantity-reserve'),
+        before: async ({ context }) => {
+          context.productBefore = await getProductInventoryByName('Relaxed Linen Pants');
+          assert(context.productBefore?.inventory, 'Expected Relaxed Linen Pants inventory before quantity reserve test.');
+        },
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Quantity Reserve Customer',
+          '12 Main Street, Kurunegala',
+          '0771009292',
+          'yes correct',
+          'yes correct',
+          'can you increase order count of last order to 2',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ transcript, senderId, context }) => {
+          assertIncludes(transcript[6].bot, [
+            'Order Update Summary',
+            'Quantity: 2',
+          ], 'Quantity update summary');
+          assertIncludes(transcript[7].bot, [
+            'updated successfully',
+            'Quantity: 2',
+          ], 'Quantity update confirmation');
+          assertIncludes(transcript[8].bot, [
+            'already confirmed',
+          ], 'Duplicate quantity confirmation acknowledgement');
+
+          const orders = await getOrdersForSender(senderId);
+          assert(orders.length === 1, `Expected one order after quantity update, received ${orders.length}.`);
+          assert(
+            orders[0].orderItems[0].quantity === 2,
+            `Expected updated quantity 2, received ${orders[0].orderItems[0].quantity}.`
+          );
+
+          const productAfter = await getProductInventoryByName('Relaxed Linen Pants');
+          const before = context.productBefore;
+          assert(productAfter?.inventory, 'Expected Relaxed Linen Pants inventory after quantity reserve test.');
+          assert(
+            productAfter.inventory.availableQty === before.inventory.availableQty - 2,
+            `Expected availableQty delta -2, before ${before.inventory.availableQty}, after ${productAfter.inventory.availableQty}.`
+          );
+          assert(
+            productAfter.inventory.reservedQty === before.inventory.reservedQty + 2,
+            `Expected reservedQty delta +2, before ${before.inventory.reservedQty}, after ${productAfter.inventory.reservedQty}.`
+          );
+          assert(
+            productAfter.stock === before.stock - 2,
+            `Expected product stock delta -2, before ${before.stock}, after ${productAfter.stock}.`
+          );
+        },
+      },
+      {
         name: 'Contact correction from summary returns updated contact block',
         senderId: buildSender(runId, 'contact-correction'),
         messages: [
@@ -663,6 +813,10 @@ async function main() {
       {
         name: 'Reorder after cancellation reuses the cancelled order details cleanly',
         senderId: buildSender(runId, 'reorder-cancelled'),
+        before: async ({ context }) => {
+          context.productBefore = await getProductInventoryByName('Oversized Casual Top');
+          assert(context.productBefore?.inventory, 'Expected Oversized Casual Top inventory before cancellation test.');
+        },
         messages: [
           'I want Oversized Casual Top in black, M size',
           'Reorder Customer',
@@ -673,7 +827,7 @@ async function main() {
           'Cancel my order',
           'I want to re order the same item',
         ],
-        verify: async ({ transcript, senderId }) => {
+        verify: async ({ transcript, senderId, context }) => {
           assertIncludes(transcript[6].bot, [
             'Cancelled Order ID: #',
           ], 'Cancellation reply');
@@ -688,6 +842,22 @@ async function main() {
           assert(
             orders.length === 1 && orders[0].orderStatus === 'cancelled',
             `Expected only the original cancelled order to exist before reorder confirmation, received ${orders.length} order(s).`
+          );
+
+          const productAfter = await getProductInventoryByName('Oversized Casual Top');
+          const before = context.productBefore;
+          assert(productAfter?.inventory, 'Expected Oversized Casual Top inventory after cancellation test.');
+          assert(
+            productAfter.inventory.availableQty === before.inventory.availableQty,
+            `Expected cancellation to return available stock, before ${before.inventory.availableQty}, after ${productAfter.inventory.availableQty}.`
+          );
+          assert(
+            productAfter.inventory.reservedQty === before.inventory.reservedQty,
+            `Expected cancellation to release reserved stock, before ${before.inventory.reservedQty}, after ${productAfter.inventory.reservedQty}.`
+          );
+          assert(
+            productAfter.stock === before.stock,
+            `Expected cancellation to restore product stock, before ${before.stock}, after ${productAfter.stock}.`
           );
         },
       },
@@ -744,7 +914,11 @@ async function main() {
 
           const followUpTranscript = await runConversation({
             senderId,
-            messages: [`Send me order details of #${firstOrder.id}`],
+            messages: [
+              `Send me order details of #${firstOrder.id}`,
+              'Please add gift wrap to that order with a Happy Birthday note',
+              'What is the status of last order',
+            ],
             baseUrl,
             pageId: DEFAULT_PAGE_ID,
             reset: false,
@@ -760,6 +934,29 @@ async function main() {
             !followUpTranscript[0].bot.includes(`Order ID: #${secondOrder.id}`),
             `Explicit order lookup leaked the latest order instead of the requested order.\n\nActual reply:\n${followUpTranscript[0].bot}`
           );
+
+          assertIncludes(followUpTranscript[1].bot, [
+            `I have updated order #${firstOrder.id}`,
+            'Gift wrap requested',
+            'Gift Note: Happy Birthday',
+          ], 'That-order gift update reply');
+
+          const ordersAfterGift = await getOrdersForSender(senderId);
+          const firstAfterGift = ordersAfterGift.find((order) => order.id === firstOrder.id);
+          const secondAfterGift = ordersAfterGift.find((order) => order.id === secondOrder.id);
+          assert(firstAfterGift?.giftWrap === true, 'Expected gift wrap to apply to the explicitly referenced order.');
+          assert(
+            firstAfterGift?.giftNote === 'Happy Birthday',
+            `Expected first order gift note Happy Birthday, received ${firstAfterGift?.giftNote}.`
+          );
+          assert(
+            secondAfterGift?.giftWrap === false,
+            'Expected that-order gift update not to modify the latest order.'
+          );
+
+          assertIncludes(followUpTranscript[2].bot, [
+            `Order #${secondOrder.id} is currently at the Confirmed stage`,
+          ], 'Last-order status reply after explicit reference');
         },
       },
     ];
@@ -767,6 +964,16 @@ async function main() {
     for (const testCase of cases) {
       createdSenders.push(testCase.senderId);
       console.log(`\n=== ${testCase.name} ===`);
+      const context = {};
+
+      if (testCase.before) {
+        await testCase.before({
+          senderId: testCase.senderId,
+          baseUrl,
+          pageId: DEFAULT_PAGE_ID,
+          context,
+        });
+      }
 
       const transcript = await runConversation({
         senderId: testCase.senderId,
@@ -780,9 +987,11 @@ async function main() {
       await testCase.verify({
         transcript,
         senderId: testCase.senderId,
+        context,
       });
 
       console.log(`PASS: ${testCase.name}`);
+      await resetConversation(testCase.senderId);
     }
 
     console.log(`\nAll chat regression tests passed (${cases.length} cases).`);

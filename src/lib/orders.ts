@@ -28,7 +28,17 @@ export class OrderRequestError extends Error {
   }
 }
 
-const CANCELLABLE_STATUSES = new Set(['pending', 'confirmed', 'packed']);
+const ORDER_MUTABLE_STATUSES = new Set([
+  'pending',
+  'confirmed',
+  'processing',
+  'packing',
+  'packed',
+]);
+
+export function isOrderMutableStatus(status?: string | null): boolean {
+  return ORDER_MUTABLE_STATUSES.has(status?.trim().toLowerCase() || '');
+}
 
 export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrderInput) {
   if (!Array.isArray(input.items) || input.items.length === 0) {
@@ -106,12 +116,24 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
     }
 
     for (const item of orderItemsData) {
-      await tx.inventory.update({
-        where: { productId: item.productId },
+      const reservedInventory = await tx.inventory.updateMany({
+        where: {
+          productId: item.productId,
+          availableQty: { gte: item.quantity },
+        },
         data: {
           availableQty: { decrement: item.quantity },
+          reservedQty: { increment: item.quantity },
         },
       });
+
+      if (reservedInventory.count !== 1) {
+        const product = productMap.get(item.productId);
+
+        throw new OrderRequestError(
+          `${product?.name || `Product ${item.productId}`} no longer has enough stock available.`
+        );
+      }
 
       await tx.product.update({
         where: { id: item.productId },
@@ -161,7 +183,7 @@ export async function cancelOrderById(db: PrismaClient, orderId: number) {
       return order;
     }
 
-    if (!CANCELLABLE_STATUSES.has(order.orderStatus)) {
+    if (!isOrderMutableStatus(order.orderStatus)) {
       throw new OrderRequestError(
         `Order #${orderId} cannot be cancelled because it is already ${order.orderStatus}.`,
         409
@@ -184,6 +206,10 @@ export async function cancelOrderById(db: PrismaClient, orderId: number) {
         where: { productId: item.productId },
         data: {
           availableQty: { increment: item.quantity },
+          reservedQty:
+            inventory.reservedQty >= item.quantity
+              ? { decrement: item.quantity }
+              : 0,
         },
       });
 
@@ -238,7 +264,7 @@ export async function updateSingleItemOrderQuantityById(
       throw new OrderRequestError(`Order #${orderId} was not found.`, 404);
     }
 
-    if (!CANCELLABLE_STATUSES.has(order.orderStatus)) {
+    if (!isOrderMutableStatus(order.orderStatus)) {
       throw new OrderRequestError(
         `Order #${orderId} cannot be updated because it is already ${order.orderStatus}.`,
         409
@@ -275,12 +301,22 @@ export async function updateSingleItemOrderQuantityById(
     }
 
     if (quantityDelta > 0) {
-      await tx.inventory.update({
-        where: { productId: existingItem.productId },
+      const reservedInventory = await tx.inventory.updateMany({
+        where: {
+          productId: existingItem.productId,
+          availableQty: { gte: quantityDelta },
+        },
         data: {
           availableQty: { decrement: quantityDelta },
+          reservedQty: { increment: quantityDelta },
         },
       });
+
+      if (reservedInventory.count !== 1) {
+        throw new OrderRequestError(
+          `${existingItem.product.name} only has ${inventory.availableQty} additional item(s) available.`
+        );
+      }
 
       await tx.product.update({
         where: { id: existingItem.productId },
@@ -295,6 +331,10 @@ export async function updateSingleItemOrderQuantityById(
         where: { productId: existingItem.productId },
         data: {
           availableQty: { increment: restoredQuantity },
+          reservedQty:
+            inventory.reservedQty >= restoredQuantity
+              ? { decrement: restoredQuantity }
+              : 0,
         },
       });
 

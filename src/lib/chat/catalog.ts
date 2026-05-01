@@ -7,10 +7,29 @@ import {
 import {
   buildProductQuestionReply,
   buildProductTypeUnavailableReply,
+  formatCatalogListReply,
   buildSizeChartReply,
   buildSizeChartSelectionReply,
 } from '@/lib/chat/reply-builders';
 import type { ChatContext } from './types';
+
+function formatCatalogLines(products: Array<{
+  name: string;
+  price: number;
+  sizes: string;
+  colors: string;
+  inventory?: { availableQty: number } | null;
+}>): string {
+  return products
+    .filter((product) => (product.inventory?.availableQty ?? 0) > 0)
+    .map(
+      (product) =>
+        `${product.name}: Rs ${product.price} (Sizes ${product.sizes || '-'} / Colors: ${
+          product.colors || '-'
+        })`
+    )
+    .join('\n');
+}
 
 export async function handle_catalog_list(ctx: ChatContext) {
   const { brandFilter, globalProducts, products, requestedProductTypes } = ctx;
@@ -54,7 +73,9 @@ export async function handle_catalog_list(ctx: ChatContext) {
     return finalizeReply({
       reply:
         availableProducts.length > 0
-          ? `${unavailableReply}\n\nHere are the available items:`
+          ? `${unavailableReply}\n\nCurrently available items are:\n\n${formatCatalogLines(
+              availableProducts
+            )}`
           : unavailableReply,
       carouselProducts: availableProducts.length > 0 ? availableProducts : undefined,
       nextState: {
@@ -64,7 +85,7 @@ export async function handle_catalog_list(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: "Here is what we have available right now:",
+    reply: formatCatalogListReply(availableFilteredProducts),
     carouselProducts: requestedProductTypes.length > 0 ? filteredProducts : products,
     nextState: {
       lastMissingOrderId: null,

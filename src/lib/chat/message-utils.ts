@@ -188,6 +188,12 @@ export function isNeutralAcknowledgement(message: string): boolean {
 }
 
 export function extractExplicitOrderIdFromMessage(message: string): number | null {
+  const orderCodeMatch = message.match(/#?\s*ord-?\s*(\d+)/i);
+
+  if (orderCodeMatch?.[1]) {
+    return Number.parseInt(orderCodeMatch[1], 10);
+  }
+
   const hashMatch = message.match(/#\s*(\d+)/);
 
   if (hashMatch?.[1]) {
@@ -389,13 +395,39 @@ export function looksLikeSameItemMessage(message: string): boolean {
 }
 
 export function messageReferencesExistingOrder(message: string): boolean {
-  return /\bmy order\b|\blast order\b|\bprevious order\b|\bthat order\b|\border\s*#?\s*\d+\b/i.test(
+  return /\bmy order\b|\blast order\b|\bprevious order\b|\bthat order\b|\bthis order\b|\border\s*#?\s*(?:ord-?)?\d+\b|\bord-?\s*\d+\b/i.test(
     message
   );
 }
 
 export function mentionsRelativeOrderReference(message: string): boolean {
-  return /\blast order\b|\bprevious order\b|\bthat order\b|\bmy order\b/i.test(message);
+  return /\blast order\b|\bprevious order\b|\bthat order\b|\bthis order\b|\bmy order\b/i.test(message);
+}
+
+export function mentionsLatestOrderReference(message: string): boolean {
+  return /\blast order\b|\bprevious order\b/i.test(message);
+}
+
+export function mentionsOwnedOrderReference(message: string): boolean {
+  return /\bmy order\b/i.test(message);
+}
+
+export function mentionsCurrentOrderReference(message: string): boolean {
+  return /\bthat order\b|\bthis order\b/i.test(message);
+}
+
+export function extractStandaloneQuantityFromMessage(message: string): number | null {
+  const normalized = normalizeText(message);
+  const match = normalized.match(
+    /^(?:make it|set it|update it|change it|reduce it to|lower it to|decrease it to|do)?\s*(\d+)\s*(?:items?|pieces?|pcs?)?$/
+  );
+
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const quantity = Number.parseInt(match[1], 10);
+  return Number.isInteger(quantity) && quantity > 0 ? quantity : null;
 }
 
 export function extractMaximumQuantityFromAssistantMessage(message: string): number | null {
@@ -442,4 +474,39 @@ export function shouldTreatAsSupportPaused(
   supportMode: PendingConversationStep | string
 ): boolean {
   return supportMode === 'handoff_requested' || supportMode === 'human_active';
+}
+
+/**
+ * Returns true only when cancellation is the *primary intent* of the message —
+ * i.e. it starts with a cancel verb or a well-known cancel phrase.
+ * Unlike `looksLikeCancellationRequest`, this deliberately does NOT match
+ * messages that merely contain the word "cancel" (e.g. a customer named
+ * "Draft Cancel Customer").
+ */
+export function isUnambiguousCancellationMessage(message: string): boolean {
+  const normalized = normalizeText(message).trim();
+  return (
+    /^(cancel|delete this order|remove this order)\b/.test(normalized) ||
+    /^(please cancel|i want to cancel|i would like to cancel|i d like to cancel|can you cancel|can i cancel|want to cancel|wish to cancel)\b/.test(
+      normalized
+    ) ||
+    /^(don t want|dont want|i don t want|i dont want)\b/.test(normalized)
+  );
+}
+
+/**
+ * Returns true when the customer is clearly requesting to speak with a human
+ * agent — as opposed to simply asking for a contact phone number.
+ * Used to override an AI `support_contact_request` classification so that
+ * such messages always trigger a proper support escalation.
+ */
+export function looksLikeHumanEscalationRequest(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    /\b(real person|live agent|human agent|actual person|talk to someone|speak to someone|talk to a human|speak to a human)\b/.test(
+      lower
+    ) ||
+    /\b(talk|speak|chat)\b.{0,20}\b(someone|person|human|agent|representative)\b/.test(lower) ||
+    /\b(i need|i want|need to|want to|can i)\b.{0,25}\b(human|agent|real person)\b/.test(lower)
+  );
 }

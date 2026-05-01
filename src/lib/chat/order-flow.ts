@@ -49,6 +49,7 @@ interface ResolveTargetOrderParams {
   latestOrder?: OrderLike | null;
   latestActiveOrder?: OrderLike | null;
   preferLatestActive?: boolean;
+  preferLatestOrderReference?: boolean;
   findCustomerOrderById: (orderId?: number | null) => Promise<OrderLike | null>;
 }
 
@@ -72,14 +73,6 @@ export function getRequestedOrderId(params: {
 export async function resolveCustomerTargetOrder(
   params: ResolveTargetOrderParams
 ): Promise<OrderLike | null> {
-  const requestedOrderId = getRequestedOrderId({
-    explicitOrderId: params.explicitOrderId,
-    followUpMissingOrderId: params.followUpMissingOrderId,
-    aiOrderId: params.aiOrderId,
-    lastReferencedOrderId: params.lastReferencedOrderId,
-    latestOrderId: params.latestOrder?.id ?? null,
-  });
-
   if (params.explicitOrderId !== null && params.explicitOrderId !== undefined) {
     return params.findCustomerOrderById(params.explicitOrderId);
   }
@@ -88,7 +81,19 @@ export async function resolveCustomerTargetOrder(
     return params.findCustomerOrderById(params.followUpMissingOrderId);
   }
 
-  const referencedOrder = await params.findCustomerOrderById(requestedOrderId);
+  if (params.aiOrderId !== null && params.aiOrderId !== undefined) {
+    return params.findCustomerOrderById(params.aiOrderId);
+  }
+
+  if (params.preferLatestOrderReference) {
+    if (params.preferLatestActive) {
+      return params.latestActiveOrder ?? params.latestOrder ?? null;
+    }
+
+    return params.latestOrder ?? params.latestActiveOrder ?? null;
+  }
+
+  const referencedOrder = await params.findCustomerOrderById(params.lastReferencedOrderId);
 
   if (referencedOrder) {
     return referencedOrder;

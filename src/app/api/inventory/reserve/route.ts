@@ -6,20 +6,33 @@ export async function POST(request: Request) {
   try {
     const { productId, quantity } = await request.json();
     
-    // Process stock reservation in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      const inventory = await tx.inventory.findUnique({ where: { productId } });
-      
-      if (!inventory) throw new Error("Inventory not found for product");
-      if (inventory.availableQty < quantity) throw new Error("OUT_OF_STOCK: Requested quantity is not available");
-      
-      return await tx.inventory.update({
-        where: { productId },
+      const inventory = await tx.inventory.updateMany({
+        where: {
+          productId,
+          availableQty: { gte: quantity },
+        },
         data: {
           availableQty: { decrement: quantity },
           reservedQty: { increment: quantity }
         }
       });
+
+      if (inventory.count !== 1) {
+        const existingInventory = await tx.inventory.findUnique({ where: { productId } });
+
+        if (!existingInventory) throw new Error("Inventory not found for product");
+        throw new Error("OUT_OF_STOCK: Requested quantity is not available");
+      }
+
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          stock: { decrement: quantity },
+        },
+      });
+
+      return tx.inventory.findUnique({ where: { productId } });
     });
 
     return NextResponse.json({ success: true, data: result });

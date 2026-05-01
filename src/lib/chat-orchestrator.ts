@@ -2,12 +2,15 @@ import prisma from '@/lib/prisma';
 import {
   extractExplicitOrderIdFromMessage,
   extractMaximumQuantityFromAssistantMessage,
+  extractStandaloneQuantityFromMessage,
   extractRequestedProductTypes,
   inferSupportIssueReason,
   isGreetingMessage,
   isLowerQuantityPrompt,
   isNeutralAcknowledgement,
+  isUnambiguousCancellationMessage,
   looksLikeGiftRequest,
+  looksLikeHumanEscalationRequest,
   looksLikeMissingOrderFollowUp,
   looksLikeOrderDetailsRequest,
   looksLikeOrderStatusRequest,
@@ -621,7 +624,8 @@ export async function routeCustomerMessage(
   if (
     state.orderDraft &&
     ['contact_collection', 'contact_confirmation', 'order_confirmation'].includes(state.pendingStep) &&
-    Boolean(extractedContact.name || extractedContact.address || extractedContact.phone)
+    Boolean(extractedContact.name || extractedContact.address || extractedContact.phone) &&
+    !isUnambiguousCancellationMessage(input.currentMessage)
   ) {
     const nextDraft: ResolvedOrderDraft = {
       ...state.orderDraft,
@@ -697,8 +701,11 @@ export async function routeCustomerMessage(
     });
   }
 
+  // Never bypass the escalation path when the customer is explicitly asking to
+  // speak with a human agent, even if the AI labelled it as support_contact_request.
   const supportIssueReason =
-    aiAction.action === 'support_contact_request' || aiAction.action === 'thanks_acknowledgement'
+    (aiAction.action === 'support_contact_request' && !looksLikeHumanEscalationRequest(input.currentMessage)) ||
+    aiAction.action === 'thanks_acknowledgement'
       ? null
       : inferSupportIssueReason(input.currentMessage);
   if (supportIssueReason) {
@@ -715,9 +722,42 @@ export async function routeCustomerMessage(
   }
 
   let effectiveAction = aiAction.action;
+  let effectiveAiAction = aiAction;
 
   if (effectiveAction === 'confirm_pending' && !isClearConfirmation(input.currentMessage)) {
     effectiveAction = 'fallback';
+  }
+
+  const standaloneQuantity = extractStandaloneQuantityFromMessage(input.currentMessage);
+
+  if (
+    effectiveAction === 'fallback' &&
+    standaloneQuantity &&
+    state.lastReferencedOrderId &&
+    (isLowerQuantityPrompt(latestAssistantText) ||
+      state.lastAssistantReplyKind === 'quantity_prompt')
+  ) {
+    effectiveAction = 'update_order_quantity';
+    effectiveAiAction = {
+      ...aiAction,
+      action: 'update_order_quantity',
+      quantity: standaloneQuantity,
+      orderId: state.lastReferencedOrderId,
+    };
+  }
+
+  // If the message is clearly a cancellation while a draft is in progress but
+  // the AI did not classify it as cancel_order (e.g. classified as fallback),
+  // force the cancel_order path so the draft is cleared cleanly.
+  if (
+    effectiveAction !== 'cancel_order' &&
+    state.orderDraft &&
+    ['order_draft', 'contact_collection', 'contact_confirmation', 'order_confirmation'].includes(
+      state.pendingStep
+    ) &&
+    isUnambiguousCancellationMessage(input.currentMessage)
+  ) {
+    effectiveAction = 'cancel_order';
   }
 
   if (effectiveAction === 'fallback' && followUpMissingOrderId) {
@@ -734,7 +774,7 @@ export async function routeCustomerMessage(
   const ctx: ChatContext = {
     input, state, customer, brandFilter, globalProducts, products,
     latestOrder, latestActiveOrder, latestAssistantText, explicitOrderId,
-    requestedProductTypes, followUpMissingOrderId, mergedContact, aiAction,
+    requestedProductTypes, followUpMissingOrderId, mergedContact, aiAction: effectiveAiAction,
     helpers: {
       findProductByName, findCustomerOrderById, buildDraftFromSource,
       finalizeReply, escalateToSupport, clearPendingConversationState
