@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 
 const DEFAULT_BASE_URL = process.env.SIM_BASE_URL || 'http://127.0.0.1:3001';
 const DEFAULT_PAGE_ID = process.env.HAPPYBY_PAGE_ID || '127157417146065';
+const DEFAULT_INSTAGRAM_ID = process.env.HAPPYBY_INSTAGRAM_ID || '17841400000000000';
 
 async function sleep(ms) {
   await new Promise((resolve) => {
@@ -152,36 +153,25 @@ async function waitForAssistantReply(senderId, previousCreatedAt, channel = 'mes
   return null;
 }
 
-async function sendWebhookMessage({
-  baseUrl = DEFAULT_BASE_URL,
-  pageId = DEFAULT_PAGE_ID,
-  senderId,
-  text,
-}) {
-  const response = await fetch(`${baseUrl}/api/webhooks/meta/messenger`, {
+function buildMessagingEvent({ senderId, pageOrAccountId, text }) {
+  return {
+    sender: { id: senderId },
+    recipient: { id: pageOrAccountId },
+    timestamp: Date.now(),
+    message: {
+      mid: `mid.${Date.now()}.${Math.random().toString(36).slice(2, 10)}`,
+      text,
+    },
+  };
+}
+
+async function postWebhookJson(url, body) {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      object: 'page',
-      entry: [
-        {
-          id: pageId,
-          messaging: [
-            {
-              sender: { id: senderId },
-              recipient: { id: pageId },
-              timestamp: Date.now(),
-              message: {
-                mid: `mid.${Date.now()}.${Math.random().toString(36).slice(2, 10)}`,
-                text,
-              },
-            },
-          ],
-        },
-      ],
-    }),
+    body: JSON.stringify(body),
   });
 
   const payload = await response.json().catch(() => null);
@@ -191,11 +181,79 @@ async function sendWebhookMessage({
   };
 }
 
+async function sendMessengerWebhookEvents({
+  baseUrl = DEFAULT_BASE_URL,
+  pageId = DEFAULT_PAGE_ID,
+  events,
+}) {
+  return postWebhookJson(`${baseUrl}/api/webhooks/meta/messenger`, {
+    object: 'page',
+    entry: [
+      {
+        id: pageId,
+        messaging: events.map((event) =>
+          event.sender ? event : buildMessagingEvent({
+            senderId: event.senderId,
+            pageOrAccountId: pageId,
+            text: event.text,
+          })
+        ),
+      },
+    ],
+  });
+}
+
+async function sendInstagramWebhookEvents({
+  baseUrl = DEFAULT_BASE_URL,
+  accountId = DEFAULT_INSTAGRAM_ID,
+  events,
+}) {
+  return postWebhookJson(`${baseUrl}/api/webhooks/meta/instagram`, {
+    object: 'instagram',
+    entry: [
+      {
+        id: accountId,
+        messaging: events.map((event) =>
+          event.sender ? event : buildMessagingEvent({
+            senderId: event.senderId,
+            pageOrAccountId: accountId,
+            text: event.text,
+          })
+        ),
+      },
+    ],
+  });
+}
+
+async function sendWebhookMessage({
+  baseUrl = DEFAULT_BASE_URL,
+  pageId = DEFAULT_PAGE_ID,
+  accountId = DEFAULT_INSTAGRAM_ID,
+  senderId,
+  text,
+  channel = 'messenger',
+}) {
+  if (channel === 'instagram') {
+    return sendInstagramWebhookEvents({
+      baseUrl,
+      accountId,
+      events: [{ senderId, text }],
+    });
+  }
+
+  return sendMessengerWebhookEvents({
+    baseUrl,
+    pageId,
+    events: [{ senderId, text }],
+  });
+}
+
 async function runConversation({
   senderId,
   messages,
   baseUrl = DEFAULT_BASE_URL,
   pageId = DEFAULT_PAGE_ID,
+  accountId = DEFAULT_INSTAGRAM_ID,
   channel = 'messenger',
   reset = false,
 }) {
@@ -210,8 +268,10 @@ async function runConversation({
     const response = await sendWebhookMessage({
       baseUrl,
       pageId,
+      accountId,
       senderId,
       text: message,
+      channel,
     });
 
     const assistantReply = await waitForAssistantReply(
@@ -245,6 +305,7 @@ async function disconnect() {
 
 module.exports = {
   DEFAULT_BASE_URL,
+  DEFAULT_INSTAGRAM_ID,
   DEFAULT_PAGE_ID,
   disconnect,
   formatTranscript,
@@ -253,6 +314,8 @@ module.exports = {
   prisma,
   resetConversation,
   runConversation,
+  sendInstagramWebhookEvents,
+  sendMessengerWebhookEvents,
   sendWebhookMessage,
   sleep,
   waitForAssistantReply,

@@ -2,12 +2,15 @@
 const { spawn } = require('node:child_process');
 
 const {
+  DEFAULT_INSTAGRAM_ID,
   DEFAULT_PAGE_ID,
   disconnect,
   formatTranscript,
+  getConversationMessages,
   prisma,
   resetConversation,
   runConversation,
+  sendMessengerWebhookEvents,
   sleep,
 } = require('./messenger-test-helpers');
 
@@ -168,6 +171,21 @@ async function getConversationState(senderId, channel = 'messenger') {
   });
 
   return record?.stateJson ? JSON.parse(record.stateJson) : null;
+}
+
+async function waitForRoleMessageCount(senderId, channel, role, expectedCount) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const messages = await getConversationMessages(senderId, channel);
+    const count = messages.filter((message) => message.role === role).length;
+
+    if (count >= expectedCount) {
+      return messages;
+    }
+
+    await sleep(250);
+  }
+
+  return getConversationMessages(senderId, channel);
 }
 
 function buildSender(runId, slug) {
@@ -349,7 +367,9 @@ async function main() {
           console.log(formatTranscript(followUpTranscript));
 
           assertIncludes(followUpTranscript[0].bot, [
-            'Here is what we have available right now:',
+            'available',
+            'Oversized Casual Top',
+            'Relaxed Linen Pants',
           ], 'Resolved handoff follow-up reply');
         },
       },
@@ -360,7 +380,8 @@ async function main() {
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
             'We do not have any dresses available in Happyby right now.',
-            'Here are the available items:',
+            'Currently available items are:',
+            'Oversized Casual Top',
           ], 'Unavailable dresses reply');
         },
       },
@@ -408,6 +429,82 @@ async function main() {
           assert(
             latestOrder.orderStatus === 'confirmed',
             `Expected confirmed order status, received ${latestOrder.orderStatus}.`
+          );
+        },
+      },
+      {
+        name: 'Instagram DM order flow uses the same orchestration path',
+        senderId: buildSender(runId, 'instagram-order'),
+        channel: 'instagram',
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Instagram Regression Customer',
+          '12 Main Street, Kurunegala',
+          '0771009898',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[0].bot, [
+            'To proceed with the order, please share:',
+            'Name:',
+            'Address:',
+            'Phone Number:',
+          ], 'Instagram initial contact collection reply');
+
+          assertIncludes(transcript[5].bot, [
+            'Thank you. Your order has been confirmed successfully ✅',
+            'Order ID: #',
+            'Current Stage: Confirmed',
+          ], 'Instagram order placed reply');
+
+          const { customer, latestOrder } = await getLatestOrderForSender(senderId);
+          assert(customer?.channel === 'instagram', `Expected Instagram customer channel, received ${String(customer?.channel)}.`);
+          assert(latestOrder, 'Expected an order to be created from the Instagram DM flow.');
+          assert(
+            latestOrder.orderStatus === 'confirmed',
+            `Expected Instagram order status confirmed, received ${latestOrder.orderStatus}.`
+          );
+        },
+      },
+      {
+        name: 'Messenger batched webhook events preserve conversation state',
+        senderId: buildSender(runId, 'messenger-batch'),
+        messages: [],
+        verify: async ({ senderId }) => {
+          const response = await sendMessengerWebhookEvents({
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            events: [
+              { senderId, text: 'I want Oversized Casual Top in black, M size' },
+              { senderId, text: 'Batch Regression Customer' },
+            ],
+          });
+
+          assert(response.status === 200, `Expected batched Messenger webhook status 200, received ${response.status}.`);
+          const messages = await waitForRoleMessageCount(senderId, 'messenger', 'assistant', 2);
+          const assistantMessages = messages.filter((message) => message.role === 'assistant');
+
+          assertIncludes(assistantMessages[0]?.message || '', [
+            'To proceed with the order, please share:',
+            'Name:',
+            'Address:',
+            'Phone Number:',
+          ], 'First batched Messenger assistant reply');
+          assertIncludes(assistantMessages[1]?.message || '', [
+            'To proceed with the order, please share:',
+            'Address:',
+            'Phone Number:',
+          ], 'Second batched Messenger assistant reply');
+
+          const state = await getConversationState(senderId);
+          assert(
+            state?.pendingStep === 'contact_collection',
+            `Expected batched Messenger flow to remain in contact_collection, received ${String(state?.pendingStep)}.`
+          );
+          assert(
+            state?.orderDraft?.name === 'Batch Regression Customer',
+            `Expected batched Messenger flow to keep the collected name, received ${String(state?.orderDraft?.name)}.`
           );
         },
       },
@@ -620,6 +717,10 @@ async function main() {
             latestOrder.giftNote === 'Happy Birthday',
             `Expected gift note Happy Birthday, received ${latestOrder.giftNote}.`
           );
+          assert(
+            latestOrder.orderStatus === 'confirmed',
+            `Expected gift update to keep order confirmed, received ${latestOrder.orderStatus}.`
+          );
         },
       },
       {
@@ -790,6 +891,45 @@ async function main() {
         },
       },
       {
+        name: 'Existing order IDs owned by another customer are not exposed',
+        senderId: buildSender(runId, 'foreign-order-owner'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Foreign Owner Customer',
+          '12 Main Street, Kurunegala',
+          '0771005656',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ senderId }) => {
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected owner order before foreign order lookup test.');
+
+          const intruderSenderId = `${senderId}-intruder`;
+          createdSenders.push({ senderId: intruderSenderId, channel: 'messenger' });
+          await resetConversation(intruderSenderId);
+
+          const intruderTranscript = await runConversation({
+            senderId: intruderSenderId,
+            messages: [`What is the status of #${latestOrder.id}`],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(intruderTranscript));
+
+          assertIncludes(intruderTranscript[0].bot, [
+            `I could not find order #${latestOrder.id} for this conversation.`,
+          ], 'Foreign order lookup rejection');
+          assert(
+            !intruderTranscript[0].bot.includes('Relaxed Linen Pants') &&
+              !intruderTranscript[0].bot.includes('Confirmed stage'),
+            `Foreign order lookup leaked owner order details.\n\nActual reply:\n${intruderTranscript[0].bot}`
+          );
+        },
+      },
+      {
         name: 'Order status reply uses stage wording',
         senderId: buildSender(runId, 'status'),
         messages: [
@@ -842,20 +982,73 @@ async function main() {
             `Expected only the original cancelled order to exist before reorder confirmation, received ${orders.length} order(s).`
           );
 
-          const productAfter = await getProductInventoryByName('Oversized Casual Top');
+          const productAfterCancellation = await getProductInventoryByName('Oversized Casual Top');
           const before = context.productBefore;
-          assert(productAfter?.inventory, 'Expected Oversized Casual Top inventory after cancellation test.');
+          assert(productAfterCancellation?.inventory, 'Expected Oversized Casual Top inventory after cancellation test.');
           assert(
-            productAfter.inventory.availableQty === before.inventory.availableQty,
-            `Expected cancellation to return available stock, before ${before.inventory.availableQty}, after ${productAfter.inventory.availableQty}.`
+            productAfterCancellation.inventory.availableQty === before.inventory.availableQty,
+            `Expected cancellation to return available stock, before ${before.inventory.availableQty}, after ${productAfterCancellation.inventory.availableQty}.`
           );
           assert(
-            productAfter.inventory.reservedQty === before.inventory.reservedQty,
-            `Expected cancellation to release reserved stock, before ${before.inventory.reservedQty}, after ${productAfter.inventory.reservedQty}.`
+            productAfterCancellation.inventory.reservedQty === before.inventory.reservedQty,
+            `Expected cancellation to release reserved stock, before ${before.inventory.reservedQty}, after ${productAfterCancellation.inventory.reservedQty}.`
           );
           assert(
-            productAfter.stock === before.stock,
-            `Expected cancellation to restore product stock, before ${before.stock}, after ${productAfter.stock}.`
+            productAfterCancellation.stock === before.stock,
+            `Expected cancellation to restore product stock, before ${before.stock}, after ${productAfterCancellation.stock}.`
+          );
+
+          const reorderConfirmationTranscript = await runConversation({
+            senderId,
+            messages: ['yes correct', 'yes correct'],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(reorderConfirmationTranscript));
+
+          assertIncludes(reorderConfirmationTranscript[0].bot, [
+            'Order Summary',
+            'Product: Oversized Casual Top',
+            'Size: Medium',
+            'Color: Black',
+          ], 'Reorder summary reply');
+          assertIncludes(reorderConfirmationTranscript[1].bot, [
+            'Thank you. Your order has been confirmed successfully ✅',
+            'Order ID: #',
+            'Current Stage: Confirmed',
+          ], 'Reorder confirmation reply');
+
+          const ordersAfterReorder = await getOrdersForSender(senderId);
+          assert(
+            ordersAfterReorder.length === 2,
+            `Expected original cancelled order and new reorder, received ${ordersAfterReorder.length} order(s).`
+          );
+          assert(
+            ordersAfterReorder[0].orderStatus === 'cancelled' &&
+              ordersAfterReorder[1].orderStatus === 'confirmed',
+            `Expected cancelled then confirmed reorder statuses, received ${ordersAfterReorder.map((order) => order.orderStatus).join(', ')}.`
+          );
+          assert(
+            ordersAfterReorder[1].orderItems[0].productId === ordersAfterReorder[0].orderItems[0].productId &&
+              ordersAfterReorder[1].orderItems[0].quantity === ordersAfterReorder[0].orderItems[0].quantity,
+            'Expected reorder to use the same product and quantity as the cancelled source order.'
+          );
+
+          const productAfterReorder = await getProductInventoryByName('Oversized Casual Top');
+          assert(productAfterReorder?.inventory, 'Expected Oversized Casual Top inventory after reorder confirmation.');
+          assert(
+            productAfterReorder.inventory.availableQty === before.inventory.availableQty - 1,
+            `Expected reorder to reserve one available unit, before ${before.inventory.availableQty}, after ${productAfterReorder.inventory.availableQty}.`
+          );
+          assert(
+            productAfterReorder.inventory.reservedQty === before.inventory.reservedQty + 1,
+            `Expected reorder to reserve one unit, before ${before.inventory.reservedQty}, after ${productAfterReorder.inventory.reservedQty}.`
+          );
+          assert(
+            productAfterReorder.stock === before.stock - 1,
+            `Expected reorder to decrement product stock once, before ${before.stock}, after ${productAfterReorder.stock}.`
           );
         },
       },
@@ -900,7 +1093,24 @@ async function main() {
           'yes correct',
           'yes correct',
         ],
-        verify: async ({ senderId }) => {
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'Please confirm if these delivery details are correct:',
+            'Name: Explicit Lookup Customer',
+            'Address: 12 Main Street, Kurunegala',
+            'Phone Number: 0771008888',
+          ], 'Existing-customer contact confirmation reply');
+          assertIncludes(transcript[7].bot, [
+            'Order Summary',
+            'Product: Relaxed Linen Pants',
+            'Size: Medium',
+            'Color: Beige',
+          ], 'Existing-customer second order summary');
+          assertIncludes(transcript[8].bot, [
+            'Thank you. Your order has been confirmed successfully ✅',
+            'Order ID: #',
+          ], 'Existing-customer second order confirmation');
+
           const orders = await getOrdersForSender(senderId);
           assert(orders.length === 2, `Expected two orders for explicit lookup test, received ${orders.length}.`);
 
@@ -910,11 +1120,16 @@ async function main() {
             'Expected two distinct orders for explicit order lookup test.'
           );
 
+          const firstProductBeforeUpdate = await getProductInventoryByName('Oversized Casual Top');
+          assert(firstProductBeforeUpdate?.inventory, 'Expected Oversized Casual Top inventory before explicit quantity update.');
+
           const followUpTranscript = await runConversation({
             senderId,
             messages: [
               `Send me order details of #${firstOrder.id}`,
               'Please add gift wrap to that order with a Happy Birthday note',
+              `Change quantity of order #${firstOrder.id} to 2`,
+              'yes correct',
               'What is the status of last order',
             ],
             baseUrl,
@@ -939,20 +1154,55 @@ async function main() {
             'Gift Note: Happy Birthday',
           ], 'That-order gift update reply');
 
-          const ordersAfterGift = await getOrdersForSender(senderId);
-          const firstAfterGift = ordersAfterGift.find((order) => order.id === firstOrder.id);
-          const secondAfterGift = ordersAfterGift.find((order) => order.id === secondOrder.id);
-          assert(firstAfterGift?.giftWrap === true, 'Expected gift wrap to apply to the explicitly referenced order.');
+          assertIncludes(followUpTranscript[2].bot, [
+            'Order Update Summary',
+            `Order ID: #${firstOrder.id}`,
+            'Quantity: 2',
+          ], 'Explicit order quantity update summary');
+          assertIncludes(followUpTranscript[3].bot, [
+            'updated successfully',
+            `Order ID: #${firstOrder.id}`,
+            'Quantity: 2',
+          ], 'Explicit order quantity update confirmation');
+
+          const ordersAfterFollowUp = await getOrdersForSender(senderId);
+          const firstAfterFollowUp = ordersAfterFollowUp.find((order) => order.id === firstOrder.id);
+          const secondAfterFollowUp = ordersAfterFollowUp.find((order) => order.id === secondOrder.id);
+          assert(firstAfterFollowUp?.giftWrap === true, 'Expected gift wrap to apply to the explicitly referenced order.');
           assert(
-            firstAfterGift?.giftNote === 'Happy Birthday',
-            `Expected first order gift note Happy Birthday, received ${firstAfterGift?.giftNote}.`
+            firstAfterFollowUp?.giftNote === 'Happy Birthday',
+            `Expected first order gift note Happy Birthday, received ${firstAfterFollowUp?.giftNote}.`
           );
           assert(
-            secondAfterGift?.giftWrap === false,
+            firstAfterFollowUp?.orderItems[0].quantity === 2,
+            `Expected explicitly referenced first order quantity 2, received ${firstAfterFollowUp?.orderItems[0].quantity}.`
+          );
+          assert(
+            secondAfterFollowUp?.giftWrap === false,
             'Expected that-order gift update not to modify the latest order.'
           );
+          assert(
+            secondAfterFollowUp?.orderItems[0].quantity === 1,
+            `Expected latest order quantity to remain 1, received ${secondAfterFollowUp?.orderItems[0].quantity}.`
+          );
 
-          assertIncludes(followUpTranscript[2].bot, [
+          const firstProductAfterUpdate = await getProductInventoryByName('Oversized Casual Top');
+          const inventoryBefore = firstProductBeforeUpdate.inventory;
+          assert(firstProductAfterUpdate?.inventory, 'Expected Oversized Casual Top inventory after explicit quantity update.');
+          assert(
+            firstProductAfterUpdate.inventory.availableQty === inventoryBefore.availableQty - 1,
+            `Expected explicit quantity update to reserve one additional top, before ${inventoryBefore.availableQty}, after ${firstProductAfterUpdate.inventory.availableQty}.`
+          );
+          assert(
+            firstProductAfterUpdate.inventory.reservedQty === inventoryBefore.reservedQty + 1,
+            `Expected explicit quantity update to add one reserved top, before ${inventoryBefore.reservedQty}, after ${firstProductAfterUpdate.inventory.reservedQty}.`
+          );
+          assert(
+            firstProductAfterUpdate.stock === firstProductBeforeUpdate.stock - 1,
+            `Expected explicit quantity update to decrement product stock once, before ${firstProductBeforeUpdate.stock}, after ${firstProductAfterUpdate.stock}.`
+          );
+
+          assertIncludes(followUpTranscript[4].bot, [
             `Order #${secondOrder.id} is currently at the Confirmed stage`,
           ], 'Last-order status reply after explicit reference');
         },
@@ -960,15 +1210,18 @@ async function main() {
     ];
 
     for (const testCase of cases) {
-      createdSenders.push(testCase.senderId);
+      const testChannel = testCase.channel || 'messenger';
+      createdSenders.push({ senderId: testCase.senderId, channel: testChannel });
       console.log(`\n=== ${testCase.name} ===`);
       const context = {};
 
       if (testCase.before) {
         await testCase.before({
           senderId: testCase.senderId,
+          channel: testChannel,
           baseUrl,
           pageId: DEFAULT_PAGE_ID,
+          accountId: DEFAULT_INSTAGRAM_ID,
           context,
         });
       }
@@ -978,6 +1231,8 @@ async function main() {
         messages: testCase.messages,
         baseUrl,
         pageId: DEFAULT_PAGE_ID,
+        accountId: DEFAULT_INSTAGRAM_ID,
+        channel: testChannel,
         reset: true,
       });
 
@@ -985,11 +1240,12 @@ async function main() {
       await testCase.verify({
         transcript,
         senderId: testCase.senderId,
+        channel: testChannel,
         context,
       });
 
       console.log(`PASS: ${testCase.name}`);
-      await resetConversation(testCase.senderId);
+      await resetConversation(testCase.senderId, testChannel);
     }
 
     console.log(`\nAll chat regression tests passed (${cases.length} cases).`);
@@ -1002,11 +1258,11 @@ async function main() {
     }
     process.exitCode = 1;
   } finally {
-    for (const senderId of createdSenders) {
+    for (const entry of createdSenders) {
       try {
-        await resetConversation(senderId);
+        await resetConversation(entry.senderId, entry.channel);
       } catch (error) {
-        console.error(`Cleanup failed for ${senderId}:`, error);
+        console.error(`Cleanup failed for ${entry.senderId}:`, error);
       }
     }
 
