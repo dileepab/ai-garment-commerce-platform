@@ -20,10 +20,22 @@ const ic = {
   moreH: ["M12 13a1 1 0 100-2 1 1 0 000 2", "M19 13a1 1 0 100-2 1 1 0 000 2", "M5 13a1 1 0 100-2 1 1 0 000 2"],
 };
 
-const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A" };
-const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct" };
-const STATUS_CLASS: Record<string, string> = { escalated: "pill-escalated", pending: "pill-pending", resolved: "pill-resolved" };
-const STATUS_LABEL: Record<string, string> = { escalated: "Escalated", pending: "Pending Reply", resolved: "Resolved" };
+const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A", whatsapp: "#128C7E" };
+const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
+const STATUS_CLASS: Record<string, string> = {
+  escalated: "pill-escalated",
+  open: "pill-open",
+  pending: "pill-pending",
+  in_progress: "pill-in_progress",
+  resolved: "pill-resolved",
+};
+const STATUS_LABEL: Record<string, string> = {
+  escalated: "Escalated",
+  open: "Open",
+  pending: "Pending Reply",
+  in_progress: "In Progress",
+  resolved: "Resolved",
+};
 
 function getDisplayName(convo: SupportThread): string {
   return convo.customer?.name || convo.contactName || 'Unknown';
@@ -31,6 +43,20 @@ function getDisplayName(convo: SupportThread): string {
 
 function getInitials(name: string): string {
   return name.substring(0, 2).toUpperCase();
+}
+
+function formatWaitingFrom(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return '—';
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const remM = minutes % 60;
+    return remM ? `${hours}h ${remM}m` : `${hours}h`;
+  }
+  return `${Math.floor(hours / 24)}d`;
 }
 
 function getMessageRole(role: string): 'customer' | 'ai' | 'agent' {
@@ -226,6 +252,7 @@ export function Thread({
   const displayName = getDisplayName(convo);
   const initials = getInitials(displayName);
   const isResolved = convo.status === "resolved";
+  const canTake = !isResolved && convo.status !== "in_progress";
   const statusClass = STATUS_CLASS[convo.status || 'pending'] || "pill-pending";
   const statusLabel = STATUS_LABEL[convo.status || 'pending'] || "Pending Reply";
 
@@ -248,23 +275,47 @@ export function Thread({
               ) : (
                 <span>No linked order</span>
               )}
+              {convo.brand && (
+                <>
+                  <span>·</span>
+                  <span>{convo.brand}</span>
+                </>
+              )}
               {!isResolved && (
                 <>
                   <span>·</span>
                   <Icon d={ic.clock} size={11} color="var(--color-fg-3)" />
-                  <span>Waiting {convo.wait || '—'}</span>
+                  <span suppressHydrationWarning>Waiting {formatWaitingFrom(convo.createdAt)}</span>
                 </>
               )}
             </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canTake && (
+            <form action={updateEscalationWorkflowAction}>
+              <input type="hidden" name="escalationId" value={convo.id} />
+              <input type="hidden" name="nextStatus" value="in_progress" />
+              <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
+                Take Case
+              </button>
+            </form>
+          )}
           {!isResolved && (
             <form action={updateEscalationWorkflowAction}>
               <input type="hidden" name="escalationId" value={convo.id} />
               <input type="hidden" name="nextStatus" value="resolved" />
               <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
                 <Icon d={ic.check} size={12} />Mark Resolved
+              </button>
+            </form>
+          )}
+          {isResolved && (
+            <form action={updateEscalationWorkflowAction}>
+              <input type="hidden" name="escalationId" value={convo.id} />
+              <input type="hidden" name="nextStatus" value="open" />
+              <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
+                Reopen
               </button>
             </form>
           )}

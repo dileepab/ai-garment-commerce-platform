@@ -15,7 +15,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    const whereClause = status ? { orderStatus: status } : {};
+    const whereClause = status
+      ? {
+          orderStatus:
+            status === 'shipped'
+              ? { in: ['shipped', 'dispatched'] }
+              : status === 'packing'
+                ? { in: ['packing', 'packed'] }
+                : status,
+        }
+      : {};
 
     const orders = await prisma.order.findMany({
       where: whereClause,

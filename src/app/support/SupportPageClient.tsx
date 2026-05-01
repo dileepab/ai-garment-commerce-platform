@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Thread } from '@/components/SupportComponents';
 import type { SupportStats, SupportThread } from './types';
 import { SUPPORT_THREAD_POLL_MS } from './format';
+import { updateEscalationWorkflowAction } from './actions';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -14,6 +15,9 @@ const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: 
 const ic = {
   search: ["M11 17.25a6.25 6.25 0 110-12.5 6.25 6.25 0 010 12.5z", "M16 16l4.5 4.5"],
   zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8",
+  clock: ["M12 22a10 10 0 100-20 10 10 0 000 20", "M12 6v6l4 2"],
+  link: ["M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.5 1.5", "M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.5-1.5"],
+  x: ["M18 6L6 18", "M6 6l12 12"],
 };
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
@@ -22,13 +26,35 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
 };
 
 const CHANNEL_CLASS: Record<string, string> = { messenger: "badge-messenger", instagram: "badge-instagram" };
+const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
+const SUPPORT_STATUS_LABELS: Record<string, string> = {
+  escalated: "Escalated",
+  open: "Open",
+  pending: "Pending",
+  in_progress: "In progress",
+  resolved: "Resolved",
+};
+const SUPPORT_STATUS_CLASSES: Record<string, string> = {
+  escalated: "pill-escalated",
+  open: "pill-open",
+  pending: "pill-pending",
+  in_progress: "pill-in_progress",
+  resolved: "pill-resolved",
+};
 
 interface SupportPageClientProps {
   initialEscalations: SupportThread[];
   stats: SupportStats;
 }
 
-type SupportFilter = "all" | "escalated" | "resolved";
+type SupportFilter = "all" | "active" | "resolved";
+type SupportSort = "waiting" | "newest" | "updated";
+
+const SORT_OPTIONS: { value: SupportSort; label: string }[] = [
+  { value: "waiting", label: "Waiting longest" },
+  { value: "updated", label: "Recently updated" },
+  { value: "newest", label: "Newest" },
+];
 
 interface SupportInboxResponse {
   success: boolean;
@@ -60,11 +86,106 @@ function mergeEscalationList(
   });
 }
 
+function isActiveStatus(status: string): boolean {
+  return ["escalated", "open", "pending", "in_progress"].includes(status);
+}
+
+function formatWaitingFrom(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return '—';
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const remM = minutes % 60;
+    return remM ? `${hours}h ${remM}m` : `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+function getAverageWaitLabel(escalations: SupportThread[]): string {
+  const activeCreatedAt = escalations
+    .filter((escalation) => isActiveStatus(escalation.status))
+    .map((escalation) => new Date(escalation.createdAt).getTime())
+    .filter((time) => !Number.isNaN(time));
+
+  if (activeCreatedAt.length === 0) return '0m';
+
+  const avgMs = activeCreatedAt.reduce((acc, time) => acc + (Date.now() - time), 0) / activeCreatedAt.length;
+  if (avgMs < 60000) return 'just now';
+
+  const minutes = Math.floor(avgMs / 60000);
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.floor(minutes / 60);
+  const remM = minutes % 60;
+  if (hours < 24) return remM ? `${hours}h ${remM}m` : `${hours}h`;
+
+  return `${Math.floor(hours / 24)}d`;
+}
+
+function getSupportStatusLabel(status: string): string {
+  return SUPPORT_STATUS_LABELS[status] || status.replace(/_/g, ' ');
+}
+
+function getSupportStatusClass(status: string): string {
+  return SUPPORT_STATUS_CLASSES[status] || "pill-pending";
+}
+
+function SupportStatusAction({
+  escalationId,
+  nextStatus,
+  label,
+  variant = "default",
+}: {
+  escalationId: number;
+  nextStatus: "open" | "in_progress" | "resolved";
+  label: string;
+  variant?: "default" | "strong";
+}) {
+  return (
+    <form action={updateEscalationWorkflowAction}>
+      <input type="hidden" name="escalationId" value={escalationId} />
+      <input type="hidden" name="nextStatus" value={nextStatus} />
+      <button
+        type="submit"
+        className={`convo-action-btn${variant === "strong" ? " strong" : ""}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {label}
+      </button>
+    </form>
+  );
+}
+
+function SupportQuickActions({ escalation }: { escalation: SupportThread }) {
+  const active = isActiveStatus(escalation.status);
+  const canTake = active && escalation.status !== "in_progress";
+
+  return (
+    <div className="convo-quick-actions" onClick={(event) => event.stopPropagation()}>
+      {canTake && (
+        <SupportStatusAction escalationId={escalation.id} nextStatus="in_progress" label="Take" />
+      )}
+      {active ? (
+        <SupportStatusAction escalationId={escalation.id} nextStatus="resolved" label="Resolve" variant="strong" />
+      ) : (
+        <SupportStatusAction escalationId={escalation.id} nextStatus="open" label="Reopen" variant="strong" />
+      )}
+    </div>
+  );
+}
+
 export default function SupportPageClient({ initialEscalations, stats }: SupportPageClientProps) {
   const [escalations, setEscalations] = useState(initialEscalations);
   const [liveStats, setLiveStats] = useState(stats);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<SupportFilter>("all");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [sort, setSort] = useState<SupportSort>("waiting");
   const [selectedId, setSelectedId] = useState<number | null>(
     initialEscalations.find((escalation) => escalation.status !== "resolved")?.id ||
       initialEscalations[0]?.id ||
@@ -115,26 +236,86 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
     };
   }, []);
 
-  const filtered = useMemo(() => escalations.filter(e => {
-    if (filter === "escalated" && !["escalated", "open", "pending", "in_progress"].includes(e.status)) return false;
-    if (filter === "resolved" && e.status !== "resolved") return false;
-    if (search) {
-      const query = search.toLowerCase();
-      const searchableText = [
-        e.customer?.name,
-        e.contactName,
-        e.senderId,
-      ].filter(Boolean).join(' ').toLowerCase();
+  const channelOptions = useMemo(() => {
+    const set = new Set<string>();
+    escalations.forEach(e => { if (e.channel) set.add(e.channel); });
+    return Array.from(set).sort();
+  }, [escalations]);
 
-      if (!searchableText.includes(query)) return false;
+  const brandOptions = useMemo(() => {
+    const set = new Set<string>();
+    escalations.forEach(e => { if (e.brand) set.add(e.brand); });
+    return Array.from(set).sort();
+  }, [escalations]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = escalations.filter(e => {
+      if (filter === "active" && !isActiveStatus(e.status)) return false;
+      if (filter === "resolved" && e.status !== "resolved") return false;
+      if (channelFilter !== "all" && e.channel !== channelFilter) return false;
+      if (brandFilter !== "all" && (e.brand || '') !== brandFilter) return false;
+      if (q) {
+        const haystack = [
+          e.customer?.name,
+          e.contactName,
+          e.contactPhone,
+          e.senderId,
+          e.brand,
+          e.reason,
+          e.summary,
+          e.status,
+          e.orderId ? `ord-${e.orderId} #${e.orderId}` : '',
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case "newest":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "updated":
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        case "waiting":
+        default: {
+          const aActive = isActiveStatus(a.status);
+          const bActive = isActiveStatus(b.status);
+          if (aActive !== bActive) return aActive ? -1 : 1;
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }
+      }
+    });
+    return sorted;
+  }, [escalations, search, filter, channelFilter, brandFilter, sort]);
+
+  useEffect(() => {
+    if (filtered.length === 0) {
+      setSelectedId(null);
+      return;
     }
-    return true;
-  }), [escalations, search, filter]);
+
+    if (!selectedId || !filtered.some((escalation) => escalation.id === selectedId)) {
+      setSelectedId(filtered[0].id);
+    }
+  }, [filtered, selectedId]);
 
   const activeConvo = useMemo(
     () => escalations.find(e => e.id === selectedId) || null,
     [escalations, selectedId]
   );
+
+  const averageWaitLabel = useMemo(() => getAverageWaitLabel(escalations), [escalations]);
+  const hasActiveInboxFilters = filter !== "all" || channelFilter !== "all" || brandFilter !== "all" || sort !== "waiting" || !!search.trim();
+  const clearInboxFilters = () => {
+    setSearch("");
+    setFilter("all");
+    setChannelFilter("all");
+    setBrandFilter("all");
+    setSort("waiting");
+  };
 
   return (
     <main className="main support-main">
@@ -158,7 +339,7 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
         <div className="stat-cell">
           <div className="stat-label">Open Cases</div>
           <div className="stat-val">{liveStats.open}</div>
-          <div className="stat-note">across 2 channels</div>
+          <div className="stat-note">across {channelOptions.length || 1} channel{channelOptions.length === 1 ? '' : 's'}</div>
         </div>
         <div className="stat-cell">
           <div className="stat-label">Linked Orders</div>
@@ -167,8 +348,8 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
         </div>
         <div className="stat-cell">
           <div className="stat-label">Avg. Wait Time</div>
-          <div className="stat-val" style={{ color: "#9B6B00" }}>2h 22m</div>
-          <div className="stat-note">↑ above 1h target</div>
+          <div className="stat-val" style={{ color: liveStats.open > 0 ? "#9B6B00" : "#1E6B45" }} suppressHydrationWarning>{averageWaitLabel}</div>
+          <div className="stat-note">{liveStats.open > 0 ? "oldest cases first" : "no active wait"}</div>
         </div>
         <div className="stat-cell">
           <div className="stat-label">Case Locks</div>
@@ -182,44 +363,112 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
           <div className="convo-header">
             <div className="convo-search">
               <Icon d={ic.search} size={12} color="var(--color-fg-3)" />
-              <input 
-                placeholder="Search conversations…" 
-                value={search} 
+              <input
+                placeholder="Search name, order #, brand, reason…"
+                value={search}
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
             <div className="convo-filter-tabs">
               <div className={`convo-tab${filter === "all" ? " active" : ""}`} onClick={() => setFilter("all")}>All</div>
-              <div className={`convo-tab${filter === "escalated" ? " active" : ""}`} onClick={() => setFilter("escalated")}>Active</div>
+              <div className={`convo-tab${filter === "active" ? " active" : ""}`} onClick={() => setFilter("active")}>Active</div>
               <div className={`convo-tab${filter === "resolved" ? " active" : ""}`} onClick={() => setFilter("resolved")}>Resolved</div>
             </div>
+            <div className="convo-secondary-filters">
+              <select
+                className="filter-select filter-select-sm"
+                value={channelFilter}
+                onChange={e => setChannelFilter(e.target.value)}
+                aria-label="Filter by channel"
+              >
+                <option value="all">All channels</option>
+                {channelOptions.map(c => (
+                  <option key={c} value={c}>{CHANNEL_LABELS[c] || c}</option>
+                ))}
+              </select>
+              {brandOptions.length > 0 && (
+                <select
+                  className="filter-select filter-select-sm"
+                  value={brandFilter}
+                  onChange={e => setBrandFilter(e.target.value)}
+                  aria-label="Filter by brand"
+                >
+                  <option value="all">All brands</option>
+                  {brandOptions.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              )}
+              <select
+                className="filter-select filter-select-sm"
+                value={sort}
+                onChange={e => setSort(e.target.value as SupportSort)}
+                aria-label="Sort"
+              >
+                {SORT_OPTIONS.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              {hasActiveInboxFilters && (
+                <button className="btn btn-ghost convo-filter-clear" onClick={clearInboxFilters} aria-label="Clear filters">
+                  <Icon d={ic.x} size={11} />
+                </button>
+              )}
+            </div>
+            <div className="convo-result-count">{filtered.length} of {escalations.length}</div>
           </div>
           <div className="convo-list">
-            {filtered.map(e => (
-              <div 
-                key={e.id} 
-                className={`convo-item${selectedId === e.id ? " active" : ""}${e.status !== 'resolved' ? ' unread' : ''}`}
-                onClick={() => setSelectedId(e.id)}
-              >
-                <div className="convo-item-top">
-                  <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
-                  <span className="convo-item-time" suppressHydrationWarning>{e.updatedAtLabel}</span>
+            {filtered.map(e => {
+              const active = isActiveStatus(e.status);
+              return (
+                <div
+                  key={e.id}
+                  className={`convo-item${selectedId === e.id ? " active" : ""}${active ? ' unread' : ''}`}
+                  onClick={() => setSelectedId(e.id)}
+                >
+                  <div className="convo-item-top">
+                    <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
+                    <span className="convo-item-time" suppressHydrationWarning>{e.updatedAtLabel}</span>
+                  </div>
+                  <div className="convo-item-mid">
+                    <span className={`badge-ch ${CHANNEL_CLASS[e.channel] || ''}`}>
+                      {CHANNEL_ICONS[e.channel]}
+                      {e.channel}
+                    </span>
+                    <span className={`pill ${getSupportStatusClass(e.status)} convo-status-pill`}>
+                      {getSupportStatusLabel(e.status)}
+                    </span>
+                    {e.orderId && (
+                      <span className="convo-order-chip">
+                        <Icon d={ic.link} size={9} color="currentColor" />
+                        ORD-{e.orderId}
+                      </span>
+                    )}
+                    {e.brand && <span className="convo-brand-chip">{e.brand}</span>}
+                    {active && (
+                      <span className="convo-wait-chip" suppressHydrationWarning>
+                        <Icon d={ic.clock} size={9} color="currentColor" />
+                        {formatWaitingFrom(e.createdAt)}
+                      </span>
+                    )}
+                    {active && <span className="unread-dot" />}
+                  </div>
+                  <div className="convo-item-preview">
+                    {e.latestCustomerMessage || e.summary || 'No message preview available.'}
+                  </div>
+                  <SupportQuickActions escalation={e} />
                 </div>
-                <div className="convo-item-mid">
-                  <span className={`badge-ch ${CHANNEL_CLASS[e.channel] || ''}`}>
-                    {CHANNEL_ICONS[e.channel]}
-                    {e.channel}
-                  </span>
-                  {e.status !== 'resolved' && <span className="unread-dot" />}
-                </div>
-                <div className="convo-item-preview">
-                  {e.latestCustomerMessage || e.summary || 'No message preview available.'}
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {filtered.length === 0 && (
               <div style={{ padding: 40, textAlign: "center", color: "var(--color-fg-3)", fontSize: 13 }}>
                 No conversations found.
+                {hasActiveInboxFilters && (
+                  <>
+                    {' '}
+                    <button className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px", display: "inline-flex" }} onClick={clearInboxFilters}>Clear filters</button>
+                  </>
+                )}
               </div>
             )}
           </div>
