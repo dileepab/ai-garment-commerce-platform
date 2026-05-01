@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Thread } from '@/components/SupportComponents';
-import { SUPPORT_THREAD_POLL_MS } from './format';
 import type { SupportStats, SupportThread } from './types';
+import { SUPPORT_THREAD_POLL_MS } from './format';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -143,7 +143,7 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
           <div className="topbar-title">Support Inbox</div>
           <div className="topbar-subtitle" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="live-dot" />
-            {liveStats.open} active cases · Bot paused during handoff · {liveStats.dateLabel}
+            {liveStats.open} active cases · Bot paused during handoff · <span suppressHydrationWarning>{liveStats.dateLabel || new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
         </div>
         <div className="topbar-actions">
@@ -203,7 +203,7 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
               >
                 <div className="convo-item-top">
                   <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
-                  <span className="convo-item-time">{e.updatedAtLabel}</span>
+                  <span className="convo-item-time" suppressHydrationWarning>{e.updatedAtLabel}</span>
                 </div>
                 <div className="convo-item-mid">
                   <span className={`badge-ch ${CHANNEL_CLASS[e.channel] || ''}`}>

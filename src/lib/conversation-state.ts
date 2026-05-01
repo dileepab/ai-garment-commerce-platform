@@ -219,6 +219,29 @@ export async function saveConversationState(
   return normalizedState;
 }
 
+export async function saveConversationStateIfCurrent(
+  senderId: string,
+  channel: string,
+  currentState: Partial<ConversationStateData>,
+  nextState: Partial<ConversationStateData>
+): Promise<boolean> {
+  const normalizedCurrentState = normalizeConversationState(currentState);
+  const normalizedNextState = normalizeConversationState(nextState);
+
+  const result = await prisma.conversationState.updateMany({
+    where: {
+      senderId,
+      channel,
+      stateJson: JSON.stringify(normalizedCurrentState),
+    },
+    data: {
+      stateJson: JSON.stringify(normalizedNextState),
+    },
+  });
+
+  return result.count === 1;
+}
+
 export function clearPendingConversationState(
   state: ConversationStateData
 ): ConversationStateData {

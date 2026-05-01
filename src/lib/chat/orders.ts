@@ -30,11 +30,50 @@ import {
 import {
   cancelOrderById,
   createOrderFromCatalog,
+  isOrderMutableStatus,
   OrderRequestError,
   updateSingleItemOrderQuantityById,
 } from '@/lib/orders';
+import { saveConversationStateIfCurrent } from '@/lib/conversation-state';
+import {
+  mentionsLatestOrderReference,
+  mentionsOwnedOrderReference,
+} from '@/lib/chat/message-utils';
 import { upsertCustomerContact } from './shared-actions';
 import type { ChatContext } from './types';
+
+const DRAFT_PENDING_STEPS = new Set([
+  'order_draft',
+  'contact_collection',
+  'contact_confirmation',
+  'order_confirmation',
+]);
+
+async function findRecentMatchingOrderForDraft(customerId: number, draft: ResolvedOrderDraft) {
+  const recentWindow = new Date(Date.now() - 5 * 60 * 1000);
+
+  return prisma.order.findFirst({
+    where: {
+      customerId,
+      brand: draft.brand || null,
+      deliveryAddress: draft.address || null,
+      paymentMethod: draft.paymentMethod || null,
+      giftWrap: draft.giftWrap,
+      giftNote: draft.giftNote || null,
+      orderStatus: { not: 'cancelled' },
+      createdAt: { gte: recentWindow },
+      orderItems: {
+        some: {
+          productId: draft.productId,
+          quantity: draft.quantity,
+          size: draft.size || null,
+          color: draft.color || null,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
 
 export async function handle_place_order(ctx: ChatContext) {
   const { aiAction, products, state } = ctx;
@@ -168,6 +207,46 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         throw new OrderRequestError('Customer information is incomplete.');
       }
 
+      const claimedConfirmation = await saveConversationStateIfCurrent(
+        input.senderId,
+        input.channel,
+        state,
+        {
+          ...clearPendingConversationState(state),
+          lastAssistantReplyKind: 'order_confirmed',
+          lastMissingOrderId: null,
+        }
+      );
+
+      if (!claimedConfirmation) {
+        const existingOrder = await findRecentMatchingOrderForDraft(
+          ensuredCustomer.id,
+          state.orderDraft
+        );
+
+        if (existingOrder) {
+          return finalizeReply({
+            reply: `This order has already been confirmed as order #${existingOrder.id}.`,
+            orderId: existingOrder.id,
+            assistantReplyKind: 'order_confirmed',
+            nextState: {
+              ...clearPendingConversationState(state),
+              lastReferencedOrderId: existingOrder.id,
+              lastMissingOrderId: null,
+            },
+          });
+        }
+
+        return finalizeReply({
+          reply: 'I am already processing that confirmation. Please ask for the order status if you need to check it.',
+          assistantReplyKind: 'generic',
+          nextState: {
+            ...clearPendingConversationState(state),
+            lastMissingOrderId: null,
+          },
+        });
+      }
+
       const order = await createOrderFromCatalog(prisma, {
         customerId: ensuredCustomer.id,
         brand: state.orderDraft.brand,
@@ -200,6 +279,12 @@ export async function handle_confirm_pending(ctx: ChatContext) {
       if (error instanceof OrderRequestError) {
         return finalizeReply({
           reply: `Sorry, I could not confirm the order yet. ${error.message}`,
+          nextState: {
+            pendingStep: 'order_confirmation',
+            orderDraft: state.orderDraft,
+            quantityUpdate: null,
+            lastMissingOrderId: null,
+          },
         });
       }
 
@@ -254,6 +339,31 @@ export async function handle_confirm_pending(ctx: ChatContext) {
     });
   }
 
+  if (
+    state.pendingStep === 'none' &&
+    state.lastAssistantReplyKind === 'order_confirmed'
+  ) {
+    if (!latestActiveOrder) {
+      return finalizeReply({
+        reply: 'I am already processing that confirmation. Please ask for the order status if you need to check it.',
+        assistantReplyKind: 'generic',
+        nextState: {
+          lastMissingOrderId: null,
+        },
+      });
+    }
+
+    return finalizeReply({
+      reply: `Order #${latestActiveOrder.id} is already confirmed.`,
+      orderId: latestActiveOrder.id,
+      assistantReplyKind: 'order_confirmed',
+      nextState: {
+        lastReferencedOrderId: latestActiveOrder.id,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
   return finalizeReply({
     reply: 'Please send the order details you want me to confirm.',
     nextState: {
@@ -268,6 +378,8 @@ export async function handle_cancel_order(ctx: ChatContext) {
     customer,
     explicitOrderId,
     followUpMissingOrderId,
+    input,
+    latestActiveOrder,
     latestOrder,
     state,
   } = ctx;
@@ -277,6 +389,20 @@ export async function handle_cancel_order(ctx: ChatContext) {
     finalizeReply,
     findCustomerOrderById,
   } = ctx.helpers;
+
+  if (
+    state.orderDraft &&
+    DRAFT_PENDING_STEPS.has(state.pendingStep) &&
+    explicitOrderId === null
+  ) {
+    return finalizeReply({
+      reply: 'Understood. No order has been placed yet, so nothing was processed. If you want to continue later, just send the details again.',
+      nextState: {
+        ...clearPendingConversationState(state),
+        lastMissingOrderId: null,
+      },
+    });
+  }
 
   if (!customer) {
     const requestedOrderId = getRequestedOrderId({
@@ -309,6 +435,11 @@ export async function handle_cancel_order(ctx: ChatContext) {
     aiOrderId: aiAction.orderId,
     lastReferencedOrderId: state.lastReferencedOrderId,
     latestOrder,
+    latestActiveOrder,
+    preferLatestActive: true,
+    preferLatestOrderReference:
+      mentionsLatestOrderReference(input.currentMessage) ||
+      mentionsOwnedOrderReference(input.currentMessage),
     findCustomerOrderById,
   });
 
@@ -363,6 +494,7 @@ export async function handle_reorder_last(ctx: ChatContext) {
     aiAction,
     customer,
     explicitOrderId,
+    input,
     latestOrder,
     state,
   } = ctx;
@@ -376,6 +508,7 @@ export async function handle_reorder_last(ctx: ChatContext) {
     aiOrderId: aiAction.orderId,
     lastReferencedOrderId: state.lastReferencedOrderId,
     latestOrder,
+    preferLatestOrderReference: mentionsLatestOrderReference(input.currentMessage),
     findCustomerOrderById,
   });
 
@@ -383,6 +516,20 @@ export async function handle_reorder_last(ctx: ChatContext) {
     return finalizeReply({
       reply: 'Please send the product name, size, and color you want, and I will prepare the order summary right away.',
       nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  const sourceItem = sourceOrder.orderItems[0];
+  const availableQty = sourceItem.product.inventory?.availableQty ?? 0;
+
+  if (sourceItem.quantity > availableQty) {
+    return finalizeReply({
+      reply: `${sourceItem.product.name} currently has ${availableQty} item(s) available. Please send a lower quantity or choose a different item.`,
+      orderId: sourceOrder.id,
+      nextState: {
+        lastReferencedOrderId: sourceOrder.id,
         lastMissingOrderId: null,
       },
     });
@@ -414,6 +561,7 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
     customer,
     explicitOrderId,
     followUpMissingOrderId,
+    input,
     latestActiveOrder,
     latestOrder,
     state,
@@ -449,6 +597,9 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
     latestOrder,
     latestActiveOrder,
     preferLatestActive: true,
+    preferLatestOrderReference:
+      mentionsLatestOrderReference(input.currentMessage) ||
+      mentionsOwnedOrderReference(input.currentMessage),
     findCustomerOrderById,
   });
 
@@ -466,6 +617,18 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
   if (targetOrder.orderStatus === 'cancelled') {
     return finalizeReply({
       reply: `Order #${targetOrder.id} is already cancelled, so it cannot be updated.`,
+      orderId: targetOrder.id,
+      nextState: {
+        ...clearPendingConversationState(state),
+        lastReferencedOrderId: targetOrder.id,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  if (!isOrderMutableStatus(targetOrder.orderStatus)) {
+    return finalizeReply({
+      reply: `Order #${targetOrder.id} cannot be updated because it is already ${targetOrder.orderStatus}.`,
       orderId: targetOrder.id,
       nextState: {
         ...clearPendingConversationState(state),

@@ -45,10 +45,15 @@ async function resetConversation(senderId, channel = 'messenger') {
     for (const order of customer.orders) {
       if (order.orderStatus !== 'cancelled') {
         for (const item of order.orderItems) {
+          const inventory = await prisma.inventory.findUnique({
+            where: { productId: item.productId },
+          });
+
           await prisma.inventory.update({
             where: { productId: item.productId },
             data: {
               availableQty: { increment: item.quantity },
+              reservedQty: Math.max(0, (inventory?.reservedQty || 0) - item.quantity),
             },
           });
 

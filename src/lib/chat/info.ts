@@ -2,6 +2,9 @@ import {
   assistantOfferedGiftOptions,
   extractDeliveryLocationHint,
   extractGiftNoteFromText,
+  mentionsCurrentOrderReference,
+  mentionsLatestOrderReference,
+  mentionsOwnedOrderReference,
   mentionsRelativeOrderReference,
   messageReferencesExistingOrder,
   looksLikeGiftFollowUp,
@@ -25,6 +28,7 @@ import {
   buildSupportContactLine,
   buildSupportContactReply,
 } from '@/lib/customer-support';
+import { isOrderMutableStatus } from '@/lib/orders';
 import { updateOrderGiftInstructions } from './shared-actions';
 import type { ChatContext } from './types';
 
@@ -47,6 +51,7 @@ export async function handle_order_status(ctx: ChatContext) {
     customer,
     explicitOrderId,
     followUpMissingOrderId,
+    input,
     latestOrder,
     state,
   } = ctx;
@@ -74,6 +79,9 @@ export async function handle_order_status(ctx: ChatContext) {
     aiOrderId: aiAction.orderId,
     lastReferencedOrderId: state.lastReferencedOrderId,
     latestOrder,
+    preferLatestOrderReference:
+      mentionsLatestOrderReference(input.currentMessage) ||
+      mentionsOwnedOrderReference(input.currentMessage),
     findCustomerOrderById,
   });
 
@@ -93,7 +101,7 @@ export async function handle_order_status(ctx: ChatContext) {
     orderId: targetOrder.id,
     assistantReplyKind: 'order_status',
     nextState: {
-      ...clearPendingConversationState(state),
+      ...(state.orderDraft ? {} : clearPendingConversationState(state)),
       lastReferencedOrderId: targetOrder.id,
       lastMissingOrderId: null,
     },
@@ -106,6 +114,7 @@ export async function handle_order_details(ctx: ChatContext) {
     customer,
     explicitOrderId,
     followUpMissingOrderId,
+    input,
     latestOrder,
     state,
   } = ctx;
@@ -133,6 +142,9 @@ export async function handle_order_details(ctx: ChatContext) {
     aiOrderId: aiAction.orderId,
     lastReferencedOrderId: state.lastReferencedOrderId,
     latestOrder,
+    preferLatestOrderReference:
+      mentionsLatestOrderReference(input.currentMessage) ||
+      mentionsOwnedOrderReference(input.currentMessage),
     findCustomerOrderById,
   });
 
@@ -152,7 +164,7 @@ export async function handle_order_details(ctx: ChatContext) {
     orderId: targetOrder.id,
     assistantReplyKind: 'order_details',
     nextState: {
-      ...clearPendingConversationState(state),
+      ...(state.orderDraft ? {} : clearPendingConversationState(state)),
       lastReferencedOrderId: targetOrder.id,
       lastMissingOrderId: null,
     },
@@ -307,64 +319,12 @@ export async function handle_gift_request(ctx: ChatContext) {
     extractGiftNoteFromText(latestAssistantText) ||
     'your requested note';
   const baseReply = `Yes, we can pack it as a gift and include the note "${giftNote}".`;
+  const referencesSpecificStoredOrder =
+    explicitOrderId !== null ||
+    mentionsLatestOrderReference(input.currentMessage) ||
+    mentionsCurrentOrderReference(input.currentMessage);
 
-  let targetOrderForGift =
-    explicitOrderId !== null ? await findCustomerOrderById(explicitOrderId) : null;
-
-  if (explicitOrderId === null) {
-    if (mentionsRelativeOrderReference(input.currentMessage)) {
-      targetOrderForGift = latestActiveOrder || latestOrder;
-    } else if (state.lastReferencedOrderId) {
-      const referencedOrder = await findCustomerOrderById(state.lastReferencedOrderId);
-      targetOrderForGift =
-        referencedOrder && referencedOrder.orderStatus !== 'cancelled'
-          ? referencedOrder
-          : latestActiveOrder || latestOrder;
-    } else {
-      targetOrderForGift = latestActiveOrder || latestOrder;
-    }
-  }
-
-  if (
-    targetOrderForGift &&
-    targetOrderForGift.orderStatus === 'cancelled' &&
-    messageReferencesExistingOrder(input.currentMessage)
-  ) {
-    return finalizeReply({
-      reply: `Order #${targetOrderForGift.id} is already cancelled, so I cannot add gift instructions to it. Please send an active order ID or place a new order.`,
-      orderId: targetOrderForGift.id,
-      nextState: {
-        ...clearPendingConversationState(state),
-        lastReferencedOrderId: targetOrderForGift.id,
-        lastMissingOrderId: null,
-      },
-    });
-  }
-
-  if (
-    targetOrderForGift &&
-    (
-      messageReferencesExistingOrder(input.currentMessage) ||
-      looksLikeGiftUpdateInstruction(input.currentMessage) ||
-      (assistantOfferedGiftOptions(latestAssistantText) && looksLikeGiftFollowUp(input.currentMessage))
-    )
-  ) {
-    const updatedOrder = await updateOrderGiftInstructions(targetOrderForGift.id, giftNote);
-
-    return finalizeReply({
-      reply: `I have updated order #${updatedOrder.id} with gift wrap and the note "${giftNote}".\n\n${buildOrderDetailsReply(
-        updatedOrder
-      )}`,
-      orderId: updatedOrder.id,
-      nextState: {
-        ...clearPendingConversationState(state),
-        lastReferencedOrderId: updatedOrder.id,
-        lastMissingOrderId: null,
-      },
-    });
-  }
-
-  if (state.orderDraft) {
+  if (state.orderDraft && !referencesSpecificStoredOrder) {
     const nextDraft = {
       ...state.orderDraft,
       giftWrap: true,
@@ -391,7 +351,81 @@ export async function handle_gift_request(ctx: ChatContext) {
     });
   }
 
-  if (targetOrderForGift && targetOrderForGift.orderStatus !== 'cancelled') {
+  let targetOrderForGift =
+    explicitOrderId !== null ? await findCustomerOrderById(explicitOrderId) : null;
+
+  if (explicitOrderId === null) {
+    if (mentionsLatestOrderReference(input.currentMessage)) {
+      targetOrderForGift = latestOrder || latestActiveOrder;
+    } else if (mentionsCurrentOrderReference(input.currentMessage) && state.lastReferencedOrderId) {
+      targetOrderForGift = await findCustomerOrderById(state.lastReferencedOrderId);
+    } else if (mentionsRelativeOrderReference(input.currentMessage)) {
+      targetOrderForGift = latestActiveOrder || latestOrder;
+    } else if (state.lastReferencedOrderId) {
+      const referencedOrder = await findCustomerOrderById(state.lastReferencedOrderId);
+      targetOrderForGift =
+        referencedOrder && referencedOrder.orderStatus !== 'cancelled'
+          ? referencedOrder
+          : latestActiveOrder || latestOrder;
+    } else {
+      targetOrderForGift = latestActiveOrder || latestOrder;
+    }
+  }
+
+  if (explicitOrderId !== null && !targetOrderForGift) {
+    return finalizeReply({
+      reply: buildMissingOrderLookupReply(explicitOrderId, 'details'),
+      nextState: {
+        lastMissingOrderId: explicitOrderId,
+      },
+    });
+  }
+
+  const shouldApplyGiftUpdate = Boolean(
+    targetOrderForGift &&
+      (
+        messageReferencesExistingOrder(input.currentMessage) ||
+        looksLikeGiftUpdateInstruction(input.currentMessage) ||
+        (assistantOfferedGiftOptions(latestAssistantText) && looksLikeGiftFollowUp(input.currentMessage))
+      )
+  );
+
+  if (
+    targetOrderForGift &&
+    !isOrderMutableStatus(targetOrderForGift.orderStatus) &&
+    shouldApplyGiftUpdate
+  ) {
+    return finalizeReply({
+      reply: `Order #${targetOrderForGift.id} is already ${targetOrderForGift.orderStatus}, so I cannot add gift instructions to it. Please send an active order ID or place a new order.`,
+      orderId: targetOrderForGift.id,
+      nextState: {
+        ...clearPendingConversationState(state),
+        lastReferencedOrderId: targetOrderForGift.id,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  if (
+    targetOrderForGift &&
+    shouldApplyGiftUpdate
+  ) {
+    const updatedOrder = await updateOrderGiftInstructions(targetOrderForGift.id, giftNote);
+
+    return finalizeReply({
+      reply: `I have updated order #${updatedOrder.id} with gift wrap and the note "${giftNote}".\n\n${buildOrderDetailsReply(
+        updatedOrder
+      )}`,
+      orderId: updatedOrder.id,
+      nextState: {
+        ...clearPendingConversationState(state),
+        lastReferencedOrderId: updatedOrder.id,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  if (targetOrderForGift && isOrderMutableStatus(targetOrderForGift.orderStatus)) {
     return finalizeReply({
       reply:
         giftNote !== 'your requested note'
@@ -399,6 +433,18 @@ export async function handle_gift_request(ctx: ChatContext) {
           : `Yes, we can pack order #${targetOrderForGift.id} as a gift. If you want me to apply it to this order, please say "add gift wrap to my last order" and include the note you want.`,
       orderId: targetOrderForGift.id,
       nextState: {
+        lastReferencedOrderId: targetOrderForGift.id,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  if (targetOrderForGift) {
+    return finalizeReply({
+      reply: `Order #${targetOrderForGift.id} is already ${targetOrderForGift.orderStatus}, so I cannot add gift instructions to it. Please send an active order ID or place a new order.`,
+      orderId: targetOrderForGift.id,
+      nextState: {
+        ...clearPendingConversationState(state),
         lastReferencedOrderId: targetOrderForGift.id,
         lastMissingOrderId: null,
       },

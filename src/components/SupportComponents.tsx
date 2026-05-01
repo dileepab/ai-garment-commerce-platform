@@ -1,12 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  sendSupportReplyAction,
-  updateEscalationWorkflowAction,
-} from '@/app/support/actions';
-import { SUPPORT_THREAD_MESSAGE_LIMIT, SUPPORT_THREAD_POLL_MS } from '@/app/support/format';
+import React, { useState, useRef, useEffect } from 'react';
 import type { SupportThread, SupportThreadMessage } from '@/app/support/types';
+import { SUPPORT_THREAD_POLL_MS } from '@/app/support/format';
+import { updateEscalationWorkflowAction, sendSupportReplyAction } from '@/app/support/actions';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -25,80 +22,35 @@ const ic = {
 
 const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A" };
 const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct" };
-const STATUS_CLASS: Record<string, string> = {
-  escalated: "pill-escalated",
-  open: "pill-escalated",
-  pending: "pill-pending",
-  in_progress: "pill-pending",
-  resolved: "pill-resolved",
-};
-const STATUS_LABEL: Record<string, string> = {
-  escalated: "Escalated",
-  open: "Escalated",
-  pending: "Pending Reply",
-  in_progress: "Human Active",
-  resolved: "Resolved",
-};
+const STATUS_CLASS: Record<string, string> = { escalated: "pill-escalated", pending: "pill-pending", resolved: "pill-resolved" };
+const STATUS_LABEL: Record<string, string> = { escalated: "Escalated", pending: "Pending Reply", resolved: "Resolved" };
 
 function getDisplayName(convo: SupportThread): string {
-  return convo.customer?.name || convo.contactName || `Customer ${convo.senderId || convo.id}`;
+  return convo.customer?.name || convo.contactName || 'Unknown';
 }
 
 function getInitials(name: string): string {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-
-  return initials || 'CU';
+  return name.substring(0, 2).toUpperCase();
 }
 
-function getMessageRole(role?: string): 'customer' | 'ai' | 'agent' {
-  const normalizedRole = role?.toLowerCase();
-
-  if (normalizedRole === 'user' || normalizedRole === 'customer') {
-    return 'customer';
-  }
-
-  if (normalizedRole === 'assistant' || normalizedRole === 'ai') {
-    return 'ai';
-  }
-
+function getMessageRole(role: string): 'customer' | 'ai' | 'agent' {
+  const r = role.toLowerCase();
+  if (r === 'customer' || r === 'user') return 'customer';
+  if (r === 'ai' || r === 'assistant') return 'ai';
   return 'agent';
 }
 
-function getMessageText(msg: SupportThreadMessage): string {
-  return msg.message;
+function getMessageText(msg: SupportThreadMessage | any): string {
+  return msg.message || msg.text || msg.content || '';
 }
 
-interface SupportMessagesPayload {
-  messages: SupportThreadMessage[];
-  hasMoreOlder?: boolean;
-  escalation: {
-    id: number;
-    status: string;
-    latestCustomerMessage: string | null;
-    summary: string;
-    updatedAt: string;
-    updatedAtLabel: string;
-    resolvedAt: string | null;
-  };
+function mergeMessages(messages: SupportThreadMessage[]): SupportThreadMessage[] {
+  const byId = new Map<number, SupportThreadMessage>();
+  for (const m of messages) byId.set(m.id, m);
+  return Array.from(byId.values()).sort((a, b) => a.id - b.id);
 }
 
-interface SupportMessagesResponse {
-  success: boolean;
-  data?: SupportMessagesPayload;
-  error?: string;
-}
-
-interface ThreadProps {
-  convo: SupportThread | null;
-  onConvoUpdate: (id: number, patch: Partial<SupportThread>) => void;
-}
-
-function getEscalationPatch(data: SupportMessagesPayload): Partial<SupportThread> {
+function getEscalationPatch(data: any): Partial<SupportThread> {
   return {
     status: data.escalation.status,
     latestCustomerMessage: data.escalation.latestCustomerMessage,
@@ -109,181 +61,117 @@ function getEscalationPatch(data: SupportMessagesPayload): Partial<SupportThread
   };
 }
 
-function mergeMessages(messages: SupportThreadMessage[]): SupportThreadMessage[] {
-  const seen = new Set<number>();
-
-  return messages.filter((message) => {
-    if (seen.has(message.id)) return false;
-    seen.add(message.id);
-    return true;
-  });
-}
-
-function isNearThreadBottom(element: HTMLDivElement): boolean {
-  return element.scrollHeight - element.scrollTop - element.clientHeight < 120;
-}
-
-async function fetchThreadMessages(
-  escalationId: number,
-  params: { afterId?: number; beforeId?: number } = {}
-): Promise<SupportMessagesPayload> {
-  const searchParams = new URLSearchParams({
-    limit: String(SUPPORT_THREAD_MESSAGE_LIMIT),
-  });
-
-  if (params.afterId) searchParams.set('afterId', String(params.afterId));
-  if (params.beforeId) searchParams.set('beforeId', String(params.beforeId));
-
-  const response = await fetch(
-    `/api/support/escalations/${escalationId}/messages?${searchParams.toString()}`,
-    { cache: 'no-store' }
-  );
-  const payload = (await response.json()) as SupportMessagesResponse;
-
-  if (!response.ok || !payload.success || !payload.data) {
-    throw new Error(payload.error || 'Unable to load support messages.');
-  }
-
-  return payload.data;
-}
-
-export function Thread({ convo, onConvoUpdate }: ThreadProps) {
-  const messagesRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const convoRef = useRef(convo);
-  const lastConvoIdRef = useRef<number | null>(null);
-  const loadingOlderRef = useRef(false);
-  const pollingRef = useRef(false);
-  const shouldStickToBottomRef = useRef(false);
+export function Thread({
+  convo,
+  onConvoUpdate = () => {},
+}: {
+  convo: SupportThread | null;
+  onConvoUpdate?: (id: number, patch: Partial<SupportThread>) => void;
+}) {
   const [reply, setReply] = useState("");
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const selectedConvoId = convo?.id ?? null;
-  const selectedConvoStatus = convo?.status ?? null;
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef(false);
+  const shouldStickToBottomRef = useRef(true);
+
+  const selectedConvoId = convo?.id;
+  const selectedConvoStatus = convo?.status;
 
   useEffect(() => {
-    convoRef.current = convo;
-  }, [convo]);
+    shouldStickToBottomRef.current = true;
+  }, [selectedConvoId]);
 
   useEffect(() => {
-    if (!convo) return;
+    if (shouldStickToBottomRef.current && bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [selectedConvoId, convo?.messages?.length]);
 
-    const isNewConversation = lastConvoIdRef.current !== convo.id;
-    if (!isNewConversation && !shouldStickToBottomRef.current) return;
+  const handleMessagesScroll = () => {
+    if (!messagesRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+    shouldStickToBottomRef.current = isAtBottom;
 
-    lastConvoIdRef.current = convo.id;
+    if (scrollTop === 0 && convo?.hasOlderMessages && !isLoadingOlder) {
+      void loadOlderMessages();
+    }
+  };
+
+  const loadOlderMessages = async () => {
+    if (!convo || isLoadingOlder) return;
+    setIsLoadingOlder(true);
     shouldStickToBottomRef.current = false;
 
-    window.requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: isNewConversation ? 'auto' : 'smooth' });
-    });
-  }, [convo?.id, convo?.messages.length, convo]);
-
-  const loadOlderMessages = useCallback(async () => {
-    const currentConvo = convoRef.current;
-    const firstMessageId = currentConvo?.messages[0]?.id;
-    const messageContainer = messagesRef.current;
-
-    if (!currentConvo || !firstMessageId || !currentConvo.hasOlderMessages || loadingOlderRef.current) {
-      return;
-    }
-
-    const previousScrollHeight = messageContainer?.scrollHeight ?? 0;
-    const previousScrollTop = messageContainer?.scrollTop ?? 0;
-
-    loadingOlderRef.current = true;
-    setIsLoadingOlder(true);
-
     try {
-      const data = await fetchThreadMessages(currentConvo.id, { beforeId: firstMessageId });
-      const latestConvo = convoRef.current;
+      const beforeId = convo.messages[0]?.id;
+      if (!beforeId) return;
 
-      if (!latestConvo || latestConvo.id !== currentConvo.id) return;
+      const res = await fetch(`/api/support/escalations/${convo.id}/messages?beforeId=${beforeId}`);
+      const payload = await res.json();
 
-      onConvoUpdate(currentConvo.id, {
-        ...getEscalationPatch(data),
-        hasOlderMessages: data.hasMoreOlder ?? false,
-        messages: mergeMessages([...data.messages, ...latestConvo.messages]),
-      });
+      if (payload.success) {
+        const prevScrollHeight = messagesRef.current?.scrollHeight || 0;
 
-      window.requestAnimationFrame(() => {
-        const latestMessageContainer = messagesRef.current;
-        if (!latestMessageContainer) return;
+        onConvoUpdate(convo.id, {
+          hasOlderMessages: payload.data.hasMoreOlder,
+          messages: mergeMessages([...payload.data.messages, ...convo.messages]),
+        });
 
-        latestMessageContainer.scrollTop =
-          latestMessageContainer.scrollHeight - previousScrollHeight + previousScrollTop;
-      });
+        // We'll use a timeout to ensure the DOM has updated before we adjust the scroll
+        setTimeout(() => {
+          if (messagesRef.current) {
+            messagesRef.current.scrollTop = messagesRef.current.scrollHeight - prevScrollHeight;
+          }
+        }, 0);
+      }
     } catch (error) {
-      console.error('Failed to load older support messages', error);
+      console.error('Failed to load older messages', error);
     } finally {
-      loadingOlderRef.current = false;
       setIsLoadingOlder(false);
     }
-  }, [onConvoUpdate]);
-
-  const handleMessagesScroll = useCallback(() => {
-    const messageContainer = messagesRef.current;
-    const currentConvo = convoRef.current;
-
-    if (!messageContainer || !currentConvo?.hasOlderMessages || loadingOlderRef.current) {
-      return;
-    }
-
-    if (messageContainer.scrollTop <= 32) {
-      void loadOlderMessages();
-    }
-  }, [loadOlderMessages]);
+  };
 
   useEffect(() => {
-    const messageContainer = messagesRef.current;
-
-    if (
-      convo?.hasOlderMessages &&
-      messageContainer &&
-      messageContainer.scrollHeight <= messageContainer.clientHeight + 20
-    ) {
-      void loadOlderMessages();
-    }
-  }, [convo?.id, convo?.messages.length, convo?.hasOlderMessages, loadOlderMessages]);
-
-  useEffect(() => {
-    if (!selectedConvoId || selectedConvoStatus === 'resolved') return;
-
     let cancelled = false;
 
     const pollMessages = async () => {
-      const currentConvo = convoRef.current;
-      if (!currentConvo || pollingRef.current) return;
-
-      const latestMessageId = currentConvo.messages[currentConvo.messages.length - 1]?.id;
-      const messageContainer = messagesRef.current;
-      const shouldScrollAfterUpdate = messageContainer ? isNearThreadBottom(messageContainer) : true;
-
+      if (!selectedConvoId || pollingRef.current) return;
       pollingRef.current = true;
 
       try {
-        const data = await fetchThreadMessages(
-          currentConvo.id,
-          latestMessageId ? { afterId: latestMessageId } : {}
-        );
+        const currentConvo = convo;
+        if (!currentConvo) return;
 
-        if (cancelled) return;
+        const latestMessageId = currentConvo.messages[currentConvo.messages.length - 1]?.id;
+        const url = `/api/support/escalations/${selectedConvoId}/messages${latestMessageId ? `?afterId=${latestMessageId}` : ''}`;
 
-        const latestConvo = convoRef.current;
+        const response = await fetch(url, { cache: 'no-store' });
+        const payload = await response.json();
+
+        if (cancelled || !response.ok || !payload.success) return;
+
+        const { data } = payload;
+        const latestConvo = convo;
         if (!latestConvo || latestConvo.id !== currentConvo.id) return;
 
         const nextMessages = latestMessageId
           ? mergeMessages([...latestConvo.messages, ...data.messages])
           : data.messages;
 
-        if (data.messages.length > 0 && shouldScrollAfterUpdate) {
-          shouldStickToBottomRef.current = true;
-        }
+        const hasNewMessages = data.messages.length > 0;
+        const shouldScrollAfterUpdate = shouldStickToBottomRef.current;
 
         onConvoUpdate(currentConvo.id, {
           ...getEscalationPatch(data),
           hasOlderMessages: data.hasMoreOlder ?? latestConvo.hasOlderMessages,
           messages: nextMessages,
         });
+
+        if (hasNewMessages && shouldScrollAfterUpdate) {
+          shouldStickToBottomRef.current = true;
+        }
       } catch (error) {
         console.error('Failed to refresh support messages', error);
       } finally {
@@ -392,7 +280,7 @@ export function Thread({ convo, onConvoUpdate }: ThreadProps) {
                 {showLabel && isAI && <div className="msg-label" style={{ color: "var(--color-accent)" }}>AI Assistant</div>}
                 {showLabel && isAgent && <div className="msg-label" style={{ color: "var(--color-navy)" }}>Sara Altan · Agent</div>}
                 <div className="msg-bubble">{getMessageText(msg)}</div>
-                <span className="msg-time">{msg.createdAtLabel}</span>
+                <span className="msg-time" suppressHydrationWarning>{msg.createdAtLabel}</span>
               </div>
             </div>
           );

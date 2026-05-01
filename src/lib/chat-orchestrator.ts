@@ -2,13 +2,15 @@ import prisma from '@/lib/prisma';
 import {
   extractExplicitOrderIdFromMessage,
   extractMaximumQuantityFromAssistantMessage,
+  extractStandaloneQuantityFromMessage,
   extractRequestedProductTypes,
   inferSupportIssueReason,
   isGreetingMessage,
-  looksLikeExplicitHumanHandoffRequest,
   isLowerQuantityPrompt,
   isNeutralAcknowledgement,
+  isUnambiguousCancellationMessage,
   looksLikeGiftRequest,
+  looksLikeHumanEscalationRequest,
   looksLikeMissingOrderFollowUp,
   looksLikeOrderDetailsRequest,
   looksLikeOrderStatusRequest,
@@ -53,6 +55,7 @@ import { isClearConfirmation } from '@/lib/order-confirmation';
 import {
   buildHumanSupportReply,
   buildSupportConversationSummary,
+  buildSupportWaitingReply,
   upsertSupportEscalation,
   type SupportIssueReason,
 } from '@/lib/customer-support';
@@ -240,23 +243,24 @@ export async function routeCustomerMessage(
   const persistedSupportMode = state.supportMode;
   const conversationSupportMode =
     persistedSupportMode === 'resolved' ? 'bot_active' : persistedSupportMode;
-  const activeSupportEscalation = await prisma.supportEscalation.findFirst({
-    where: {
-      senderId: input.senderId,
-      channel: input.channel,
-      status: {
-        not: 'resolved',
-      },
-    },
-    orderBy: {
-      updatedAt: 'desc',
-    },
-  });
+  const activeSupportEscalation =
+    conversationSupportMode === 'bot_active'
+      ? null
+      : await prisma.supportEscalation.findFirst({
+          where: {
+            senderId: input.senderId,
+            channel: input.channel,
+            status: {
+              not: 'resolved',
+            },
+          },
+          orderBy: {
+            updatedAt: 'desc',
+          },
+        });
   const currentSupportMode: SupportWorkflowMode =
     activeSupportEscalation?.status === 'in_progress'
       ? 'human_active'
-      : activeSupportEscalation
-        ? 'handoff_requested'
       : conversationSupportMode;
 
   function findProductByName(productName?: string | null) {
@@ -457,10 +461,38 @@ export async function routeCustomerMessage(
     });
   }
 
+  async function finalizeSupportPausedReply(mode: 'handoff_requested' | 'human_active') {
+    const targetOrderId =
+      activeSupportEscalation?.orderId ??
+      state.lastReferencedOrderId ??
+      latestActiveOrder?.id ??
+      latestOrder?.id ??
+      null;
+
+    await syncActiveSupportEscalation({
+      orderId: targetOrderId,
+      mode,
+    });
+
+    return finalizeReply({
+      reply: buildSupportWaitingReply({
+        mode,
+        orderId: targetOrderId,
+      }),
+      orderId: targetOrderId,
+      assistantReplyKind: 'support_waiting',
+      nextState: {
+        ...clearPendingConversationState(state),
+        supportMode: mode,
+        lastReferencedOrderId: targetOrderId,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
   async function finalizeSupportSilentHold(mode: 'handoff_requested' | 'human_active') {
     const targetOrderId =
       activeSupportEscalation?.orderId ??
-      explicitOrderId ??
       state.lastReferencedOrderId ??
       latestActiveOrder?.id ??
       latestOrder?.id ??
@@ -488,7 +520,19 @@ export async function routeCustomerMessage(
     const pausedSupportMode =
       currentSupportMode === 'human_active' ? 'human_active' : 'handoff_requested';
 
-    return finalizeSupportSilentHold(pausedSupportMode);
+    if (pausedSupportMode === 'human_active') {
+      return finalizeSupportSilentHold('human_active');
+    }
+
+    if (state.lastAssistantReplyKind === 'support_handoff') {
+      return finalizeSupportPausedReply('handoff_requested');
+    }
+
+    if (state.lastAssistantReplyKind === 'support_waiting') {
+      return finalizeSupportSilentHold('handoff_requested');
+    }
+
+    return finalizeSupportPausedReply('handoff_requested');
   }
 
   if (isGreetingMessage(input.currentMessage) && state.pendingStep === 'none') {
@@ -580,7 +624,8 @@ export async function routeCustomerMessage(
   if (
     state.orderDraft &&
     ['contact_collection', 'contact_confirmation', 'order_confirmation'].includes(state.pendingStep) &&
-    Boolean(extractedContact.name || extractedContact.address || extractedContact.phone)
+    Boolean(extractedContact.name || extractedContact.address || extractedContact.phone) &&
+    !isUnambiguousCancellationMessage(input.currentMessage)
   ) {
     const nextDraft: ResolvedOrderDraft = {
       ...state.orderDraft,
@@ -656,13 +701,13 @@ export async function routeCustomerMessage(
     });
   }
 
-  const inferredSupportIssueReason = inferSupportIssueReason(input.currentMessage);
+  // Never bypass the escalation path when the customer is explicitly asking to
+  // speak with a human agent, even if the AI labelled it as support_contact_request.
   const supportIssueReason =
-    aiAction.action === 'thanks_acknowledgement' ||
-    (aiAction.action === 'support_contact_request' &&
-      !looksLikeExplicitHumanHandoffRequest(input.currentMessage))
+    (aiAction.action === 'support_contact_request' && !looksLikeHumanEscalationRequest(input.currentMessage)) ||
+    aiAction.action === 'thanks_acknowledgement'
       ? null
-      : inferredSupportIssueReason;
+      : inferSupportIssueReason(input.currentMessage);
   if (supportIssueReason) {
     const relatedOrderId =
       explicitOrderId ??
@@ -677,9 +722,42 @@ export async function routeCustomerMessage(
   }
 
   let effectiveAction = aiAction.action;
+  let effectiveAiAction = aiAction;
 
   if (effectiveAction === 'confirm_pending' && !isClearConfirmation(input.currentMessage)) {
     effectiveAction = 'fallback';
+  }
+
+  const standaloneQuantity = extractStandaloneQuantityFromMessage(input.currentMessage);
+
+  if (
+    effectiveAction === 'fallback' &&
+    standaloneQuantity &&
+    state.lastReferencedOrderId &&
+    (isLowerQuantityPrompt(latestAssistantText) ||
+      state.lastAssistantReplyKind === 'quantity_prompt')
+  ) {
+    effectiveAction = 'update_order_quantity';
+    effectiveAiAction = {
+      ...aiAction,
+      action: 'update_order_quantity',
+      quantity: standaloneQuantity,
+      orderId: state.lastReferencedOrderId,
+    };
+  }
+
+  // If the message is clearly a cancellation while a draft is in progress but
+  // the AI did not classify it as cancel_order (e.g. classified as fallback),
+  // force the cancel_order path so the draft is cleared cleanly.
+  if (
+    effectiveAction !== 'cancel_order' &&
+    state.orderDraft &&
+    ['order_draft', 'contact_collection', 'contact_confirmation', 'order_confirmation'].includes(
+      state.pendingStep
+    ) &&
+    isUnambiguousCancellationMessage(input.currentMessage)
+  ) {
+    effectiveAction = 'cancel_order';
   }
 
   if (effectiveAction === 'fallback' && followUpMissingOrderId) {
@@ -696,7 +774,7 @@ export async function routeCustomerMessage(
   const ctx: ChatContext = {
     input, state, customer, brandFilter, globalProducts, products,
     latestOrder, latestActiveOrder, latestAssistantText, explicitOrderId,
-    requestedProductTypes, followUpMissingOrderId, mergedContact, aiAction,
+    requestedProductTypes, followUpMissingOrderId, mergedContact, aiAction: effectiveAiAction,
     helpers: {
       findProductByName, findCustomerOrderById, buildDraftFromSource,
       finalizeReply, escalateToSupport, clearPendingConversationState
