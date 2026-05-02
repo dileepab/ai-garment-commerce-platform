@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     const whereClause = status
       ? {
           orderStatus:
-            status === 'shipped'
+            status === 'shipped' || status === 'dispatched'
               ? { in: ['shipped', 'dispatched'] }
               : status === 'packing'
                 ? { in: ['packing', 'packed'] }

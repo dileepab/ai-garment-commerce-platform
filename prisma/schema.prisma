@@ -48,19 +48,41 @@ model Customer {
 }
 
 model Order {
-  id                 Int                 @id @default(autoincrement())
+  id                 Int                     @id @default(autoincrement())
   customerId         Int
-  customer           Customer            @relation(fields: [customerId], references: [id])
+  customer           Customer                @relation(fields: [customerId], references: [id])
   brand              String?
-  orderStatus        String              @default("pending")
+  orderStatus        String                  @default("pending")
   totalAmount        Float
   paymentMethod      String?
   deliveryAddress    String?
-  giftWrap           Boolean             @default(false)
+  giftWrap           Boolean                 @default(false)
   giftNote           String?
-  createdAt          DateTime            @default(now())
+  trackingNumber     String?
+  courier            String?
+  failureReason      String?
+  returnReason       String?
+  createdAt          DateTime                @default(now())
   orderItems         OrderItem[]
   supportEscalations SupportEscalation[]
+  fulfillmentEvents  OrderFulfillmentEvent[]
+}
+
+model OrderFulfillmentEvent {
+  id               Int      @id @default(autoincrement())
+  orderId          Int
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus       String?
+  toStatus         String
+  note             String?
+  trackingNumber   String?
+  courier          String?
+  actorEmail       String?
+  actorName        String?
+  customerNotified Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 model OrderItem {

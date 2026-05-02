@@ -28,9 +28,11 @@ function statusPillClass(status: string) {
   const s = status.toLowerCase();
   if (s === 'pending')   return { bg: '#FFF0C2', color: '#7A5400' };
   if (s === 'confirmed') return { bg: '#D6DDE8', color: '#1E3452' };
-  if (s === 'processing'||s === 'packed') return { bg: '#E8E0F5', color: '#4A2D7A' };
-  if (s === 'dispatched'||s === 'shipped') return { bg: '#D4EDE0', color: '#1A5C3C' };
+  if (s === 'processing' || s === 'packing' || s === 'packed') return { bg: '#E8E0F5', color: '#4A2D7A' };
+  if (s === 'dispatched' || s === 'shipped') return { bg: '#D4EDE0', color: '#1A5C3C' };
   if (s === 'delivered') return { bg: '#EDFAF4', color: '#1E6B45' };
+  if (s === 'delivery_failed') return { bg: '#FCE2E2', color: '#8B2020' };
+  if (s === 'returned') return { bg: '#F1E4D7', color: '#5C3A1A' };
   if (s === 'cancelled') return { bg: '#F5D8D8', color: '#701919' };
   return { bg: '#F2EFE9', color: '#6A635A' };
 }
@@ -174,11 +176,12 @@ export default async function Dashboard() {
 
   // Pipeline counts
   const pipeline = [
-    { label: 'Pending',   color: '#E8C840', statuses: ['pending'] },
-    { label: 'Confirmed', color: '#4A7AA8', statuses: ['confirmed'] },
-    { label: 'Packing',   color: '#8B5CF6', statuses: ['processing', 'packed'] },
-    { label: 'Shipped',   color: '#38A169', statuses: ['dispatched'] },
-    { label: 'Delivered', color: '#1E6B45', statuses: ['delivered'] },
+    { label: 'Pending',    color: '#E8C840', statuses: ['pending'] },
+    { label: 'Confirmed',  color: '#4A7AA8', statuses: ['confirmed'] },
+    { label: 'Packing',    color: '#8B5CF6', statuses: ['processing', 'packing', 'packed'] },
+    { label: 'Dispatched', color: '#38A169', statuses: ['dispatched', 'shipped'] },
+    { label: 'Delivered',  color: '#1E6B45', statuses: ['delivered'] },
+    { label: 'Issues',     color: '#C04A4A', statuses: ['delivery_failed', 'returned'] },
   ].map((p) => ({
     ...p,
     count: allOrders.filter((o) => p.statuses.includes(o.orderStatus.toLowerCase())).length,

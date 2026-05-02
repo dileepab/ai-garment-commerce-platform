@@ -2,12 +2,9 @@ import prisma from '@/lib/prisma';
 import { canScope, getBrandScopedWhere } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import OrdersPageClient from './OrdersPageClient';
+import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
-
-function isStatus(orderStatus: string, ...statuses: string[]) {
-  return statuses.includes(orderStatus);
-}
 
 export default async function OrdersPage() {
   const scope = await requirePagePermission('orders:view');
@@ -29,18 +26,29 @@ export default async function OrdersPage() {
         },
         orderBy: { updatedAt: 'desc' },
       },
+      fulfillmentEvents: {
+        orderBy: { createdAt: 'asc' },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
 
+  const normalizedCounts = orders.reduce<Record<string, number>>((acc, o) => {
+    const key = normalizeFulfillmentStatus(o.orderStatus);
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
   const stats = {
     total: orders.length,
-    pending: orders.filter(o => o.orderStatus === 'pending').length,
-    confirmed: orders.filter(o => o.orderStatus === 'confirmed').length,
-    packing: orders.filter(o => isStatus(o.orderStatus, 'packing', 'packed')).length,
-    shipped: orders.filter(o => isStatus(o.orderStatus, 'shipped', 'dispatched')).length,
-    delivered: orders.filter(o => o.orderStatus === 'delivered').length,
-    cancelled: orders.filter(o => o.orderStatus === 'cancelled').length,
+    pending: normalizedCounts.pending ?? 0,
+    confirmed: normalizedCounts.confirmed ?? 0,
+    packing: (normalizedCounts.packing ?? 0) + (normalizedCounts.packed ?? 0),
+    shipped: normalizedCounts.dispatched ?? 0,
+    delivered: normalizedCounts.delivered ?? 0,
+    deliveryFailed: normalizedCounts.delivery_failed ?? 0,
+    returned: normalizedCounts.returned ?? 0,
+    cancelled: normalizedCounts.cancelled ?? 0,
     revenueToday: orders
       .filter(o => o.orderStatus !== 'cancelled' && new Date(o.createdAt).toDateString() === new Date().toDateString())
       .reduce((acc, o) => acc + o.totalAmount, 0),
@@ -54,6 +62,10 @@ export default async function OrdersPage() {
     brand: o.brand,
     paymentMethod: o.paymentMethod,
     deliveryAddress: o.deliveryAddress,
+    trackingNumber: o.trackingNumber,
+    courier: o.courier,
+    failureReason: o.failureReason,
+    returnReason: o.returnReason,
     customer: {
       id: o.customer.id,
       name: o.customer.name,
@@ -75,6 +87,18 @@ export default async function OrdersPage() {
       status: support.status,
       reason: support.reason,
       updatedAt: support.updatedAt.toISOString(),
+    })),
+    fulfillmentEvents: o.fulfillmentEvents.map((event) => ({
+      id: event.id,
+      fromStatus: event.fromStatus,
+      toStatus: event.toStatus,
+      note: event.note,
+      trackingNumber: event.trackingNumber,
+      courier: event.courier,
+      actorEmail: event.actorEmail,
+      actorName: event.actorName,
+      customerNotified: event.customerNotified,
+      createdAt: event.createdAt.toISOString(),
     })),
   }));
 

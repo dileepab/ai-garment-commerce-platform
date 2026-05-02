@@ -1,15 +1,25 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  confirmOrder,
-  markPacking,
-  markShipped,
-  deliverOrder,
   cancelOrder,
+  confirmOrder,
+  deliverOrder,
+  dispatchOrder,
+  markPacked,
+  markPacking,
+  markReturned,
+  reportDeliveryFailure,
+  retryDispatch,
   type OrderActionResult,
 } from '@/app/orders/actions';
+import {
+  getActionsForStatus,
+  getFulfillmentLabel,
+  normalizeFulfillmentStatus,
+  type FulfillmentAction,
+} from '@/lib/fulfillment';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -27,28 +37,90 @@ const ic = {
   card: ["M2 5h20v14H2z", "M2 10h20"],
   ban: ["M12 22a10 10 0 100-20 10 10 0 000 20", "M5 5l14 14"],
   box: ["M21 8l-9 4-9-4 9-4 9 4z", "M3 8v8l9 4 9-4V8", "M12 12v8"],
+  alert: ["M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z", "M12 9v4", "M12 17h.01"],
+  rotate: ["M1 4v6h6", "M3.51 15a9 9 0 102.13-9.36L1 10"],
+  arrowLeft: ["M19 12H5", "M12 19l-7-7 7-7"],
 };
 
-const STATUS_STEPS = ["pending", "confirmed", "packing", "shipped", "delivered"];
+const TIMELINE_STEPS = ["pending", "confirmed", "packing", "packed", "dispatched", "delivered"] as const;
+
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
   confirmed: "Confirmed",
   processing: "Processing",
   packing: "Packing",
   packed: "Packed",
-  shipped: "Shipped",
-  dispatched: "Shipped",
+  shipped: "Dispatched",
+  dispatched: "Dispatched",
   delivered: "Delivered",
+  delivery_failed: "Delivery failed",
+  returned: "Returned",
   cancelled: "Cancelled",
 };
+
+const ACTION_ICON: Record<FulfillmentAction, string | string[]> = {
+  confirm: ic.check,
+  mark_packing: ic.box,
+  mark_packed: ic.box,
+  dispatch: ic.truck,
+  mark_delivered: ic.check,
+  mark_delivery_failed: ic.alert,
+  retry_dispatch: ic.rotate,
+  mark_returned: ic.arrowLeft,
+  cancel: ic.ban,
+};
+
+interface ActionDispatchInput {
+  trackingNumber?: string;
+  courier?: string;
+  reason?: string;
+  note?: string;
+}
+
+function runFulfillmentAction(
+  action: FulfillmentAction,
+  orderId: number,
+  input: ActionDispatchInput,
+): Promise<OrderActionResult> {
+  switch (action) {
+    case 'confirm':
+      return confirmOrder(orderId);
+    case 'mark_packing':
+      return markPacking(orderId);
+    case 'mark_packed':
+      return markPacked(orderId, input.note);
+    case 'dispatch':
+      return dispatchOrder(orderId, {
+        trackingNumber: input.trackingNumber,
+        courier: input.courier,
+        note: input.note,
+      });
+    case 'mark_delivered':
+      return deliverOrder(orderId);
+    case 'mark_delivery_failed':
+      return reportDeliveryFailure(orderId, {
+        reason: input.reason ?? '',
+        note: input.note,
+      });
+    case 'retry_dispatch':
+      return retryDispatch(orderId, {
+        trackingNumber: input.trackingNumber,
+        courier: input.courier,
+        note: input.note,
+      });
+    case 'mark_returned':
+      return markReturned(orderId, {
+        reason: input.reason ?? '',
+        note: input.note,
+      });
+    case 'cancel':
+      return cancelOrder(orderId);
+  }
+}
 
 const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A", whatsapp: "#128C7E" };
 const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
 const ACTIVE_SUPPORT_STATUSES = new Set(["escalated", "open", "pending", "in_progress"]);
-
-function normalizeOrderStatus(status: string): string {
-  return status === 'dispatched' ? 'shipped' : status === 'packed' ? 'packing' : status;
-}
 
 export interface OrderDrawerOrderItem {
   id: number;
@@ -62,6 +134,19 @@ export interface OrderDrawerOrderItem {
   } | null;
 }
 
+export interface OrderFulfillmentEventLike {
+  id: number;
+  fromStatus: string | null;
+  toStatus: string;
+  note: string | null;
+  trackingNumber: string | null;
+  courier: string | null;
+  actorEmail: string | null;
+  actorName: string | null;
+  customerNotified: boolean;
+  createdAt: string;
+}
+
 export interface OrderDrawerOrder {
   id: number;
   orderStatus: string;
@@ -72,6 +157,10 @@ export interface OrderDrawerOrder {
   brand?: string | null;
   channel?: string;
   paymentMethod?: string | null;
+  trackingNumber?: string | null;
+  courier?: string | null;
+  failureReason?: string | null;
+  returnReason?: string | null;
   orderItems?: OrderDrawerOrderItem[];
   supportEscalations?: {
     id: number;
@@ -79,6 +168,7 @@ export interface OrderDrawerOrder {
     reason: string;
     updatedAt: string;
   }[];
+  fulfillmentEvents?: OrderFulfillmentEventLike[];
 }
 
 export interface OrderPipelineStats {
@@ -87,82 +177,105 @@ export interface OrderPipelineStats {
   packing: number;
   shipped: number;
   delivered: number;
-}
-
-interface NextActionConfig {
-  label: string;
-  shortLabel: string;
-  variant: 'primary' | 'secondary' | 'success';
-  run: (orderId: number) => Promise<OrderActionResult>;
-  iconPath?: string | string[];
-}
-
-function getPrimaryAction(status: string): NextActionConfig | null {
-  switch (status) {
-    case 'pending':
-      return { label: 'Confirm Order', shortLabel: 'Confirm', variant: 'primary', run: confirmOrder, iconPath: ic.check };
-    case 'confirmed':
-      return { label: 'Mark Packing', shortLabel: 'Packing', variant: 'primary', run: markPacking, iconPath: ic.box };
-    case 'packing':
-    case 'packed':
-      return { label: 'Mark Shipped', shortLabel: 'Ship', variant: 'primary', run: markShipped, iconPath: ic.truck };
-    case 'shipped':
-    case 'dispatched':
-      return { label: 'Mark Delivered', shortLabel: 'Deliver', variant: 'success', run: deliverOrder, iconPath: ic.check };
-    default:
-      return null;
-  }
-}
-
-function canCancel(status: string): boolean {
-  return ['pending', 'confirmed', 'processing', 'packing', 'packed'].includes(status);
+  deliveryFailed: number;
+  returned: number;
 }
 
 export function OrderDrawer({
   order,
   onClose,
   canUpdate = true,
+  initialAction = null,
 }: {
   order: OrderDrawerOrder | null;
   onClose: () => void;
   canUpdate?: boolean;
+  // When the parent opens the drawer specifically to fill a form (e.g. a row
+  // click on "Dispatch"), pass that action here and the drawer will pre-open
+  // the matching input panel.
+  initialAction?: FulfillmentAction | null;
 }) {
   const router = useRouter();
   const open = !!order;
   const status = order?.orderStatus || 'pending';
-  const displayStatus = normalizeOrderStatus(status);
-  const stepIdx = STATUS_STEPS.indexOf(displayStatus);
-  const isCancelled = displayStatus === 'cancelled';
+  const normalized = normalizeFulfillmentStatus(status);
+  const isCancelled = normalized === 'cancelled';
   const channelKey = order?.channel || order?.customer.channel || 'direct';
+  const stepIdx = TIMELINE_STEPS.indexOf(normalized as typeof TIMELINE_STEPS[number]);
 
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pendingActionForm, setPendingActionForm] = useState<FulfillmentAction | null>(initialAction);
+  const [trackingDraft, setTrackingDraft] = useState(order?.trackingNumber ?? '');
+  const [courierDraft, setCourierDraft] = useState(order?.courier ?? '');
+  const [reasonDraft, setReasonDraft] = useState('');
+  const [noteDraft, setNoteDraft] = useState('');
 
-  const primaryAction = canUpdate && !isCancelled && order ? getPrimaryAction(status) : null;
-  const showCancel = canUpdate && !!order && canCancel(status);
+  React.useEffect(() => {
+    setTrackingDraft(order?.trackingNumber ?? '');
+    setCourierDraft(order?.courier ?? '');
+    setReasonDraft('');
+    setNoteDraft('');
+    setPendingActionForm(initialAction);
+    setError(null);
+  }, [order?.id, order?.trackingNumber, order?.courier, initialAction]);
+
+  const actions = canUpdate && order ? getActionsForStatus(status) : [];
   const activeSupport = order?.supportEscalations?.filter((support) => ACTIVE_SUPPORT_STATUSES.has(support.status)) || [];
 
-  const runAction = (action: (id: number) => Promise<OrderActionResult>) => {
+  const runAction = (action: FulfillmentAction, input: ActionDispatchInput = {}) => {
     if (!order) return;
     setError(null);
     startTransition(async () => {
-      const result = await action(order.id);
+      const result = await runFulfillmentAction(action, order.id, input);
       if (!result.success && result.error) {
         setError(result.error);
         return;
       }
+      setPendingActionForm(null);
+      setReasonDraft('');
+      setNoteDraft('');
       router.refresh();
     });
   };
 
-  const handleCancel = () => {
-    if (!order) return;
-    const ok = window.confirm(`Cancel order #${order.id}? This will release reserved stock.`);
-    if (!ok) return;
-    runAction(cancelOrder);
+  const submitPendingForm = (action: FulfillmentAction) => {
+    runAction(action, {
+      trackingNumber: trackingDraft || undefined,
+      courier: courierDraft || undefined,
+      reason: reasonDraft || undefined,
+      note: noteDraft || undefined,
+    });
+  };
+
+  const handleActionClick = (action: FulfillmentAction, requiresInput: boolean) => {
+    if (action === 'cancel') {
+      const ok = window.confirm(`Cancel order #${order?.id}? This will release reserved stock.`);
+      if (ok) runAction('cancel');
+      return;
+    }
+
+    if (requiresInput) {
+      // If the form for this action is already open, treat the bottom button
+      // as a submit so admins don't have to hunt for the in-form save.
+      if (pendingActionForm === action) {
+        submitPendingForm(action);
+      } else {
+        setPendingActionForm(action);
+      }
+      return;
+    }
+
+    runAction(action);
   };
 
   const totalUnits = order?.orderItems?.reduce((acc, i) => acc + i.quantity, 0) ?? 0;
+
+  const sortedEvents = useMemo(() => {
+    return [...(order?.fulfillmentEvents ?? [])].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, [order?.fulfillmentEvents]);
 
   return (
     <>
@@ -174,7 +287,7 @@ export function OrderDrawer({
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <code style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 600, color: "var(--color-fg-1)" }}>#ORD-{order.id}</code>
-                  <span className={`pill pill-${displayStatus}`}>{STATUS_LABELS[status] || STATUS_LABELS[displayStatus] || displayStatus}</span>
+                  <span className={`pill pill-${normalized}`}>{STATUS_LABELS[status] || STATUS_LABELS[normalized] || normalized}</span>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--color-fg-3)" }}>
                   {new Date(order.createdAt).toLocaleString()} · via <span style={{ fontWeight: 600, color: CHANNEL_COLORS[channelKey] || CHANNEL_COLORS.direct }}>{CHANNEL_LABELS[channelKey] || channelKey}</span>
@@ -226,6 +339,38 @@ export function OrderDrawer({
                   </div>
                 </div>
               </div>
+
+              {(order.trackingNumber || order.courier || order.failureReason || order.returnReason) && (
+                <div>
+                  <div className="drawer-section-label">Shipment</div>
+                  <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                    {order.courier && (
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Courier</span>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{order.courier}</span>
+                      </div>
+                    )}
+                    {order.trackingNumber && (
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Tracking</span>
+                        <code style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{order.trackingNumber}</code>
+                      </div>
+                    )}
+                    {order.failureReason && (
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                        <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Failure</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#8B2020", textAlign: "right" }}>{order.failureReason}</span>
+                      </div>
+                    )}
+                    {order.returnReason && (
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                        <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Return reason</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, textAlign: "right" }}>{order.returnReason}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {order.supportEscalations && order.supportEscalations.length > 0 && (
                 <div>
@@ -284,16 +429,22 @@ export function OrderDrawer({
               <div>
                 <div className="drawer-section-label">Order Timeline</div>
                 <div className="timeline">
-                  {STATUS_STEPS.map((step, i) => {
-                    const state = isCancelled ? "future" : i < stepIdx ? "done" : i === stepIdx ? "current" : "future";
+                  {TIMELINE_STEPS.map((step, i) => {
+                    const state = isCancelled || normalized === 'returned'
+                      ? 'future'
+                      : i < stepIdx
+                        ? 'done'
+                        : i === stepIdx
+                          ? 'current'
+                          : 'future';
                     return (
                       <div key={step} className="tl-step">
                         <div className={`tl-dot ${state}`}>
-                          {(state === "done" || state === "current") && <Icon d={ic.check} size={11} color="white" strokeWidth={2.5} />}
+                          {(state === 'done' || state === 'current') && <Icon d={ic.check} size={11} color="white" strokeWidth={2.5} />}
                         </div>
                         <div className="tl-label">
-                          <div className="tl-label-title" style={{ color: state === "future" ? "var(--color-fg-3)" : "var(--color-fg-1)" }}>{STATUS_LABELS[step]}</div>
-                          <div className="tl-label-sub">{state !== "future" ? "Updated" : "—"}</div>
+                          <div className="tl-label-title" style={{ color: state === 'future' ? 'var(--color-fg-3)' : 'var(--color-fg-1)' }}>{getFulfillmentLabel(step)}</div>
+                          <div className="tl-label-sub">{state !== 'future' ? 'Updated' : '—'}</div>
                         </div>
                       </div>
                     );
@@ -301,45 +452,117 @@ export function OrderDrawer({
                 </div>
               </div>
 
+              {sortedEvents.length > 0 && (
+                <div>
+                  <div className="drawer-section-label">History</div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {sortedEvents.map((event) => (
+                      <li
+                        key={event.id}
+                        style={{
+                          background: 'var(--color-bg)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '8px 12px',
+                          fontSize: 12,
+                          color: 'var(--color-fg-2)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                          <strong style={{ color: 'var(--color-fg-1)' }}>
+                            {event.fromStatus ? `${getFulfillmentLabel(event.fromStatus)} → ` : ''}
+                            {getFulfillmentLabel(event.toStatus)}
+                          </strong>
+                          <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }} suppressHydrationWarning>
+                            {new Date(event.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {event.actorName || event.actorEmail ? (
+                            <span>By {event.actorName || event.actorEmail}</span>
+                          ) : null}
+                          {event.courier ? <span>Courier: {event.courier}</span> : null}
+                          {event.trackingNumber ? <span>Tracking: {event.trackingNumber}</span> : null}
+                          {event.customerNotified ? <span style={{ color: 'var(--color-fg-3)' }}>· customer notified</span> : null}
+                        </div>
+                        {event.note && (
+                          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-fg-2)' }}>{event.note}</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {error && (
                 <div className="drawer-error" role="alert">
                   {error}
                 </div>
               )}
+
+              {pendingActionForm && (
+                <FulfillmentActionForm
+                  action={pendingActionForm}
+                  trackingDraft={trackingDraft}
+                  courierDraft={courierDraft}
+                  reasonDraft={reasonDraft}
+                  noteDraft={noteDraft}
+                  onTrackingChange={setTrackingDraft}
+                  onCourierChange={setCourierDraft}
+                  onReasonChange={setReasonDraft}
+                  onNoteChange={setNoteDraft}
+                  onCancel={() => setPendingActionForm(null)}
+                />
+              )}
             </div>
             <div className="drawer-actions">
-              {primaryAction && (
-                <button
-                  className={`btn ${primaryAction.variant === 'success' ? 'btn-success' : 'btn-primary'}`}
-                  style={{ justifyContent: "center", fontSize: 12 }}
-                  disabled={isPending}
-                  onClick={() => runAction(primaryAction.run)}
-                >
-                  {primaryAction.iconPath && <Icon d={primaryAction.iconPath} size={12} />}
-                  {isPending ? 'Updating…' : primaryAction.label}
-                </button>
+              {actions.length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--color-fg-3)', textAlign: 'center' }}>
+                  No further fulfillment actions available for this order.
+                </div>
               )}
-              <div style={{ display: "grid", gridTemplateColumns: showCancel ? "1fr 1fr" : "1fr", gap: 8 }}>
-                <button className="btn btn-secondary" style={{ justifyContent: "center", fontSize: 12 }}>
+              {actions.map((descriptor) => {
+                const requiresInput = Boolean(descriptor.requiresTracking || descriptor.requiresReason);
+                const isThisFormOpen = pendingActionForm === descriptor.action;
+                const reasonMissing =
+                  descriptor.requiresReason && isThisFormOpen && !reasonDraft.trim();
+                const buttonClass =
+                  descriptor.variant === 'success'
+                    ? 'btn btn-success'
+                    : descriptor.variant === 'danger'
+                      ? 'btn btn-danger'
+                      : descriptor.variant === 'secondary'
+                        ? 'btn btn-secondary'
+                        : 'btn btn-primary';
+                const submitLabel = `Save & ${descriptor.shortLabel}`;
+                return (
+                  <button
+                    key={descriptor.action}
+                    className={buttonClass}
+                    style={{ justifyContent: 'center', fontSize: 12 }}
+                    disabled={isPending || reasonMissing}
+                    title={reasonMissing ? 'Enter a reason in the form above to enable this action.' : undefined}
+                    onClick={() => handleActionClick(descriptor.action, requiresInput)}
+                  >
+                    {ACTION_ICON[descriptor.action] && <Icon d={ACTION_ICON[descriptor.action]} size={12} />}
+                    {isPending && isThisFormOpen
+                      ? 'Saving…'
+                      : isThisFormOpen
+                        ? submitLabel
+                        : descriptor.label}
+                  </button>
+                );
+              })}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                <button className="btn btn-secondary" style={{ justifyContent: 'center', fontSize: 12 }}>
                   <Icon d={ic.message2} size={12} />Contact
                 </button>
-                {showCancel && (
-                  <button
-                    className="btn btn-danger"
-                    style={{ justifyContent: "center", fontSize: 12 }}
-                    onClick={handleCancel}
-                    disabled={isPending}
-                  >
-                    <Icon d={ic.ban} size={12} />Cancel Order
-                  </button>
-                )}
               </div>
               {!canUpdate && (
                 <div className="drawer-error" role="note">
                   Your role can view this order but cannot change its lifecycle.
                 </div>
               )}
-              <button className="btn btn-ghost" style={{ justifyContent: "center", fontSize: 12, color: "var(--color-fg-3)" }}>
+              <button className="btn btn-ghost" style={{ justifyContent: 'center', fontSize: 12, color: 'var(--color-fg-3)' }}>
                 <Icon d={ic.printer} size={12} />Print Invoice
               </button>
             </div>
@@ -350,13 +573,128 @@ export function OrderDrawer({
   );
 }
 
+function FulfillmentActionForm({
+  action,
+  trackingDraft,
+  courierDraft,
+  reasonDraft,
+  noteDraft,
+  onTrackingChange,
+  onCourierChange,
+  onReasonChange,
+  onNoteChange,
+  onCancel,
+}: {
+  action: FulfillmentAction;
+  trackingDraft: string;
+  courierDraft: string;
+  reasonDraft: string;
+  noteDraft: string;
+  onTrackingChange: (value: string) => void;
+  onCourierChange: (value: string) => void;
+  onReasonChange: (value: string) => void;
+  onNoteChange: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const showTracking = action === 'dispatch' || action === 'retry_dispatch';
+  const showReason = action === 'mark_delivery_failed' || action === 'mark_returned';
+  const reasonLabel = action === 'mark_delivery_failed' ? 'Failure reason' : 'Return reason';
+  const reasonInputRef = React.useRef<HTMLInputElement>(null);
+  const trackingInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (showReason) {
+      reasonInputRef.current?.focus();
+    } else if (showTracking) {
+      trackingInputRef.current?.focus();
+    }
+  }, [action, showReason, showTracking]);
+
+  return (
+    <div
+      style={{
+        background: 'var(--color-bg)',
+        borderRadius: 'var(--radius-md)',
+        padding: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      {showTracking && (
+        <>
+          <label style={{ fontSize: 11, color: 'var(--color-fg-2)', fontWeight: 600 }}>Courier</label>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="e.g. Domex, Pronto, Fardar Express"
+            value={courierDraft}
+            onChange={(e) => onCourierChange(e.target.value)}
+          />
+          <label style={{ fontSize: 11, color: 'var(--color-fg-2)', fontWeight: 600 }}>Tracking number</label>
+          <input
+            ref={trackingInputRef}
+            type="text"
+            className="search-input"
+            placeholder="Enter courier tracking reference"
+            value={trackingDraft}
+            onChange={(e) => onTrackingChange(e.target.value)}
+          />
+        </>
+      )}
+      {showReason && (
+        <>
+          <label style={{ fontSize: 11, color: 'var(--color-fg-2)', fontWeight: 600 }}>
+            {reasonLabel} <span style={{ color: 'var(--color-error)' }}>*</span>
+          </label>
+          <input
+            ref={reasonInputRef}
+            type="text"
+            className="search-input"
+            placeholder={action === 'mark_delivery_failed' ? 'e.g. recipient not available' : 'e.g. wrong size, damaged'}
+            value={reasonDraft}
+            onChange={(e) => onReasonChange(e.target.value)}
+            required
+          />
+        </>
+      )}
+      <label style={{ fontSize: 11, color: 'var(--color-fg-2)', fontWeight: 600 }}>Internal note (optional)</label>
+      <input
+        type="text"
+        className="search-input"
+        placeholder="Notes saved to the audit trail"
+        value={noteDraft}
+        onChange={(e) => onNoteChange(e.target.value)}
+      />
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+        <span
+          style={{
+            fontSize: 11,
+            color: showReason && !reasonDraft.trim() ? 'var(--color-error)' : 'var(--color-fg-3)',
+            fontWeight: showReason && !reasonDraft.trim() ? 600 : 400,
+          }}
+        >
+          {showReason && !reasonDraft.trim()
+            ? `Enter a ${reasonLabel.toLowerCase()} to enable the action button below.`
+            : 'Use the action button below to save and continue.'}
+        </span>
+        <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={onCancel} type="button">
+          Discard
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function OrderPipeline({ stats }: { stats: OrderPipelineStats }) {
   const pipeline = [
     { key: "pending", label: "Pending", color: "#E8C840", count: stats.pending },
     { key: "confirmed", label: "Confirmed", color: "#4A7AA8", count: stats.confirmed },
     { key: "packing", label: "Packing", color: "#8B5CF6", count: stats.packing },
-    { key: "shipped", label: "Shipped", color: "#38A169", count: stats.shipped },
+    { key: "dispatched", label: "Dispatched", color: "#38A169", count: stats.shipped },
     { key: "delivered", label: "Delivered", color: "#1E6B45", count: stats.delivered },
+    { key: "delivery_failed", label: "Failed", color: "#C04A4A", count: stats.deliveryFailed },
+    { key: "returned", label: "Returned", color: "#A07050", count: stats.returned },
   ];
 
   const total = pipeline.reduce((acc, s) => acc + s.count, 0);
@@ -384,19 +722,29 @@ export function OrderPipeline({ stats }: { stats: OrderPipelineStats }) {
   );
 }
 
-export function OrderRowQuickActions({ orderId, status }: { orderId: number, status: string }) {
+export function OrderRowQuickActions({
+  orderId,
+  status,
+  onRequireForm,
+}: {
+  orderId: number;
+  status: string;
+  // Called for actions that need extra input (tracking, reason). The parent
+  // opens the drawer for this order with the form pre-opened — keeping the
+  // row useful even at stages whose only forward move is dispatch/return/fail.
+  onRequireForm?: (orderId: number, action: FulfillmentAction) => void;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const action = getPrimaryAction(status);
-  const showCancel = canCancel(status);
+  const actions = getActionsForStatus(status);
 
-  if (!action && !showCancel) return null;
+  if (actions.length === 0) return null;
 
-  const runRowAction = (nextAction: (id: number) => Promise<OrderActionResult>) => {
+  const runRowAction = (action: FulfillmentAction) => {
     setError(null);
     startTransition(async () => {
-      const result = await nextAction(orderId);
+      const result = await runFulfillmentAction(action, orderId, {});
       if (!result.success && result.error) {
         setError(result.error);
         return;
@@ -405,39 +753,33 @@ export function OrderRowQuickActions({ orderId, status }: { orderId: number, sta
     });
   };
 
-  const handlePrimaryClick = (e: React.MouseEvent) => {
+  const handleClick = (descriptor: typeof actions[number]) => (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (action) runRowAction(action.run);
-  };
-
-  const handleCancelClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const ok = window.confirm(`Cancel order #${orderId}? This will release reserved stock.`);
-    if (ok) runRowAction(cancelOrder);
+    if (descriptor.action === 'cancel') {
+      const ok = window.confirm(`Cancel order #${orderId}? This will release reserved stock.`);
+      if (ok) runRowAction(descriptor.action);
+      return;
+    }
+    if (descriptor.requiresTracking || descriptor.requiresReason) {
+      onRequireForm?.(orderId, descriptor.action);
+      return;
+    }
+    runRowAction(descriptor.action);
   };
 
   return (
     <div className="row-actions" title={error || undefined} data-error={error ? 'true' : undefined}>
-      {action && (
+      {actions.map((descriptor) => (
         <button
-          className="row-action-btn"
-          onClick={handlePrimaryClick}
+          key={descriptor.action}
+          className={descriptor.destructive ? 'row-action-btn row-action-danger' : 'row-action-btn'}
+          onClick={handleClick(descriptor)}
           disabled={isPending}
-          title={action.label}
+          title={descriptor.label}
         >
-          {isPending ? '...' : action.shortLabel}
+          {isPending ? '...' : descriptor.shortLabel}
         </button>
-      )}
-      {showCancel && (
-        <button
-          className="row-action-btn row-action-danger"
-          onClick={handleCancelClick}
-          disabled={isPending}
-          title="Cancel order"
-        >
-          Cancel
-        </button>
-      )}
+      ))}
     </div>
   );
 }

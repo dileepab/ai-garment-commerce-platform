@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { getFulfillmentLabel } from '@/lib/fulfillment';
 
 interface OrderStatusParams {
   senderId: string;
@@ -105,7 +106,7 @@ function findRecentReferencedOrderId(messages: RecentConversationMessage[]): num
 }
 
 function buildOrderStatusReply(orderId: number, status: string): string {
-  return `Order #${orderId} is currently ${status}.`;
+  return `Order #${orderId} is currently ${getFulfillmentLabel(status).toLowerCase()}.`;
 }
 
 async function saveConversationPair(

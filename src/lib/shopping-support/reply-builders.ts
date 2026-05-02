@@ -81,11 +81,27 @@ export function buildSummaryReplyWithIntro(intro: string, summary: string): stri
 }
 
 export function describeOrderStatus(status: string): string {
-  if (status === 'packed') {
+  const normalized = status?.trim().toLowerCase();
+  if (normalized === 'packed') {
     return 'Your order is already packed.';
   }
-  if (status === 'confirmed') {
+  if (normalized === 'packing') {
+    return 'Your order is currently being packed.';
+  }
+  if (normalized === 'confirmed') {
     return 'Your order is already confirmed.';
+  }
+  if (normalized === 'dispatched' || normalized === 'shipped') {
+    return 'Your order has already been dispatched.';
+  }
+  if (normalized === 'delivery_failed') {
+    return 'The courier reported a delivery issue with your order.';
+  }
+  if (normalized === 'returned') {
+    return 'Your order has been recorded as returned.';
+  }
+  if (normalized === 'delivered') {
+    return 'Your order has already been delivered.';
   }
   return 'Your order is already placed.';
 }

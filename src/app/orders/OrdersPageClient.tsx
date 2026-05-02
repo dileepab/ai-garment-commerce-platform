@@ -8,6 +8,7 @@ import {
   type OrderDrawerOrder,
   type OrderPipelineStats,
 } from '@/components/OrderComponents';
+import type { FulfillmentAction } from '@/lib/fulfillment';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -26,8 +27,10 @@ const STATUS_TABS = [
   { key: "pending", label: "Pending", dot: "#E8C840" },
   { key: "confirmed", label: "Confirmed", dot: "#4A7AA8" },
   { key: "packing", label: "Packing", dot: "#8B5CF6" },
-  { key: "shipped", label: "Shipped", dot: "#38A169" },
+  { key: "shipped", label: "Dispatched", dot: "#38A169" },
   { key: "delivered", label: "Delivered", dot: "#1E6B45" },
+  { key: "delivery_failed", label: "Failed", dot: "#C04A4A" },
+  { key: "returned", label: "Returned", dot: "#A07050" },
   { key: "cancelled", label: "Cancelled", dot: "#8B2020" },
 ] as const;
 
@@ -50,11 +53,25 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
     reason: string;
     updatedAt: string;
   }[];
+  fulfillmentEvents: {
+    id: number;
+    fromStatus: string | null;
+    toStatus: string;
+    note: string | null;
+    trackingNumber: string | null;
+    courier: string | null;
+    actorEmail: string | null;
+    actorName: string | null;
+    customerNotified: boolean;
+    createdAt: string;
+  }[];
 }
 
 interface OrdersPageStats extends OrderPipelineStats {
   total: number;
   cancelled: number;
+  deliveryFailed: number;
+  returned: number;
   revenueToday: number;
 }
 
@@ -69,22 +86,38 @@ const SORT_OPTIONS: { value: OrderSort; label: string }[] = [
 ];
 
 const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
-const ACTIVE_ORDER_STATUSES = new Set(["pending", "confirmed", "processing", "packing", "packed", "shipped", "dispatched"]);
+const ACTIVE_ORDER_STATUSES = new Set([
+  "pending",
+  "confirmed",
+  "processing",
+  "packing",
+  "packed",
+  "shipped",
+  "dispatched",
+  "delivery_failed",
+]);
 const ACTIVE_SUPPORT_STATUSES = new Set(["escalated", "open", "pending", "in_progress"]);
 const STATUS_LABELS: Record<string, string> = {
   pending: "pending",
   confirmed: "confirmed",
   processing: "processing",
   packing: "packing",
-  packed: "packing",
-  shipped: "shipped",
-  dispatched: "shipped",
+  packed: "packed",
+  shipped: "dispatched",
+  dispatched: "dispatched",
   delivered: "delivered",
+  delivery_failed: "delivery failed",
+  returned: "returned",
   cancelled: "cancelled",
 };
 
 function normalizeOrderStatus(status: string): string {
-  return status === "dispatched" ? "shipped" : status === "packed" ? "packing" : status;
+  // Bucket statuses for the tab filter only — the underlying state machine
+  // distinguishes packing vs packed and dispatched vs shipped, but admins
+  // think of them as a single "stage" while filtering.
+  if (status === "dispatched") return "shipped";
+  if (status === "packed") return "packing";
+  return status;
 }
 
 function matchesStatusFilter(orderStatus: string, filter: OrderStatusFilter): boolean {
@@ -95,6 +128,8 @@ function getOrderUrgency(status: string): number {
   switch (normalizeOrderStatus(status)) {
     case "pending":
       return 0;
+    case "delivery_failed":
+      return 0;
     case "confirmed":
     case "processing":
       return 1;
@@ -104,6 +139,7 @@ function getOrderUrgency(status: string): number {
       return 3;
     case "delivered":
       return 8;
+    case "returned":
     case "cancelled":
       return 9;
     default:
@@ -139,6 +175,17 @@ export default function OrdersPageClient({
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [sort, setSort] = useState<OrderSort>("urgency");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [drawerInitialAction, setDrawerInitialAction] = useState<FulfillmentAction | null>(null);
+
+  const handleRowRequireForm = (orderId: number, action: FulfillmentAction) => {
+    setDrawerInitialAction(action);
+    setSelectedOrderId(orderId);
+  };
+
+  const handleDrawerClose = () => {
+    setSelectedOrderId(null);
+    setDrawerInitialAction(null);
+  };
 
   const selectedOrder = useMemo(
     () => initialOrders.find((order) => order.id === selectedOrderId) || null,
@@ -249,7 +296,7 @@ export default function OrdersPageClient({
       <div className="kpi-strip">
         <div className="kpi-strip-card">
           <div className="kpi-strip-label">Open Orders</div>
-          <div className="kpi-strip-val">{stats.total - stats.delivered - stats.cancelled}</div>
+          <div className="kpi-strip-val">{stats.total - stats.delivered - stats.cancelled - stats.returned}</div>
           <div className="kpi-strip-note">in flight</div>
         </div>
         <div className="kpi-strip-card">
@@ -258,9 +305,19 @@ export default function OrdersPageClient({
           <div className="kpi-strip-note">awaiting confirmation</div>
         </div>
         <div className="kpi-strip-card">
-          <div className="kpi-strip-label">Shipped</div>
+          <div className="kpi-strip-label">Dispatched</div>
           <div className="kpi-strip-val" style={{ color: "#1E6B45" }}>{stats.shipped}</div>
-          <div className="kpi-strip-note">via courier</div>
+          <div className="kpi-strip-note">with courier</div>
+        </div>
+        <div className="kpi-strip-card">
+          <div className="kpi-strip-label">Delivery Issues</div>
+          <div className="kpi-strip-val" style={{ color: stats.deliveryFailed > 0 ? "#8B2020" : "var(--color-fg-1)" }}>{stats.deliveryFailed}</div>
+          <div className="kpi-strip-note">need follow-up</div>
+        </div>
+        <div className="kpi-strip-card">
+          <div className="kpi-strip-label">Returns</div>
+          <div className="kpi-strip-val">{stats.returned}</div>
+          <div className="kpi-strip-note">processed</div>
         </div>
         <div className="kpi-strip-card">
           <div className="kpi-strip-label">Revenue Today</div>
@@ -408,7 +465,11 @@ export default function OrdersPageClient({
                     </td>
                     <td style={{ textAlign: "right" }} onClick={e => e.stopPropagation()}>
                       {canUpdateOrders ? (
-                        <OrderRowQuickActions orderId={o.id} status={o.orderStatus} />
+                        <OrderRowQuickActions
+                          orderId={o.id}
+                          status={o.orderStatus}
+                          onRequireForm={handleRowRequireForm}
+                        />
                       ) : (
                         <span style={{ fontSize: 11, color: "var(--color-fg-3)" }}>Read only</span>
                       )}
@@ -436,8 +497,9 @@ export default function OrdersPageClient({
 
       <OrderDrawer
         order={selectedOrder}
-        onClose={() => setSelectedOrderId(null)}
+        onClose={handleDrawerClose}
         canUpdate={canUpdateOrders}
+        initialAction={drawerInitialAction}
       />
     </main>
   );

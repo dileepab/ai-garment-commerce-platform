@@ -552,6 +552,8 @@ a {
 .pill-dispatched { background: var(--color-success-muted); color: #1A5C3C; }
 .pill-delivered { background: #EDFAF4; color: var(--color-success); }
 .pill-cancelled { background: var(--color-error-muted); color: #701919; }
+.pill-delivery_failed { background: #FCE2E2; color: #8B2020; }
+.pill-returned  { background: #F1E4D7; color: #5C3A1A; }
 .pill-escalated { background: var(--color-error-muted); color: #701919; }
 .pill-open      { background: var(--color-warning-muted); color: #7A5400; }
 .pill-in_progress { background: var(--color-navy-muted); color: var(--color-navy); }

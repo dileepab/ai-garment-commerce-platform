@@ -12,6 +12,7 @@ const Module = require('node:module');
 
 const TS_FILE = path.join(__dirname, '..', 'src', 'lib', 'analytics.ts');
 const STATUS_FILE = path.join(__dirname, '..', 'src', 'lib', 'order-status-display.ts');
+const FULFILLMENT_FILE = path.join(__dirname, '..', 'src', 'lib', 'fulfillment.ts');
 
 function transpile(filePath) {
   const ts = require('typescript');
@@ -41,7 +42,8 @@ function loadModule(filePath, replacements = {}) {
   return m.exports;
 }
 
-const statusModule = loadModule(STATUS_FILE);
+const fulfillmentModule = loadModule(FULFILLMENT_FILE);
+const statusModule = loadModule(STATUS_FILE, { '@/lib/fulfillment': fulfillmentModule });
 const analytics = loadModule(TS_FILE, { './order-status-display': statusModule });
 
 let failures = 0;
