@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { loadConversationState, saveConversationState } from '@/lib/conversation-state';
 import { sendMessengerMessage } from '@/lib/meta';
+import { logInfo, logWarn } from '@/lib/app-log';
 
 async function setConversationSupportMode(params: {
   senderId: string;
@@ -108,7 +109,22 @@ export async function sendSupportReplyAction(formData: FormData) {
   });
 
   if (process.env.CHAT_TEST_MODE !== '1') {
-    await sendMessengerMessage(escalation.senderId, reply);
+    const delivery = await sendMessengerMessage(escalation.senderId, reply);
+
+    if (!delivery.ok) {
+      logWarn('Support Actions', 'Support reply was saved, but outbound Meta delivery failed.', {
+        escalationId,
+        senderId: escalation.senderId,
+        channel: escalation.channel,
+        error: delivery.error || delivery.status || 'unknown',
+      });
+    } else {
+      logInfo('Support Actions', 'Delivered support reply to customer.', {
+        escalationId,
+        senderId: escalation.senderId,
+        channel: escalation.channel,
+      });
+    }
   }
 
   revalidatePath('/support');

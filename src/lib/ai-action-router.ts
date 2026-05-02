@@ -4,6 +4,7 @@ import { AiRoutedAction, RouterInput, RoutedActionType, ROUTED_ACTIONS, PRODUCT_
 import { ROUTER_JSON_SCHEMA } from './ai-router/schema';
 import { buildRouterPrompt } from './ai-router/prompt';
 import { buildHeuristicAction, findProductByMessage } from './ai-router/heuristics';
+import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
 
 const MODEL_CHAIN = [
   'gemini-3.1-flash-lite-preview',
@@ -99,7 +100,9 @@ async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType
     const response = await fetch(url);
 
     if (!response.ok) {
-      console.error(`[AI Router] Failed to fetch image: ${response.status}`);
+      logWarn('AI Router', 'Failed to fetch image for routing.', {
+        status: response.status,
+      });
       return null;
     }
 
@@ -109,7 +112,7 @@ async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType
     const data = Buffer.from(arrayBuffer).toString('base64');
     return { data, mimeType };
   } catch (error) {
-    console.error('[AI Router] Image fetch error:', error);
+    logError('AI Router', 'Image fetch error.', error);
     return null;
   }
 }
@@ -126,6 +129,9 @@ export async function routeCustomerMessageWithAi(
   );
 
   if (shouldUseHeuristicFallback) {
+    logInfo('AI Router', 'Using heuristic route fallback.', {
+      reason: apiKey ? 'test_mode' : 'missing_api_key',
+    });
     return buildHeuristicAction(input, heuristicProduct);
   }
 
@@ -155,6 +161,7 @@ export async function routeCustomerMessageWithAi(
     const model = MODEL_CHAIN[index];
 
     try {
+      logDebug('AI Router', `Trying router model ${model}.`);
       const response = await ai.models.generateContent({
         model,
         contents: contentParts,
@@ -174,19 +181,34 @@ export async function routeCustomerMessageWithAi(
       const normalized = normalizeRoutedAction(parsed);
 
       if (normalized) {
+        logInfo('AI Router', 'Message routed by AI model.', {
+          model,
+          action: normalized.action,
+          confidence: normalized.confidence,
+          hasProductName: Boolean(normalized.productName),
+          hasOrderId: Boolean(normalized.orderId),
+        });
         return normalized;
       }
+
+      logWarn('AI Router', 'Router model returned JSON that did not normalize.', {
+        model,
+      });
     } catch (error: unknown) {
       const status = getErrorStatus(error);
 
       if ((status === 429 || status === 503 || status === 404) && index < MODEL_CHAIN.length - 1) {
+        logWarn('AI Router', `Router model ${model} returned ${status}; trying fallback model.`, {
+          nextModel: MODEL_CHAIN[index + 1],
+        });
         continue;
       }
 
-      console.error('[AI Router] Failed to route message:', error);
+      logError('AI Router', 'Failed to route message with AI; using heuristic fallback.', error);
       return buildHeuristicAction(input, heuristicProduct);
     }
   }
 
+  logWarn('AI Router', 'All router models failed to produce a usable action; using heuristic fallback.');
   return buildHeuristicAction(input, heuristicProduct);
 }

@@ -174,3 +174,20 @@ model CommentLog {
   brand     String?
   repliedAt DateTime @default(now())
 }
+
+model WebhookEventLog {
+  id              String    @id // Stable Meta message/comment/postback event ID
+  channel         String
+  eventType       String
+  senderId        String?
+  pageOrAccountId String?
+  brand           String?
+  status          String    @default("processing")
+  error           String?
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@index([channel, senderId, receivedAt])
+  @@index([status, updatedAt])
+}

@@ -42,6 +42,13 @@ async function resetConversation(senderId, channel = 'messenger') {
     },
   });
 
+  await prisma.webhookEventLog.deleteMany({
+    where: {
+      senderId,
+      channel,
+    },
+  });
+
   if (customer) {
     for (const order of customer.orders) {
       if (order.orderStatus !== 'cancelled') {

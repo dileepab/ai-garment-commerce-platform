@@ -4,6 +4,18 @@ import { logDebug, logError } from '@/lib/app-log';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 
 const reusableAttachmentCache = new Map<string, string>();
+const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
+
+export interface MetaSendResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+  data?: unknown;
+}
+
+interface MessengerSendOptions {
+  payloadType: string;
+}
 
 function getMimeType(filePath: string): string {
   if (filePath.endsWith('.png')) {
@@ -26,16 +38,46 @@ function resolvePublicFilePath(publicPath: string): string {
   return path.join(process.cwd(), 'public', normalizedPath);
 }
 
-async function sendMessengerPayload(senderId: string, payload: Record<string, unknown>) {
+function getPayloadError(data: unknown): string | undefined {
+  if (typeof data === 'object' && data !== null && 'error' in data) {
+    const error = (data as { error?: { message?: string } }).error;
+    return error?.message;
+  }
+
+  return undefined;
+}
+
+async function readGraphResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+async function sendMessengerPayload(
+  senderId: string,
+  payload: Record<string, unknown>,
+  options: MessengerSendOptions
+): Promise<MetaSendResult> {
   const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
 
   if (!PAGE_ACCESS_TOKEN) {
     logError('Meta', 'Missing META_PAGE_ACCESS_TOKEN in environment variables.');
-    return;
+    return {
+      ok: false,
+      error: 'META_PAGE_ACCESS_TOKEN is missing.',
+    };
   }
 
   try {
-    const response = await fetch(`https://graph.facebook.com/v22.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
+    const response = await fetch(`https://graph.facebook.com/${META_GRAPH_VERSION}/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -46,21 +88,51 @@ async function sendMessengerPayload(senderId: string, payload: Record<string, un
       }),
     });
 
-    const data = await response.json();
+    const data = await readGraphResponseBody(response);
     if (!response.ok) {
-      logError('Meta', 'Messenger send failed.', data);
+      logError('Meta', 'Messenger send failed.', {
+        senderId,
+        payloadType: options.payloadType,
+        status: response.status,
+        data,
+      });
+      return {
+        ok: false,
+        status: response.status,
+        error: getPayloadError(data) || `Meta Graph returned ${response.status}.`,
+        data,
+      };
     } else {
-      logDebug('Meta', `Messenger payload sent successfully to ${senderId}.`);
+      logDebug('Meta', `Messenger ${options.payloadType} sent successfully to ${senderId}.`, {
+        status: response.status,
+      });
+      return {
+        ok: true,
+        status: response.status,
+        data,
+      };
     }
   } catch (error) {
-    logError('Meta', 'Error sending message to Meta.', error);
+    logError('Meta', 'Error sending message to Meta.', {
+      senderId,
+      payloadType: options.payloadType,
+      error,
+    });
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unknown Meta send error.',
+    };
   }
 }
 
 export async function sendMessengerMessage(senderId: string, messageText: string) {
-  await sendMessengerPayload(senderId, {
-    message: { text: messageText },
-  });
+  return sendMessengerPayload(
+    senderId,
+    {
+      message: { text: messageText },
+    },
+    { payloadType: 'text' }
+  );
 }
 
 interface CarouselProduct {
@@ -78,6 +150,10 @@ function buildOrderNowPayload(product: CarouselProduct): string {
 }
 
 export async function sendMessengerCarousel(senderId: string, products: CarouselProduct[]) {
+  if (products.length === 0) {
+    return { ok: true } satisfies MetaSendResult;
+  }
+
   const elements = products.map((product) => ({
     title: `${product.name} (Rs ${product.price})`,
     image_url: product.imageUrl || 'https://placehold.co/600x400/png',
@@ -91,17 +167,21 @@ export async function sendMessengerCarousel(senderId: string, products: Carousel
     ],
   })).slice(0, 10); // Meta graph API limits generic templates to 10 elements
 
-  await sendMessengerPayload(senderId, {
-    message: {
-      attachment: {
-        type: 'template',
-        payload: {
-          template_type: 'generic',
-          elements,
+  return sendMessengerPayload(
+    senderId,
+    {
+      message: {
+        attachment: {
+          type: 'template',
+          payload: {
+            template_type: 'generic',
+            elements,
+          },
         },
       },
     },
-  });
+    { payloadType: 'carousel' }
+  );
 }
 
 async function uploadReusableMessengerAttachment(publicPath: string): Promise<string | null> {
@@ -141,7 +221,7 @@ async function uploadReusableMessengerAttachment(publicPath: string): Promise<st
     );
 
     const response = await fetch(
-      `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${PAGE_ACCESS_TOKEN}`,
+      `https://graph.facebook.com/${META_GRAPH_VERSION}/me/message_attachments?access_token=${PAGE_ACCESS_TOKEN}`,
       {
         method: 'POST',
         body: formData,
@@ -170,58 +250,71 @@ async function uploadReusableMessengerAttachment(publicPath: string): Promise<st
 
 export async function sendMessengerImage(senderId: string, imagePathOrUrl: string) {
   if (/^https?:\/\//i.test(imagePathOrUrl)) {
-    await sendMessengerPayload(senderId, {
-      message: {
-        attachment: {
-          type: 'image',
-          payload: {
-            url: imagePathOrUrl,
-            is_reusable: true,
+    return sendMessengerPayload(
+      senderId,
+      {
+        message: {
+          attachment: {
+            type: 'image',
+            payload: {
+              url: imagePathOrUrl,
+              is_reusable: true,
+            },
           },
         },
       },
-    });
-    return;
+      { payloadType: 'image_url' }
+    );
   }
 
   const attachmentId = await uploadReusableMessengerAttachment(imagePathOrUrl);
 
   if (attachmentId) {
-    await sendMessengerPayload(senderId, {
-      message: {
-        attachment: {
-          type: 'image',
-          payload: {
-            attachment_id: attachmentId,
+    return sendMessengerPayload(
+      senderId,
+      {
+        message: {
+          attachment: {
+            type: 'image',
+            payload: {
+              attachment_id: attachmentId,
+            },
           },
         },
       },
-    });
-    return;
+      { payloadType: 'image_attachment' }
+    );
   }
 
   const publicUrl = getPublicAssetUrl(imagePathOrUrl);
 
   if (publicUrl) {
     logDebug('Meta', `Falling back to public asset URL for ${imagePathOrUrl}.`);
-    await sendMessengerPayload(senderId, {
-      message: {
-        attachment: {
-          type: 'image',
-          payload: {
-            url: publicUrl,
-            is_reusable: true,
+    return sendMessengerPayload(
+      senderId,
+      {
+        message: {
+          attachment: {
+            type: 'image',
+            payload: {
+              url: publicUrl,
+              is_reusable: true,
+            },
           },
         },
       },
-    });
-    return;
+      { payloadType: 'image_public_url' }
+    );
   }
 
   logError(
     'Meta',
     `Messenger image could not be sent for ${imagePathOrUrl}. Configure APP_BASE_URL to enable public media fallback.`
   );
+  return {
+    ok: false,
+    error: `Messenger image could not be sent for ${imagePathOrUrl}.`,
+  } satisfies MetaSendResult;
 }
 
 export async function getUserProfile(senderId: string): Promise<{ firstName: string; lastName: string; gender: string } | null> {
@@ -231,7 +324,7 @@ export async function getUserProfile(senderId: string): Promise<{ firstName: str
 
   try {
     const response = await fetch(
-      `https://graph.facebook.com/v22.0/${senderId}?fields=first_name,last_name,gender&access_token=${PAGE_ACCESS_TOKEN}`
+      `https://graph.facebook.com/${META_GRAPH_VERSION}/${senderId}?fields=first_name,last_name,gender&access_token=${PAGE_ACCESS_TOKEN}`
     );
     const data = await response.json();
 

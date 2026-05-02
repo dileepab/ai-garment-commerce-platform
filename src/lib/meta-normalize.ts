@@ -9,6 +9,7 @@
 export type MetaChannel = 'messenger' | 'instagram';
 
 export interface NormalizedMessage {
+  eventId?: string;
   senderId: string;
   channel: MetaChannel;
   pageOrAccountId: string;
@@ -31,7 +32,9 @@ interface MetaAttachment {
 /** Shape of a Meta webhook messaging event (Messenger or Instagram). */
 interface MetaMessagingEvent {
   sender?: { id?: string };
+  timestamp?: number;
   message?: {
+    mid?: string;
     text?: string;
     is_echo?: boolean;
     attachments?: MetaAttachment[];
@@ -40,6 +43,7 @@ interface MetaMessagingEvent {
     };
   };
   postback?: {
+    mid?: string;
     payload?: string;
     title?: string;
   };
@@ -107,6 +111,41 @@ function getNormalizedMessageText(message?: MetaMessagingEvent['message']): stri
   );
 }
 
+function buildMessagingEventId(params: {
+  channel: MetaChannel;
+  pageOrAccountId: string;
+  senderId: string;
+  webhookEvent: MetaMessagingEvent;
+}): string | undefined {
+  const directId = getTrimmedValue(
+    params.webhookEvent.message?.mid ?? params.webhookEvent.postback?.mid
+  );
+
+  if (directId) {
+    return `${params.channel}:${params.pageOrAccountId}:${directId}`;
+  }
+
+  if (!params.webhookEvent.postback) {
+    return undefined;
+  }
+
+  const postbackKey = getTrimmedValue(params.webhookEvent.postback.payload) ??
+    getTrimmedValue(params.webhookEvent.postback.title);
+
+  if (!postbackKey || !params.webhookEvent.timestamp) {
+    return undefined;
+  }
+
+  return [
+    params.channel,
+    params.pageOrAccountId,
+    params.senderId,
+    'postback',
+    params.webhookEvent.timestamp,
+    encodeURIComponent(postbackKey),
+  ].join(':');
+}
+
 /**
  * Normalize a Messenger webhook messaging event.
  */
@@ -134,6 +173,12 @@ export function normalizeMessengerEvent(
     }
 
     return {
+      eventId: buildMessagingEventId({
+        channel: 'messenger',
+        pageOrAccountId: pageId,
+        senderId,
+        webhookEvent,
+      }),
       senderId,
       channel: 'messenger',
       pageOrAccountId: pageId,
@@ -165,6 +210,12 @@ export function normalizeMessengerEvent(
   );
 
   return {
+    eventId: buildMessagingEventId({
+      channel: 'messenger',
+      pageOrAccountId: pageId,
+      senderId,
+      webhookEvent,
+    }),
     senderId,
     channel: 'messenger',
     pageOrAccountId: pageId,
@@ -206,6 +257,12 @@ export function normalizeInstagramEvent(
     }
 
     return {
+      eventId: buildMessagingEventId({
+        channel: 'instagram',
+        pageOrAccountId: accountId,
+        senderId,
+        webhookEvent,
+      }),
       senderId,
       channel: 'instagram',
       pageOrAccountId: accountId,
@@ -245,6 +302,12 @@ export function normalizeInstagramEvent(
     undefined;
 
   return {
+    eventId: buildMessagingEventId({
+      channel: 'instagram',
+      pageOrAccountId: accountId,
+      senderId,
+      webhookEvent,
+    }),
     senderId,
     channel: 'instagram',
     pageOrAccountId: accountId,

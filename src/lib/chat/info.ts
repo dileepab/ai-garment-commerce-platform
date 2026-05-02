@@ -12,6 +12,7 @@ import {
   parseRequestedDateFromMessage,
 } from '@/lib/chat/message-utils';
 import {
+  buildClarificationReply,
   buildDeliveryReply,
   buildGreetingReply,
   buildMissingOrderLookupReply,
@@ -490,7 +491,26 @@ export async function handle_support_contact_request(ctx: ChatContext) {
 }
 
 export async function handle_fallback(ctx: ChatContext) {
-  return ctx.helpers.finalizeReply({ reply: "I'm sorry, I didn't quite catch that." });
+  const { latestActiveOrder, latestOrder, state } = ctx;
+  const { escalateToSupport, finalizeReply } = ctx.helpers;
+  const unclearMessageCount =
+    state.lastAssistantReplyKind === 'fallback' ? state.unclearMessageCount + 1 : 1;
+
+  if (unclearMessageCount >= 2) {
+    return escalateToSupport(
+      'unclear_request',
+      state.lastReferencedOrderId ?? latestActiveOrder?.id ?? latestOrder?.id ?? null
+    );
+  }
+
+  return finalizeReply({
+    reply: buildClarificationReply(state),
+    assistantReplyKind: 'fallback',
+    nextState: {
+      unclearMessageCount,
+      lastMissingOrderId: null,
+    },
+  });
 }
 
 export async function handle_thanks_acknowledgement(ctx: ChatContext) {

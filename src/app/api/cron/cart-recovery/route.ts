@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendMessengerMessage } from '@/lib/meta';
+import { logWarn } from '@/lib/app-log';
 
 export async function GET() {
   try {
@@ -27,7 +28,13 @@ export async function GET() {
         });
 
         const msg = `Hi there! It looks like you left something in your drafted order. Did you still want to complete this purchase? If so, just let me know or ask me any final questions!`;
-        await sendMessengerMessage(state.senderId, msg).catch(() => {});
+        const delivery = await sendMessengerMessage(state.senderId, msg);
+        if (!delivery.ok) {
+          logWarn('Cart Recovery Cron', 'Could not send cart recovery reminder.', {
+            senderId: state.senderId,
+            error: delivery.error || delivery.status || 'unknown',
+          });
+        }
         recoveredCount++;
       }
     }

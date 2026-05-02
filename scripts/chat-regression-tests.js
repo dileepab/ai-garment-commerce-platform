@@ -509,6 +509,48 @@ async function main() {
         },
       },
       {
+        name: 'Duplicate Messenger event ID is processed once',
+        senderId: buildSender(runId, 'messenger-duplicate-event'),
+        messages: [],
+        verify: async ({ senderId }) => {
+          const timestamp = Date.now();
+          const duplicateEvent = {
+            sender: { id: senderId },
+            recipient: { id: DEFAULT_PAGE_ID },
+            timestamp,
+            message: {
+              mid: `mid.${runId}.duplicate-event`,
+              text: 'What do you have available?',
+            },
+          };
+
+          const response = await sendMessengerWebhookEvents({
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            events: [duplicateEvent, duplicateEvent],
+          });
+
+          assert(response.status === 200, `Expected duplicate webhook status 200, received ${response.status}.`);
+          assert(
+            response.payload?.stats?.duplicates === 1,
+            `Expected one duplicate webhook event, received ${JSON.stringify(response.payload?.stats)}.`
+          );
+
+          const messages = await waitForRoleMessageCount(senderId, 'messenger', 'assistant', 1);
+          const assistantMessages = messages.filter((message) => message.role === 'assistant');
+          const userMessages = messages.filter((message) => message.role === 'user');
+
+          assert(
+            assistantMessages.length === 1,
+            `Expected one assistant reply for duplicate event, received ${assistantMessages.length}.`
+          );
+          assert(
+            userMessages.length === 1,
+            `Expected one stored user message for duplicate event, received ${userMessages.length}.`
+          );
+        },
+      },
+      {
         name: 'Duplicate order confirmation does not create a second order',
         senderId: buildSender(runId, 'duplicate-confirm'),
         messages: [

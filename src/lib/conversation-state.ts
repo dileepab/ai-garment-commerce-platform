@@ -29,7 +29,8 @@ export type AssistantReplyKind =
   | 'order_status'
   | 'order_details'
   | 'quantity_prompt'
-  | 'quantity_update_summary';
+  | 'quantity_update_summary'
+  | 'fallback';
 
 export interface PendingQuantityUpdate {
   orderId: number;
@@ -57,6 +58,7 @@ export interface ConversationStateData {
   lastSizeChartCategory: SizeChartCategory | null;
   supportMode: SupportWorkflowMode;
   lastAssistantReplyKind: AssistantReplyKind;
+  unclearMessageCount: number;
 }
 
 const VALID_PENDING_STEPS = new Set<PendingConversationStep>([
@@ -89,6 +91,7 @@ const VALID_ASSISTANT_REPLY_KINDS = new Set<AssistantReplyKind>([
   'order_details',
   'quantity_prompt',
   'quantity_update_summary',
+  'fallback',
 ]);
 
 const VALID_SUPPORT_MODES = new Set<SupportWorkflowMode>([
@@ -107,6 +110,7 @@ export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   lastSizeChartCategory: null,
   supportMode: 'bot_active',
   lastAssistantReplyKind: 'generic',
+  unclearMessageCount: 0,
 };
 
 function parseConversationState(value?: string | null): Partial<ConversationStateData> {
@@ -170,7 +174,30 @@ export function normalizeConversationState(
     lastSizeChartCategory: normalizeSizeChartCategory(nextState.lastSizeChartCategory),
     supportMode: normalizeSupportMode(nextState.supportMode),
     lastAssistantReplyKind: normalizeAssistantReplyKind(nextState.lastAssistantReplyKind),
+    unclearMessageCount:
+      typeof nextState.unclearMessageCount === 'number' && nextState.unclearMessageCount > 0
+        ? Math.floor(nextState.unclearMessageCount)
+        : 0,
   };
+}
+
+function stringifyConversationState(state: ConversationStateData): string {
+  return JSON.stringify(state);
+}
+
+function stringifyLegacyConversationState(state: ConversationStateData): string {
+  const legacyState = {
+    pendingStep: state.pendingStep,
+    orderDraft: state.orderDraft,
+    quantityUpdate: state.quantityUpdate,
+    lastReferencedOrderId: state.lastReferencedOrderId,
+    lastMissingOrderId: state.lastMissingOrderId,
+    lastSizeChartCategory: state.lastSizeChartCategory,
+    supportMode: state.supportMode,
+    lastAssistantReplyKind: state.lastAssistantReplyKind,
+  };
+
+  return JSON.stringify(legacyState);
 }
 
 export async function loadConversationState(
@@ -209,10 +236,10 @@ export async function saveConversationState(
     create: {
       senderId,
       channel,
-      stateJson: JSON.stringify(normalizedState),
+      stateJson: stringifyConversationState(normalizedState),
     },
     update: {
-      stateJson: JSON.stringify(normalizedState),
+      stateJson: stringifyConversationState(normalizedState),
     },
   });
 
@@ -227,15 +254,22 @@ export async function saveConversationStateIfCurrent(
 ): Promise<boolean> {
   const normalizedCurrentState = normalizeConversationState(currentState);
   const normalizedNextState = normalizeConversationState(nextState);
+  const currentStateJson = stringifyConversationState(normalizedCurrentState);
+  const legacyCurrentStateJson = stringifyLegacyConversationState(normalizedCurrentState);
 
   const result = await prisma.conversationState.updateMany({
     where: {
       senderId,
       channel,
-      stateJson: JSON.stringify(normalizedCurrentState),
+      OR: [
+        { stateJson: currentStateJson },
+        ...(legacyCurrentStateJson !== currentStateJson
+          ? [{ stateJson: legacyCurrentStateJson }]
+          : []),
+      ],
     },
     data: {
-      stateJson: JSON.stringify(normalizedNextState),
+      stateJson: stringifyConversationState(normalizedNextState),
     },
   });
 

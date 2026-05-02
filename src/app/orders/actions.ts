@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { sendMessengerMessage } from '@/lib/meta';
 import { cancelOrderById, OrderRequestError, isOrderMutableStatus } from '@/lib/orders';
 import { revalidatePath } from 'next/cache';
+import { logInfo, logWarn } from '@/lib/app-log';
 
 export interface OrderActionResult {
   success: boolean;
@@ -36,7 +37,21 @@ async function setStatusOrFail(orderId: number, fromAllowed: string[], next: str
 
 async function notifyCustomer(order: { id: number; customer: { externalId: string | null; channel: string | null } }, message: string) {
   if (order.customer.externalId && order.customer.channel === 'messenger') {
-    await sendMessengerMessage(order.customer.externalId, message);
+    const result = await sendMessengerMessage(order.customer.externalId, message);
+
+    if (!result.ok) {
+      logWarn('Order Actions', 'Order status changed, but Messenger notification failed.', {
+        orderId: order.id,
+        senderId: order.customer.externalId,
+        error: result.error || result.status || 'unknown',
+      });
+      return;
+    }
+
+    logInfo('Order Actions', 'Sent customer order notification.', {
+      orderId: order.id,
+      senderId: order.customer.externalId,
+    });
   }
 }
 

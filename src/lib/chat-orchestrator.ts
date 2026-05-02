@@ -68,6 +68,17 @@ import { upsertCustomerContact } from './chat/shared-actions';
 import * as CatalogHandlers from './chat/catalog';
 import * as OrderingHandlers from './chat/orders';
 import * as InfoHandlers from './chat/info';
+import { logInfo, logWarn } from '@/lib/app-log';
+
+const LOW_CONFIDENCE_ACTION_THRESHOLD = 0.55;
+const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
+  'place_order',
+  'confirm_pending',
+  'cancel_order',
+  'reorder_last',
+  'update_order_quantity',
+  'gift_request',
+]);
 
 function isBotPausedForSupport(mode: SupportWorkflowMode): boolean {
   return mode === 'handoff_requested' || mode === 'human_active';
@@ -105,6 +116,13 @@ async function saveConversationPair(
 export async function routeCustomerMessage(
   input: CustomerMessageInput
 ): Promise<CustomerMessageResult> {
+  logInfo('Chat Orchestrator', 'Routing customer message.', {
+    senderId: input.senderId,
+    channel: input.channel,
+    brand: input.brand || null,
+    hasImage: Boolean(input.imageUrl),
+  });
+
   const state = await loadConversationState(input.senderId, input.channel);
 
   const recentMessages = await prisma.chatMessage.findMany({
@@ -363,13 +381,18 @@ export async function routeCustomerMessage(
     orderId?: number | null;
     assistantReplyKind?: AssistantReplyKind;
   }): Promise<CustomerMessageResult> {
+    const assistantReplyKind = params.assistantReplyKind || 'generic';
     const shouldPersistState =
       Boolean(params.nextState) || Boolean(params.assistantReplyKind);
     const nextState = shouldPersistState
       ? await saveConversationState(input.senderId, input.channel, {
           ...state,
           ...params.nextState,
-          lastAssistantReplyKind: params.assistantReplyKind || 'generic',
+          lastAssistantReplyKind: assistantReplyKind,
+          unclearMessageCount:
+            assistantReplyKind === 'fallback'
+              ? params.nextState?.unclearMessageCount ?? state.unclearMessageCount
+              : 0,
         })
       : state;
 
@@ -387,6 +410,17 @@ export async function routeCustomerMessage(
       });
     }
 
+    logInfo('Chat Orchestrator', 'Finalized customer reply.', {
+      senderId: input.senderId,
+      channel: input.channel,
+      assistantReplyKind,
+      pendingStep: nextState.pendingStep,
+      supportMode: nextState.supportMode,
+      hasReply: Boolean(params.reply),
+      hasMedia: Boolean(params.imagePath || params.imagePaths?.length || params.carouselProducts?.length),
+      orderId: params.orderId ?? null,
+    });
+
     return {
       reply: params.reply,
       imagePath: params.imagePath ?? params.imagePaths?.[0],
@@ -397,6 +431,14 @@ export async function routeCustomerMessage(
   }
 
   async function escalateToSupport(reason: SupportIssueReason, orderId?: number | null) {
+    logWarn('Chat Orchestrator', 'Escalating conversation to support.', {
+      senderId: input.senderId,
+      channel: input.channel,
+      reason,
+      orderId: orderId || null,
+      brand: brandFilter || null,
+    });
+
     await upsertSupportEscalation({
       senderId: input.senderId,
       channel: input.channel,
@@ -678,6 +720,24 @@ export async function routeCustomerMessage(
 
   let effectiveAction = aiAction.action;
   let effectiveAiAction = aiAction;
+
+  if (
+    ACTIONS_REQUIRING_HIGH_CONFIDENCE.has(effectiveAction) &&
+    aiAction.confidence < LOW_CONFIDENCE_ACTION_THRESHOLD
+  ) {
+    logWarn('Chat Orchestrator', 'Low-confidence route forced to clarification fallback.', {
+      senderId: input.senderId,
+      channel: input.channel,
+      action: aiAction.action,
+      confidence: aiAction.confidence,
+    });
+    effectiveAction = 'fallback';
+    effectiveAiAction = {
+      ...aiAction,
+      action: 'fallback',
+      confidence: aiAction.confidence,
+    };
+  }
 
   if (effectiveAction === 'confirm_pending' && !isClearConfirmation(input.currentMessage)) {
     effectiveAction = 'fallback';

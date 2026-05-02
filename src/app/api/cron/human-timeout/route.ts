@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendMessengerMessage } from '@/lib/meta';
+import { logWarn } from '@/lib/app-log';
 
 export async function GET() {
   try {
@@ -30,7 +31,14 @@ export async function GET() {
           });
           
           const msg = `Hi again. I'm sorry to say all of our human agents are currently occupied and haven't been able to review your ticket yet.\n\nI have un-paused our automated system so I can help answer some of your questions while we wait!`;
-          await sendMessengerMessage(esc.senderId, msg).catch(() => {});
+          const delivery = await sendMessengerMessage(esc.senderId, msg);
+          if (!delivery.ok) {
+            logWarn('Human Timeout Cron', 'Could not send support timeout notification.', {
+              escalationId: esc.id,
+              senderId: esc.senderId,
+              error: delivery.error || delivery.status || 'unknown',
+            });
+          }
           clearedCount++;
         }
       }
