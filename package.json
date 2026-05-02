@@ -18,6 +18,7 @@
     "test:chat": "npm run build && node scripts/chat-regression-tests.js",
     "test:access-control": "node --test --experimental-strip-types --no-warnings scripts/access-control.test.ts",
     "test:analytics": "node scripts/analytics-helpers.test.js",
+    "test:retention": "node --test --experimental-strip-types --no-warnings scripts/retention-automation.test.ts",
     "reset:chat": "node scripts/reset-dev-chat-data.js"
   },
   "prisma": {

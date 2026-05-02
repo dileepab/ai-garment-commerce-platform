@@ -191,3 +191,26 @@ model WebhookEventLog {
   @@index([channel, senderId, receivedAt])
   @@index([status, updatedAt])
 }
+
+model AutomationActionLog {
+  id             Int       @id @default(autoincrement())
+  action         String
+  dedupeKey      String    @unique
+  senderId       String
+  channel        String    @default("messenger")
+  brand          String?
+  customerId     Int?
+  orderId        Int?
+  status         String    @default("pending")
+  reason         String?
+  messagePreview String?
+  deliveryStatus String?
+  error          String?
+  createdAt      DateTime  @default(now())
+  sentAt         DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([senderId, channel, action, createdAt])
+  @@index([brand, action, createdAt])
+  @@index([status, updatedAt])
+}
