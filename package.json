@@ -16,6 +16,7 @@
     "vercel-build": "prisma generate && next build",
     "check:meta": "node scripts/check-meta-subscription.js",
     "test:chat": "npm run build && node scripts/chat-regression-tests.js",
+    "test:analytics": "node scripts/analytics-helpers.test.js",
     "reset:chat": "node scripts/reset-dev-chat-data.js"
   },
   "prisma": {

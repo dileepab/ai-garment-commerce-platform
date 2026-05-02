@@ -1,6 +1,13 @@
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import { isActiveOrderStatus, getOrderStageLabel } from '@/lib/order-status-display';
+import {
+  formatLkr,
+  formatPct,
+  summarizeAiMetrics,
+  summarizeOrders,
+  topSellingProducts,
+} from '@/lib/analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,9 +50,9 @@ const ZapIcon     = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="
 
 export default async function Dashboard() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
+  const last30 = new Date(today); last30.setDate(last30.getDate() - 29);
 
   const [
-    productCount,
     allOrders,
     lowStockItems,
     openEscalationCount,
@@ -57,9 +64,13 @@ export default async function Dashboard() {
     operators,
     todayMessages,
     todayEscalations,
+    todayOrders,
+    last30Orders,
+    last30Items,
+    last30Messages,
+    last30Escalations,
   ] = await Promise.all([
-    prisma.product.count(),
-    prisma.order.findMany({ select: { orderStatus: true } }),
+    prisma.order.findMany({ select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true } }),
     prisma.inventory.count({ where: { availableQty: { lte: 10 } } }),
     prisma.supportEscalation.count({ where: { status: { not: 'resolved' } } }),
     prisma.productionBatch.count({ where: { status: { notIn: ['completed', 'cancelled'] } } }),
@@ -106,6 +117,40 @@ export default async function Dashboard() {
 
     // Escalations created today
     prisma.supportEscalation.count({ where: { createdAt: { gte: today } } }),
+
+    // Orders today (for revenue today)
+    prisma.order.findMany({
+      where: { createdAt: { gte: today } },
+      select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true },
+    }),
+
+    // Orders last 30 days for revenue summary
+    prisma.order.findMany({
+      where: { createdAt: { gte: last30 } },
+      select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true },
+    }),
+
+    // Order items last 30 days for top sellers
+    prisma.orderItem.findMany({
+      where: { order: { createdAt: { gte: last30 } } },
+      select: {
+        productId: true, quantity: true, price: true, orderId: true,
+        product: { select: { id: true, name: true, brand: true } },
+        order:   { select: { createdAt: true, orderStatus: true } },
+      },
+    }),
+
+    // AI messages last 30 days for response/escalation rates
+    prisma.chatMessage.findMany({
+      where: { createdAt: { gte: last30 } },
+      select: { senderId: true, channel: true, role: true, createdAt: true },
+    }),
+
+    // Escalations last 30 days
+    prisma.supportEscalation.findMany({
+      where: { createdAt: { gte: last30 } },
+      select: { status: true, createdAt: true, resolvedAt: true, customerId: true },
+    }),
   ]);
 
   const openOrders = allOrders.filter((o) => isActiveOrderStatus(o.orderStatus));
@@ -123,9 +168,13 @@ export default async function Dashboard() {
   }));
   const pipelineTotal = pipeline.reduce((s, p) => s + p.count, 0) || 1;
 
-  // AI metrics (derived from DB where possible)
-  const aiHandledPct = todayMessages > 0 ? Math.max(0, Math.round(((todayMessages - todayEscalations * 4) / todayMessages) * 100)) : 94;
-  const aiConversions = Math.round(todayMessages * 0.3);
+  // Revenue summaries
+  const revenueToday = summarizeOrders(todayOrders);
+  const revenue30 = summarizeOrders(last30Orders);
+  const topProducts = topSellingProducts(last30Items, 5);
+
+  // AI metrics over last 30 days (real, not heuristic)
+  const ai30 = summarizeAiMetrics({ messages: last30Messages, escalations: last30Escalations, convertedConversationCount: 0 });
 
   // Needs attention alerts
   const delayedBatches = activeBatches.filter((b) => b.status === 'delayed');
@@ -153,6 +202,7 @@ export default async function Dashboard() {
             {' · '}All systems operational
           </div>
         </div>
+        <Link href="/analytics" style={btnSecondary}>Analytics</Link>
         <Link href="/orders" style={btnSecondary}>View Orders</Link>
         <Link href="/products" style={btnPrimary}>Add Product</Link>
       </div>
@@ -160,13 +210,14 @@ export default async function Dashboard() {
       <div style={{ padding: '24px 28px 48px', maxWidth: 1400, margin: '0 auto' }}>
 
         {/* ── KPI Grid ─────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 16 }}>
           {[
-            { label: 'Total Products',    value: fmt(productCount),       note: '+0 this month',               iconBg: '#F2E4D8', iconColor: '#C4622D', Icon: ShirtIcon },
-            { label: 'Open Orders',       value: fmt(openOrders.length),  note: `${allOrders.length} total`,   iconBg: '#D6DDE8', iconColor: '#1E3452', Icon: BoxIcon },
-            { label: 'Low Stock Items',   value: fmt(lowStockItems),      note: 'Need reorder soon',           iconBg: '#FFF0C2', iconColor: '#9B6B00', Icon: AlertIcon },
-            { label: 'Escalated Cases',   value: fmt(openEscalationCount),note: 'Open support cases',          iconBg: '#F5D8D8', iconColor: '#8B2020', Icon: MsgIcon },
-            { label: 'Active Batches',    value: fmt(activeBatchCount),   note: `${delayedBatches.length} delayed`, iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: FactoryIcon },
+            { label: 'Revenue Today',     value: formatLkr(revenueToday.netRevenue), note: `${fmt(revenueToday.paidOrderCount)} paid orders`, iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: ShirtIcon },
+            { label: 'Revenue · 30d',     value: formatLkr(revenue30.netRevenue),    note: `AOV ${formatLkr(revenue30.averageOrderValue)}`,   iconBg: '#F2E4D8', iconColor: '#C4622D', Icon: BoxIcon },
+            { label: 'Open Orders',       value: fmt(openOrders.length),             note: `${allOrders.length} total`,                       iconBg: '#D6DDE8', iconColor: '#1E3452', Icon: BoxIcon },
+            { label: 'Low Stock Items',   value: fmt(lowStockItems),                 note: 'Need reorder soon',                               iconBg: '#FFF0C2', iconColor: '#9B6B00', Icon: AlertIcon },
+            { label: 'Escalated Cases',   value: fmt(openEscalationCount),           note: 'Open support cases',                              iconBg: '#F5D8D8', iconColor: '#8B2020', Icon: MsgIcon },
+            { label: 'Active Batches',    value: fmt(activeBatchCount),              note: `${delayedBatches.length} delayed`,                iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: FactoryIcon },
           ].map((k, i) => (
             <div key={i} style={kpiCard}>
               <div style={{ width: 30, height: 30, borderRadius: 7, background: k.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, color: k.iconColor }}>
@@ -184,29 +235,68 @@ export default async function Dashboard() {
           <div style={cardHeader}>
             <span style={{ ...cardTitle, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ color: '#C4622D' }}><ZapIcon /></span>
-              AI Automation · Today
+              AI Performance · Last 30 days
             </span>
-            <span style={{ fontSize: 11, color: '#9C9188', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#1E6B45', display: 'inline-block' }} />
-              Live
-            </span>
+            <Link href="/analytics" style={{ fontSize: 11, fontWeight: 600, color: '#C4622D', textDecoration: 'none' }}>
+              Full report →
+            </Link>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0 }}>
             {[
-              { val: `${aiHandledPct}%`, label: 'AI Response Rate',      note: 'Auto-handled convos', good: true },
-              { val: `${aiConversions}`, label: 'Est. Conversions',       note: 'From AI conversations', good: true },
-              { val: `${todayMessages}`,label: 'Messages Today',          note: 'Messenger + Instagram', good: null },
-              { val: `${todayEscalations}`, label: 'Escalated to Human', note: 'Handed off today', good: todayEscalations === 0 },
-              { val: `${openEscalationCount}`, label: 'Open Cases',      note: 'Still unresolved', good: openEscalationCount === 0 },
+              { val: formatPct(ai30.responseRate),   label: 'Response Rate',   note: `${fmt(ai30.assistantMessages)} replies`,   good: ai30.responseRate >= 0.9, bad: false },
+              { val: formatPct(ai30.escalationRate), label: 'Escalation Rate', note: `${fmt(ai30.escalationCount)} cases`,       good: ai30.escalationRate < 0.1, bad: ai30.escalationRate >= 0.25 },
+              { val: formatPct(ai30.resolutionRate), label: 'Resolution Rate', note: `${fmt(ai30.resolvedCount)} resolved`,      good: ai30.resolutionRate >= 0.8, bad: false },
+              { val: fmt(todayMessages),             label: 'Messages Today',  note: `${fmt(ai30.totalMessages)} this month`,    good: false, bad: false },
+              { val: fmt(todayEscalations),          label: 'Handed Off Today',note: 'New escalations today',                    good: todayEscalations === 0, bad: false },
+              { val: fmt(openEscalationCount),       label: 'Open Cases',      note: 'Awaiting follow-up',                       good: openEscalationCount === 0, bad: openEscalationCount > 5 },
             ].map((m, i) => (
               <div key={i} style={{ padding: '14px 16px', borderLeft: i > 0 ? '1px solid #EAE6E0' : 'none' }}>
-                <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 3, color: m.good === true ? '#1E6B45' : m.good === false ? '#8B2020' : '#18160F' }}>
+                <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 3, color: m.bad ? '#8B2020' : m.good ? '#1E6B45' : '#18160F' }}>
                   {m.val}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#6A635A', marginBottom: 2 }}>{m.label}</div>
                 <div style={{ fontSize: 10, color: '#9C9188' }}>{m.note}</div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* ── Top Sellers · 30 days ─────────────────────── */}
+        <div style={{ ...card, marginBottom: 16 }}>
+          <div style={cardHeader}>
+            <span style={{ ...cardTitle, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#C4622D' }}><ShirtIcon /></span>
+              Top Sellers · Last 30 days
+            </span>
+            <Link href="/analytics" style={cardAction}>Full report →</Link>
+          </div>
+          <div style={{ padding: '0 16px' }}>
+            {topProducts.length === 0 ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: '#9C9188', fontSize: 13 }}>
+                No sales recorded in the last 30 days.
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Product', 'Brand', 'Units Sold', 'Revenue', 'Orders'].map(h => (
+                      <th key={h} style={th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {topProducts.map((p, idx) => (
+                    <tr key={p.productId} style={{ borderBottom: idx < topProducts.length - 1 ? '1px solid #EAE6E0' : 'none' }}>
+                      <td style={{ ...td, fontWeight: 600 }}>{p.name}</td>
+                      <td style={{ ...td, color: '#6A635A' }}>{p.brand ?? '—'}</td>
+                      <td style={{ ...td, fontWeight: 600 }}>{fmt(p.unitsSold)}</td>
+                      <td style={{ ...td, color: '#1E6B45', fontWeight: 600 }}>{formatLkr(p.revenue)}</td>
+                      <td style={{ ...td, color: '#6A635A' }}>{fmt(p.orderCount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
