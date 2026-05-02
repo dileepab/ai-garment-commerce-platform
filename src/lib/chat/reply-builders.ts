@@ -197,7 +197,7 @@ export function buildClarificationReply(state: ConversationStateData): string {
   const supportLine = buildSupportContactLine();
 
   if (state.pendingStep === 'size_chart_selection') {
-    return 'Please tell me which size chart you need: Tops, Dresses, Pants, or Skirts.';
+    return 'Could you tell me which size chart you need — Tops, Dresses, Pants, or Skirts?';
   }
 
   if (state.pendingStep === 'contact_collection' && state.orderDraft) {
@@ -207,26 +207,26 @@ export function buildClarificationReply(state: ConversationStateData): string {
       phone: state.orderDraft.phone,
     });
 
-    return `${buildMissingContactPrompt(missingFields)}\n\nIf you would rather speak to a person, ${supportLine.toLowerCase()}`;
+    return `${buildMissingContactPrompt(missingFields)}\n\nIf you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
   }
 
   if (state.pendingStep === 'contact_confirmation') {
-    return `Please confirm the delivery details or send the correction you need. If you would rather speak to a person, ${supportLine.toLowerCase()}`;
+    return `Just to confirm — are the delivery details above correct, or is there something to change? If you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
   }
 
   if (state.pendingStep === 'order_confirmation') {
-    return `Please confirm the order summary or tell me what should be changed. If you would rather speak to a person, ${supportLine.toLowerCase()}`;
+    return `Just to confirm — should I go ahead with the order summary above, or is there something to change? If you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
   }
 
   if (state.pendingStep === 'quantity_update_confirmation') {
-    return `Please confirm the order update summary or tell me what should be changed. If you would rather speak to a person, ${supportLine.toLowerCase()}`;
+    return `Just to confirm — should I apply the order update above, or is there something to change? If you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
   }
 
   if (state.lastReferencedOrderId) {
-    return `I am not fully sure what change you want for order #${state.lastReferencedOrderId}. Please send the exact update you need, or ${supportLine.toLowerCase()}`;
+    return `Sorry, I want to make sure I get this right for order #${state.lastReferencedOrderId}. Could you tell me the exact change you need? Or ${supportLine.toLowerCase()}`;
   }
 
-  return `I am not fully sure I understood that. Please send the item name, order ID, or the exact change you need, or ${supportLine.toLowerCase()}`;
+  return `Sorry, I didn't quite catch that. Could you share the item name, order ID, or the change you need? Or ${supportLine.toLowerCase()}`;
 }
 
 export function buildAcknowledgementReply(state: ConversationStateData): string {
@@ -239,27 +239,27 @@ export function buildAcknowledgementReply(state: ConversationStateData): string 
       return buildSupportContactAcknowledgement({ orderId });
     case 'order_confirmed':
       return orderId
-        ? `You are welcome. We will keep you updated on order #${orderId}.`
-        : 'You are welcome. We will keep you updated on your order.';
+        ? `You are welcome. We'll keep you posted on order #${orderId}.`
+        : "You are welcome. We'll keep you posted on your order.";
     case 'order_status':
     case 'order_details':
       return orderId
-        ? `You are welcome. If you need another update, please mention order #${orderId}.`
-        : 'You are welcome. Please let me know if you need another order update.';
+        ? `You are welcome. Just mention order #${orderId} whenever you need another update.`
+        : 'You are welcome. Just let me know whenever you need another update.';
     case 'contact_confirmation':
-      return 'You are welcome. Please confirm the delivery details whenever you are ready, or send the correction you need.';
+      return 'You are welcome. Take your time — reply "yes" when the delivery details look correct, or send the change you need.';
     case 'order_summary':
-      return 'You are welcome. Please confirm the order summary whenever you are ready, or tell me what should be changed.';
+      return 'You are welcome. Take your time — reply "yes" when you are ready to confirm, or tell me what to change.';
     case 'quantity_prompt':
       return orderId
-        ? `You are welcome. Please send the quantity you want for order #${orderId}.`
-        : 'You are welcome. Please send the quantity you want.';
+        ? `You are welcome. Just send the new quantity for order #${orderId} when you are ready.`
+        : 'You are welcome. Just send the quantity you want when you are ready.';
     case 'quantity_update_summary':
-      return 'You are welcome. Please confirm the order update summary whenever you are ready, or tell me what should be changed.';
+      return 'You are welcome. Take your time — reply "yes" to apply the update, or tell me what to change.';
     case 'greeting':
     case 'generic':
     default:
-      return 'You are welcome. Please let me know if you need anything else.';
+      return 'You are welcome. Let me know if there is anything else.';
   }
 }
 

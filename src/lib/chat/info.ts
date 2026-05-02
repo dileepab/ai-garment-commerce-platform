@@ -259,7 +259,7 @@ export async function handle_payment_question(ctx: ChatContext) {
       ...state.orderDraft,
       paymentMethod,
     };
-    const baseReply = `Yes, ${paymentMethod === 'Online Transfer' ? 'online transfer is accepted' : `${paymentMethod} is accepted`}, and I have updated the payment method to ${paymentMethod}.`;
+    const baseReply = `Yes, ${paymentMethod === 'Online Transfer' ? 'online transfer works' : `${paymentMethod} works`} for us. I've set the payment method to ${paymentMethod}.`;
 
     if (state.pendingStep === 'order_confirmation') {
       return finalizeReply({
@@ -282,7 +282,7 @@ export async function handle_payment_question(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: `Yes, online transfer is accepted. Once you are ready to order, I can note the payment method for you. If you need help with payment confirmation, ${buildSupportContactLine().toLowerCase()}`,
+    reply: `Yes, online transfer works for us. I'll note the payment method when you're ready to place the order. If you need help with a payment confirmation, ${buildSupportContactLine().toLowerCase()}`,
     nextState: {
       lastMissingOrderId: null,
     },
@@ -291,7 +291,7 @@ export async function handle_payment_question(ctx: ChatContext) {
 
 export async function handle_exchange_question(ctx: ChatContext) {
   return ctx.helpers.finalizeReply({
-    reply: `If there is a size issue, please message us as soon as you receive the parcel and we will help you with the exchange process, subject to stock availability. If the issue needs a person, ${buildSupportContactLine().toLowerCase()}`,
+    reply: `If the size isn't right, just message us as soon as the parcel arrives and we'll arrange the exchange, subject to stock availability. If you'd like to talk to someone directly, ${buildSupportContactLine().toLowerCase()}`,
     nextState: {
       lastMissingOrderId: null,
     },
