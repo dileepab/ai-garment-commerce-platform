@@ -146,7 +146,7 @@ export function buildQuantityUpdateSummaryReply(summary: QuantityUpdateSummary):
     `Phone Number: ${summary.phone}`,
     ...specialInstructions,
     '',
-    'Is this update correct? Please let me know if any changes are needed.',
+    'Reply "yes" to apply the update, or tell me what to change.',
   ].join('\n');
 }
 

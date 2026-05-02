@@ -706,6 +706,7 @@ async function main() {
         ],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[5].bot, [
+            "Got it — I've updated the address.",
             'Please confirm if these delivery details are correct:',
             'Name: Correction Customer',
             'Address: 12 Main Street, Kurunegala',
@@ -1118,6 +1119,61 @@ async function main() {
           assert(
             !transcript[7].bot.includes('Your order has been confirmed successfully'),
             `Stock cap follow-up incorrectly confirmed an order.\n\nActual reply:\n${transcript[7].bot}`
+          );
+        },
+      },
+      {
+        name: 'Neutral acknowledgement during contact confirmation re-opens the prompt warmly',
+        senderId: buildSender(runId, 'neutral-ack-contact'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Neutral Ack Customer',
+          '12 Main Street, Kurunegala',
+          '0771007171',
+          'okay',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[4].bot, [
+            'Whenever you are ready, reply "yes" to confirm the delivery details',
+          ], 'Neutral acknowledgement reply during contact confirmation');
+          assert(
+            !transcript[4].bot.includes('Please confirm the delivery details or send the correction you need.'),
+            `Neutral ack still uses the old terse confirmation prompt.\n\nActual reply:\n${transcript[4].bot}`
+          );
+        },
+      },
+      {
+        name: 'Order summary uses the polished close-out wording',
+        senderId: buildSender(runId, 'summary-wording'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Summary Wording Customer',
+          '12 Main Street, Kurunegala',
+          '0771007272',
+          'yes correct',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[4].bot, [
+            'Order Summary',
+            'Reply "yes" to confirm, or tell me what to change.',
+          ], 'Polished order summary wording');
+          assertIncludes(transcript[3].bot, [
+            'Please confirm if these delivery details are correct:',
+            'Reply "yes" to confirm, or send the correction you need.',
+          ], 'Polished contact confirmation wording');
+        },
+      },
+      {
+        name: 'Unclear request gets warmer fallback wording before escalation',
+        senderId: buildSender(runId, 'fallback-wording'),
+        messages: ['blargh blargh blargh'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            "Sorry, I didn't quite catch that.",
+          ], 'Polished fallback wording');
+          assert(
+            !transcript[0].bot.includes('I am not fully sure I understood that.'),
+            `Fallback still uses the stiff legacy wording.\n\nActual reply:\n${transcript[0].bot}`
           );
         },
       },

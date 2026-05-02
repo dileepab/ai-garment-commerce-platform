@@ -86,7 +86,7 @@ export async function handle_place_order(ctx: ChatContext) {
 
   if (!sourceProduct) {
     return finalizeReply({
-      reply: 'Please send the item name, size, and color you want so I can prepare the order correctly.',
+      reply: "Sure — please share the item name, size, and color and I'll set up the order.",
       nextState: {
         pendingStep: 'order_draft',
         orderDraft: existingDraft,
@@ -238,7 +238,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         }
 
         return finalizeReply({
-          reply: 'I am already processing that confirmation. Please ask for the order status if you need to check it.',
+          reply: "I'm already processing that confirmation. Just ask for the order status anytime if you'd like to check on it.",
           assistantReplyKind: 'generic',
           nextState: {
             ...clearPendingConversationState(state),
@@ -365,7 +365,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: 'Please send the order details you want me to confirm.',
+    reply: "Sorry, there's nothing pending for me to confirm yet. Please send the order details you'd like me to put together.",
     nextState: {
       lastMissingOrderId: null,
     },
@@ -514,7 +514,7 @@ export async function handle_reorder_last(ctx: ChatContext) {
 
   if (!sourceOrder || sourceOrder.orderItems.length === 0) {
     return finalizeReply({
-      reply: 'Please send the product name, size, and color you want, and I will prepare the order summary right away.',
+      reply: "Sure — share the product name, size, and color, and I'll prepare the order summary right away.",
       nextState: {
         lastMissingOrderId: null,
       },
@@ -646,7 +646,7 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
 
   if (!nextQuantity) {
     return finalizeReply({
-      reply: 'Please tell me the quantity you want for your order, and I will prepare the update summary.',
+      reply: "Sure — what quantity would you like? I'll prepare the update summary right away.",
       orderId: targetOrder.id,
       assistantReplyKind: 'quantity_prompt',
       nextState: {

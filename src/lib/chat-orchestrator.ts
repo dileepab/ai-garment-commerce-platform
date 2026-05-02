@@ -555,19 +555,19 @@ export async function routeCustomerMessage(
 
     if (state.pendingStep === 'contact_confirmation' && state.orderDraft) {
       return finalizeReply({
-        reply: 'Please confirm the delivery details or send the correction you need.',
+        reply: 'Whenever you are ready, reply "yes" to confirm the delivery details — or send the change you need.',
       });
     }
 
     if (state.pendingStep === 'order_confirmation' && state.orderDraft) {
       return finalizeReply({
-        reply: 'Please confirm the order summary when you are ready, or tell me what should be changed.',
+        reply: 'Whenever you are ready, reply "yes" to confirm the order summary — or tell me what to change.',
       });
     }
 
     if (state.pendingStep === 'quantity_update_confirmation' && state.quantityUpdate) {
       return finalizeReply({
-        reply: 'Please confirm the order update summary when you are ready, or tell me what should be changed.',
+        reply: 'Whenever you are ready, reply "yes" to apply the order update — or tell me what to change.',
       });
     }
 
@@ -658,8 +658,31 @@ export async function routeCustomerMessage(
       });
     }
 
+    const prevDraft = state.orderDraft;
+    const previouslyComplete = Boolean(prevDraft.name && prevDraft.address && prevDraft.phone);
+    const changedFields = previouslyComplete
+      ? (
+          [
+            ['name', prevDraft.name, nextDraft.name],
+            ['address', prevDraft.address, nextDraft.address],
+            ['phone', prevDraft.phone, nextDraft.phone],
+          ] as const
+        )
+          .filter(([, before, after]) => before !== after)
+          .map(([field]) => field)
+      : [];
+    const FIELD_LABELS: Record<string, string> = {
+      name: 'name',
+      address: 'address',
+      phone: 'phone number',
+    };
+    const acknowledgement =
+      changedFields.length > 0 && changedFields.length <= 2
+        ? `Got it — I've updated the ${changedFields.map((field) => FIELD_LABELS[field]).join(' and ')}.\n\n`
+        : '';
+
     return finalizeReply({
-      reply: buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone),
+      reply: `${acknowledgement}${buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone)}`,
       assistantReplyKind: 'contact_confirmation',
       nextState: {
         pendingStep: 'contact_confirmation',
@@ -691,7 +714,7 @@ export async function routeCustomerMessage(
 
   if (!state.orderDraft && looksLikeTotalQuestion(input.currentMessage) && !messageReferencesExistingOrder(input.currentMessage)) {
     return finalizeReply({
-      reply: 'Please send the item details for the order, and I will calculate the total with delivery charges.',
+      reply: "Sure — share the item details for the order and I'll work out the total with delivery charges.",
       nextState: {
         lastMissingOrderId: null,
       },

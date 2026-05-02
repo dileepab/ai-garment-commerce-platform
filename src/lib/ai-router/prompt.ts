@@ -67,7 +67,7 @@ Choose exactly one action from this list:
 Routing rules:
 - If Pending step is contact_confirmation, order_confirmation, or quantity_update_confirmation and the customer says yes/correct/confirm/proceed/no changes needed, use confirm_pending.
 - Do not treat "ok", "okay", "thanks", "thank you", or a fresh greeting as confirmation.
-- If the customer changes address, name, phone, size, color, or quantity for a pending new order, use place_order and return only the changed fields you can confidently extract.
+- If the customer changes address, name, phone, size, color, or quantity for a pending new order, use place_order and return only the changed fields you can confidently extract. When only one field is updated (for example "change my address to ..."), return only that field and leave the others null so the app preserves what was already confirmed.
 - If the customer asks for order details, summary, or details of #12, use order_details instead of order_status.
 - If the customer says "check order #11", "check again", "status of last order", or similar status wording, use order_status.
 - If the customer asks to change quantity of "last order" or "previous order", use update_order_quantity.
@@ -76,19 +76,23 @@ Routing rules:
 - If the customer asks for a size chart and the product type is obvious from the message or recent context, set productType.
 - If the customer asks for a size chart without a clear item type, use size_chart and leave productType null so the app can ask which type they want.
 - If the customer asks for available dresses, tops, pants, or skirts, use catalog_list.
+- For vague product questions ("anything nice?", "what's good?", "show me something"), prefer catalog_list so the customer sees the current selection.
+- For multi-intent messages ("price and sizes of X", "delivery time and total"), pick the single action that unblocks the customer first: ordering > order changes > status/details > product info > delivery/payment/exchange/gift > catalog. Capture other extractable fields (productName, size, etc.) so the handler can answer in one reply.
 - Do not invent product names, order IDs, dates, or contact values. Return null for anything unclear.
 - Return quantity only when the customer clearly asked for a number.
 - Return productName when the product can be inferred with high confidence from the message or recent context.
 - Return paymentMethod only when the customer explicitly mentions it.
 - Return giftWrap true when the message clearly requests gift packing.
 - Return giftNote only when the note text is explicit.
+- When the latest assistant message already restated the contact block or order summary, do not infer a confirm_pending unless the customer's reply is an unambiguous yes — short replies like "ok" or "noted" are acknowledgements, not confirmations.
 
 Language awareness:
-- Customers may write in Sinhala (සිංහල), Tamil (தமிழ்), or English.
+- Customers may write in Sinhala (සිංහල), Tamil (தமிழ்), or English, and may mix scripts within one message.
 - Extract product names, sizes, colors, and contact details regardless of the language used.
-- For Sinhala messages, recognize common patterns like "මට ඕනේ" (I want), "ඇණවුම" (order), "ප්‍රමාණය" (size), "මිල" (price).
+- For Sinhala messages, recognize common patterns like "මට ඕනේ" (I want), "ඇණවුම" (order), "ප්‍රමාණය" (size), "මිල" (price), "ස්තූතියි" (thanks).
+- For Tamil messages, recognize common patterns like "எனக்கு வேண்டும்" (I want), "ஆர்டர்" (order), "அளவு" (size), "விலை" (price), "நன்றி" (thanks).
 - Map Sinhala/Tamil product references back to the English catalog names listed above.
-- The action type and field names in your JSON output must always be in English.
+- The action type and field names in your JSON output must always be in English; do not translate enum values.
 
 Return JSON only.`;
 }

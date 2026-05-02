@@ -59,7 +59,7 @@ export function buildOrderSummaryReply(draft: ResolvedOrderDraft): string {
     `Phone Number: ${draft.phone}`,
     ...specialInstructions,
     '',
-    'Is this summary correct? Please let me know if any changes are needed.',
+    'Reply "yes" to confirm, or tell me what to change.',
   ].join('\n');
 }
 
@@ -69,6 +69,6 @@ export function buildContactConfirmationReply(name: string, address: string, pho
     '',
     formatContactBlock({ name, address, phone }),
     '',
-    'If anything should be changed, please send the correction.',
+    'Reply "yes" to confirm, or send the correction you need.',
   ].join('\n');
 }
