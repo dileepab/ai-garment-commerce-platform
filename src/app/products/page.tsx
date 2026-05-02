@@ -1,10 +1,14 @@
 import prisma from '@/lib/prisma';
+import { canScope, getBrandScopedWhere } from '@/lib/access-control';
+import { requirePagePermission } from '@/lib/authz';
 import ProductsPageClient from './ProductsPageClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProductsPage() {
+  const scope = await requirePagePermission('products:view');
   const products = await prisma.product.findMany({
+    where: getBrandScopedWhere(scope),
     orderBy: { createdAt: 'desc' },
   });
 
@@ -23,6 +27,7 @@ export default async function ProductsPage() {
         criticalStock,
         inventoryValue
       }}
+      canManageProducts={canScope(scope, 'products:write')}
     />
   );
 }

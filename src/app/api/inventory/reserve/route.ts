@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
+import {
+  accessDeniedResponse,
+  assertBrandAccess,
+  isAuthorizationError,
+  requireApiPermission,
+} from '@/lib/authz';
 
 export async function POST(request: Request) {
   try {
+    const scope = await requireApiPermission('inventory:reserve');
     const { productId, quantity } = await request.json();
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { brand: true },
+    });
+
+    assertBrandAccess(scope, product?.brand, 'product');
     
     const result = await prisma.$transaction(async (tx) => {
       const inventory = await tx.inventory.updateMany({
@@ -37,6 +50,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: result });
   } catch (error: unknown) {
+    if (isAuthorizationError(error)) {
+      return accessDeniedResponse(error);
+    }
+
     const message = getErrorMessage(error);
 
     return NextResponse.json(

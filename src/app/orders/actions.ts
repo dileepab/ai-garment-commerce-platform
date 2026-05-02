@@ -5,21 +5,30 @@ import { sendMessengerMessage } from '@/lib/meta';
 import { cancelOrderById, OrderRequestError, isOrderMutableStatus } from '@/lib/orders';
 import { revalidatePath } from 'next/cache';
 import { logInfo, logWarn } from '@/lib/app-log';
+import {
+  accessDeniedResult,
+  assertBrandAccess,
+  isAuthorizationError,
+  requireActionPermission,
+} from '@/lib/authz';
+import type { UserScope } from '@/lib/access-control';
 
 export interface OrderActionResult {
   success: boolean;
   error?: string;
 }
 
-async function setStatusOrFail(orderId: number, fromAllowed: string[], next: string) {
+async function setStatusOrFail(scope: UserScope, orderId: number, fromAllowed: string[], next: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, orderStatus: true },
+    select: { id: true, orderStatus: true, brand: true },
   });
 
   if (!order) {
     throw new OrderRequestError(`Order #${orderId} was not found.`, 404);
   }
+
+  assertBrandAccess(scope, order.brand, 'order');
 
   if (!fromAllowed.includes(order.orderStatus)) {
     throw new OrderRequestError(
@@ -56,6 +65,10 @@ async function notifyCustomer(order: { id: number; customer: { externalId: strin
 }
 
 function toResult(error: unknown): OrderActionResult {
+  if (isAuthorizationError(error)) {
+    return accessDeniedResult(error);
+  }
+
   if (error instanceof OrderRequestError) {
     return { success: false, error: error.message };
   }
@@ -64,7 +77,8 @@ function toResult(error: unknown): OrderActionResult {
 
 export async function confirmOrder(orderId: number): Promise<OrderActionResult> {
   try {
-    const order = await setStatusOrFail(orderId, ['pending'], 'confirmed');
+    const scope = await requireActionPermission('orders:update');
+    const order = await setStatusOrFail(scope, orderId, ['pending'], 'confirmed');
     await notifyCustomer(order, `Your order #${order.id} has been confirmed and is being prepared.`);
     revalidatePath('/orders');
     return { success: true };
@@ -75,7 +89,8 @@ export async function confirmOrder(orderId: number): Promise<OrderActionResult> 
 
 export async function markPacking(orderId: number): Promise<OrderActionResult> {
   try {
-    await setStatusOrFail(orderId, ['confirmed'], 'packing');
+    const scope = await requireActionPermission('orders:update');
+    await setStatusOrFail(scope, orderId, ['confirmed'], 'packing');
     revalidatePath('/orders');
     return { success: true };
   } catch (error) {
@@ -85,7 +100,8 @@ export async function markPacking(orderId: number): Promise<OrderActionResult> {
 
 export async function markShipped(orderId: number): Promise<OrderActionResult> {
   try {
-    const order = await setStatusOrFail(orderId, ['confirmed', 'packing', 'packed'], 'shipped');
+    const scope = await requireActionPermission('orders:update');
+    const order = await setStatusOrFail(scope, orderId, ['confirmed', 'packing', 'packed'], 'shipped');
     await notifyCustomer(order, `Great news! Your order #${order.id} has been shipped and is on its way.`);
     revalidatePath('/orders');
     return { success: true };
@@ -100,7 +116,8 @@ export async function dispatchOrder(orderId: number): Promise<OrderActionResult>
 
 export async function deliverOrder(orderId: number): Promise<OrderActionResult> {
   try {
-    const order = await setStatusOrFail(orderId, ['shipped', 'dispatched'], 'delivered');
+    const scope = await requireActionPermission('orders:update');
+    const order = await setStatusOrFail(scope, orderId, ['shipped', 'dispatched'], 'delivered');
     await notifyCustomer(order, `Delivery confirmed! Your order #${order.id} has been marked as delivered. We hope you love your garments!`);
     revalidatePath('/orders');
     return { success: true };
@@ -111,14 +128,17 @@ export async function deliverOrder(orderId: number): Promise<OrderActionResult> 
 
 export async function cancelOrder(orderId: number): Promise<OrderActionResult> {
   try {
+    const scope = await requireActionPermission('orders:update');
     const existing = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { orderStatus: true },
+      select: { orderStatus: true, brand: true },
     });
 
     if (!existing) {
       return { success: false, error: `Order #${orderId} was not found.` };
     }
+
+    assertBrandAccess(scope, existing.brand, 'order');
 
     if (!isOrderMutableStatus(existing.orderStatus)) {
       return {

@@ -32,7 +32,15 @@ interface ProductsPageStats {
 
 type ProductStatusFilter = (typeof STATUS_TABS)[number]['key'];
 
-export default function ProductsPageClient({ initialProducts, stats }: { initialProducts: Product[], stats: ProductsPageStats }) {
+export default function ProductsPageClient({
+  initialProducts,
+  stats,
+  canManageProducts,
+}: {
+  initialProducts: Product[];
+  stats: ProductsPageStats;
+  canManageProducts: boolean;
+}) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>("all");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -60,7 +68,9 @@ export default function ProductsPageClient({ initialProducts, stats }: { initial
         </div>
         <div className="topbar-actions">
           <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export CSV</button>
-          <button className="btn btn-primary"><Icon d={ic.plus} size={13} />Add Product</button>
+          {canManageProducts && (
+            <button className="btn btn-primary"><Icon d={ic.plus} size={13} />Add Product</button>
+          )}
         </div>
       </div>
 
@@ -168,6 +178,7 @@ export default function ProductsPageClient({ initialProducts, stats }: { initial
       <ProductDrawer 
         product={selectedProduct} 
         onClose={() => setSelectedProduct(null)} 
+        canManage={canManageProducts}
       />
     </main>
   );

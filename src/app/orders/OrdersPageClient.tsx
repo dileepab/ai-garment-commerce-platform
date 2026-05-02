@@ -124,7 +124,15 @@ function getOrderAgeLabel(createdAt: string, status: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-export default function OrdersPageClient({ initialOrders, stats }: { initialOrders: OrdersPageOrder[], stats: OrdersPageStats }) {
+export default function OrdersPageClient({
+  initialOrders,
+  stats,
+  canUpdateOrders,
+}: {
+  initialOrders: OrdersPageOrder[];
+  stats: OrdersPageStats;
+  canUpdateOrders: boolean;
+}) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
@@ -399,7 +407,11 @@ export default function OrdersPageClient({ initialOrders, stats }: { initialOrde
                       {getOrderAgeLabel(o.createdAt, o.orderStatus)}
                     </td>
                     <td style={{ textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                      <OrderRowQuickActions orderId={o.id} status={o.orderStatus} />
+                      {canUpdateOrders ? (
+                        <OrderRowQuickActions orderId={o.id} status={o.orderStatus} />
+                      ) : (
+                        <span style={{ fontSize: 11, color: "var(--color-fg-3)" }}>Read only</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -425,6 +437,7 @@ export default function OrdersPageClient({ initialOrders, stats }: { initialOrde
       <OrderDrawer
         order={selectedOrder}
         onClose={() => setSelectedOrderId(null)}
+        canUpdate={canUpdateOrders}
       />
     </main>
   );

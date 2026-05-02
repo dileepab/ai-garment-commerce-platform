@@ -1,4 +1,6 @@
 import prisma from '@/lib/prisma';
+import { canScope, getBrandScopedWhere } from '@/lib/access-control';
+import { requirePagePermission } from '@/lib/authz';
 import SupportPageClient from './SupportPageClient';
 import {
   formatSupportDate,
@@ -11,7 +13,9 @@ import type { SupportThread, SupportThreadMessage } from './types';
 export const dynamic = 'force-dynamic';
 
 export default async function SupportPage() {
+  const scope = await requirePagePermission('support:view');
   const escalations = await prisma.supportEscalation.findMany({
+    where: getBrandScopedWhere(scope),
     include: {
       customer: true,
       order: true,
@@ -87,6 +91,7 @@ export default async function SupportPage() {
     <SupportPageClient 
       initialEscalations={processedEscalations}
       stats={stats}
+      canReply={canScope(scope, 'support:reply')}
     />
   );
 }

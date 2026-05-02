@@ -109,9 +109,11 @@ function getEscalationPatch(data: SupportMessagesPayload): Partial<SupportThread
 export function Thread({
   convo,
   onConvoUpdate = () => {},
+  canReply = true,
 }: {
   convo: SupportThread | null;
   onConvoUpdate?: (id: number, patch: Partial<SupportThread>) => void;
+  canReply?: boolean;
 }) {
   const [reply, setReply] = useState("");
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -252,7 +254,7 @@ export function Thread({
   const displayName = getDisplayName(convo);
   const initials = getInitials(displayName);
   const isResolved = convo.status === "resolved";
-  const canTake = !isResolved && convo.status !== "in_progress";
+  const canTake = canReply && !isResolved && convo.status !== "in_progress";
   const statusClass = STATUS_CLASS[convo.status || 'pending'] || "pill-pending";
   const statusLabel = STATUS_LABEL[convo.status || 'pending'] || "Pending Reply";
 
@@ -301,7 +303,7 @@ export function Thread({
               </button>
             </form>
           )}
-          {!isResolved && (
+          {canReply && !isResolved && (
             <form action={updateEscalationWorkflowAction}>
               <input type="hidden" name="escalationId" value={convo.id} />
               <input type="hidden" name="nextStatus" value="resolved" />
@@ -310,7 +312,7 @@ export function Thread({
               </button>
             </form>
           )}
-          {isResolved && (
+          {canReply && isResolved && (
             <form action={updateEscalationWorkflowAction}>
               <input type="hidden" name="escalationId" value={convo.id} />
               <input type="hidden" name="nextStatus" value="open" />
@@ -364,7 +366,16 @@ export function Thread({
         <div ref={bottomRef} />
       </div>
 
-      {isResolved ? (
+      {!canReply ? (
+        <div className="reply-area reply-area-resolved">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="ai-badge"><Icon d={ic.message} size={10} color="#7A3A18" />Read only</span>
+            <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>
+              Your role can view this support case but cannot reply or change its workflow.
+            </span>
+          </div>
+        </div>
+      ) : isResolved ? (
         <div className="reply-area reply-area-resolved">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span className="ai-badge"><Icon d={ic.zap} size={10} color="#7A3A18" />Bot resumed</span>

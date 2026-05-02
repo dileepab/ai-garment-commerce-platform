@@ -1,13 +1,25 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
+import { getBrandScopedWhere } from '@/lib/access-control';
+import {
+  accessDeniedResponse,
+  assertBrandAccess,
+  isAuthorizationError,
+  requireApiPermission,
+} from '@/lib/authz';
 
 export async function GET(request: Request) {
   try {
+    const scope = await requireApiPermission('products:view');
     const { searchParams } = new URL(request.url);
     const brand = searchParams.get('brand');
-    
-    const whereClause = brand ? { brand } : {};
+
+    if (brand) {
+      assertBrandAccess(scope, brand, 'brand');
+    }
+
+    const whereClause = brand ? { brand } : getBrandScopedWhere(scope);
     
     const products = await prisma.product.findMany({
       where: whereClause,
@@ -15,13 +27,19 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ success: true, data: products });
   } catch (error: unknown) {
+    if (isAuthorizationError(error)) {
+      return accessDeniedResponse(error);
+    }
+
     return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const scope = await requireApiPermission('products:write');
     const data = await request.json();
+    assertBrandAccess(scope, data.brand, 'brand');
     
     const sizesStr = Array.isArray(data.sizes) ? data.sizes.join(',') : data.sizes;
     const colorsStr = Array.isArray(data.colors) ? data.colors.join(',') : data.colors;
@@ -47,6 +65,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: product });
   } catch (error: unknown) {
+    if (isAuthorizationError(error)) {
+      return accessDeniedResponse(error);
+    }
+
     return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }

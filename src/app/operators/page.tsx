@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { requirePagePermission } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,7 @@ function getStatusClass(status: string): string {
 }
 
 export default async function OperatorsPage() {
+  await requirePagePermission('operators:view');
   const operators = await prisma.operator.findMany({
     include: { operatorOutputs: true },
     orderBy: { id: 'asc' },

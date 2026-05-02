@@ -1,4 +1,6 @@
 import prisma from '@/lib/prisma';
+import { canScope, getBrandScopedWhere } from '@/lib/access-control';
+import { requirePagePermission } from '@/lib/authz';
 import OrdersPageClient from './OrdersPageClient';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +10,9 @@ function isStatus(orderStatus: string, ...statuses: string[]) {
 }
 
 export default async function OrdersPage() {
+  const scope = await requirePagePermission('orders:view');
   const orders = await prisma.order.findMany({
+    where: getBrandScopedWhere(scope),
     include: {
       customer: true,
       orderItems: {
@@ -78,6 +82,7 @@ export default async function OrdersPage() {
     <OrdersPageClient
       initialOrders={serialized}
       stats={stats}
+      canUpdateOrders={canScope(scope, 'orders:update')}
     />
   );
 }

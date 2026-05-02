@@ -5,6 +5,12 @@ import prisma from '@/lib/prisma';
 import { loadConversationState, saveConversationState } from '@/lib/conversation-state';
 import { sendMessengerMessage } from '@/lib/meta';
 import { logInfo, logWarn } from '@/lib/app-log';
+import {
+  assertBrandAccess,
+  isAuthorizationError,
+  requireActionPermission,
+} from '@/lib/authz';
+import type { UserScope } from '@/lib/access-control';
 
 async function setConversationSupportMode(params: {
   senderId: string;
@@ -22,6 +28,14 @@ async function setConversationSupportMode(params: {
 }
 
 export async function updateEscalationWorkflowAction(formData: FormData) {
+  let scope: UserScope;
+  try {
+    scope = await requireActionPermission('support:reply');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
   const escalationId = Number.parseInt(String(formData.get('escalationId') || ''), 10);
   const nextStatus = String(formData.get('nextStatus') || '');
 
@@ -37,6 +51,13 @@ export async function updateEscalationWorkflowAction(formData: FormData) {
 
   if (!escalation) {
     return;
+  }
+
+  try {
+    assertBrandAccess(scope, escalation.brand, 'support case');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
   }
 
   await prisma.supportEscalation.update({
@@ -66,6 +87,14 @@ export async function updateEscalationWorkflowAction(formData: FormData) {
 }
 
 export async function sendSupportReplyAction(formData: FormData) {
+  let scope: UserScope;
+  try {
+    scope = await requireActionPermission('support:reply');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
   const escalationId = Number.parseInt(String(formData.get('escalationId') || ''), 10);
   const reply = String(formData.get('reply') || '').trim();
 
@@ -81,6 +110,13 @@ export async function sendSupportReplyAction(formData: FormData) {
 
   if (!escalation) {
     return;
+  }
+
+  try {
+    assertBrandAccess(scope, escalation.brand, 'support case');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
   }
 
   await prisma.chatMessage.create({
@@ -132,6 +168,14 @@ export async function sendSupportReplyAction(formData: FormData) {
 }
 
 export async function addSupportNoteAction(formData: FormData) {
+  let scope: UserScope;
+  try {
+    scope = await requireActionPermission('support:reply');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
   const escalationId = Number.parseInt(String(formData.get('escalationId') || ''), 10);
   const note = String(formData.get('note') || '').trim();
 
@@ -147,6 +191,13 @@ export async function addSupportNoteAction(formData: FormData) {
 
   if (!escalation) {
     return;
+  }
+
+  try {
+    assertBrandAccess(scope, escalation.brand, 'support case');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
   }
 
   await prisma.chatMessage.create({

@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
+import { canScope, getBrandScopedWhere, getProductBrandScopedWhere } from '@/lib/access-control';
+import { requirePagePermission } from '@/lib/authz';
+import { getScopedConversationSenderIds } from '@/lib/conversation-scope';
 import { isActiveOrderStatus, getOrderStageLabel } from '@/lib/order-status-display';
 import {
   formatLkr,
@@ -49,8 +52,21 @@ const UsersIcon   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="
 const ZapIcon     = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 
 export default async function Dashboard() {
+  const scope = await requirePagePermission('dashboard:view');
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const last30 = new Date(today); last30.setDate(last30.getDate() - 29);
+  const brandWhere = getBrandScopedWhere(scope);
+  const productBrandWhere = getProductBrandScopedWhere(scope);
+  const canViewAnalytics = canScope(scope, 'analytics:view');
+  const scopedSenderIds = await getScopedConversationSenderIds(scope);
+  const todayChatWhere = {
+    createdAt: { gte: today },
+    ...(scopedSenderIds ? { senderId: { in: scopedSenderIds } } : {}),
+  };
+  const last30ChatWhere = {
+    createdAt: { gte: last30 },
+    ...(scopedSenderIds ? { senderId: { in: scopedSenderIds } } : {}),
+  };
 
   const [
     allOrders,
@@ -70,13 +86,14 @@ export default async function Dashboard() {
     last30Messages,
     last30Escalations,
   ] = await Promise.all([
-    prisma.order.findMany({ select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true } }),
-    prisma.inventory.count({ where: { availableQty: { lte: 10 } } }),
-    prisma.supportEscalation.count({ where: { status: { not: 'resolved' } } }),
-    prisma.productionBatch.count({ where: { status: { notIn: ['completed', 'cancelled'] } } }),
+    prisma.order.findMany({ where: brandWhere, select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true } }),
+    prisma.inventory.count({ where: { ...productBrandWhere, availableQty: { lte: 10 } } }),
+    prisma.supportEscalation.count({ where: { ...brandWhere, status: { not: 'resolved' } } }),
+    prisma.productionBatch.count({ where: { ...brandWhere, status: { notIn: ['completed', 'cancelled'] } } }),
 
     // Recent orders for pipeline
     prisma.order.findMany({
+      where: brandWhere,
       take: 6,
       orderBy: { createdAt: 'desc' },
       include: { customer: true, orderItems: { include: { product: true }, take: 1 } },
@@ -84,7 +101,7 @@ export default async function Dashboard() {
 
     // Low stock products
     prisma.inventory.findMany({
-      where: { availableQty: { lte: 10 } },
+      where: { ...productBrandWhere, availableQty: { lte: 10 } },
       take: 5,
       orderBy: { availableQty: 'asc' },
       include: { product: true },
@@ -92,7 +109,7 @@ export default async function Dashboard() {
 
     // Recent open escalations
     prisma.supportEscalation.findMany({
-      where: { status: { not: 'resolved' } },
+      where: { ...brandWhere, status: { not: 'resolved' } },
       take: 4,
       orderBy: { updatedAt: 'desc' },
       include: { customer: true },
@@ -100,7 +117,7 @@ export default async function Dashboard() {
 
     // Active production batches
     prisma.productionBatch.findMany({
-      where: { status: { notIn: ['completed', 'cancelled'] } },
+      where: { ...brandWhere, status: { notIn: ['completed', 'cancelled'] } },
       take: 4,
       orderBy: { createdAt: 'desc' },
     }),
@@ -113,26 +130,26 @@ export default async function Dashboard() {
     }),
 
     // AI: messages today
-    prisma.chatMessage.count({ where: { createdAt: { gte: today } } }),
+    prisma.chatMessage.count({ where: todayChatWhere }),
 
     // Escalations created today
-    prisma.supportEscalation.count({ where: { createdAt: { gte: today } } }),
+    prisma.supportEscalation.count({ where: { ...brandWhere, createdAt: { gte: today } } }),
 
     // Orders today (for revenue today)
     prisma.order.findMany({
-      where: { createdAt: { gte: today } },
+      where: { ...brandWhere, createdAt: { gte: today } },
       select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true },
     }),
 
     // Orders last 30 days for revenue summary
     prisma.order.findMany({
-      where: { createdAt: { gte: last30 } },
+      where: { ...brandWhere, createdAt: { gte: last30 } },
       select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true },
     }),
 
     // Order items last 30 days for top sellers
     prisma.orderItem.findMany({
-      where: { order: { createdAt: { gte: last30 } } },
+      where: { order: { ...brandWhere, createdAt: { gte: last30 } } },
       select: {
         productId: true, quantity: true, price: true, orderId: true,
         product: { select: { id: true, name: true, brand: true } },
@@ -142,13 +159,13 @@ export default async function Dashboard() {
 
     // AI messages last 30 days for response/escalation rates
     prisma.chatMessage.findMany({
-      where: { createdAt: { gte: last30 } },
+      where: last30ChatWhere,
       select: { senderId: true, channel: true, role: true, createdAt: true },
     }),
 
     // Escalations last 30 days
     prisma.supportEscalation.findMany({
-      where: { createdAt: { gte: last30 } },
+      where: { ...brandWhere, createdAt: { gte: last30 } },
       select: { status: true, createdAt: true, resolvedAt: true, customerId: true },
     }),
   ]);
@@ -202,7 +219,7 @@ export default async function Dashboard() {
             {' · '}All systems operational
           </div>
         </div>
-        <Link href="/analytics" style={btnSecondary}>Analytics</Link>
+        {canViewAnalytics && <Link href="/analytics" style={btnSecondary}>Analytics</Link>}
         <Link href="/orders" style={btnSecondary}>View Orders</Link>
         <Link href="/products" style={btnPrimary}>Add Product</Link>
       </div>
@@ -237,9 +254,11 @@ export default async function Dashboard() {
               <span style={{ color: '#C4622D' }}><ZapIcon /></span>
               AI Performance · Last 30 days
             </span>
-            <Link href="/analytics" style={{ fontSize: 11, fontWeight: 600, color: '#C4622D', textDecoration: 'none' }}>
-              Full report →
-            </Link>
+            {canViewAnalytics && (
+              <Link href="/analytics" style={{ fontSize: 11, fontWeight: 600, color: '#C4622D', textDecoration: 'none' }}>
+                Full report →
+              </Link>
+            )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0 }}>
             {[
@@ -268,7 +287,7 @@ export default async function Dashboard() {
               <span style={{ color: '#C4622D' }}><ShirtIcon /></span>
               Top Sellers · Last 30 days
             </span>
-            <Link href="/analytics" style={cardAction}>Full report →</Link>
+            {canViewAnalytics && <Link href="/analytics" style={cardAction}>Full report →</Link>}
           </div>
           <div style={{ padding: '0 16px' }}>
             {topProducts.length === 0 ? (

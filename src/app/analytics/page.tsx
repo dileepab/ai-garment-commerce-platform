@@ -1,6 +1,12 @@
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import {
+  getBrandScopedWhere,
+  getProductBrandScopedWhere,
+} from '@/lib/access-control';
+import { requirePagePermission } from '@/lib/authz';
+import { getScopedConversationSenderIds } from '@/lib/conversation-scope';
+import {
   DATE_RANGE_PRESETS,
   dailyRevenueSeries,
   formatLkr,
@@ -21,10 +27,21 @@ type SearchParams = Promise<{ range?: string }>;
 function fmt(n: number) { return new Intl.NumberFormat('en-LK').format(n); }
 
 export default async function AnalyticsPage({ searchParams }: { searchParams: SearchParams }) {
+  const scope = await requirePagePermission('analytics:view');
   const { range } = await searchParams;
   const { preset, from, to } = resolveDateRange(range);
 
-  const orderWhere = from ? { createdAt: { gte: from, lte: to } } : {};
+  const brandWhere = getBrandScopedWhere(scope);
+  const orderWhere = {
+    ...brandWhere,
+    ...(from ? { createdAt: { gte: from, lte: to } } : {}),
+  };
+  const scopedSenderIds = await getScopedConversationSenderIds(scope);
+  const dateWhere = from ? { createdAt: { gte: from, lte: to } } : {};
+  const chatMessageWhere = {
+    ...dateWhere,
+    ...(scopedSenderIds ? { senderId: { in: scopedSenderIds } } : {}),
+  };
 
   const [
     ordersInRange,
@@ -49,22 +66,29 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
       },
     }),
     prisma.inventory.findMany({
+      where: getProductBrandScopedWhere(scope),
       include: { product: { select: { name: true, brand: true } } },
     }),
     prisma.productionBatch.findMany({
-      where: from ? { createdAt: { gte: from, lte: to } } : {},
+      where: {
+        ...brandWhere,
+        ...dateWhere,
+      },
       select: { status: true, plannedQty: true, finishedQty: true, rejectedQty: true },
     }),
     prisma.chatMessage.findMany({
-      where: from ? { createdAt: { gte: from, lte: to } } : {},
+      where: chatMessageWhere,
       select: { senderId: true, channel: true, role: true, createdAt: true },
     }),
     prisma.supportEscalation.findMany({
-      where: from ? { createdAt: { gte: from, lte: to } } : {},
+      where: {
+        ...brandWhere,
+        ...dateWhere,
+      },
       select: { status: true, createdAt: true, resolvedAt: true, customerId: true },
     }),
-    prisma.product.count(),
-    prisma.order.count({ where: { orderStatus: { notIn: ['delivered', 'cancelled'] } } }),
+    prisma.product.count({ where: brandWhere }),
+    prisma.order.count({ where: { ...brandWhere, orderStatus: { notIn: ['delivered', 'cancelled'] } } }),
   ]);
 
   // Compute conversions: chat senderIds that resolve to customers who ordered in window

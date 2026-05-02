@@ -1,12 +1,27 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
+import {
+  can,
+  describeScope,
+  getUserScopeFromSessionUser,
+  ROLE_LABELS,
+  type Permission,
+} from '@/lib/access-control';
 
-const NAV_ITEMS = [
+const NAV_ITEMS: {
+  href: string;
+  label: string;
+  permission: Permission;
+  icon: ReactNode;
+}[] = [
   {
     href: '/',
     label: 'Dashboard',
+    permission: 'dashboard:view',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
@@ -17,6 +32,7 @@ const NAV_ITEMS = [
   {
     href: '/products',
     label: 'Products',
+    permission: 'products:view',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/>
@@ -26,6 +42,7 @@ const NAV_ITEMS = [
   {
     href: '/orders',
     label: 'Orders',
+    permission: 'orders:view',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
@@ -36,6 +53,7 @@ const NAV_ITEMS = [
   {
     href: '/support',
     label: 'Support Inbox',
+    permission: 'support:view',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
@@ -45,6 +63,7 @@ const NAV_ITEMS = [
   {
     href: '/production',
     label: 'Production',
+    permission: 'production:view',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
@@ -55,6 +74,7 @@ const NAV_ITEMS = [
   {
     href: '/analytics',
     label: 'Analytics',
+    permission: 'analytics:view',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="20" x2="18" y2="10"/>
@@ -67,6 +87,7 @@ const NAV_ITEMS = [
   {
     href: '/operators',
     label: 'Operators',
+    permission: 'operators:view',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
@@ -79,6 +100,22 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const scope = session?.user ? getUserScopeFromSessionUser(session.user) : null;
+  const visibleItems = scope
+    ? NAV_ITEMS.filter((item) => can(scope.role, item.permission))
+    : NAV_ITEMS;
+  const displayName = session?.user?.name || session?.user?.email || 'GarmentOS';
+  const initials = displayName
+    .split(/\s|@/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'GA';
+
+  const handleSignOut = () => {
+    void signOut({ callbackUrl: '/login' });
+  };
 
   return (
     <aside
@@ -117,7 +154,7 @@ export default function Sidebar() {
 
       {/* Nav items */}
       <nav style={{ flex: 1 }}>
-        {NAV_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = item.href === '/'
             ? pathname === '/'
             : pathname.startsWith(item.href);
@@ -148,25 +185,54 @@ export default function Sidebar() {
       <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '10px 0' }} />
 
       {/* User section */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 9,
-        padding: 8, borderRadius: 7,
-      }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{
-          width: 30, height: 30, borderRadius: '50%',
-          background: '#C4622D', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 9,
+          padding: 8, borderRadius: 7,
         }}>
-          GA
-        </div>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', lineHeight: 1.3 }}>
-            GarmentOS
+          <div style={{
+            width: 30, height: 30, borderRadius: '50%',
+            background: '#C4622D', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
+          }}>
+            {initials}
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
-            Admin
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {displayName}
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {scope ? `${ROLE_LABELS[scope.role]} · ${describeScope(scope)}` : 'Signed in'}
+            </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleSignOut}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            width: '100%',
+            border: '1px solid rgba(255,255,255,0.09)',
+            background: 'rgba(255,255,255,0.04)',
+            color: 'rgba(255,255,255,0.62)',
+            borderRadius: 6,
+            padding: '7px 8px',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Sign out
+        </button>
       </div>
     </aside>
   );

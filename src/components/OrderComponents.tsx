@@ -118,7 +118,15 @@ function canCancel(status: string): boolean {
   return ['pending', 'confirmed', 'processing', 'packing', 'packed'].includes(status);
 }
 
-export function OrderDrawer({ order, onClose }: { order: OrderDrawerOrder | null, onClose: () => void }) {
+export function OrderDrawer({
+  order,
+  onClose,
+  canUpdate = true,
+}: {
+  order: OrderDrawerOrder | null;
+  onClose: () => void;
+  canUpdate?: boolean;
+}) {
   const router = useRouter();
   const open = !!order;
   const status = order?.orderStatus || 'pending';
@@ -130,8 +138,8 @@ export function OrderDrawer({ order, onClose }: { order: OrderDrawerOrder | null
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const primaryAction = !isCancelled && order ? getPrimaryAction(status) : null;
-  const showCancel = !!order && canCancel(status);
+  const primaryAction = canUpdate && !isCancelled && order ? getPrimaryAction(status) : null;
+  const showCancel = canUpdate && !!order && canCancel(status);
   const activeSupport = order?.supportEscalations?.filter((support) => ACTIVE_SUPPORT_STATUSES.has(support.status)) || [];
 
   const runAction = (action: (id: number) => Promise<OrderActionResult>) => {
@@ -326,6 +334,11 @@ export function OrderDrawer({ order, onClose }: { order: OrderDrawerOrder | null
                   </button>
                 )}
               </div>
+              {!canUpdate && (
+                <div className="drawer-error" role="note">
+                  Your role can view this order but cannot change its lifecycle.
+                </div>
+              )}
               <button className="btn btn-ghost" style={{ justifyContent: "center", fontSize: 12, color: "var(--color-fg-3)" }}>
                 <Icon d={ic.printer} size={12} />Print Invoice
               </button>

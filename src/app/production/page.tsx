@@ -1,4 +1,6 @@
 import prisma from '@/lib/prisma';
+import { getBrandScopedWhere } from '@/lib/access-control';
+import { requirePagePermission } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +25,9 @@ function calcCompletion(plannedQty: number, finishedQty: number): number {
 }
 
 export default async function ProductionPage() {
+  const scope = await requirePagePermission('production:view');
   const batches = await prisma.productionBatch.findMany({
+    where: getBrandScopedWhere(scope),
     orderBy: { createdAt: 'desc' },
   });
 

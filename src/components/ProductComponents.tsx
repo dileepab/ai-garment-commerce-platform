@@ -30,7 +30,15 @@ export interface Product {
   orders?: number;
 }
 
-export function ProductDrawer({ product, onClose }: { product: Product | null, onClose: () => void }) {
+export function ProductDrawer({
+  product,
+  onClose,
+  canManage = true,
+}: {
+  product: Product | null;
+  onClose: () => void;
+  canManage?: boolean;
+}) {
   const open = !!product;
   const threshold = product?.threshold || 50;
   const stockPct = product ? Math.min(100, (product.stock / threshold) * 100) : 0;
@@ -120,13 +128,21 @@ export function ProductDrawer({ product, onClose }: { product: Product | null, o
               </div>
             </div>
             <div className="drawer-actions">
-              <button className="btn btn-primary" style={{ justifyContent: "center" }}>
-                <Icon d={ic.edit} size={13} />Edit Product
-              </button>
-              {(product.status === "critical" || product.status === "low-stock") && (
-                <button className="btn btn-secondary" style={{ justifyContent: "center" }}>
-                  <Icon d={ic.refresh} size={13} />Reorder Stock
-                </button>
+              {canManage ? (
+                <>
+                  <button className="btn btn-primary" style={{ justifyContent: "center" }}>
+                    <Icon d={ic.edit} size={13} />Edit Product
+                  </button>
+                  {(product.status === "critical" || product.status === "low-stock") && (
+                    <button className="btn btn-secondary" style={{ justifyContent: "center" }}>
+                      <Icon d={ic.refresh} size={13} />Reorder Stock
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="drawer-error" role="note">
+                  Your role can view this product but cannot change catalog or stock settings.
+                </div>
               )}
             </div>
           </>

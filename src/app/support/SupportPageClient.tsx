@@ -45,6 +45,7 @@ const SUPPORT_STATUS_CLASSES: Record<string, string> = {
 interface SupportPageClientProps {
   initialEscalations: SupportThread[];
   stats: SupportStats;
+  canReply: boolean;
 }
 
 type SupportFilter = "all" | "active" | "resolved";
@@ -160,9 +161,13 @@ function SupportStatusAction({
   );
 }
 
-function SupportQuickActions({ escalation }: { escalation: SupportThread }) {
+function SupportQuickActions({ escalation, canReply }: { escalation: SupportThread; canReply: boolean }) {
   const active = isActiveStatus(escalation.status);
   const canTake = active && escalation.status !== "in_progress";
+
+  if (!canReply) {
+    return null;
+  }
 
   return (
     <div className="convo-quick-actions" onClick={(event) => event.stopPropagation()}>
@@ -178,7 +183,7 @@ function SupportQuickActions({ escalation }: { escalation: SupportThread }) {
   );
 }
 
-export default function SupportPageClient({ initialEscalations, stats }: SupportPageClientProps) {
+export default function SupportPageClient({ initialEscalations, stats, canReply }: SupportPageClientProps) {
   const [escalations, setEscalations] = useState(initialEscalations);
   const [liveStats, setLiveStats] = useState(stats);
   const [search, setSearch] = useState("");
@@ -456,7 +461,7 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
                   <div className="convo-item-preview">
                     {e.latestCustomerMessage || e.summary || 'No message preview available.'}
                   </div>
-                  <SupportQuickActions escalation={e} />
+                  <SupportQuickActions escalation={e} canReply={canReply} />
                 </div>
               );
             })}
@@ -473,7 +478,7 @@ export default function SupportPageClient({ initialEscalations, stats }: Support
             )}
           </div>
         </div>
-        <Thread convo={activeConvo} onConvoUpdate={updateEscalation} />
+        <Thread convo={activeConvo} onConvoUpdate={updateEscalation} canReply={canReply} />
       </div>
     </main>
   );
