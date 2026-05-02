@@ -29,6 +29,19 @@ export default async function OrdersPage() {
       fulfillmentEvents: {
         orderBy: { createdAt: 'asc' },
       },
+      returnRequests: {
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          reason: true,
+          stockReconciled: true,
+          replacementOrderId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -87,6 +100,16 @@ export default async function OrdersPage() {
       status: support.status,
       reason: support.reason,
       updatedAt: support.updatedAt.toISOString(),
+    })),
+    returnRequests: o.returnRequests.map((rr) => ({
+      id: rr.id,
+      type: rr.type,
+      status: rr.status,
+      reason: rr.reason,
+      stockReconciled: rr.stockReconciled,
+      replacementOrderId: rr.replacementOrderId,
+      createdAt: rr.createdAt.toISOString(),
+      updatedAt: rr.updatedAt.toISOString(),
     })),
     fulfillmentEvents: o.fulfillmentEvents.map((event) => ({
       id: event.id,

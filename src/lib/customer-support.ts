@@ -10,6 +10,8 @@ export type SupportIssueReason =
   | 'delivery_issue'
   | 'payment_issue'
   | 'refund_or_damage'
+  | 'return_request'
+  | 'exchange_request'
   | 'unclear_request';
 
 interface SupportEscalationInput {
@@ -32,6 +34,8 @@ const SUPPORT_REASON_LABELS: Record<SupportIssueReason, string> = {
   delivery_issue: 'delivery issue',
   payment_issue: 'payment issue',
   refund_or_damage: 'order issue',
+  return_request: 'return request',
+  exchange_request: 'exchange request',
   unclear_request: 'clarification request',
 };
 

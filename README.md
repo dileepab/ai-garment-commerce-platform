@@ -1,67 +1,229 @@
-This is the operations and AI sales platform for the garment business demo app. It includes product management, order handling, production tracking, Messenger webhook flows, and AI-assisted customer replies.
+# GarmentOS
+
+GarmentOS is an AI-powered garment commerce and operations platform for fashion brands that sell through Facebook Messenger and Instagram DM. It combines customer chat automation with back-office workflows for orders, support, inventory, production, fulfillment, analytics, and merchant configuration.
+
+## What The App Includes
+
+- AI-assisted Messenger and Instagram customer conversations
+- Draft-to-confirmed order flow with stock-aware validation
+- Human support handoff lock and support inbox workflows
+- Products, inventory, production, operator, orders, analytics, and settings dashboards
+- Merchant-level and brand-level runtime configuration
+- Role-based access control with brand scoping
+- Customer retention automations and fulfillment state tracking
+- Customer self-service for safe order actions
+
+## App Map
+
+- `/` dashboard and business overview
+- `/analytics` KPI and reporting dashboard
+- `/products` catalog and inventory management
+- `/orders` order operations and fulfillment workflow
+- `/support` escalations, transcripts, and manual support actions
+- `/production` production batches and output tracking
+- `/operators` operator performance dashboard
+- `/settings` merchant configuration and automation settings
+- `/login` staff login
+
+## Roles
+
+- `owner` full access across all brands and settings
+- `admin` full access across all brands and settings
+- `support` support inbox, replies, and order lookup
+- `operations` orders, products, inventory, production, operators, and dashboard access
+
+Brand scoping can limit `support` and `operations` users to a subset of brands.
 
 ## Getting Started
 
-1. Create a local env file from the example:
+1. Create a local env file:
 
 ```bash
 cp .env.example .env
 ```
 
-2. Point `.env` at PostgreSQL and fill in the required API keys and Meta values.
+2. Fill the required environment variables.
 
-Important production values:
+Required core variables:
 
 ```bash
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/garment_platform"
 DIRECT_URL="postgresql://postgres:postgres@localhost:5432/garment_platform"
+GEMINI_API_KEY="your_gemini_api_key"
 AUTH_SECRET="generate_with_openssl_rand_hex_32"
 ADMIN_EMAIL="admin@garment.lk"
 ADMIN_PASSWORD="use_a_strong_unique_password"
-APP_BASE_URL="https://your-public-app-url.example.com"
 META_VERIFY_TOKEN="your_meta_verify_token"
 META_PAGE_ACCESS_TOKEN="your_meta_page_access_token"
+```
+
+Common production variables:
+
+```bash
+APP_BASE_URL="https://your-public-app-url.example.com"
 META_GRAPH_VERSION="v22.0"
 HAPPYBY_PAGE_ID="your_happyby_page_id"
 CLEOPATRA_PAGE_ID="your_cleopatra_page_id"
 MODABELLA_PAGE_ID="your_modabella_page_id"
 HAPPYBY_INSTAGRAM_ID="your_happyby_instagram_business_account_id"
+CLEOPATRA_INSTAGRAM_ID="your_cleopatra_instagram_business_account_id"
+MODABELLA_INSTAGRAM_ID="your_modabella_instagram_business_account_id"
+STORE_SUPPORT_PHONE="0701234567"
+STORE_SUPPORT_WHATSAPP="0701234567"
+STORE_SUPPORT_HOURS="9:00 AM to 6:00 PM"
+DEBUG_APP_LOGS="0"
 ```
 
-`DATABASE_URL` is used by the app at runtime. `DIRECT_URL` is used by Prisma migrations and other schema management commands.
+`DATABASE_URL` is used at runtime. `DIRECT_URL` is used for Prisma migrations and schema management. `APP_BASE_URL` is used for public asset fallbacks and public links when the deployment URL is not auto-detected.
 
-`APP_BASE_URL` is used for public media fallbacks, which helps keep size-chart delivery reliable when Messenger cannot reuse a locally uploaded asset. On Vercel, this can be omitted if you enable system environment variables, because the app now falls back to the Vercel deployment URL automatically.
-
-`AUTH_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` protect the admin UI. Generate `AUTH_SECRET` with `openssl rand -hex 32`, and do not deploy with the placeholder admin password.
-
-`META_VERIFY_TOKEN` must match the verify token configured in Meta. `META_PAGE_ACCESS_TOKEN` must be a Page access token that can send Messenger and Instagram replies for the connected assets.
-
-3. Apply the PostgreSQL schema and seed demo data:
+3. Apply migrations and seed demo data:
 
 ```bash
 npm run db:deploy
 npm run db:seed
 ```
 
-4. Run the development server:
+4. Start the app:
 
 ```bash
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open [http://localhost:3000](http://localhost:3000).
 
-The app auto-updates as you edit files in `src/`.
+## Authentication And Team Users
+
+The app uses Auth.js credentials login.
+
+- `ADMIN_EMAIL` and `ADMIN_PASSWORD` are the owner login
+- additional team users can be supplied through dedicated env vars
+- or multiple users can be provided through `GARMENTOS_USERS`
+
+Examples from `.env.example`:
+
+```bash
+SUPPORT_EMAIL="support@garment.lk"
+SUPPORT_PASSWORD="change_this_password"
+SUPPORT_BRANDS="HappyBy,Cleopatra"
+
+OPERATIONS_EMAIL="ops@garment.lk"
+OPERATIONS_PASSWORD="change_this_password"
+OPERATIONS_BRANDS="HappyBy,Cleopatra"
+```
+
+See [`docs/access-control.md`](./docs/access-control.md) for the role matrix and brand scoping rules.
+
+## Merchant Settings
+
+Owners and admins can configure support contact details, delivery windows, charges, payment methods, fallback wording, and automation timing from `/settings`.
+
+Configuration precedence:
+
+1. brand-specific merchant settings
+2. global merchant settings
+3. environment variable defaults
+4. hardcoded safe defaults
+
+See [`docs/merchant-settings.md`](./docs/merchant-settings.md).
+
+## Meta Webhooks
+
+Configure Meta callbacks to:
+
+- Messenger: `https://your-domain.example.com/api/webhooks/meta/messenger`
+- Instagram: `https://your-domain.example.com/api/webhooks/meta/instagram`
+
+Both routes use `META_VERIFY_TOKEN`.
+
+Brand routing:
+
+- Messenger uses `HAPPYBY_PAGE_ID`, `CLEOPATRA_PAGE_ID`, and `MODABELLA_PAGE_ID`
+- Instagram uses `HAPPYBY_INSTAGRAM_ID`, `CLEOPATRA_INSTAGRAM_ID`, and `MODABELLA_INSTAGRAM_ID`
+
+Webhook behavior:
+
+- every event in a Meta batch is processed independently
+- duplicate message/comment/postback events are skipped with `WebhookEventLog`
+- failures are logged with compact batch summaries to make retries safe
+
+## Instagram Setup
+
+- connect each Instagram professional account to its Facebook Page
+- subscribe the app to Instagram messaging and comment webhook fields
+- use the Instagram Business Account ID, not the username, for `*_INSTAGRAM_ID`
+
+Instagram DMs share the same orchestration pipeline as Messenger. Unsupported templates are logged and safely downgraded to text replies.
+
+## Fulfillment And Customer Self-Service
+
+Confirmed orders can move through richer fulfillment stages such as packing, shipped, out-for-delivery, delivered, failed delivery, returned, and cancelled. Customers can safely self-serve supported actions such as status lookup and pre-shipment contact updates, while risky requests still escalate to human support.
+
+See:
+
+- [`docs/fulfillment-workflow.md`](./docs/fulfillment-workflow.md)
+- [`docs/customer-chat-capabilities.md`](./docs/customer-chat-capabilities.md)
+
+## Retention Automations And Cron Endpoints
+
+Available cron routes:
+
+- `/api/cron/cart-recovery`
+- `/api/cron/human-timeout`
+
+These power:
+
+- incomplete order recovery
+- support timeout follow-ups
+- post-order follow-ups
+- reorder reminders
+
+Recommended scheduling:
+
+- cart recovery / retention route: every 30 to 60 minutes
+- human timeout route: every 30 to 60 minutes
+
+The app enforces cooldowns and dedupe rules through runtime config and automation logs.
+
+## Testing
+
+Main test and validation commands:
+
+```bash
+npm run lint
+npm run build
+npm run test:chat
+npm run test:access-control
+npm run test:analytics
+npm run test:retention
+npm run test:fulfillment
+```
+
+Other useful commands:
+
+```bash
+npm run reset:chat
+npm run check:meta
+```
+
+See [`docs/testing.md`](./docs/testing.md).
+
+## Test Simulator
+
+You can simulate Messenger flows locally:
+
+```bash
+node scripts/simulate-messenger-flow.js --base-url http://127.0.0.1:3000 --reset --sender test-user "I need to talk to a real person"
+```
 
 ## Migrating Existing SQLite Data
 
-If you already have data in `prisma/dev.db`, move it into PostgreSQL after setting `DATABASE_URL` to the destination database:
+If you still have data in `prisma/dev.db`, move it into PostgreSQL after setting `DATABASE_URL`:
 
 ```bash
 npm run db:migrate:sqlite-to-postgres
 ```
 
-If the destination database already contains data and you intentionally want to replace it:
+To replace existing destination data intentionally:
 
 ```bash
 npm run db:migrate:sqlite-to-postgres -- --force
@@ -73,145 +235,53 @@ To read from a different SQLite file:
 npm run db:migrate:sqlite-to-postgres -- --sqlite-path=path/to/source.db
 ```
 
-## Merchant Settings
-
-Owners and admins can manage support contact details, delivery charges and windows, payment methods, customer-facing fallback wording, and retention automation timing from `/settings`. Global defaults apply to every store, and brand-specific rows override those defaults for customer-facing chat and automation behavior.
-
-## Support Handoff Setup
-
-The customer-support flow can hand customers to a real person. These values can now be managed from `/settings`; the `.env` values below remain as startup fallbacks before a merchant settings row exists:
-
-```bash
-STORE_SUPPORT_PHONE="0701234567"
-STORE_SUPPORT_WHATSAPP="0701234567"
-STORE_SUPPORT_HOURS="9:00 AM to 6:00 PM"
-```
-
-If these values are left empty, the bot will safely ask the customer to reply in the same chat and wait for a manual follow-up instead of showing a fake number.
-
-Repeated automation failures and repeated unclear replies are escalated into the support inbox. Keep at least one real support contact configured in production so those fallback replies give customers a usable path.
-
-## Meta Webhooks
-
-Configure Meta callbacks to the deployed routes:
-
-- Messenger: `https://your-domain.example.com/api/webhooks/meta/messenger`
-- Instagram: `https://your-domain.example.com/api/webhooks/meta/instagram`
-
-Both routes use the same `META_VERIFY_TOKEN`. Messenger brand routing uses `HAPPYBY_PAGE_ID`, `CLEOPATRA_PAGE_ID`, and `MODABELLA_PAGE_ID`. Instagram brand routing uses `HAPPYBY_INSTAGRAM_ID`, `CLEOPATRA_INSTAGRAM_ID`, and `MODABELLA_INSTAGRAM_ID`.
-
-The webhook handlers process every item in a Meta batch independently. Duplicate message/comment event IDs are skipped through `WebhookEventLog`, and processing/delivery failures are logged with a compact batch summary so Meta retries do not accidentally duplicate orders.
-
-## Instagram Setup
-
-Connect each Instagram professional account to its Facebook Page in Meta Business settings, then subscribe the app to Instagram messaging/comment webhook fields. Use the Instagram Business Account ID, not the username, for the `*_INSTAGRAM_ID` values.
-
-Instagram DMs use the same outbound send helper as Messenger. Generic carousel templates may be rejected by Instagram; the app logs that rejection and keeps the text reply as the safe fallback.
-
-## Test Simulator
-
-You can simulate Messenger conversations locally with:
-
-```bash
-node scripts/simulate-messenger-flow.js --base-url http://127.0.0.1:3000 --reset --sender test-user "I need to talk to a real person"
-```
-
-This remains useful for local development. Once the app is deployed to Vercel, Meta can call the live webhook URLs directly, so an `ngrok` tunnel is no longer required for production traffic.
-
-## Automated Chat Regression Tests
-
-Run the automated Messenger regression suite with:
-
-```bash
-npm run test:chat
-```
-
-This command builds the app, starts an isolated local server in chat test mode, runs scripted customer conversations, verifies the important replies and database side effects, and then cleans up the synthetic test data it created.
-
-The suite now covers:
-
-- human support handoff and escalation storage
-- contact collection and correction
-- draft totals during an unfinished order
-- gift note updates on existing orders
-- multi-size-chart follow-ups
-- explicit order ID lookups
-- reorder-after-cancel flows
-- quantity stock-cap handling
-
-## Reset Local Chat Data
-
-To clear local test chat history without touching orders:
-
-```bash
-npm run reset:chat
-```
-
-To clear one sender only:
-
-```bash
-npm run reset:chat -- --sender test-user
-```
-
-To fully remove one sender, including their orders, pass `--include-orders`:
-
-```bash
-npm run reset:chat -- --sender test-user --include-orders
-```
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
+## Deploy On Vercel
 
 1. Import the `platform/` directory as a Vercel project.
-
 2. Set the build command to:
 
 ```bash
 npm run vercel-build
 ```
 
-3. Add environment variables in Vercel for at least:
+3. Add production environment variables for:
 
 ```bash
 DATABASE_URL="postgresql://..."
 DIRECT_URL="postgresql://..."
+GEMINI_API_KEY="..."
 AUTH_SECRET="..."
 ADMIN_EMAIL="admin@garment.lk"
 ADMIN_PASSWORD="..."
 META_VERIFY_TOKEN="..."
 META_PAGE_ACCESS_TOKEN="..."
 HAPPYBY_PAGE_ID="..."
+CLEOPATRA_PAGE_ID="..."
+MODABELLA_PAGE_ID="..."
 HAPPYBY_INSTAGRAM_ID="..."
-STORE_SUPPORT_WHATSAPP="..."
+CLEOPATRA_INSTAGRAM_ID="..."
+MODABELLA_INSTAGRAM_ID="..."
 ```
 
-4. For preview deployments, use a separate PostgreSQL database if you plan to run migrations from preview builds.
-
-5. Either:
+4. Add support fallbacks only if merchant settings have not been configured yet:
 
 ```bash
-APP_BASE_URL="https://your-production-domain.example.com"
+STORE_SUPPORT_PHONE="..."
+STORE_SUPPORT_WHATSAPP="..."
+STORE_SUPPORT_HOURS="..."
 ```
 
-or enable Vercel's system environment variables so the app can derive a public base URL from `VERCEL_URL` and related deployment variables.
-
-6. Point Meta webhook subscriptions at your live Vercel URLs:
+5. Point Meta to your live webhook URLs:
 
 - `https://your-domain.example.com/api/webhooks/meta/messenger`
 - `https://your-domain.example.com/api/webhooks/meta/instagram`
 
-After deployment, Meta webhook traffic can use the Vercel domain directly, which removes the old need for an `ngrok` tunnel in production.
+6. Schedule cron jobs for the retention endpoints if you want automation enabled in production.
 
-Useful references:
+## Additional Documentation
 
-- [Vercel deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying)
-- [Vercel environment variables](https://vercel.com/docs/environment-variables)
-- [Prisma deploy to Vercel guide](https://www.prisma.io/docs/orm/prisma-client/deployment/serverless/deploy-to-vercel)
+- [`docs/access-control.md`](./docs/access-control.md)
+- [`docs/merchant-settings.md`](./docs/merchant-settings.md)
+- [`docs/fulfillment-workflow.md`](./docs/fulfillment-workflow.md)
+- [`docs/customer-chat-capabilities.md`](./docs/customer-chat-capabilities.md)
+- [`docs/testing.md`](./docs/testing.md)

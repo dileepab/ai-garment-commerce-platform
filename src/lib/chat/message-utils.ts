@@ -309,6 +309,18 @@ export function looksLikeRefundOrDamageIssue(message: string): boolean {
   );
 }
 
+export function looksLikeReturnRequest(message: string): boolean {
+  return /\b(want to return|would like to return|need to return|requesting a return|send it back|send back|return the order|return my order|return my item|return my parcel|return request)\b/i.test(
+    normalizeText(message)
+  );
+}
+
+export function looksLikeExchangeRequest(message: string): boolean {
+  return /\b(want to exchange|would like to exchange|need to exchange|requesting an exchange|exchange the order|exchange my order|exchange my item|exchange request|swap for|swap it for)\b/i.test(
+    normalizeText(message)
+  );
+}
+
 export function looksLikeClarificationBreakdown(message: string): boolean {
   return /\b(not clear|unclear|confusing|don t understand|do not understand|you don t understand|you do not understand)\b/i.test(
     normalizeText(message)
@@ -322,6 +334,14 @@ export function inferSupportIssueReason(message: string): SupportIssueReason | n
 
   if (looksLikePaymentProblem(message)) {
     return 'payment_issue';
+  }
+
+  if (looksLikeReturnRequest(message)) {
+    return 'return_request';
+  }
+
+  if (looksLikeExchangeRequest(message)) {
+    return 'exchange_request';
   }
 
   if (looksLikeRefundOrDamageIssue(message)) {

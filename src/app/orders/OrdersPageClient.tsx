@@ -65,6 +65,16 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
     customerNotified: boolean;
     createdAt: string;
   }[];
+  returnRequests: {
+    id: number;
+    type: string;
+    status: string;
+    reason: string;
+    stockReconciled: boolean;
+    replacementOrderId: number | null;
+    createdAt: string;
+    updatedAt: string;
+  }[];
 }
 
 interface OrdersPageStats extends OrderPipelineStats {

@@ -20,6 +20,8 @@ import {
   normalizeFulfillmentStatus,
   type FulfillmentAction,
 } from '@/lib/fulfillment';
+import { getReturnStatusLabel, getReturnTypeLabel } from '@/lib/returns';
+import { CreateReturnRequestForm } from '@/components/ReturnComponents';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -147,6 +149,17 @@ export interface OrderFulfillmentEventLike {
   createdAt: string;
 }
 
+export interface OrderReturnRequestLike {
+  id: number;
+  type: string;
+  status: string;
+  reason: string;
+  stockReconciled: boolean;
+  replacementOrderId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OrderDrawerOrder {
   id: number;
   orderStatus: string;
@@ -169,6 +182,7 @@ export interface OrderDrawerOrder {
     updatedAt: string;
   }[];
   fulfillmentEvents?: OrderFulfillmentEventLike[];
+  returnRequests?: OrderReturnRequestLike[];
 }
 
 export interface OrderPipelineStats {
@@ -210,6 +224,7 @@ export function OrderDrawer({
   const [courierDraft, setCourierDraft] = useState(order?.courier ?? '');
   const [reasonDraft, setReasonDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
+  const [showCreateReturn, setShowCreateReturn] = useState(false);
 
   React.useEffect(() => {
     setTrackingDraft(order?.trackingNumber ?? '');
@@ -217,6 +232,7 @@ export function OrderDrawer({
     setReasonDraft('');
     setNoteDraft('');
     setPendingActionForm(initialAction);
+    setShowCreateReturn(false);
     setError(null);
   }, [order?.id, order?.trackingNumber, order?.courier, initialAction]);
 
@@ -398,6 +414,63 @@ export function OrderDrawer({
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {order.returnRequests && order.returnRequests.length > 0 && (
+                <div>
+                  <div className="drawer-section-label">Return / Exchange Requests</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {order.returnRequests.map((rr) => (
+                      <div key={rr.id} style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700 }}>
+                            #{rr.id} · {getReturnTypeLabel(rr.type)}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>
+                            {getReturnStatusLabel(rr.status)}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--color-fg-2)' }}>{rr.reason}</div>
+                        {rr.stockReconciled && (
+                          <div style={{ fontSize: 11, color: '#38A169', marginTop: 4 }}>Stock reconciled</div>
+                        )}
+                        {rr.replacementOrderId && (
+                          <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginTop: 2 }}>
+                            Replacement: ORD-{rr.replacementOrderId}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {canUpdate && !showCreateReturn && normalized === 'delivered' && (
+                <div>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ justifyContent: 'center', fontSize: 12, width: '100%' }}
+                    onClick={() => setShowCreateReturn(true)}
+                    type="button"
+                  >
+                    <Icon d={ic.arrowLeft} size={12} />
+                    Create Return / Exchange Request
+                  </button>
+                </div>
+              )}
+
+              {showCreateReturn && order && (
+                <div style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: 12 }}>
+                  <div className="drawer-section-label" style={{ marginBottom: 8 }}>New Return / Exchange</div>
+                  <CreateReturnRequestForm
+                    orderId={order.id}
+                    onSuccess={() => {
+                      setShowCreateReturn(false);
+                      router.refresh();
+                    }}
+                    onCancel={() => setShowCreateReturn(false)}
+                  />
                 </div>
               )}
 

@@ -45,6 +45,7 @@ model Customer {
   createdAt          DateTime            @default(now())
   orders             Order[]
   supportEscalations SupportEscalation[]
+  returnRequests     ReturnRequest[]
 }
 
 model Order {
@@ -66,6 +67,8 @@ model Order {
   orderItems         OrderItem[]
   supportEscalations SupportEscalation[]
   fulfillmentEvents  OrderFulfillmentEvent[]
+  returnRequests     ReturnRequest[]         @relation("OriginalOrder")
+  replacedByRequests ReturnRequest[]         @relation("ReplacementOrder")
 }
 
 model OrderFulfillmentEvent {
@@ -271,4 +274,27 @@ model MerchantSettings {
   updatedAt                      DateTime @updatedAt
 
   @@index([brand])
+}
+
+model ReturnRequest {
+  id                 Int       @id @default(autoincrement())
+  orderId            Int
+  order              Order     @relation("OriginalOrder", fields: [orderId], references: [id])
+  customerId         Int?
+  customer           Customer? @relation(fields: [customerId], references: [id])
+  brand              String?
+  type               String    // "return" | "exchange"
+  reason             String
+  status             String    @default("requested")
+  requestedBy        String    @default("admin") // "customer" | "admin"
+  adminNote          String?
+  replacementOrderId Int?
+  replacementOrder   Order?    @relation("ReplacementOrder", fields: [replacementOrderId], references: [id])
+  stockReconciled    Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  completedAt        DateTime?
+
+  @@index([orderId])
+  @@index([brand, status, createdAt])
 }

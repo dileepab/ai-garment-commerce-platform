@@ -17,6 +17,8 @@ export type Permission =
   | 'analytics:view'
   | 'orders:view'
   | 'orders:update'
+  | 'returns:view'
+  | 'returns:manage'
   | 'support:view'
   | 'support:reply'
   | 'products:view'
@@ -44,6 +46,8 @@ const ALL_PERMISSIONS: Permission[] = [
   'analytics:view',
   'orders:view',
   'orders:update',
+  'returns:view',
+  'returns:manage',
   'support:view',
   'support:reply',
   'products:view',
@@ -63,11 +67,13 @@ const ALL_PERMISSIONS: Permission[] = [
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   owner: ALL_PERMISSIONS,
   admin: ALL_PERMISSIONS,
-  support: ['orders:view', 'support:view', 'support:reply'],
+  support: ['orders:view', 'returns:view', 'support:view', 'support:reply'],
   operations: [
     'dashboard:view',
     'orders:view',
     'orders:update',
+    'returns:view',
+    'returns:manage',
     'support:view',
     'products:view',
     'products:write',
@@ -88,6 +94,7 @@ const PAGE_PERMISSIONS: { prefix: string; permission: Permission }[] = [
   { prefix: '/products', permission: 'products:view' },
   { prefix: '/support', permission: 'support:view' },
   { prefix: '/orders', permission: 'orders:view' },
+  { prefix: '/returns', permission: 'returns:view' },
   { prefix: '/', permission: 'dashboard:view' },
 ];
 

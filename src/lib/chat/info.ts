@@ -307,10 +307,31 @@ export async function handle_payment_question(ctx: ChatContext) {
 }
 
 export async function handle_exchange_question(ctx: ChatContext) {
+  const { aiAction, customer, explicitOrderId, latestOrder, latestActiveOrder, state } = ctx;
+  const { escalateToSupport, finalizeReply } = ctx.helpers;
+
+  // If the customer has a delivered order they are likely referencing, treat
+  // this as an actionable exchange request and escalate to the support team so
+  // an admin can create a formal ReturnRequest. Otherwise give a policy reply.
+  const relatedOrderId =
+    explicitOrderId ??
+    aiAction.orderId ??
+    state.lastReferencedOrderId ??
+    latestOrder?.id ??
+    latestActiveOrder?.id ??
+    null;
+
+  if (customer && relatedOrderId) {
+    return escalateToSupport('exchange_request', relatedOrderId);
+  }
+
+  // No order context — give a policy reply and let the customer follow up
+  // with their order details. The next message with an order reference will
+  // re-trigger escalation via inferSupportIssueReason if needed.
   const supportLine = buildSupportContactLineFromConfig(ctx.settings.support).toLowerCase();
 
-  return ctx.helpers.finalizeReply({
-    reply: `If the size isn't right, just message us as soon as the parcel arrives and we'll arrange the exchange, subject to stock availability. If you'd like to talk to someone directly, ${supportLine}`,
+  return finalizeReply({
+    reply: `If the size or item isn't right, please reply with your order number and we will arrange the exchange for you, subject to stock availability. If you'd like to speak to someone directly, ${supportLine}`,
     nextState: {
       lastMissingOrderId: null,
     },
