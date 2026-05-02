@@ -66,7 +66,8 @@ export interface ChatHelpers {
   finalizeReply: (params: FinalizeReplyParams) => Promise<CustomerMessageResult>;
   escalateToSupport: (
     reason: SupportIssueReason,
-    orderId?: number | null
+    orderId?: number | null,
+    replyOverride?: string
   ) => Promise<CustomerMessageResult>;
   clearPendingConversationState: (
     state: ConversationStateData

@@ -247,6 +247,14 @@ export function looksLikeQuantityUpdateRequest(message: string): boolean {
   );
 }
 
+export function looksLikeOrderContactUpdateRequest(message: string): boolean {
+  const normalized = normalizeText(message);
+
+  return /\b(change|update|correct|edit)\b.*\b(delivery address|address|phone|contact number|mobile number|mobile|delivery details)\b/.test(
+    normalized
+  );
+}
+
 export function looksLikePaymentQuestion(message: string): boolean {
   return /\bonline transfer\b|\bbank transfer\b|\bpayment method\b|\bpay\b/i.test(message);
 }

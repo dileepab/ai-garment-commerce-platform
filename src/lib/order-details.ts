@@ -9,6 +9,7 @@ import type { MerchantDeliverySettings } from '@/lib/runtime-config';
 import {
   getOrderStageLabel,
   getOrderStageNote,
+  normalizeOrderStatus,
 } from '@/lib/order-status-display';
 
 interface OrderItemLike {
@@ -27,6 +28,8 @@ interface OrderLike {
   totalAmount: number;
   paymentMethod?: string | null;
   deliveryAddress?: string | null;
+  trackingNumber?: string | null;
+  courier?: string | null;
   giftWrap: boolean;
   giftNote?: string | null;
   customer: {
@@ -51,6 +54,13 @@ export interface QuantityUpdateSummary {
   phone: string;
   giftWrap: boolean;
   giftNote?: string | null;
+}
+
+interface OrderStatusLike {
+  id: number;
+  orderStatus: string;
+  trackingNumber?: string | null;
+  courier?: string | null;
 }
 
 function formatSizeForDisplay(size?: string | null): string {
@@ -87,6 +97,35 @@ export function buildOrderStatusReply(orderId: number, status: string): string {
     `Order #${orderId} is currently at the ${getOrderStageLabel(status)} stage.`,
     getOrderStageNote(status),
   ].join(' ');
+}
+
+function buildTrackingLine(order: Pick<OrderStatusLike, 'orderStatus' | 'trackingNumber' | 'courier'>): string {
+  const tracking = order.trackingNumber?.trim();
+  const courier = order.courier?.trim();
+
+  if (tracking && courier) {
+    return `Tracking: ${tracking} via ${courier}.`;
+  }
+
+  if (tracking) {
+    return `Tracking number: ${tracking}.`;
+  }
+
+  if (courier) {
+    return `Courier: ${courier}.`;
+  }
+
+  const status = normalizeOrderStatus(order.orderStatus);
+  return ['dispatched', 'delivered', 'delivery_failed'].includes(status)
+    ? 'Tracking details are not available yet.'
+    : '';
+}
+
+export function buildSelfServiceOrderStatusReply(order: OrderStatusLike): string {
+  return [
+    buildOrderStatusReply(order.id, order.orderStatus),
+    buildTrackingLine(order),
+  ].filter(Boolean).join(' ');
 }
 
 export function buildCancellationSuccessReply(orderId: number): string {
@@ -196,6 +235,18 @@ export function buildQuantityUpdateSuccessReply(
   ].join('\n');
 }
 
+export function buildOrderContactUpdateSuccessReply(params: {
+  orderId: number;
+  address?: string | null;
+  phone?: string | null;
+}): string {
+  return [
+    `I have updated order #${params.orderId}.`,
+    params.address ? `Address: ${params.address}` : '',
+    params.phone ? `Phone Number: ${params.phone}` : '',
+  ].filter(Boolean).join('\n');
+}
+
 function buildActualOrderLineItems(order: OrderLike): string[] {
   if (order.orderItems.length === 1) {
     const item = order.orderItems[0];
@@ -228,6 +279,7 @@ export function buildOrderDetailsReply(
   const deliveryCharge = calculateOrderDeliveryCharge(order, deliverySettings);
   const total = calculateOrderGrandTotal(order, deliverySettings);
   const specialInstructions = buildSpecialInstructions(order.giftWrap, order.giftNote);
+  const trackingLine = buildTrackingLine(order);
 
   return [
     'Order Details',
@@ -241,6 +293,7 @@ export function buildOrderDetailsReply(
     `Name: ${order.customer.name}`,
     `Address: ${order.deliveryAddress || 'Not provided'}`,
     `Phone Number: ${order.customer.phone || ''}`,
+    trackingLine,
     ...specialInstructions,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }

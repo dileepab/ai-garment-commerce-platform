@@ -153,6 +153,7 @@ function extractNameFromSentence(message: string): string {
 function extractAddressFromSentence(message: string): string {
   const flattened = message.replace(/\r?\n/g, ' ').trim();
   const patterns = [
+    /\b(?:change|update|correct|edit)\s+(?:delivery\s+)?address\s+(?:of|for)\b.*?\bto\b[:\s-]*(.+)$/i,
     /\bchange address to\b[:\s-]*(.+)$/i,
     /\bupdate address to\b[:\s-]*(.+)$/i,
     /\bchange delivery address to\b[:\s-]*(.+)$/i,
@@ -177,7 +178,7 @@ function extractAddressFromSentence(message: string): string {
 
 function extractPhoneFromSentence(message: string): string {
   const explicitChangeMatch = message.match(
-    /\b(?:change|update)\s+(?:phone number|phone|contact number|mobile number|mobile)\s+to\b[:\s-]*(.+)$/i
+    /\b(?:change|update|correct|edit)\s+(?:phone number|phone|contact number|mobile number|mobile)(?:\s+(?:of|for)\b.*)?\s+to\b[:\s-]*(.+)$/i
   );
 
   if (explicitChangeMatch?.[1]) {

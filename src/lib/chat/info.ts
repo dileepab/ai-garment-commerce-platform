@@ -19,7 +19,7 @@ import {
 } from '@/lib/chat/reply-builders';
 import { getRequestedOrderId, resolveCustomerTargetOrder } from '@/lib/chat/order-flow';
 import { getSriLankaDateOnly, getSriLankaToday } from '@/lib/delivery-calendar';
-import { buildOrderDetailsReply, buildOrderStatusReply } from '@/lib/order-details';
+import { buildOrderDetailsReply, buildSelfServiceOrderStatusReply } from '@/lib/order-details';
 import {
   buildOrderSummaryReply,
   getDeliveryEstimateForAddress,
@@ -99,7 +99,7 @@ export async function handle_order_status(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: buildOrderStatusReply(targetOrder.id, targetOrder.orderStatus),
+    reply: buildSelfServiceOrderStatusReply(targetOrder),
     orderId: targetOrder.id,
     assistantReplyKind: 'order_status',
     nextState: {

@@ -12,6 +12,7 @@ import {
   looksLikeGiftRequest,
   looksLikeHumanEscalationRequest,
   looksLikeMissingOrderFollowUp,
+  looksLikeOrderContactUpdateRequest,
   looksLikeOrderDetailsRequest,
   looksLikeOrderStatusRequest,
   looksLikeSameItemMessage,
@@ -76,6 +77,7 @@ const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
   'confirm_pending',
   'cancel_order',
   'reorder_last',
+  'update_order_contact',
   'update_order_quantity',
   'gift_request',
 ]);
@@ -174,9 +176,12 @@ export async function routeCustomerMessage(
     ? globalProducts.filter(product => product.brand === brandFilter)
     : globalProducts;
 
-  const latestOrder = customer?.orders[0] || null;
+  const scopedOrders = brandFilter
+    ? customer?.orders.filter((order) => order.brand === brandFilter) ?? []
+    : customer?.orders ?? [];
+  const latestOrder = scopedOrders[0] || null;
   const latestActiveOrder =
-    customer?.orders.find((order) => isActiveOrderStatus(order.orderStatus)) || null;
+    scopedOrders.find((order) => isActiveOrderStatus(order.orderStatus)) || null;
   const latestAssistantMessage = recentMessages.find((message) => message.role === 'assistant');
   const latestAssistantText = latestAssistantMessage?.message || '';
   const explicitOrderId = extractExplicitOrderIdFromMessage(input.currentMessage);
@@ -431,7 +436,11 @@ export async function routeCustomerMessage(
     };
   }
 
-  async function escalateToSupport(reason: SupportIssueReason, orderId?: number | null) {
+  async function escalateToSupport(
+    reason: SupportIssueReason,
+    orderId?: number | null,
+    replyOverride?: string
+  ) {
     logWarn('Chat Orchestrator', 'Escalating conversation to support.', {
       senderId: input.senderId,
       channel: input.channel,
@@ -459,11 +468,13 @@ export async function routeCustomerMessage(
     });
 
     return finalizeReply({
-      reply: buildHumanSupportReply({
-        reason,
-        orderId,
-        supportConfig: settings.support,
-      }),
+      reply:
+        replyOverride ||
+        buildHumanSupportReply({
+          reason,
+          orderId,
+          supportConfig: settings.support,
+        }),
       orderId: orderId || null,
       assistantReplyKind: 'support_handoff',
       nextState: {
@@ -732,7 +743,9 @@ export async function routeCustomerMessage(
   // speak with a human agent, even if the AI labelled it as support_contact_request.
   const supportIssueReason =
     (aiAction.action === 'support_contact_request' && !looksLikeHumanEscalationRequest(input.currentMessage)) ||
-    aiAction.action === 'thanks_acknowledgement'
+    aiAction.action === 'thanks_acknowledgement' ||
+    (looksLikeOrderContactUpdateRequest(input.currentMessage) &&
+      !looksLikeHumanEscalationRequest(input.currentMessage))
       ? null
       : inferSupportIssueReason(input.currentMessage);
   if (supportIssueReason) {
@@ -771,6 +784,19 @@ export async function routeCustomerMessage(
 
   if (effectiveAction === 'confirm_pending' && !isClearConfirmation(input.currentMessage)) {
     effectiveAction = 'fallback';
+  }
+
+  if (
+    effectiveAction !== 'update_order_contact' &&
+    !state.orderDraft &&
+    latestActiveOrder &&
+    looksLikeOrderContactUpdateRequest(input.currentMessage)
+  ) {
+    effectiveAction = 'update_order_contact';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'update_order_contact',
+    };
   }
 
   const standaloneQuantity = extractStandaloneQuantityFromMessage(input.currentMessage);
@@ -838,6 +864,7 @@ export async function routeCustomerMessage(
     case 'reorder_last': return OrderingHandlers.handle_reorder_last(ctx);
     case 'order_status': return InfoHandlers.handle_order_status(ctx);
     case 'order_details': return InfoHandlers.handle_order_details(ctx);
+    case 'update_order_contact': return OrderingHandlers.handle_update_order_contact(ctx);
     case 'update_order_quantity': return OrderingHandlers.handle_update_order_quantity(ctx);
     case 'delivery_question': return InfoHandlers.handle_delivery_question(ctx);
     case 'payment_question': return InfoHandlers.handle_payment_question(ctx);

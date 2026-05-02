@@ -10,7 +10,10 @@ import {
   buildMissingOrderLookupReply,
   buildVariantPrompt,
 } from '@/lib/chat/reply-builders';
-import { getMissingContactFields } from '@/lib/contact-profile';
+import {
+  extractContactDetailsFromText,
+  getMissingContactFields,
+} from '@/lib/contact-profile';
 import {
   buildContactConfirmationReply,
   buildOrderSummaryReply,
@@ -20,6 +23,7 @@ import {
 } from '@/lib/order-draft';
 import {
   buildCancellationSuccessReply,
+  buildOrderContactUpdateSuccessReply,
   buildOrderAlreadyCancelledReply,
   buildOrderPlacedReply,
   buildQuantityUpdateSuccessReply,
@@ -34,11 +38,17 @@ import {
   OrderRequestError,
   updateSingleItemOrderQuantityById,
 } from '@/lib/orders';
+import {
+  buildSelfServiceEscalationReply,
+  isCustomerSelfServiceCancellationAllowed,
+  isCustomerSelfServiceContactUpdateAllowed,
+} from '@/lib/customer-self-service';
 import { saveConversationStateIfCurrent } from '@/lib/conversation-state';
 import {
   mentionsLatestOrderReference,
   mentionsOwnedOrderReference,
 } from '@/lib/chat/message-utils';
+import { buildSupportContactLineFromConfig } from '@/lib/customer-support';
 import { upsertCustomerContact } from './shared-actions';
 import type { ChatContext } from './types';
 
@@ -72,6 +82,49 @@ async function findRecentMatchingOrderForDraft(customerId: number, draft: Resolv
       },
     },
     orderBy: { createdAt: 'desc' },
+  });
+}
+
+async function updateOrderContactDetails(params: {
+  orderId: number;
+  customerId: number;
+  address?: string | null;
+  phone?: string | null;
+}) {
+  return prisma.$transaction(async (tx) => {
+    if (params.address) {
+      await tx.order.update({
+        where: { id: params.orderId },
+        data: {
+          deliveryAddress: params.address,
+        },
+      });
+    }
+
+    if (params.phone) {
+      await tx.customer.update({
+        where: { id: params.customerId },
+        data: {
+          phone: params.phone,
+        },
+      });
+    }
+
+    return tx.order.findUniqueOrThrow({
+      where: { id: params.orderId },
+      include: {
+        customer: true,
+        orderItems: {
+          include: {
+            product: {
+              include: {
+                inventory: true,
+              },
+            },
+          },
+        },
+      },
+    });
   });
 }
 
@@ -466,6 +519,21 @@ export async function handle_cancel_order(ctx: ChatContext) {
     });
   }
 
+  if (!isCustomerSelfServiceCancellationAllowed(targetOrder.orderStatus)) {
+    return escalateToSupport(
+      'human_request',
+      targetOrder.id,
+      buildSelfServiceEscalationReply({
+        action: 'cancel',
+        orderId: targetOrder.id,
+        status: targetOrder.orderStatus,
+        supportLine: buildSupportContactLineFromConfig(ctx.settings.support, {
+          orderId: targetOrder.id,
+        }),
+      })
+    );
+  }
+
   try {
     await cancelOrderById(prisma, targetOrder.id);
 
@@ -480,9 +548,14 @@ export async function handle_cancel_order(ctx: ChatContext) {
     });
   } catch (error: unknown) {
     if (error instanceof OrderRequestError) {
-      return finalizeReply({
-        reply: `Sorry, I could not cancel the order automatically. ${error.message}`,
-      });
+      return escalateToSupport(
+        'human_request',
+        targetOrder.id,
+        `Sorry, I could not cancel order #${targetOrder.id} automatically. ${error.message} ${buildSupportContactLineFromConfig(
+          ctx.settings.support,
+          { orderId: targetOrder.id }
+        )} I have also flagged this for a team follow-up.`
+      );
     }
 
     return escalateToSupport('unclear_request', targetOrder.id);
@@ -553,6 +626,139 @@ export async function handle_reorder_last(ctx: ChatContext) {
       orderDraft: nextDraft,
       quantityUpdate: null,
       lastReferencedOrderId: sourceOrder.id,
+      lastMissingOrderId: null,
+    },
+  });
+}
+
+export async function handle_update_order_contact(ctx: ChatContext) {
+  const {
+    aiAction,
+    customer,
+    explicitOrderId,
+    followUpMissingOrderId,
+    input,
+    latestActiveOrder,
+    latestOrder,
+    state,
+  } = ctx;
+  const {
+    clearPendingConversationState,
+    escalateToSupport,
+    finalizeReply,
+    findCustomerOrderById,
+  } = ctx.helpers;
+
+  const extractedContact = extractContactDetailsFromText(input.currentMessage);
+  const requestedAddress = aiAction.contact.address || extractedContact.address || '';
+  const requestedPhone = aiAction.contact.phone || extractedContact.phone || '';
+  const requestedName = aiAction.contact.name || extractedContact.name || '';
+
+  if (!customer) {
+    const requestedOrderId = getRequestedOrderId({
+      explicitOrderId,
+      followUpMissingOrderId,
+      aiOrderId: aiAction.orderId,
+      lastReferencedOrderId: state.lastReferencedOrderId,
+      latestOrderId: latestOrder?.id ?? null,
+    });
+
+    return finalizeReply({
+      reply: buildMissingOrderLookupReply(requestedOrderId, 'update'),
+      nextState: {
+        lastMissingOrderId: requestedOrderId,
+      },
+    });
+  }
+
+  const targetOrder = await resolveCustomerTargetOrder({
+    explicitOrderId,
+    followUpMissingOrderId,
+    aiOrderId: aiAction.orderId,
+    lastReferencedOrderId: state.lastReferencedOrderId,
+    latestOrder,
+    latestActiveOrder,
+    preferLatestActive: true,
+    preferLatestOrderReference:
+      mentionsLatestOrderReference(input.currentMessage) ||
+      mentionsOwnedOrderReference(input.currentMessage),
+    findCustomerOrderById,
+  });
+
+  if (!targetOrder) {
+    const requestedOrderId = getRequestedOrderId({
+      explicitOrderId,
+      followUpMissingOrderId,
+      aiOrderId: aiAction.orderId,
+      lastReferencedOrderId: state.lastReferencedOrderId,
+      latestOrderId: latestOrder?.id ?? null,
+    });
+
+    return finalizeReply({
+      reply: requestedOrderId
+        ? `I could not find order #${requestedOrderId} for this conversation.`
+        : 'I could not find an active order to update for this conversation.',
+      nextState: {
+        lastMissingOrderId: requestedOrderId,
+      },
+    });
+  }
+
+  if (requestedName) {
+    return escalateToSupport(
+      'human_request',
+      targetOrder.id,
+      `I can update the delivery address or phone number in chat, but name changes need our team to verify them. ${buildSupportContactLineFromConfig(
+        ctx.settings.support,
+        { orderId: targetOrder.id }
+      )} I have also flagged this for a team follow-up.`
+    );
+  }
+
+  if (!requestedAddress && !requestedPhone) {
+    return finalizeReply({
+      reply: `Sure - please send the new delivery address or phone number for order #${targetOrder.id}.`,
+      orderId: targetOrder.id,
+      nextState: {
+        ...clearPendingConversationState(state),
+        lastReferencedOrderId: targetOrder.id,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  if (!isCustomerSelfServiceContactUpdateAllowed(targetOrder.orderStatus)) {
+    return escalateToSupport(
+      'delivery_issue',
+      targetOrder.id,
+      buildSelfServiceEscalationReply({
+        action: 'update_contact',
+        orderId: targetOrder.id,
+        status: targetOrder.orderStatus,
+        supportLine: buildSupportContactLineFromConfig(ctx.settings.support, {
+          orderId: targetOrder.id,
+        }),
+      })
+    );
+  }
+
+  const updatedOrder = await updateOrderContactDetails({
+    orderId: targetOrder.id,
+    customerId: customer.id,
+    address: requestedAddress || null,
+    phone: requestedPhone || null,
+  });
+
+  return finalizeReply({
+    reply: buildOrderContactUpdateSuccessReply({
+      orderId: updatedOrder.id,
+      address: requestedAddress ? updatedOrder.deliveryAddress : null,
+      phone: requestedPhone ? updatedOrder.customer.phone : null,
+    }),
+    orderId: updatedOrder.id,
+    nextState: {
+      ...clearPendingConversationState(state),
+      lastReferencedOrderId: updatedOrder.id,
       lastMissingOrderId: null,
     },
   });

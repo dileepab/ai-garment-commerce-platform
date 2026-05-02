@@ -285,6 +285,18 @@ export function buildHeuristicAction(
     };
   }
 
+  if (
+    /\b(?:change|update|correct|edit)\b.*\b(?:delivery address|address|phone|contact number|mobile number|mobile|delivery details)\b/.test(
+      normalized
+    )
+  ) {
+    return {
+      ...base,
+      action: 'update_order_contact',
+      confidence: 0.9,
+    };
+  }
+
   if (/\bcancel\b|\bdelete\b|\bremove\b/.test(normalized)) {
     return {
       ...base,

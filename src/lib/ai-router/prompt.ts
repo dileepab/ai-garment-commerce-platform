@@ -55,6 +55,7 @@ Choose exactly one action from this list:
 - reorder_last: reorder same item / reopen previous order / restore previous purchase
 - order_status: asking status / track / check status of an order
 - order_details: asking for order details / order summary / details of order #id
+- update_order_contact: asking to change delivery address or phone/contact number for an existing order
 - update_order_quantity: asking to increase/reduce/change quantity of an existing confirmed order
 - delivery_question: asking delivery time, deadline, or delivery to a location
 - payment_question: asking about online transfer / payment method
@@ -70,6 +71,7 @@ Routing rules:
 - If the customer changes address, name, phone, size, color, or quantity for a pending new order, use place_order and return only the changed fields you can confidently extract. When only one field is updated (for example "change my address to ..."), return only that field and leave the others null so the app preserves what was already confirmed.
 - If the customer asks for order details, summary, or details of #12, use order_details instead of order_status.
 - If the customer says "check order #11", "check again", "status of last order", or similar status wording, use order_status.
+- If the customer asks to change the delivery address or phone/contact number of an existing order, use update_order_contact and return only the new address/phone values you can confidently extract. Do not use this for a pending new-order draft.
 - If the customer asks to change quantity of "last order" or "previous order", use update_order_quantity.
 - If the customer asks about total, delivery, payment, or gift instructions while a new order is pending, stay on that pending draft instead of switching to an older stored order.
 - If the customer asks for available colors/sizes of a named product, use product_question and set questionType.

@@ -374,15 +374,14 @@ async function main() {
         },
       },
       {
-        name: 'Unavailable Happyby dresses reply stays professional',
+        name: 'Available Happyby dresses reply stays professional',
         senderId: buildSender(runId, 'dresses'),
         messages: ['What are the available dresses'],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
-            'We do not have any dresses available in Happyby right now.',
-            'Currently available items are:',
-            'Oversized Casual Top',
-          ], 'Unavailable dresses reply');
+            'We currently have the following items available:',
+            'Breezy Summer Dress',
+          ], 'Available dresses reply');
         },
       },
       {
@@ -989,6 +988,248 @@ async function main() {
             'currently at the Confirmed stage',
             'queued for packing',
           ], 'Order status reply');
+        },
+      },
+      {
+        name: 'Self-service contact update edits active order before dispatch',
+        senderId: buildSender(runId, 'self-service-contact'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Self Service Contact Customer',
+          '12 Main Street, Kurunegala',
+          '0771003030',
+          'yes correct',
+          'yes correct',
+          'Please update delivery details for my last order\nAddress: 99 Self Service Road, Colombo\nPhone: 0771234500',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'I have updated order #',
+            'Address: 99 Self Service Road, Colombo',
+            'Phone Number: 0771234500',
+          ], 'Self-service contact update reply');
+
+          const { customer, latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected an order for the self-service contact update test.');
+          assert(
+            latestOrder.deliveryAddress === '99 Self Service Road, Colombo',
+            `Expected delivery address to update, received ${String(latestOrder.deliveryAddress)}.`
+          );
+          assert(
+            customer?.phone === '0771234500',
+            `Expected customer phone to update, received ${String(customer?.phone)}.`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+          });
+          assert(!escalation, 'Did not expect support escalation for an eligible contact update.');
+        },
+      },
+      {
+        name: 'Tracking status reply includes courier details when available',
+        senderId: buildSender(runId, 'tracking-status'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Tracking Status Customer',
+          '12 Main Street, Kurunegala',
+          '0771003131',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ senderId }) => {
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected an order before tracking status follow-up.');
+
+          await prisma.order.update({
+            where: { id: latestOrder.id },
+            data: {
+              orderStatus: 'dispatched',
+              trackingNumber: 'TRK-SELF-123',
+              courier: 'CityCourier',
+            },
+          });
+
+          const followUpTranscript = await runConversation({
+            senderId,
+            messages: ['What is the status of last order'],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(followUpTranscript));
+
+          assertIncludes(followUpTranscript[0].bot, [
+            `Order #${latestOrder.id} is currently at the Dispatched stage`,
+            'Tracking: TRK-SELF-123 via CityCourier.',
+          ], 'Tracking status reply');
+        },
+      },
+      {
+        name: 'Self-service contact update after dispatch escalates without editing order',
+        senderId: buildSender(runId, 'self-service-contact-blocked'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Blocked Contact Customer',
+          '12 Main Street, Kurunegala',
+          '0771003232',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ senderId }) => {
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected an order before blocked contact update follow-up.');
+
+          await prisma.order.update({
+            where: { id: latestOrder.id },
+            data: {
+              orderStatus: 'dispatched',
+              trackingNumber: 'TRK-BLOCKED-1',
+              courier: 'CityCourier',
+            },
+          });
+
+          const followUpTranscript = await runConversation({
+            senderId,
+            messages: ['Please update address of my last order to 55 Late Road, Colombo'],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(followUpTranscript));
+
+          assertIncludes(followUpTranscript[0].bot, [
+            `Order #${latestOrder.id} is already at the dispatched stage`,
+            'cannot update delivery details automatically',
+            'I have also flagged this conversation for a team follow-up.',
+          ], 'Blocked contact update reply');
+
+          const orderAfter = await prisma.order.findUnique({
+            where: { id: latestOrder.id },
+          });
+          assert(
+            orderAfter?.deliveryAddress === '12 Main Street, Kurunegala',
+            `Expected dispatched order address to remain unchanged, received ${String(orderAfter?.deliveryAddress)}.`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+          assert(escalation, 'Expected support escalation for blocked contact update.');
+          assert(
+            escalation.reason === 'delivery_issue',
+            `Expected delivery_issue escalation, received ${String(escalation.reason)}.`
+          );
+          assert(
+            escalation.orderId === latestOrder.id,
+            `Expected escalation to link order ${latestOrder.id}, received ${String(escalation.orderId)}.`
+          );
+        },
+      },
+      {
+        name: 'Explicit human request for contact update keeps human handoff',
+        senderId: buildSender(runId, 'self-service-contact-human'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Contact Human Customer',
+          '12 Main Street, Kurunegala',
+          '0771003233',
+          'yes correct',
+          'yes correct',
+          'I need to talk to someone to update address of my last order',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'I want to make sure you get the right help for this support request.',
+            'I have also flagged this conversation for a team follow-up.',
+          ], 'Human contact update handoff reply');
+          assert(
+            !transcript[6].bot.includes('please send the new delivery address'),
+            `Explicit human request should not be converted into a self-service prompt.\n\nActual reply:\n${transcript[6].bot}`
+          );
+
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected an order for the human contact update handoff test.');
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+          assert(escalation, 'Expected support escalation for explicit human contact update request.');
+          assert(
+            escalation.reason === 'human_request',
+            `Expected human_request escalation, received ${String(escalation.reason)}.`
+          );
+          assert(
+            escalation.orderId === latestOrder.id,
+            `Expected escalation to link order ${latestOrder.id}, received ${String(escalation.orderId)}.`
+          );
+        },
+      },
+      {
+        name: 'Self-service cancellation after dispatch escalates without cancelling',
+        senderId: buildSender(runId, 'self-service-cancel-blocked'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Blocked Cancel Customer',
+          '12 Main Street, Kurunegala',
+          '0771003334',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ senderId }) => {
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected an order before blocked cancellation follow-up.');
+
+          await prisma.order.update({
+            where: { id: latestOrder.id },
+            data: {
+              orderStatus: 'dispatched',
+              trackingNumber: 'TRK-CANCEL-1',
+              courier: 'CityCourier',
+            },
+          });
+
+          const followUpTranscript = await runConversation({
+            senderId,
+            messages: ['Cancel my last order'],
+            baseUrl,
+            pageId: DEFAULT_PAGE_ID,
+            reset: false,
+          });
+
+          console.log(formatTranscript(followUpTranscript));
+
+          assertIncludes(followUpTranscript[0].bot, [
+            `Order #${latestOrder.id} is already at the dispatched stage`,
+            'cannot cancel it automatically',
+            'I have also flagged this conversation for a team follow-up.',
+          ], 'Blocked cancellation reply');
+
+          const orderAfter = await prisma.order.findUnique({
+            where: { id: latestOrder.id },
+          });
+          assert(
+            orderAfter?.orderStatus === 'dispatched',
+            `Expected dispatched order to remain dispatched, received ${String(orderAfter?.orderStatus)}.`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+          assert(escalation, 'Expected support escalation for blocked cancellation.');
+          assert(
+            escalation.reason === 'human_request',
+            `Expected human_request escalation, received ${String(escalation.reason)}.`
+          );
+          assert(
+            escalation.orderId === latestOrder.id,
+            `Expected escalation to link order ${latestOrder.id}, received ${String(escalation.orderId)}.`
+          );
         },
       },
       {

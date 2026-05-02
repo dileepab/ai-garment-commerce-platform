@@ -12,6 +12,7 @@ export const ROUTED_ACTIONS = [
   'reorder_last',
   'order_status',
   'order_details',
+  'update_order_contact',
   'update_order_quantity',
   'delivery_question',
   'payment_question',
