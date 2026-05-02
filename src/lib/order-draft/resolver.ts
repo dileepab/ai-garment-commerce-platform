@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { getMerchantSettings } from '@/lib/runtime-config';
 import {
   collectContactDetailsFromMessages,
   getMissingContactFields,
@@ -78,6 +79,7 @@ export async function resolveDraftFromConversation(
 
   const latestOrder = customer?.orders[0];
   const catalogBrand = brand || customer?.preferredBrand || undefined;
+  const settings = await getMerchantSettings(catalogBrand);
   const latestRelevantOrder = customer?.id
     ? await prisma.order.findFirst({
         where: {
@@ -113,11 +115,11 @@ export async function resolveDraftFromConversation(
   });
   const activeOrderMessages = getActiveOrderWindowMessages(conversationMessages);
 
-  const deliveryCharge = getDeliveryChargeForAddress(contacts.address);
-  const paymentMethod = detectPaymentMethod(activeOrderMessages);
+  const deliveryCharge = getDeliveryChargeForAddress(contacts.address, settings.delivery);
+  const paymentMethod = detectPaymentMethod(activeOrderMessages, settings.payment);
   const giftWrap = detectGiftWrap(activeOrderMessages);
   const giftNote = extractGiftNote(activeOrderMessages);
-  const deliveryEstimate = getDeliveryEstimateForAddress(contacts.address);
+  const deliveryEstimate = getDeliveryEstimateForAddress(contacts.address, settings.delivery);
 
   if (getMissingContactFields(contacts).length > 0) {
     return {

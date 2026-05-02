@@ -1,4 +1,5 @@
 import { ConversationMessage } from '@/lib/contact-profile';
+import { getDefaultMerchantSettings, resolvePaymentMethod, type MerchantPaymentSettings } from '@/lib/runtime-config';
 import { CatalogProduct } from './types';
 import { normalizeText, splitCsv } from './formatters';
 import {
@@ -192,8 +193,31 @@ export function extractGiftNote(messages: ConversationMessage[]): string | undef
   return undefined;
 }
 
-export function detectPaymentMethod(messages: ConversationMessage[]): string {
-  return getRecentCustomerText(messages).some((message) => ONLINE_TRANSFER_PATTERN.test(message))
-    ? 'Online Transfer'
-    : 'COD';
+export function detectPaymentMethod(
+  messages: ConversationMessage[],
+  settings?: MerchantPaymentSettings
+): string {
+  const paymentSettings = settings ?? getDefaultMerchantSettings().payment;
+  const recentMessages = getRecentCustomerText(messages);
+  const onlineMethod = paymentSettings.methods.find(
+    (method) =>
+      method.toLowerCase() === paymentSettings.onlineTransferLabel.toLowerCase() ||
+      ONLINE_TRANSFER_PATTERN.test(method)
+  );
+
+  if (onlineMethod && recentMessages.some((message) => ONLINE_TRANSFER_PATTERN.test(message))) {
+    return onlineMethod;
+  }
+
+  const codMessage = recentMessages.find((message) => /\bcod\b|cash on delivery/i.test(message));
+  if (codMessage) {
+    return resolvePaymentMethod(null, codMessage, {
+      ...getDefaultMerchantSettings(),
+      payment: paymentSettings,
+    });
+  }
+
+  return paymentSettings.methods.includes(paymentSettings.defaultMethod)
+    ? paymentSettings.defaultMethod
+    : paymentSettings.methods[0] || 'COD';
 }

@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { isClearConfirmation } from '@/lib/order-confirmation';
 import { OrderRequestError, updateSingleItemOrderQuantityById } from '@/lib/orders';
+import { getMerchantSettings } from '@/lib/runtime-config';
 import { getDeliveryChargeForAddress } from './pricing';
 
 interface OrderQuantityUpdateParams {
@@ -316,7 +317,11 @@ export async function tryHandleOrderQuantityUpdateRequest(
     };
   }
 
-  const deliveryCharge = getDeliveryChargeForAddress(latestOrder.deliveryAddress || '');
+  const settings = await getMerchantSettings(params.brand || latestOrder.brand);
+  const deliveryCharge = getDeliveryChargeForAddress(
+    latestOrder.deliveryAddress || '',
+    settings.delivery
+  );
   const reply = buildUpdateSummaryReply({
     orderId: latestOrder.id,
     productName: item.product.name,
@@ -326,7 +331,7 @@ export async function tryHandleOrderQuantityUpdateRequest(
     price: item.price,
     deliveryCharge,
     total: item.price * requestedQuantity + deliveryCharge,
-    paymentMethod: latestOrder.paymentMethod,
+    paymentMethod: latestOrder.paymentMethod || settings.payment.defaultMethod,
     name: customer.name,
     address: latestOrder.deliveryAddress || '',
     phone: customer.phone,
@@ -406,13 +411,17 @@ export async function tryConfirmOrderQuantityUpdate(
   try {
     const updatedOrder = await updateSingleItemOrderQuantityById(prisma, orderId, nextQuantity);
     const updatedItem = updatedOrder.orderItems[0];
-    const deliveryCharge = getDeliveryChargeForAddress(updatedOrder.deliveryAddress || '');
+    const settings = await getMerchantSettings(params.brand || updatedOrder.brand);
+    const deliveryCharge = getDeliveryChargeForAddress(
+      updatedOrder.deliveryAddress || '',
+      settings.delivery
+    );
     const reply = buildUpdateSuccessReply({
       orderId: updatedOrder.id,
       productName: updatedItem.product.name,
       quantity: updatedItem.quantity,
       total: updatedItem.price * updatedItem.quantity + deliveryCharge,
-      paymentMethod: updatedOrder.paymentMethod,
+      paymentMethod: updatedOrder.paymentMethod || settings.payment.defaultMethod,
       name: updatedOrder.customer.name,
       address: updatedOrder.deliveryAddress || '',
       phone: updatedOrder.customer.phone,

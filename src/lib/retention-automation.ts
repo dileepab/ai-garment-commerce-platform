@@ -8,19 +8,15 @@ import {
   buildPostOrderFollowUpMessage,
   buildReorderReminderMessage,
   buildSupportTimeoutMessage,
-  CART_RECOVERY_DELAY_MS,
   getSupportAutomationBlockReason,
-  POST_ORDER_FOLLOW_UP_DELAY_MS,
-  POST_ORDER_FOLLOW_UP_WINDOW_MS,
-  REORDER_REMINDER_DELAY_MS,
-  REORDER_REMINDER_WINDOW_MS,
   RETENTION_SUPPORTED_CHANNELS,
   shouldSendCartRecoveryReminder,
-  shouldSendPurchaseRetentionMessage,
+  shouldSendPostOrderFollowUp,
+  shouldSendReorderReminder,
   shouldSendSupportTimeoutFollowUp,
-  SUPPORT_TIMEOUT_DELAY_MS,
   type RetentionAutomationAction,
 } from '@/lib/retention-policy';
+import { getMerchantAutomationPolicy, getMerchantSettings } from '@/lib/runtime-config';
 import {
   DEFAULT_CONVERSATION_STATE,
   normalizeConversationState,
@@ -49,6 +45,7 @@ const NORMAL_RETENTION_ACTIONS: RetentionAutomationAction[] = [
   'post_order_follow_up',
   'reorder_reminder',
 ];
+const ORDER_AUTOMATION_SCAN_WINDOW_MS = 365 * 24 * 60 * 60 * 1000;
 
 function emptyStats(): AutomationRunStats {
   return {
@@ -332,11 +329,10 @@ function buildOrderDedupeKey(action: RetentionAutomationAction, orderId: number)
 
 export async function runCartRecoveryAutomation(now = new Date()): Promise<CartRecoveryRunResult> {
   const stats = emptyStats();
-  const staleBefore = new Date(now.getTime() - CART_RECOVERY_DELAY_MS);
   const staleStates = await prisma.conversationState.findMany({
     where: {
       updatedAt: {
-        lte: staleBefore,
+        lte: now,
       },
       channel: {
         in: [...RETENTION_SUPPORTED_CHANNELS],
@@ -363,6 +359,10 @@ export async function runCartRecoveryAutomation(now = new Date()): Promise<CartR
       channel: stateRecord.channel,
       actions: NORMAL_RETENTION_ACTIONS,
     });
+    const settings = await getMerchantSettings(
+      state.orderDraft?.brand ?? supportContext.escalation?.brand ?? null
+    );
+    const automation = getMerchantAutomationPolicy(settings);
     const decision = shouldSendCartRecoveryReminder({
       channel: stateRecord.channel,
       hasOrderDraft: Boolean(state.orderDraft),
@@ -371,6 +371,7 @@ export async function runCartRecoveryAutomation(now = new Date()): Promise<CartR
       now,
       recentSentAt,
       supportBlockReason,
+      automation,
     });
 
     if (!decision.send || !state.orderDraft) {
@@ -452,14 +453,13 @@ function getOrderBrand(order: {
 
 async function runPostOrderFollowUps(now: Date): Promise<AutomationRunStats> {
   const stats = emptyStats();
-  const latestCreatedAt = new Date(now.getTime() - POST_ORDER_FOLLOW_UP_DELAY_MS);
-  const earliestCreatedAt = new Date(now.getTime() - POST_ORDER_FOLLOW_UP_WINDOW_MS);
+  const earliestCreatedAt = new Date(now.getTime() - ORDER_AUTOMATION_SCAN_WINDOW_MS);
   const orders = await prisma.order.findMany({
     where: {
       orderStatus: 'delivered',
       createdAt: {
         gte: earliestCreatedAt,
-        lte: latestCreatedAt,
+        lte: now,
       },
     },
     include: {
@@ -482,6 +482,8 @@ async function runPostOrderFollowUps(now: Date): Promise<AutomationRunStats> {
     const senderId = order.customer.externalId;
     const channel = order.customer.channel || 'messenger';
     const brand = getOrderBrand(order);
+    const settings = await getMerchantSettings(brand);
+    const automation = getMerchantAutomationPolicy(settings);
     const supportContext = senderId ? await getSupportContext(senderId, channel) : null;
     const supportBlockReason = supportContext
       ? getSupportAutomationBlockReason({
@@ -496,12 +498,14 @@ async function runPostOrderFollowUps(now: Date): Promise<AutomationRunStats> {
           actions: NORMAL_RETENTION_ACTIONS,
         })
       : null;
-    const decision = shouldSendPurchaseRetentionMessage({
+    const decision = shouldSendPostOrderFollowUp({
       channel,
       hasCustomerTarget: Boolean(senderId),
       supportBlockReason,
       recentSentAt,
       now,
+      orderCreatedAt: order.createdAt,
+      automation,
     });
 
     if (!decision.send || !senderId) {
@@ -547,14 +551,13 @@ async function runPostOrderFollowUps(now: Date): Promise<AutomationRunStats> {
 
 async function runReorderReminders(now: Date): Promise<AutomationRunStats> {
   const stats = emptyStats();
-  const latestCreatedAt = new Date(now.getTime() - REORDER_REMINDER_DELAY_MS);
-  const earliestCreatedAt = new Date(now.getTime() - REORDER_REMINDER_WINDOW_MS);
+  const earliestCreatedAt = new Date(now.getTime() - ORDER_AUTOMATION_SCAN_WINDOW_MS);
   const orders = await prisma.order.findMany({
     where: {
       orderStatus: 'delivered',
       createdAt: {
         gte: earliestCreatedAt,
-        lte: latestCreatedAt,
+        lte: now,
       },
     },
     include: {
@@ -577,6 +580,8 @@ async function runReorderReminders(now: Date): Promise<AutomationRunStats> {
     const senderId = order.customer.externalId;
     const channel = order.customer.channel || 'messenger';
     const brand = getOrderBrand(order);
+    const settings = await getMerchantSettings(brand);
+    const automation = getMerchantAutomationPolicy(settings);
     const laterOrderCount = await prisma.order.count({
       where: {
         customerId: order.customerId,
@@ -623,12 +628,14 @@ async function runReorderReminders(now: Date): Promise<AutomationRunStats> {
           actions: NORMAL_RETENTION_ACTIONS,
         })
       : null;
-    const decision = shouldSendPurchaseRetentionMessage({
+    const decision = shouldSendReorderReminder({
       channel,
       hasCustomerTarget: Boolean(senderId),
       supportBlockReason,
       recentSentAt,
       now,
+      orderCreatedAt: order.createdAt,
+      automation,
     });
 
     if (!decision.send || !senderId) {
@@ -686,12 +693,11 @@ export async function runOrderRetentionAutomations(
 
 export async function runSupportTimeoutAutomation(now = new Date()): Promise<AutomationRunStats> {
   const stats = emptyStats();
-  const staleBefore = new Date(now.getTime() - SUPPORT_TIMEOUT_DELAY_MS);
   const staleEscalations = await prisma.supportEscalation.findMany({
     where: {
       status: 'open',
       updatedAt: {
-        lte: staleBefore,
+        lte: now,
       },
       channel: {
         in: [...RETENTION_SUPPORTED_CHANNELS],
@@ -712,6 +718,8 @@ export async function runSupportTimeoutAutomation(now = new Date()): Promise<Aut
       escalationStatus: supportContext.escalation?.status ?? escalation.status,
       allowStaleHandoffResume: true,
     });
+    const settings = await getMerchantSettings(escalation.brand);
+    const automation = getMerchantAutomationPolicy(settings);
     const recentSentAt = await getLatestSentAutomationAt({
       senderId: escalation.senderId,
       channel: escalation.channel,
@@ -724,6 +732,7 @@ export async function runSupportTimeoutAutomation(now = new Date()): Promise<Aut
       now,
       recentSentAt,
       supportBlockReason,
+      automation,
     });
 
     if (!decision.send) {

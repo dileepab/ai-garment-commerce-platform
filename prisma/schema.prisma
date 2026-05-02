@@ -236,3 +236,39 @@ model AutomationActionLog {
   @@index([brand, action, createdAt])
   @@index([status, updatedAt])
 }
+
+model MerchantSettings {
+  id                             Int      @id @default(autoincrement())
+  storeKey                       String   @unique @default("default")
+  brand                          String?
+  displayName                    String?
+  supportPhone                   String?
+  supportWhatsapp                String?
+  supportHours                   String   @default("9:00 AM to 6:00 PM")
+  supportHandoffMessage          String?
+  processingErrorMessage         String?
+  paymentMethods                 String   @default("COD,Online Transfer")
+  defaultPaymentMethod           String   @default("COD")
+  onlineTransferLabel            String   @default("Online Transfer")
+  deliveryColomboCharge          Int      @default(150)
+  deliveryOutsideColomboCharge   Int      @default(200)
+  deliveryColomboEstimate        String   @default("1-2 business days")
+  deliveryOutsideColomboEstimate String   @default("2-3 business days")
+  cartRecoveryEnabled            Boolean  @default(true)
+  cartRecoveryDelayHours         Int      @default(12)
+  cartRecoveryCooldownHours      Int      @default(72)
+  supportTimeoutEnabled          Boolean  @default(true)
+  supportTimeoutDelayHours       Int      @default(24)
+  supportTimeoutCooldownHours    Int      @default(48)
+  postOrderFollowUpEnabled       Boolean  @default(true)
+  postOrderFollowUpDelayDays     Int      @default(3)
+  postOrderFollowUpWindowDays    Int      @default(21)
+  reorderReminderEnabled         Boolean  @default(true)
+  reorderReminderDelayDays       Int      @default(45)
+  reorderReminderWindowDays      Int      @default(120)
+  purchaseNudgeCooldownDays      Int      @default(14)
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  @@index([brand])
+}

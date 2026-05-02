@@ -1,6 +1,11 @@
 import type { ResolvedOrderDraft } from '@/lib/order-draft';
 import { getDeliveryChargeForAddress } from '@/lib/order-draft';
-import { buildSupportContactLine } from '@/lib/customer-support';
+import {
+  buildSupportContactLine,
+  buildSupportContactLineFromConfig,
+  type SupportContactConfig,
+} from '@/lib/customer-support';
+import type { MerchantDeliverySettings } from '@/lib/runtime-config';
 import {
   getOrderStageLabel,
   getOrderStageNote,
@@ -97,16 +102,29 @@ export function buildOrderAlreadyCancelledReply(orderId: number): string {
   return `Order #${orderId} is already cancelled.`;
 }
 
-export function calculateOrderDeliveryCharge(order: Pick<OrderLike, 'deliveryAddress'>): number {
-  return getDeliveryChargeForAddress(order.deliveryAddress || '');
+export function calculateOrderDeliveryCharge(
+  order: Pick<OrderLike, 'deliveryAddress'>,
+  deliverySettings?: MerchantDeliverySettings
+): number {
+  return getDeliveryChargeForAddress(order.deliveryAddress || '', deliverySettings);
 }
 
-export function calculateOrderGrandTotal(order: Pick<OrderLike, 'totalAmount' | 'deliveryAddress'>): number {
-  return order.totalAmount + calculateOrderDeliveryCharge(order);
+export function calculateOrderGrandTotal(
+  order: Pick<OrderLike, 'totalAmount' | 'deliveryAddress'>,
+  deliverySettings?: MerchantDeliverySettings
+): number {
+  return order.totalAmount + calculateOrderDeliveryCharge(order, deliverySettings);
 }
 
-export function buildOrderPlacedReply(draft: ResolvedOrderDraft, orderId: number): string {
+export function buildOrderPlacedReply(
+  draft: ResolvedOrderDraft,
+  orderId: number,
+  supportConfig?: SupportContactConfig
+): string {
   const specialInstructions = buildSpecialInstructions(draft.giftWrap, draft.giftNote);
+  const supportLine = supportConfig
+    ? buildSupportContactLineFromConfig(supportConfig, { orderId })
+    : buildSupportContactLine({ orderId });
 
   return [
     'Thank you. Your order has been confirmed successfully ✅',
@@ -123,7 +141,7 @@ export function buildOrderPlacedReply(draft: ResolvedOrderDraft, orderId: number
     ...specialInstructions,
     '',
     'Next Step: Our team will prepare your parcel for packing.',
-    `Need help? ${buildSupportContactLine({ orderId })}`,
+    `Need help? ${supportLine}`,
   ].join('\n');
 }
 
@@ -150,8 +168,14 @@ export function buildQuantityUpdateSummaryReply(summary: QuantityUpdateSummary):
   ].join('\n');
 }
 
-export function buildQuantityUpdateSuccessReply(summary: QuantityUpdateSummary): string {
+export function buildQuantityUpdateSuccessReply(
+  summary: QuantityUpdateSummary,
+  supportConfig?: SupportContactConfig
+): string {
   const specialInstructions = buildSpecialInstructions(summary.giftWrap, summary.giftNote);
+  const supportLine = supportConfig
+    ? buildSupportContactLineFromConfig(supportConfig, { orderId: summary.orderId })
+    : buildSupportContactLine({ orderId: summary.orderId });
 
   return [
     'Thank you. Your order has been updated successfully ✅',
@@ -168,7 +192,7 @@ export function buildQuantityUpdateSuccessReply(summary: QuantityUpdateSummary):
     ...specialInstructions,
     '',
     'Next Step: We will continue processing this order with the updated quantity.',
-    `Need help? ${buildSupportContactLine({ orderId: summary.orderId })}`,
+    `Need help? ${supportLine}`,
   ].join('\n');
 }
 
@@ -197,9 +221,12 @@ function buildActualOrderLineItems(order: OrderLike): string[] {
   ];
 }
 
-export function buildOrderDetailsReply(order: OrderLike): string {
-  const deliveryCharge = calculateOrderDeliveryCharge(order);
-  const total = calculateOrderGrandTotal(order);
+export function buildOrderDetailsReply(
+  order: OrderLike,
+  deliverySettings?: MerchantDeliverySettings
+): string {
+  const deliveryCharge = calculateOrderDeliveryCharge(order, deliverySettings);
+  const total = calculateOrderGrandTotal(order, deliverySettings);
   const specialInstructions = buildSpecialInstructions(order.giftWrap, order.giftNote);
 
   return [

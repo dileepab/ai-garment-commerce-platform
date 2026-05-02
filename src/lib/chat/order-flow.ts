@@ -111,6 +111,7 @@ export function buildReorderDraftFromOrder(params: {
   customer: CustomerLike | null;
   getDeliveryChargeForAddress: (address: string) => number;
   getDeliveryEstimateForAddress: (address: string) => string;
+  defaultPaymentMethod?: string;
 }): ResolvedOrderDraft {
   const sourceItem = params.sourceOrder.orderItems[0];
   const deliveryAddress = params.sourceOrder.deliveryAddress || '';
@@ -126,7 +127,7 @@ export function buildReorderDraftFromOrder(params: {
     price: sourceItem.price,
     deliveryCharge,
     total: sourceItem.price * sourceItem.quantity + deliveryCharge,
-    paymentMethod: params.sourceOrder.paymentMethod || 'COD',
+    paymentMethod: params.sourceOrder.paymentMethod || params.defaultPaymentMethod || 'COD',
     giftWrap: params.sourceOrder.giftWrap,
     giftNote: params.sourceOrder.giftNote || undefined,
     deliveryEstimate: params.getDeliveryEstimateForAddress(deliveryAddress),
@@ -143,6 +144,7 @@ export function buildQuantityUpdateSummaryFromOrder(params: {
   targetOrder: OrderLike;
   quantity: number;
   deliveryCharge: number;
+  defaultPaymentMethod?: string;
 }): QuantityUpdateSummary {
   const item = params.targetOrder.orderItems[0];
 
@@ -155,7 +157,7 @@ export function buildQuantityUpdateSummaryFromOrder(params: {
     price: item.price,
     deliveryCharge: params.deliveryCharge,
     total: item.price * params.quantity + params.deliveryCharge,
-    paymentMethod: params.targetOrder.paymentMethod || 'COD',
+    paymentMethod: params.targetOrder.paymentMethod || params.defaultPaymentMethod || 'COD',
     name: params.targetOrder.customer.name,
     address: params.targetOrder.deliveryAddress || '',
     phone: params.targetOrder.customer.phone || '',

@@ -8,9 +8,9 @@ import {
   getMissingContactFields,
   mergeContactDetails,
 } from '@/lib/contact-profile';
-import { buildHumanSupportReply, buildSupportContactLine } from '@/lib/customer-support';
+import { buildHumanSupportReply, buildSupportContactLineFromConfig } from '@/lib/customer-support';
 import { logDebug, logError } from '@/lib/app-log';
-import { logRuntimeWarnings } from '@/lib/runtime-config';
+import { getMerchantSettings, logRuntimeWarnings } from '@/lib/runtime-config';
 
 const MODEL_CHAIN = [
   'gemini-3.1-flash-lite-preview',
@@ -213,6 +213,8 @@ export async function getAiStockReply(
       : '';
 
     const storeName = brandFilter || 'our store';
+    const settings = await getMerchantSettings(brandFilter);
+    const supportContactLine = buildSupportContactLineFromConfig(settings.support);
 
     const systemPrompt = `You are Nisha, a professional customer service representative for ${storeName}, an online clothing store in Sri Lanka. You respond to customers on social media with professionalism and warmth.
 ${customerInfo}
@@ -312,7 +314,7 @@ IMPORTANT:
 - Never claim that an order was placed, confirmed, cancelled, deleted, or re-ordered unless the customer already received a system message containing "Order ID:" or "Cancelled Order ID:".
 - Never claim that an order quantity was updated, reopened, restored, or changed unless the customer already received a system-generated update summary or success message for that action.
 - If the customer asks to cancel, delete, replace, or re-order and you do not have a system confirmation yet, explain the next step, but do not say the action is already completed.
-- If the customer explicitly asks for a human, says the reply is unclear, or has a serious complaint, it is acceptable to direct them to real support using this contact line: ${buildSupportContactLine()}`;
+- If the customer explicitly asks for a human, says the reply is unclear, or has a serious complaint, it is acceptable to direct them to real support using this contact line: ${supportContactLine}`;
 
     const requestParams = {
       contents: customerMessage,
@@ -324,6 +326,7 @@ IMPORTANT:
     // 4. Fallback chain: try each model in order
     let reply = buildHumanSupportReply({
       reason: 'unclear_request',
+      supportConfig: settings.support,
     });
 
     for (let i = 0; i < MODEL_CHAIN.length; i++) {

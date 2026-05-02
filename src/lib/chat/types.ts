@@ -15,6 +15,7 @@ import type {
 } from '@/lib/contact-profile';
 import type { SupportIssueReason } from '@/lib/customer-support';
 import type { ResolvedOrderDraft } from '@/lib/order-draft';
+import type { MerchantSettings } from '@/lib/runtime-config';
 import type { SizeChartCategory } from '@/lib/size-charts';
 import type {
   CustomerMessageInput,
@@ -87,5 +88,6 @@ export interface ChatContext {
   followUpMissingOrderId: number | null;
   mergedContact: ContactDetails;
   aiAction: AiRoutedAction;
+  settings: MerchantSettings;
   helpers: ChatHelpers;
 }

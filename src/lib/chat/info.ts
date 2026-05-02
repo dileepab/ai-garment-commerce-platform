@@ -26,9 +26,10 @@ import {
 } from '@/lib/order-draft';
 import {
   buildSupportContactAcknowledgement,
-  buildSupportContactLine,
+  buildSupportContactLineFromConfig,
   buildSupportContactReply,
 } from '@/lib/customer-support';
+import { describeDeliveryEstimates, resolvePaymentMethod } from '@/lib/runtime-config';
 import { isOrderMutableStatus } from '@/lib/orders';
 import { updateOrderGiftInstructions } from './shared-actions';
 import type { ChatContext } from './types';
@@ -161,7 +162,7 @@ export async function handle_order_details(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: buildOrderDetailsReply(targetOrder),
+    reply: buildOrderDetailsReply(targetOrder, ctx.settings.delivery),
     orderId: targetOrder.id,
     assistantReplyKind: 'order_details',
     nextState: {
@@ -178,9 +179,12 @@ export async function handle_delivery_question(ctx: ChatContext) {
     input,
     latestActiveOrder,
     mergedContact,
+    settings,
     state,
   } = ctx;
   const { finalizeReply } = ctx.helpers;
+  const deliveryEstimateForAddress = (address: string) =>
+    getDeliveryEstimateForAddress(address, settings.delivery);
 
   const locationHint = aiAction.deliveryLocation || extractDeliveryLocationHint(input.currentMessage);
   const requestedDate =
@@ -194,7 +198,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
         referenceDate: getSriLankaToday(),
         requestedDate,
         isDraft: true,
-        getDeliveryEstimateForAddress,
+        getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+        defaultDeliveryText: describeDeliveryEstimates(settings),
       }),
       nextState: {
         lastMissingOrderId: null,
@@ -209,7 +214,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
         referenceDate: getSriLankaToday(),
         requestedDate,
         isDraft: true,
-        getDeliveryEstimateForAddress,
+        getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+        defaultDeliveryText: describeDeliveryEstimates(settings),
       }),
       nextState: {
         lastMissingOrderId: null,
@@ -225,7 +231,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
         requestedDate,
         isDraft: false,
         existingOrderStatus: latestActiveOrder.orderStatus,
-        getDeliveryEstimateForAddress,
+        getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+        defaultDeliveryText: describeDeliveryEstimates(settings),
       }),
       orderId: latestActiveOrder.id,
       nextState: {
@@ -241,7 +248,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
       referenceDate: getSriLankaToday(),
       requestedDate,
       isDraft: true,
-      getDeliveryEstimateForAddress,
+      getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+      defaultDeliveryText: describeDeliveryEstimates(settings),
     }),
     nextState: {
       lastMissingOrderId: null,
@@ -250,16 +258,23 @@ export async function handle_delivery_question(ctx: ChatContext) {
 }
 
 export async function handle_payment_question(ctx: ChatContext) {
-  const { aiAction, state } = ctx;
+  const { aiAction, input, settings, state } = ctx;
   const { finalizeReply } = ctx.helpers;
-  const paymentMethod = aiAction.paymentMethod || 'Online Transfer';
+  const paymentMethod = resolvePaymentMethod(
+    aiAction.paymentMethod || settings.payment.onlineTransferLabel,
+    input.currentMessage,
+    settings
+  );
+  const paymentWorksText = paymentMethod.toLowerCase().includes('transfer')
+    ? 'online transfer works'
+    : `${paymentMethod} works`;
 
   if (state.orderDraft) {
     const nextDraft = {
       ...state.orderDraft,
       paymentMethod,
     };
-    const baseReply = `Yes, ${paymentMethod === 'Online Transfer' ? 'online transfer works' : `${paymentMethod} works`} for us. I've set the payment method to ${paymentMethod}.`;
+    const baseReply = `Yes, ${paymentWorksText} for us. I've set the payment method to ${paymentMethod}.`;
 
     if (state.pendingStep === 'order_confirmation') {
       return finalizeReply({
@@ -281,8 +296,10 @@ export async function handle_payment_question(ctx: ChatContext) {
     });
   }
 
+  const supportLine = buildSupportContactLineFromConfig(settings.support).toLowerCase();
+
   return finalizeReply({
-    reply: `Yes, online transfer works for us. I'll note the payment method when you're ready to place the order. If you need help with a payment confirmation, ${buildSupportContactLine().toLowerCase()}`,
+    reply: `Yes, ${paymentWorksText} for us. I'll note the payment method when you're ready to place the order. If you need help with a payment confirmation, ${supportLine}`,
     nextState: {
       lastMissingOrderId: null,
     },
@@ -290,8 +307,10 @@ export async function handle_payment_question(ctx: ChatContext) {
 }
 
 export async function handle_exchange_question(ctx: ChatContext) {
+  const supportLine = buildSupportContactLineFromConfig(ctx.settings.support).toLowerCase();
+
   return ctx.helpers.finalizeReply({
-    reply: `If the size isn't right, just message us as soon as the parcel arrives and we'll arrange the exchange, subject to stock availability. If you'd like to talk to someone directly, ${buildSupportContactLine().toLowerCase()}`,
+    reply: `If the size isn't right, just message us as soon as the parcel arrives and we'll arrange the exchange, subject to stock availability. If you'd like to talk to someone directly, ${supportLine}`,
     nextState: {
       lastMissingOrderId: null,
     },
@@ -415,7 +434,8 @@ export async function handle_gift_request(ctx: ChatContext) {
 
     return finalizeReply({
       reply: `I have updated order #${updatedOrder.id} with gift wrap and the note "${giftNote}".\n\n${buildOrderDetailsReply(
-        updatedOrder
+        updatedOrder,
+        ctx.settings.delivery
       )}`,
       orderId: updatedOrder.id,
       nextState: {
@@ -479,7 +499,10 @@ export async function handle_support_contact_request(ctx: ChatContext) {
     null;
 
   return finalizeReply({
-    reply: buildSupportContactReply({ orderId: targetOrderId }),
+    reply: buildSupportContactReply({
+      orderId: targetOrderId,
+      supportConfig: ctx.settings.support,
+    }),
     orderId: targetOrderId,
     assistantReplyKind: 'support_contact',
     nextState: {
@@ -504,7 +527,7 @@ export async function handle_fallback(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: buildClarificationReply(state),
+    reply: buildClarificationReply(state, ctx.settings.support),
     assistantReplyKind: 'fallback',
     nextState: {
       unclearMessageCount,
@@ -524,7 +547,10 @@ export async function handle_thanks_acknowledgement(ctx: ChatContext) {
       null;
 
     return ctx.helpers.finalizeReply({
-      reply: buildSupportContactAcknowledgement({ orderId }),
+      reply: buildSupportContactAcknowledgement({
+        orderId,
+        supportConfig: ctx.settings.support,
+      }),
       assistantReplyKind: 'support_contact',
       nextState: {
         lastReferencedOrderId: orderId,

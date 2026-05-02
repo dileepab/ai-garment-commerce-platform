@@ -10,7 +10,7 @@ import { sendFacebookCommentReply, sendFacebookPrivateReply } from '@/lib/meta-c
 import { getErrorMessage } from '@/lib/error-message';
 import { routeCustomerMessage } from '@/lib/chat-orchestrator';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
-import { logRuntimeWarnings } from '@/lib/runtime-config';
+import { getMerchantSettings, logRuntimeWarnings } from '@/lib/runtime-config';
 import {
   normalizeFacebookComment,
   normalizeMessengerEvent,
@@ -199,8 +199,8 @@ async function escalateRepeatedFailure(params: {
 
   if (failureCount < FAILURE_ESCALATION_THRESHOLD) {
     if (!IS_CHAT_TEST_MODE) {
-      const fallbackReply =
-        'Sorry, something went wrong while handling your last message. Please reply once more, or contact support if it is urgent.';
+      const settings = await getMerchantSettings(params.brand);
+      const fallbackReply = settings.support.processingErrorMessage;
       const delivery = await sendMessengerMessage(params.normalized.senderId, fallbackReply);
 
       if (!delivery.ok) {
@@ -236,9 +236,13 @@ async function escalateRepeatedFailure(params: {
   params.stats.escalated += 1;
 
   if (!IS_CHAT_TEST_MODE) {
+    const settings = await getMerchantSettings(params.brand);
     const delivery = await sendMessengerMessage(
       params.normalized.senderId,
-      buildHumanSupportReply({ reason: 'unclear_request' })
+      buildHumanSupportReply({
+        reason: 'unclear_request',
+        supportConfig: settings.support,
+      })
     );
 
     if (!delivery.ok) {

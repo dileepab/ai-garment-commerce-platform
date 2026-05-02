@@ -18,7 +18,6 @@ import {
   looksLikeTotalQuestion,
   mentionsRelativeOrderReference,
   messageReferencesExistingOrder,
-  normalizeText,
   normalizeColor,
   normalizeSize,
   scoreProductMatch,
@@ -59,6 +58,7 @@ import {
   type SupportIssueReason,
 } from '@/lib/customer-support';
 import { isActiveOrderStatus } from '@/lib/order-status-display';
+import { getMerchantSettings, resolvePaymentMethod } from '@/lib/runtime-config';
 import type { ChatContext } from './chat/types';
 import type {
   CustomerMessageInput,
@@ -161,6 +161,7 @@ export async function routeCustomerMessage(
   });
 
   const brandFilter = input.brand || customer?.preferredBrand || undefined;
+  const settings = await getMerchantSettings(brandFilter);
   const globalProducts = await prisma.product.findMany({
     where: { status: 'active' },
     include: {
@@ -335,7 +336,7 @@ export async function routeCustomerMessage(
     const paymentMethod =
       aiAction.paymentMethod ||
       previousDraft?.paymentMethod ||
-      (normalizeText(input.currentMessage).includes('online transfer') ? 'Online Transfer' : 'COD');
+      resolvePaymentMethod(null, input.currentMessage, settings);
     const giftWrap =
       aiAction.giftWrap ?? previousDraft?.giftWrap ?? looksLikeGiftRequest(input.currentMessage);
     const giftNote =
@@ -343,7 +344,7 @@ export async function routeCustomerMessage(
       previousDraft?.giftNote ||
       (/happy birthday/i.test(input.currentMessage) ? 'Happy Birthday' : undefined);
     const address = mergedContact.address || previousDraft?.address || '';
-    const deliveryCharge = getDeliveryChargeForAddress(address);
+    const deliveryCharge = getDeliveryChargeForAddress(address, settings.delivery);
 
     return {
       productId: product.id,
@@ -358,7 +359,7 @@ export async function routeCustomerMessage(
       paymentMethod,
       giftWrap,
       giftNote,
-      deliveryEstimate: getDeliveryEstimateForAddress(address),
+      deliveryEstimate: getDeliveryEstimateForAddress(address, settings.delivery),
       name: mergedContact.name || previousDraft?.name || '',
       address,
       phone: mergedContact.phone || previousDraft?.phone || '',
@@ -461,6 +462,7 @@ export async function routeCustomerMessage(
       reply: buildHumanSupportReply({
         reason,
         orderId,
+        supportConfig: settings.support,
       }),
       orderId: orderId || null,
       assistantReplyKind: 'support_handoff',
@@ -578,7 +580,7 @@ export async function routeCustomerMessage(
       )
     ) {
       return finalizeReply({
-        reply: buildAcknowledgementReply(state),
+        reply: buildAcknowledgementReply(state, settings.support),
         assistantReplyKind: 'generic',
         nextState: {
           lastMissingOrderId: null,
@@ -630,14 +632,19 @@ export async function routeCustomerMessage(
       address: mergedContact.address || state.orderDraft.address,
       phone: mergedContact.phone || state.orderDraft.phone,
       deliveryCharge: getDeliveryChargeForAddress(
-        mergedContact.address || state.orderDraft.address || ''
+        mergedContact.address || state.orderDraft.address || '',
+        settings.delivery
       ),
       deliveryEstimate: getDeliveryEstimateForAddress(
-        mergedContact.address || state.orderDraft.address || ''
+        mergedContact.address || state.orderDraft.address || '',
+        settings.delivery
       ),
       total:
         state.orderDraft.price * state.orderDraft.quantity +
-        getDeliveryChargeForAddress(mergedContact.address || state.orderDraft.address || ''),
+        getDeliveryChargeForAddress(
+          mergedContact.address || state.orderDraft.address || '',
+          settings.delivery
+        ),
     };
 
     const missingFields = getMissingContactFields({
@@ -813,6 +820,7 @@ export async function routeCustomerMessage(
     input, state, customer, brandFilter, globalProducts, products,
     latestOrder, latestActiveOrder, latestAssistantText, explicitOrderId,
     requestedProductTypes, followUpMissingOrderId, mergedContact, aiAction: effectiveAiAction,
+    settings,
     helpers: {
       findProductByName, findCustomerOrderById, buildDraftFromSource,
       finalizeReply, escalateToSupport, clearPendingConversationState

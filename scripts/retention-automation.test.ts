@@ -10,7 +10,9 @@ import {
   getSupportAutomationBlockReason,
   PURCHASE_NUDGE_COOLDOWN_MS,
   shouldSendCartRecoveryReminder,
+  shouldSendPostOrderFollowUp,
   shouldSendPurchaseRetentionMessage,
+  shouldSendReorderReminder,
   shouldSendSupportTimeoutFollowUp,
   SUPPORT_TIMEOUT_DELAY_MS,
 } from '../src/lib/retention-policy.ts';
@@ -140,6 +142,93 @@ test('cooldowns prevent overly frequent retention nudges', () => {
       recentSentAt: ago(PURCHASE_NUDGE_COOLDOWN_MS - 1),
     }).reason,
     'purchase_nudge_cooldown'
+  );
+});
+
+test('merchant automation settings can disable and retime nudges', () => {
+  assert.equal(
+    shouldSendCartRecoveryReminder({
+      channel: 'messenger',
+      hasOrderDraft: true,
+      pendingStep: 'order_confirmation',
+      stateUpdatedAt: ago(CART_RECOVERY_DELAY_MS + 1),
+      now,
+      automation: {
+        cartRecoveryEnabled: false,
+      },
+    }).reason,
+    'cart_recovery_disabled'
+  );
+
+  assert.deepEqual(
+    shouldSendCartRecoveryReminder({
+      channel: 'messenger',
+      hasOrderDraft: true,
+      pendingStep: 'order_confirmation',
+      stateUpdatedAt: ago(2 * 60 * 60 * 1000 + 1),
+      now,
+      automation: {
+        cartRecoveryDelayMs: 2 * 60 * 60 * 1000,
+      },
+    }),
+    { send: true }
+  );
+
+  assert.equal(
+    shouldSendSupportTimeoutFollowUp({
+      channel: 'messenger',
+      escalationStatus: 'open',
+      escalationUpdatedAt: ago(SUPPORT_TIMEOUT_DELAY_MS + 1),
+      now,
+      automation: {
+        supportTimeoutEnabled: false,
+      },
+    }).reason,
+    'support_timeout_disabled'
+  );
+});
+
+test('post-order and reorder windows come from merchant automation settings', () => {
+  assert.deepEqual(
+    shouldSendPostOrderFollowUp({
+      channel: 'instagram',
+      hasCustomerTarget: true,
+      orderCreatedAt: ago(6 * 60 * 60 * 1000),
+      now,
+      automation: {
+        postOrderFollowUpDelayMs: 4 * 60 * 60 * 1000,
+        postOrderFollowUpWindowMs: 12 * 60 * 60 * 1000,
+      },
+    }),
+    { send: true }
+  );
+
+  assert.equal(
+    shouldSendPostOrderFollowUp({
+      channel: 'instagram',
+      hasCustomerTarget: true,
+      orderCreatedAt: ago(2 * 60 * 60 * 1000),
+      now,
+      automation: {
+        postOrderFollowUpDelayMs: 4 * 60 * 60 * 1000,
+        postOrderFollowUpWindowMs: 12 * 60 * 60 * 1000,
+      },
+    }).reason,
+    'post_order_follow_up_not_due'
+  );
+
+  assert.deepEqual(
+    shouldSendReorderReminder({
+      channel: 'messenger',
+      hasCustomerTarget: true,
+      orderCreatedAt: ago(10 * 24 * 60 * 60 * 1000),
+      now,
+      automation: {
+        reorderReminderDelayMs: 7 * 24 * 60 * 60 * 1000,
+        reorderReminderWindowMs: 30 * 24 * 60 * 60 * 1000,
+      },
+    }),
+    { send: true }
   );
 });
 

@@ -73,9 +73,13 @@ To read from a different SQLite file:
 npm run db:migrate:sqlite-to-postgres -- --sqlite-path=path/to/source.db
 ```
 
+## Merchant Settings
+
+Owners and admins can manage support contact details, delivery charges and windows, payment methods, customer-facing fallback wording, and retention automation timing from `/settings`. Global defaults apply to every store, and brand-specific rows override those defaults for customer-facing chat and automation behavior.
+
 ## Support Handoff Setup
 
-The customer-support flow can hand customers to a real person. Configure these values in `.env` so the bot replies with your real contact details:
+The customer-support flow can hand customers to a real person. These values can now be managed from `/settings`; the `.env` values below remain as startup fallbacks before a merchant settings row exists:
 
 ```bash
 STORE_SUPPORT_PHONE="0701234567"

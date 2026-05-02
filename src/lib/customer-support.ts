@@ -1,4 +1,9 @@
 import prisma from '@/lib/prisma';
+import {
+  getDefaultMerchantSettings,
+  getMerchantSettings,
+  type MerchantSupportSettings,
+} from '@/lib/runtime-config';
 
 export type SupportIssueReason =
   | 'human_request'
@@ -20,11 +25,7 @@ interface SupportEscalationInput {
   summary: string;
 }
 
-export interface SupportContactConfig {
-  phone: string | null;
-  whatsapp: string | null;
-  hours: string;
-}
+export type SupportContactConfig = MerchantSupportSettings;
 
 const SUPPORT_REASON_LABELS: Record<SupportIssueReason, string> = {
   human_request: 'support request',
@@ -70,20 +71,34 @@ function formatSupportContactLine(
   return `Please WhatsApp our team on ${directWhatsapp} during ${config.hours}.${orderReference}`;
 }
 
-export function getSupportContactConfig(): SupportContactConfig {
+export function getDefaultSupportContactConfig(): SupportContactConfig {
+  return getDefaultMerchantSettings().support;
+}
+
+export async function getSupportContactConfig(brand?: string | null): Promise<SupportContactConfig> {
+  return (await getMerchantSettings(brand)).support;
+}
+
+export function getSupportContactConfigSync(): SupportContactConfig {
   const phone = cleanSupportContactValue(process.env.STORE_SUPPORT_PHONE);
-  const whatsapp =
-    cleanSupportContactValue(process.env.STORE_SUPPORT_WHATSAPP) || phone;
+  const whatsapp = cleanSupportContactValue(process.env.STORE_SUPPORT_WHATSAPP) || phone;
+  const defaults = getDefaultSupportContactConfig();
 
   return {
+    ...defaults,
     phone,
     whatsapp,
-    hours: process.env.STORE_SUPPORT_HOURS?.trim() || '9:00 AM to 6:00 PM',
+    hours: process.env.STORE_SUPPORT_HOURS?.trim() || defaults.hours,
   };
 }
 
 export function hasDirectSupportContactConfigured(): boolean {
-  const config = getSupportContactConfig();
+  const config = getSupportContactConfigSync();
+  return Boolean(config.phone || config.whatsapp);
+}
+
+export async function hasDirectSupportContactConfiguredForBrand(brand?: string | null): Promise<boolean> {
+  const config = await getSupportContactConfig(brand);
   return Boolean(config.phone || config.whatsapp);
 }
 
@@ -92,24 +107,53 @@ export function getSupportReasonLabel(reason: SupportIssueReason): string {
 }
 
 export function buildSupportContactLine(options?: { orderId?: number | null }): string {
-  return formatSupportContactLine(getSupportContactConfig(), options);
+  return formatSupportContactLine(getSupportContactConfigSync(), options);
 }
 
-export function buildSupportContactReply(options?: { orderId?: number | null }): string {
-  return `You can reach our support team directly. ${buildSupportContactLine(options)}`;
+export function buildSupportContactLineFromConfig(
+  config: SupportContactConfig,
+  options?: { orderId?: number | null }
+): string {
+  return formatSupportContactLine(config, options);
 }
 
-export function buildSupportContactAcknowledgement(options?: { orderId?: number | null }): string {
-  return `You are welcome. ${buildSupportContactLine(options)}`;
+export async function buildSupportContactLineForBrand(
+  brand?: string | null,
+  options?: { orderId?: number | null }
+): Promise<string> {
+  return formatSupportContactLine(await getSupportContactConfig(brand), options);
+}
+
+export function buildSupportContactReply(options?: {
+  orderId?: number | null;
+  supportConfig?: SupportContactConfig;
+}): string {
+  const contactLine = options?.supportConfig
+    ? buildSupportContactLineFromConfig(options.supportConfig, options)
+    : buildSupportContactLine(options);
+
+  return `You can reach our support team directly. ${contactLine}`;
+}
+
+export function buildSupportContactAcknowledgement(options?: {
+  orderId?: number | null;
+  supportConfig?: SupportContactConfig;
+}): string {
+  const contactLine = options?.supportConfig
+    ? buildSupportContactLineFromConfig(options.supportConfig, options)
+    : buildSupportContactLine(options);
+
+  return `You are welcome. ${contactLine}`;
 }
 
 export function buildSupportWaitingReply(params: {
   mode: 'handoff_requested' | 'human_active';
   orderId?: number | null;
+  supportConfig?: SupportContactConfig;
 }): string {
-  const contactLine = buildSupportContactLine({
-    orderId: params.orderId,
-  });
+  const contactLine = params.supportConfig
+    ? buildSupportContactLineFromConfig(params.supportConfig, { orderId: params.orderId })
+    : buildSupportContactLine({ orderId: params.orderId });
 
   if (params.mode === 'human_active') {
     return `A support team member is already handling this conversation. ${contactLine}`;
@@ -121,14 +165,18 @@ export function buildSupportWaitingReply(params: {
 export function buildHumanSupportReply(params: {
   reason: SupportIssueReason;
   orderId?: number | null;
+  supportConfig?: SupportContactConfig;
 }): string {
-  const contactLine = buildSupportContactLine({
-    orderId: params.orderId,
-  });
+  const contactLine = params.supportConfig
+    ? buildSupportContactLineFromConfig(params.supportConfig, { orderId: params.orderId })
+    : buildSupportContactLine({ orderId: params.orderId });
+  const handoffLead =
+    params.supportConfig?.handoffMessage?.trim() ||
+    `I want to make sure you get the right help for this ${getSupportReasonLabel(
+      params.reason
+    )}.`;
 
-  return `I want to make sure you get the right help for this ${getSupportReasonLabel(
-    params.reason
-  )}. ${contactLine} I have also flagged this conversation for a team follow-up.`;
+  return `${handoffLead} ${contactLine} I have also flagged this conversation for a team follow-up.`;
 }
 
 export function buildSupportConversationSummary(params: {

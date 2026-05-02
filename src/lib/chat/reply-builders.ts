@@ -4,12 +4,18 @@ import {
   addSriLankaWorkingDays,
   formatSriLankaDisplayDate,
 } from '@/lib/delivery-calendar';
-import { buildSupportContactAcknowledgement, buildSupportContactLine } from '@/lib/customer-support';
+import {
+  buildSupportContactAcknowledgement,
+  buildSupportContactLine,
+  buildSupportContactLineFromConfig,
+  type SupportContactConfig,
+} from '@/lib/customer-support';
 import { getOrderStageLabel } from '@/lib/order-status-display';
 import {
   getSizeChartDefinition,
   type SizeChartCategory,
 } from '@/lib/size-charts';
+import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
 import { splitCsv, firstNameOf } from '@/lib/chat/message-utils';
 
 export function buildMissingFieldLabels(missingFields: ContactField[]): string {
@@ -131,15 +137,17 @@ export function buildDeliveryReply(params: {
   isDraft: boolean;
   existingOrderStatus?: string | null;
   getDeliveryEstimateForAddress: (address: string) => string;
+  defaultDeliveryText?: string;
 }): string {
   const address = params.address?.trim();
 
   if (!address) {
-    return 'Delivery usually takes 1-2 business days within Colombo and 2-3 business days outside Colombo, excluding weekends and Sri Lankan public holidays.';
+    return params.defaultDeliveryText ||
+      'Delivery usually takes 1-2 business days within Colombo and 2-3 business days outside Colombo, excluding weekends and Sri Lankan public holidays.';
   }
 
   const estimate = params.getDeliveryEstimateForAddress(address);
-  const businessDays = estimate === '1-2 business days' ? [1, 2] : [2, 3];
+  const businessDays = getBusinessDayRangeFromEstimate(estimate);
   const earliestDate = addSriLankaWorkingDays(params.referenceDate, businessDays[0]);
   const latestDate = addSriLankaWorkingDays(params.referenceDate, businessDays[1]);
   const intro = params.existingOrderStatus
@@ -193,8 +201,13 @@ export function buildGreetingReply(name?: string | null, brand?: string): string
   return `Hello. How can I assist you with your ${brand || 'store'} order today?`;
 }
 
-export function buildClarificationReply(state: ConversationStateData): string {
-  const supportLine = buildSupportContactLine();
+export function buildClarificationReply(
+  state: ConversationStateData,
+  supportConfig?: SupportContactConfig
+): string {
+  const supportLine = supportConfig
+    ? buildSupportContactLineFromConfig(supportConfig)
+    : buildSupportContactLine();
 
   if (state.pendingStep === 'size_chart_selection') {
     return 'Could you tell me which size chart you need — Tops, Dresses, Pants, or Skirts?';
@@ -229,14 +242,17 @@ export function buildClarificationReply(state: ConversationStateData): string {
   return `Sorry, I didn't quite catch that. Could you share the item name, order ID, or the change you need? Or ${supportLine.toLowerCase()}`;
 }
 
-export function buildAcknowledgementReply(state: ConversationStateData): string {
+export function buildAcknowledgementReply(
+  state: ConversationStateData,
+  supportConfig?: SupportContactConfig
+): string {
   const orderId = state.lastReferencedOrderId;
 
   switch (state.lastAssistantReplyKind) {
     case 'support_contact':
     case 'support_handoff':
     case 'support_waiting':
-      return buildSupportContactAcknowledgement({ orderId });
+      return buildSupportContactAcknowledgement({ orderId, supportConfig });
     case 'order_confirmed':
       return orderId
         ? `You are welcome. We'll keep you posted on order #${orderId}.`

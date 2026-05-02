@@ -23,6 +23,9 @@ test('roles expose the expected high-level permissions', () => {
   assert.equal(can('operations', 'production:write'), true);
   assert.equal(can('operations', 'support:view'), true);
   assert.equal(can('operations', 'support:reply'), false);
+  assert.equal(can('owner', 'settings:write'), true);
+  assert.equal(can('admin', 'settings:view'), true);
+  assert.equal(can('support', 'settings:view'), false);
   assert.equal(can('operations', 'analytics:view'), false);
 
   assert.equal(can('owner', 'analytics:view'), true);
@@ -62,6 +65,7 @@ test('role and brand parsing accepts aliases and all-brand markers', () => {
 
 test('route helpers map pages and login fallbacks by role', () => {
   assert.equal(getPagePermissionForPathname('/support/threads'), 'support:view');
+  assert.equal(getPagePermissionForPathname('/settings'), 'settings:view');
   assert.equal(getPagePermissionForPathname('/orders'), 'orders:view');
   assert.equal(getPagePermissionForPathname('/api/orders'), null);
   assert.equal(getDefaultHomePath('support'), '/support');

@@ -266,7 +266,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
       });
 
       return finalizeReply({
-        reply: buildOrderPlacedReply(state.orderDraft, order.id),
+        reply: buildOrderPlacedReply(state.orderDraft, order.id, ctx.settings.support),
         orderId: order.id,
         assistantReplyKind: 'order_confirmed',
         nextState: {
@@ -304,7 +304,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
       );
 
       return finalizeReply({
-        reply: buildQuantityUpdateSuccessReply(state.quantityUpdate),
+        reply: buildQuantityUpdateSuccessReply(state.quantityUpdate, ctx.settings.support),
         orderId: state.quantityUpdate.orderId,
         assistantReplyKind: 'order_confirmed',
         nextState: {
@@ -538,8 +538,11 @@ export async function handle_reorder_last(ctx: ChatContext) {
   const nextDraft: ResolvedOrderDraft = buildReorderDraftFromOrder({
     sourceOrder,
     customer,
-    getDeliveryChargeForAddress,
-    getDeliveryEstimateForAddress,
+    getDeliveryChargeForAddress: (address) =>
+      getDeliveryChargeForAddress(address, ctx.settings.delivery),
+    getDeliveryEstimateForAddress: (address) =>
+      getDeliveryEstimateForAddress(address, ctx.settings.delivery),
+    defaultPaymentMethod: ctx.settings.payment.defaultMethod,
   });
 
   return finalizeReply({
@@ -684,11 +687,12 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
     });
   }
 
-  const deliveryCharge = calculateOrderDeliveryCharge(targetOrder);
+  const deliveryCharge = calculateOrderDeliveryCharge(targetOrder, ctx.settings.delivery);
   const summary: QuantityUpdateSummary = buildQuantityUpdateSummaryFromOrder({
     targetOrder,
     quantity: nextQuantity,
     deliveryCharge,
+    defaultPaymentMethod: ctx.settings.payment.defaultMethod,
   });
 
   return finalizeReply({

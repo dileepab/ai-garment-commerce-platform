@@ -6,6 +6,7 @@ import {
 import {
   buildContactConfirmationReply,
   buildOrderSummaryReply,
+  getBusinessDayRangeFromEstimate,
   getDeliveryChargeForAddress,
   getDeliveryEstimateForAddress,
   getMissingDraftFields,
@@ -25,6 +26,12 @@ import {
   getSriLankaDateOnly,
   getSriLankaToday,
 } from '@/lib/delivery-calendar';
+import {
+  describeDeliveryCharges,
+  describeDeliveryEstimates,
+  getMerchantSettings,
+  resolvePaymentMethod,
+} from '@/lib/runtime-config';
 
 import { ShoppingSupportParams, ShoppingSupportResult } from './shopping-support/types';
 import { resolveExplicitProduct, resolveLikelyProduct } from './shopping-support/text-matching';
@@ -112,6 +119,7 @@ export async function tryHandleShoppingSupport(
       },
     },
   });
+  const settings = await getMerchantSettings(params.brand || customer?.preferredBrand || null);
 
   const latestActiveOrder = customer?.id
     ? await prisma.order.findFirst({
@@ -262,7 +270,12 @@ export async function tryHandleShoppingSupport(
       reply = missingPrompt ? `${baseReply}\n\n${missingPrompt}` : baseReply;
     }
   } else if (intent === 'online_transfer') {
-    const baseReply = 'Yes, online transfer is accepted, and I have noted the payment method as Online Transfer.';
+    const paymentMethod = resolvePaymentMethod(
+      settings.payment.onlineTransferLabel,
+      params.currentMessage,
+      settings
+    );
+    const baseReply = `Yes, ${paymentMethod.toLowerCase().includes('transfer') ? 'online transfer is accepted' : `${paymentMethod} is accepted`}, and I have noted the payment method as ${paymentMethod}.`;
     const shouldAttachOrderSummary = Boolean(draft) && (activeDraftConversation || activeNewOrderConversation);
 
     if (shouldAttachOrderSummary && draft) {
@@ -293,9 +306,12 @@ export async function tryHandleShoppingSupport(
         buildOrderSummaryReply(draft)
       );
     } else if (contacts.address) {
-      reply = `Delivery to ${contacts.address} is Rs ${getDeliveryChargeForAddress(contacts.address)}.`;
+      reply = `Delivery to ${contacts.address} is Rs ${getDeliveryChargeForAddress(
+        contacts.address,
+        settings.delivery
+      )}.`;
     } else {
-      reply = 'Delivery charges are Rs 150 within Colombo and Rs 200 outside Colombo.';
+      reply = describeDeliveryCharges(settings);
     }
   } else if (intent === 'total') {
     const shouldAttachOrderSummary = Boolean(draft) && (activeDraftConversation || activeNewOrderConversation);
@@ -306,10 +322,10 @@ export async function tryHandleShoppingSupport(
         buildOrderSummaryReply(draft)
       );
     } else if (likelyProduct && contacts.address) {
-      const deliveryCharge = getDeliveryChargeForAddress(contacts.address);
+      const deliveryCharge = getDeliveryChargeForAddress(contacts.address, settings.delivery);
       reply = `The ${likelyProduct.name} is Rs ${likelyProduct.price}, delivery to ${contacts.address} is Rs ${deliveryCharge}, and the current total is Rs ${likelyProduct.price + deliveryCharge}.`;
     } else if (likelyProduct) {
-      reply = `The ${likelyProduct.name} is Rs ${likelyProduct.price}. Delivery is Rs 150 within Colombo and Rs 200 outside Colombo.`;
+      reply = `The ${likelyProduct.name} is Rs ${likelyProduct.price}. ${describeDeliveryCharges(settings)}`;
     } else {
       reply = 'Please tell me the product you want, and I will confirm the exact total with delivery.';
     }
@@ -327,8 +343,8 @@ export async function tryHandleShoppingSupport(
       : useDraftEstimate
         ? draft?.address
         : latestActiveOrder?.deliveryAddress || contacts.address;
-    const estimate = getDeliveryEstimateForAddress(address);
-    const businessDays = estimate === '1-2 business days' ? [1, 2] : [2, 3];
+    const estimate = getDeliveryEstimateForAddress(address, settings.delivery);
+    const businessDays = getBusinessDayRangeFromEstimate(estimate);
     const earliestDate = addSriLankaWorkingDays(referenceDate, businessDays[0]);
     const latestDate = addSriLankaWorkingDays(referenceDate, businessDays[1]);
     const requestedDate = resolveRequestedDeliveryDate(
@@ -383,7 +399,7 @@ export async function tryHandleShoppingSupport(
         );
       }
     } else if (contacts.address) {
-      const preOrderEstimate = getDeliveryEstimateForAddress(contacts.address);
+      const preOrderEstimate = getDeliveryEstimateForAddress(contacts.address, settings.delivery);
       const preOrderIntro = `Delivery to ${contacts.address} usually takes ${preOrderEstimate}, excluding weekends and Sri Lankan public holidays.`;
 
       if (requestedDate) {
@@ -403,8 +419,7 @@ export async function tryHandleShoppingSupport(
         reply = `${reply}\n\n${buildNewOrderNextStepReply(contacts, missingFields)}`;
       }
     } else {
-      reply =
-        'Delivery usually takes 1-2 business days within Colombo and 2-3 business days outside Colombo, excluding weekends and Sri Lankan public holidays.';
+      reply = describeDeliveryEstimates(settings);
     }
   }
 
