@@ -19,6 +19,8 @@ export interface ProductVariantData {
   size: string;
   color: string;
   status: string;
+  sku?: string | null;
+  priceOverride?: number | null;
   inventory?: { availableQty: number; reservedQty: number } | null;
 }
 
@@ -32,6 +34,8 @@ export interface Product {
   status: string;
   sizes: string;
   colors: string;
+  fabric?: string | null;
+  imageUrl?: string | null;
   category?: string;
   sku?: string;
   threshold?: number;
@@ -85,10 +89,12 @@ function VariantStockGrid({ variants }: { variants: ProductVariantData[] }) {
 export function ProductDrawer({
   product,
   onClose,
+  onEdit,
   canManage = true,
 }: {
   product: Product | null;
   onClose: () => void;
+  onEdit?: () => void;
   canManage?: boolean;
 }) {
   const open = !!product;
@@ -131,9 +137,17 @@ export function ProductDrawer({
               </button>
             </div>
             <div className="drawer-body">
-              {/* Thumbnail Placeholder */}
+              {/* Product Image */}
               <div style={{ display: "flex", justifyContent: "center" }}>
-                <svg viewBox="0 0 120 144" width="120" height="144" style={{ borderRadius: 8, display: "block" }}>
+                {product.imageUrl ? (
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    style={{ width: 120, height: 144, objectFit: "cover", borderRadius: 8, display: "block" }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement).style.display = 'block'; }}
+                  />
+                ) : null}
+                <svg viewBox="0 0 120 144" width="120" height="144" style={{ borderRadius: 8, display: product.imageUrl ? "none" : "block" }}>
                   <rect width="120" height="144" fill="#F2EFE9" />
                   {[-20, 5, 30, 55, 80, 105, 130].map((x, i) => <line key={i} x1={x} y1="0" x2={x + 144} y2="144" stroke="#E5E0D8" strokeWidth="12" />)}
                   <path d="M40 26L29 40L12 35L19 67L32 67L32 116L88 116L88 67L101 67L108 35L91 40L80 26Q60 42 40 26Z" fill="none" stroke="#C4BDB4" strokeWidth="3" />
@@ -206,7 +220,7 @@ export function ProductDrawer({
             <div className="drawer-actions">
               {canManage ? (
                 <>
-                  <button className="btn btn-primary" style={{ justifyContent: "center" }}>
+                  <button className="btn btn-primary" style={{ justifyContent: "center" }} onClick={onEdit}>
                     <Icon d={ic.edit} size={13} />Edit Product
                   </button>
                   {(product.status === "critical" || product.status === "low-stock") && (

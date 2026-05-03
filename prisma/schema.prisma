@@ -20,6 +20,7 @@ model Product {
   colors     String // Store as JSON or comma-separated string
   stock      Int              @default(0)
   status     String           @default("active")
+  imageUrl   String?
   createdAt  DateTime         @default(now())
   inventory  Inventory?
   variants   ProductVariant[]

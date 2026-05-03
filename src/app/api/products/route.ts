@@ -20,10 +20,16 @@ export async function GET(request: Request) {
     }
 
     const whereClause = brand ? { brand } : getBrandScopedWhere(scope);
-    
+
     const products = await prisma.product.findMany({
       where: whereClause,
-      include: { inventory: true },
+      include: {
+        inventory: true,
+        variants: {
+          include: { inventory: true },
+          orderBy: [{ size: 'asc' }, { color: 'asc' }],
+        },
+      },
     });
     return NextResponse.json({ success: true, data: products });
   } catch (error: unknown) {
@@ -40,27 +46,56 @@ export async function POST(request: Request) {
     const scope = await requireApiPermission('products:write');
     const data = await request.json();
     assertBrandAccess(scope, data.brand, 'brand');
-    
+
     const sizesStr = Array.isArray(data.sizes) ? data.sizes.join(',') : data.sizes;
     const colorsStr = Array.isArray(data.colors) ? data.colors.join(',') : data.colors;
-    const initialStock = data.stock || 0;
+    const variantInputs: Array<{
+      size: string;
+      color: string;
+      sku?: string;
+      priceOverride?: number;
+      status?: string;
+      availableQty?: number;
+    }> = Array.isArray(data.variants) ? data.variants : [];
 
-    const product = await prisma.product.create({
-      data: {
-        name: data.name,
-        brand: data.brand,
-        style: data.style,
-        price: data.price,
-        fabric: data.fabric,
-        sizes: sizesStr,
-        colors: colorsStr,
-        stock: initialStock,
-        inventory: {
-          create: {
-             availableQty: initialStock,
-          }
-        }
-      },
+    const initialStock = variantInputs.length > 0
+      ? variantInputs.reduce((sum, v) => sum + (v.availableQty || 0), 0)
+      : (data.stock || 0);
+
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          name: data.name,
+          brand: data.brand,
+          style: data.style,
+          price: data.price,
+          fabric: data.fabric ?? null,
+          sizes: sizesStr,
+          colors: colorsStr,
+          stock: initialStock,
+          status: data.status || 'active',
+          inventory: {
+            create: { availableQty: initialStock },
+          },
+        },
+      });
+
+      for (const v of variantInputs) {
+        const qty = v.availableQty || 0;
+        await tx.productVariant.create({
+          data: {
+            productId: created.id,
+            size: v.size,
+            color: v.color,
+            sku: v.sku || null,
+            priceOverride: v.priceOverride || null,
+            status: v.status || (qty > 0 ? 'active' : 'out-of-stock'),
+            inventory: { create: { availableQty: qty } },
+          },
+        });
+      }
+
+      return created;
     });
 
     return NextResponse.json({ success: true, data: product });

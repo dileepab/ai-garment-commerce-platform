@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { ProductThumb, ProductDrawer, type Product, type ProductVariantData } from '@/components/ProductComponents';
+import { ProductFormModal } from './ProductFormModal';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -43,9 +45,13 @@ export default function ProductsPageClient({
   stats: ProductsPageStats;
   canManageProducts: boolean;
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>("all");
   const [selectedProduct, setSelectedProduct] = useState<ProductWithVariants | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductWithVariants | null>(null);
 
   const filteredProducts = useMemo(() => initialProducts.filter(p => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
@@ -61,6 +67,33 @@ export default function ProductsPageClient({
     return c;
   }, [initialProducts]);
 
+  const availableBrands = useMemo(
+    () => [...new Set(initialProducts.map(p => p.brand))].sort(),
+    [initialProducts],
+  );
+
+  function openAddForm() {
+    setEditingProduct(null);
+    setShowForm(true);
+  }
+
+  function openEditForm(product: ProductWithVariants) {
+    setEditingProduct(product);
+    setSelectedProduct(null);
+    setShowForm(true);
+  }
+
+  function handleFormSuccess() {
+    setShowForm(false);
+    setEditingProduct(null);
+    router.refresh();
+  }
+
+  function handleFormClose() {
+    setShowForm(false);
+    setEditingProduct(null);
+  }
+
   return (
     <main className="main">
       <div className="topbar">
@@ -71,7 +104,7 @@ export default function ProductsPageClient({
         <div className="topbar-actions">
           <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export CSV</button>
           {canManageProducts && (
-            <button className="btn btn-primary"><Icon d={ic.plus} size={13} />Add Product</button>
+            <button className="btn btn-primary" onClick={openAddForm}><Icon d={ic.plus} size={13} />Add Product</button>
           )}
         </div>
       </div>
@@ -102,18 +135,18 @@ export default function ProductsPageClient({
       <div className="filter-bar">
         <div className="search-wrap">
           <Icon d={ic.search} size={13} color="var(--color-fg-3)" />
-          <input 
-            className="search-input" 
-            placeholder="Search products or brand…" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
+          <input
+            className="search-input"
+            placeholder="Search products or brand…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
           />
         </div>
         <div className="status-tabs">
           {STATUS_TABS.map(t => (
-            <button 
-              key={t.key} 
-              className={`status-tab${statusFilter === t.key ? " active" : ""}`} 
+            <button
+              key={t.key}
+              className={`status-tab${statusFilter === t.key ? " active" : ""}`}
               onClick={() => setStatusFilter(t.key)}
             >
               {t.label}<span className="tab-count">{counts[t.key]}</span>
@@ -181,11 +214,21 @@ export default function ProductsPageClient({
         </div>
       </div>
 
-      <ProductDrawer 
-        product={selectedProduct} 
-        onClose={() => setSelectedProduct(null)} 
+      <ProductDrawer
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
         canManage={canManageProducts}
+        onEdit={canManageProducts && selectedProduct ? () => openEditForm(selectedProduct) : undefined}
       />
+
+      {canManageProducts && showForm && (
+        <ProductFormModal
+          product={editingProduct}
+          availableBrands={availableBrands}
+          onClose={handleFormClose}
+          onSuccess={handleFormSuccess}
+        />
+      )}
     </main>
   );
 }

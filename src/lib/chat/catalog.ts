@@ -13,6 +13,13 @@ import {
 } from '@/lib/chat/reply-builders';
 import type { ChatContext } from './types';
 
+function toCarouselProducts(products: Array<{ id: number; name: string; price: number; sizes: string; colors: string; imageUrl?: string | null }>) {
+  return products.map(({ id, name, price, sizes, colors, imageUrl }) => ({
+    id, name, price, sizes, colors,
+    ...(imageUrl ? { imageUrl } : {}),
+  }));
+}
+
 function formatCatalogLines(products: Array<{
   name: string;
   price: number;
@@ -77,7 +84,7 @@ export async function handle_catalog_list(ctx: ChatContext) {
               availableProducts
             )}`
           : unavailableReply,
-      carouselProducts: availableProducts.length > 0 ? availableProducts : undefined,
+      carouselProducts: availableProducts.length > 0 ? toCarouselProducts(availableProducts) : undefined,
       nextState: {
         lastMissingOrderId: null,
       },
@@ -86,7 +93,7 @@ export async function handle_catalog_list(ctx: ChatContext) {
 
   return finalizeReply({
     reply: formatCatalogListReply(availableFilteredProducts),
-    carouselProducts: requestedProductTypes.length > 0 ? filteredProducts : products,
+    carouselProducts: toCarouselProducts(requestedProductTypes.length > 0 ? filteredProducts : products),
     nextState: {
       lastMissingOrderId: null,
     },
@@ -133,7 +140,7 @@ export async function handle_product_question(ctx: ChatContext) {
           availableFilteredProducts.length === 0
             ? unavailableReply
             : "Here is what we have available:",
-        carouselProducts: availableFilteredProducts.length === 0 ? undefined : filteredProducts,
+        carouselProducts: availableFilteredProducts.length === 0 ? undefined : toCarouselProducts(filteredProducts),
         nextState: {
           lastMissingOrderId: null,
         },
