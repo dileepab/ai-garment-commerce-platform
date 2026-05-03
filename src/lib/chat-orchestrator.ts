@@ -153,6 +153,7 @@ export async function routeCustomerMessage(
               product: {
                 include: {
                   inventory: true,
+                  variants: { include: { inventory: true } },
                 },
               },
             },
@@ -168,6 +169,7 @@ export async function routeCustomerMessage(
     where: { status: 'active' },
     include: {
       inventory: true,
+      variants: { include: { inventory: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -216,14 +218,24 @@ export async function routeCustomerMessage(
       latestOrderId: latestOrder?.id ?? null,
       latestActiveOrderId: latestActiveOrder?.id ?? null,
       recentMessages: [...recentMessages].reverse(),
-      products: products.map((product) => ({
-        name: product.name,
-        style: product.style,
-        price: product.price,
-        sizes: product.sizes,
-        colors: product.colors,
-        availableQty: product.inventory?.availableQty ?? product.stock,
-      })),
+      products: products.map((product) => {
+        // Build a variant-aware available quantity: sum of all active variant inventory
+        const variantTotal =
+          product.variants && product.variants.length > 0
+            ? product.variants.reduce(
+                (sum, v) => sum + (v.inventory?.availableQty ?? 0),
+                0
+              )
+            : null;
+        return {
+          name: product.name,
+          style: product.style,
+          price: product.price,
+          sizes: product.sizes,
+          colors: product.colors,
+          availableQty: variantTotal ?? product.inventory?.availableQty ?? product.stock,
+        };
+      }),
       imageUrl: input.imageUrl,
     })) || {
       action: 'fallback',
@@ -321,6 +333,7 @@ export async function routeCustomerMessage(
             product: {
               include: {
                 inventory: true,
+                variants: { include: { inventory: true } },
               },
             },
           },
@@ -351,10 +364,17 @@ export async function routeCustomerMessage(
     const address = mergedContact.address || previousDraft?.address || '';
     const deliveryCharge = getDeliveryChargeForAddress(address, settings.delivery);
 
+    // Resolve the matching variant so order creation can reserve at variant level
+    const resolvedVariant =
+      size && color
+        ? (product.variants ?? []).find((v) => v.size === size && v.color === color) || null
+        : null;
+
     return {
       productId: product.id,
       productName: product.name,
       brand: product.brand,
+      variantId: resolvedVariant?.id ?? previousDraft?.variantId,
       quantity,
       size,
       color,

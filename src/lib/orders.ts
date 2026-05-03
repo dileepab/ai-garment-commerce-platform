@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 export interface CreateOrderItemInput {
   productId: number;
+  variantId?: number | null;
   quantity: number;
   size?: string;
   color?: string;
@@ -65,7 +66,16 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
     const brandSet = new Set<string>();
     let totalAmount = 0;
 
-    const orderItemsData = input.items.map((item) => {
+    const orderItemsData: Array<{
+      productId: number;
+      variantId: number | null;
+      quantity: number;
+      size: string | null;
+      color: string | null;
+      price: number;
+    }> = [];
+
+    for (const item of input.items) {
       if (!Number.isInteger(item.productId) || item.productId <= 0) {
         throw new OrderRequestError('Each item must include a valid productId.');
       }
@@ -80,27 +90,129 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
         throw new OrderRequestError(`Product ${item.productId} was not found.`, 404);
       }
 
-      if (!product.inventory) {
-        throw new OrderRequestError(`Inventory is missing for product ${product.name}.`, 409);
+      brandSet.add(product.brand);
+
+      const normalizedSize = item.size?.trim() || null;
+      const normalizedColor = item.color?.trim() || null;
+
+      // --- Variant-level reservation (source of truth) ---
+      let resolvedVariantId: number | null = item.variantId ?? null;
+
+      if (normalizedSize && normalizedColor) {
+        // Look up variant by composite key if not already supplied
+        if (!resolvedVariantId) {
+          const variant = await tx.productVariant.findUnique({
+            where: {
+              productId_size_color: {
+                productId: item.productId,
+                size: normalizedSize,
+                color: normalizedColor,
+              },
+            },
+            include: { inventory: true },
+          });
+
+          if (variant) {
+            resolvedVariantId = variant.id;
+          }
+        }
+
+        if (resolvedVariantId) {
+          const variantInventory = await tx.variantInventory.findUnique({
+            where: { variantId: resolvedVariantId },
+          });
+
+          if (!variantInventory) {
+            throw new OrderRequestError(
+              `Variant inventory is missing for ${product.name} (${normalizedColor} ${normalizedSize}).`,
+              409
+            );
+          }
+
+          if (variantInventory.availableQty < item.quantity) {
+            throw new OrderRequestError(
+              `${product.name} (${normalizedColor} ${normalizedSize}) only has ${variantInventory.availableQty} item(s) available.`
+            );
+          }
+
+          // Reserve from variant inventory
+          const reserved = await tx.variantInventory.updateMany({
+            where: {
+              variantId: resolvedVariantId,
+              availableQty: { gte: item.quantity },
+            },
+            data: {
+              availableQty: { decrement: item.quantity },
+              reservedQty: { increment: item.quantity },
+            },
+          });
+
+          if (reserved.count !== 1) {
+            throw new OrderRequestError(
+              `${product.name} (${normalizedColor} ${normalizedSize}) no longer has enough stock available.`
+            );
+          }
+        } else {
+          // No variant record — fall back to product-level inventory
+          if (!product.inventory) {
+            throw new OrderRequestError(`Inventory is missing for product ${product.name}.`, 409);
+          }
+
+          if (product.inventory.availableQty < item.quantity) {
+            throw new OrderRequestError(
+              `${product.name} only has ${product.inventory.availableQty} item(s) available.`
+            );
+          }
+        }
+      } else {
+        // Size or color not specified — check product-level inventory as a guard
+        if (!product.inventory) {
+          throw new OrderRequestError(`Inventory is missing for product ${product.name}.`, 409);
+        }
+
+        if (product.inventory.availableQty < item.quantity) {
+          throw new OrderRequestError(
+            `${product.name} only has ${product.inventory.availableQty} item(s) available.`
+          );
+        }
       }
 
-      if (product.inventory.availableQty < item.quantity) {
+      // Keep product-level inventory in sync as a derived total
+      const productInventoryReserved = await tx.inventory.updateMany({
+        where: {
+          productId: item.productId,
+          availableQty: { gte: item.quantity },
+        },
+        data: {
+          availableQty: { decrement: item.quantity },
+          reservedQty: { increment: item.quantity },
+        },
+      });
+
+      if (productInventoryReserved.count !== 1 && !resolvedVariantId) {
+        // Only throw if we relied solely on product-level (no variant path)
         throw new OrderRequestError(
-          `${product.name} only has ${product.inventory.availableQty} item(s) available.`
+          `${product.name} no longer has enough stock available.`
         );
       }
 
-      totalAmount += product.price * item.quantity;
-      brandSet.add(product.brand);
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { stock: { decrement: item.quantity } },
+      });
 
-      return {
+      const itemPrice = product.price;
+      totalAmount += itemPrice * item.quantity;
+
+      orderItemsData.push({
         productId: item.productId,
+        variantId: resolvedVariantId,
         quantity: item.quantity,
-        size: item.size?.trim() || null,
-        color: item.color?.trim() || null,
-        price: product.price,
-      };
-    });
+        size: normalizedSize,
+        color: normalizedColor,
+        price: itemPrice,
+      });
+    }
 
     if (brandSet.size > 1) {
       throw new OrderRequestError('Each order must contain items from a single brand.');
@@ -113,34 +225,6 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
       throw new OrderRequestError(
         `Order brand "${requestedBrand}" does not match the selected product brand "${resolvedBrand}".`
       );
-    }
-
-    for (const item of orderItemsData) {
-      const reservedInventory = await tx.inventory.updateMany({
-        where: {
-          productId: item.productId,
-          availableQty: { gte: item.quantity },
-        },
-        data: {
-          availableQty: { decrement: item.quantity },
-          reservedQty: { increment: item.quantity },
-        },
-      });
-
-      if (reservedInventory.count !== 1) {
-        const product = productMap.get(item.productId);
-
-        throw new OrderRequestError(
-          `${product?.name || `Product ${item.productId}`} no longer has enough stock available.`
-        );
-      }
-
-      await tx.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: { decrement: item.quantity },
-        },
-      });
     }
 
     return tx.order.create({
@@ -191,6 +275,27 @@ export async function cancelOrderById(db: PrismaClient, orderId: number) {
     }
 
     for (const item of order.orderItems) {
+      // Restore variant inventory first (source of truth)
+      if (item.variantId) {
+        const variantInventory = await tx.variantInventory.findUnique({
+          where: { variantId: item.variantId },
+        });
+
+        if (variantInventory) {
+          await tx.variantInventory.update({
+            where: { variantId: item.variantId },
+            data: {
+              availableQty: { increment: item.quantity },
+              reservedQty:
+                variantInventory.reservedQty >= item.quantity
+                  ? { decrement: item.quantity }
+                  : 0,
+            },
+          });
+        }
+      }
+
+      // Also restore product-level inventory (derived total)
       const inventory = await tx.inventory.findUnique({
         where: { productId: item.productId },
       });
@@ -215,17 +320,13 @@ export async function cancelOrderById(db: PrismaClient, orderId: number) {
 
       await tx.product.update({
         where: { id: item.productId },
-        data: {
-          stock: { increment: item.quantity },
-        },
+        data: { stock: { increment: item.quantity } },
       });
     }
 
     return tx.order.update({
       where: { id: orderId },
-      data: {
-        orderStatus: 'cancelled',
-      },
+      data: { orderStatus: 'cancelled' },
       include: {
         orderItems: true,
         customer: true,
@@ -251,9 +352,7 @@ export async function updateSingleItemOrderQuantityById(
         orderItems: {
           include: {
             product: {
-              include: {
-                inventory: true,
-              },
+              include: { inventory: true },
             },
           },
         },
@@ -301,7 +400,40 @@ export async function updateSingleItemOrderQuantityById(
     }
 
     if (quantityDelta > 0) {
-      const reservedInventory = await tx.inventory.updateMany({
+      // Reserve additional quantity — variant level
+      if (existingItem.variantId) {
+        const variantInventory = await tx.variantInventory.findUnique({
+          where: { variantId: existingItem.variantId },
+        });
+
+        if (variantInventory) {
+          if (variantInventory.availableQty < quantityDelta) {
+            throw new OrderRequestError(
+              `${existingItem.product.name} (${existingItem.color ?? ''} ${existingItem.size ?? ''}) only has ${variantInventory.availableQty} additional item(s) available.`
+            );
+          }
+
+          const reserved = await tx.variantInventory.updateMany({
+            where: {
+              variantId: existingItem.variantId,
+              availableQty: { gte: quantityDelta },
+            },
+            data: {
+              availableQty: { decrement: quantityDelta },
+              reservedQty: { increment: quantityDelta },
+            },
+          });
+
+          if (reserved.count !== 1) {
+            throw new OrderRequestError(
+              `${existingItem.product.name} only has ${variantInventory.availableQty} additional item(s) available.`
+            );
+          }
+        }
+      }
+
+      // Product-level sync
+      const productReserved = await tx.inventory.updateMany({
         where: {
           productId: existingItem.productId,
           availableQty: { gte: quantityDelta },
@@ -312,7 +444,7 @@ export async function updateSingleItemOrderQuantityById(
         },
       });
 
-      if (reservedInventory.count !== 1) {
+      if (productReserved.count !== 1) {
         throw new OrderRequestError(
           `${existingItem.product.name} only has ${inventory.availableQty} additional item(s) available.`
         );
@@ -320,13 +452,32 @@ export async function updateSingleItemOrderQuantityById(
 
       await tx.product.update({
         where: { id: existingItem.productId },
-        data: {
-          stock: { decrement: quantityDelta },
-        },
+        data: { stock: { decrement: quantityDelta } },
       });
     } else if (quantityDelta < 0) {
       const restoredQuantity = Math.abs(quantityDelta);
 
+      // Restore variant inventory
+      if (existingItem.variantId) {
+        const variantInventory = await tx.variantInventory.findUnique({
+          where: { variantId: existingItem.variantId },
+        });
+
+        if (variantInventory) {
+          await tx.variantInventory.update({
+            where: { variantId: existingItem.variantId },
+            data: {
+              availableQty: { increment: restoredQuantity },
+              reservedQty:
+                variantInventory.reservedQty >= restoredQuantity
+                  ? { decrement: restoredQuantity }
+                  : 0,
+            },
+          });
+        }
+      }
+
+      // Restore product-level inventory
       await tx.inventory.update({
         where: { productId: existingItem.productId },
         data: {
@@ -340,30 +491,22 @@ export async function updateSingleItemOrderQuantityById(
 
       await tx.product.update({
         where: { id: existingItem.productId },
-        data: {
-          stock: { increment: restoredQuantity },
-        },
+        data: { stock: { increment: restoredQuantity } },
       });
     }
 
     await tx.orderItem.update({
       where: { id: existingItem.id },
-      data: {
-        quantity: nextQuantity,
-      },
+      data: { quantity: nextQuantity },
     });
 
     return tx.order.update({
       where: { id: orderId },
-      data: {
-        totalAmount: existingItem.price * nextQuantity,
-      },
+      data: { totalAmount: existingItem.price * nextQuantity },
       include: {
         customer: true,
         orderItems: {
-          include: {
-            product: true,
-          },
+          include: { product: true },
         },
       },
     });

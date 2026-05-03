@@ -54,10 +54,29 @@ async function reconcileStockForOrder(
 ): Promise<void> {
   const items = await tx.orderItem.findMany({
     where: { orderId },
-    select: { productId: true, quantity: true },
+    select: { productId: true, quantity: true, variantId: true },
   });
 
   for (const item of items) {
+    if (item.variantId) {
+      const variantInventory = await tx.variantInventory.findUnique({
+        where: { variantId: item.variantId },
+      });
+
+      if (variantInventory) {
+        await tx.variantInventory.update({
+          where: { variantId: item.variantId },
+          data: {
+            availableQty: { increment: item.quantity },
+            reservedQty:
+              variantInventory.reservedQty >= item.quantity
+                ? { decrement: item.quantity }
+                : 0,
+          },
+        });
+      }
+    }
+
     const inventory = await tx.inventory.findUnique({
       where: { productId: item.productId },
     });

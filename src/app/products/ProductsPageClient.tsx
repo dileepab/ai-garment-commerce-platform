@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ProductThumb, ProductDrawer, type Product } from '@/components/ProductComponents';
+import { ProductThumb, ProductDrawer, type Product, type ProductVariantData } from '@/components/ProductComponents';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -32,18 +32,20 @@ interface ProductsPageStats {
 
 type ProductStatusFilter = (typeof STATUS_TABS)[number]['key'];
 
+type ProductWithVariants = Product & { variants?: ProductVariantData[] };
+
 export default function ProductsPageClient({
   initialProducts,
   stats,
   canManageProducts,
 }: {
-  initialProducts: Product[];
+  initialProducts: ProductWithVariants[];
   stats: ProductsPageStats;
   canManageProducts: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>("all");
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithVariants | null>(null);
 
   const filteredProducts = useMemo(() => initialProducts.filter(p => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
@@ -154,7 +156,11 @@ export default function ProductsPageClient({
                       ))}
                     </div>
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 700 }}>{p.stock}</td>
+                  <td style={{ textAlign: "right", fontWeight: 700 }}>
+                    {p.variants && p.variants.length > 0
+                      ? p.variants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
+                      : p.stock}
+                  </td>
                   <td style={{ textAlign: "right", fontWeight: 600 }}>₺{p.price.toLocaleString()}</td>
                   <td>
                     <span className={`pill pill-${p.status}`}>

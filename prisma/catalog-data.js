@@ -141,6 +141,85 @@ const testCatalog = [
   },
 ];
 
+// Variant-level stock distribution per product.
+// Keys are "brand:name", values are { size: { color: qty } }.
+// Totals must match product.stock above.
+const variantStocks = {
+  'Happyby:Oversized Casual Top': {
+    S: { Black: 2, White: 2 },
+    M: { Black: 3, White: 2 },
+    L: { Black: 2, White: 1 },
+  },
+  'Happyby:Ribbed Crop Top': {
+    S: { Beige: 2, Pink: 1 },
+    M: { Beige: 2, Pink: 1 },
+  },
+  'Happyby:Breezy Summer Dress': {
+    S: { Coral: 2, Sage: 1 },
+    M: { Coral: 2, Sage: 2 },
+    L: { Coral: 1, Sage: 1 },
+  },
+  'Happyby:Relaxed Linen Pants': {
+    S: { Beige: 2, Black: 1 },
+    M: { Beige: 2, Black: 2 },
+    L: { Beige: 2, Black: 1 },
+  },
+  'Happyby:Pleated Midi Skirt': {
+    S: { Black: 1, Cream: 2 },
+    M: { Black: 2, Cream: 1 },
+    L: { Black: 1, Cream: 1 },
+  },
+  'Cleopatra:Premium Evening Gown': {
+    M: { Red: 0, Navy: 0 },
+    L: { Red: 0, Navy: 0 },
+  },
+  'Cleopatra:Satin Evening Top': {
+    S: { Black: 1, Champagne: 1 },
+    M: { Black: 2, Champagne: 1 },
+    L: { Black: 1, Champagne: 1 },
+  },
+  'Cleopatra:Cocktail Midi Dress': {
+    S: { Emerald: 1, Black: 1 },
+    M: { Emerald: 1, Black: 1 },
+    L: { Emerald: 1, Black: 0 },
+  },
+  'Cleopatra:Palazzo Pants': {
+    S: { Black: 1, Navy: 1 },
+    M: { Black: 2, Navy: 1 },
+    L: { Black: 1, Navy: 0 },
+  },
+  'Cleopatra:Mermaid Skirt': {
+    S: { Wine: 1, Black: 1 },
+    M: { Wine: 1, Black: 1 },
+    L: { Wine: 0, Black: 0 },
+  },
+  'Modabella:Classic Office Shirt': {
+    S:  { White: 6, Blue: 6 },
+    M:  { White: 7, Blue: 7 },
+    L:  { White: 6, Blue: 6 },
+    XL: { White: 4, Blue: 3 },
+  },
+  'Modabella:Tailored Work Dress': {
+    S:  { Navy: 1, Charcoal: 2 },
+    M:  { Navy: 2, Charcoal: 2 },
+    L:  { Navy: 2, Charcoal: 1 },
+    XL: { Navy: 1, Charcoal: 0 },
+  },
+  'Modabella:Straight Leg Trousers': {
+    S:  { Black: 2, Charcoal: 2 },
+    M:  { Black: 3, Charcoal: 2 },
+    L:  { Black: 2, Charcoal: 2 },
+    XL: { Black: 1, Charcoal: 0 },
+  },
+  'Modabella:A-Line Skirt': {
+    S:  { Black: 2, Stone: 2 },
+    M:  { Black: 2, Stone: 3 },
+    L:  { Black: 2, Stone: 1 },
+    XL: { Black: 1, Stone: 0 },
+  },
+};
+
 module.exports = {
   testCatalog,
+  variantStocks,
 };

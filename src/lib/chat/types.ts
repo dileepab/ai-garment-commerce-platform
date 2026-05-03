@@ -4,6 +4,8 @@ import type {
   Order,
   OrderItem,
   Product,
+  ProductVariant,
+  VariantInventory,
 } from '@prisma/client';
 import type { AiRoutedAction } from '@/lib/ai-action-router';
 import type {
@@ -22,8 +24,13 @@ import type {
   CustomerMessageResult,
 } from './contracts';
 
+export type ChatProductVariant = ProductVariant & {
+  inventory: VariantInventory | null;
+};
+
 export type ChatProduct = Product & {
   inventory: Inventory | null;
+  variants: ChatProductVariant[];
 };
 
 export type ChatOrderItem = OrderItem & {

@@ -48,12 +48,20 @@ export function buildVariantPrompt(
   product?: {
     sizes: string;
     colors: string;
+    variants?: Array<{ size: string; color: string; inventory?: { availableQty: number } | null }>;
   } | null
 ): string {
   const prompts: string[] = [];
+  const availableVariants = product?.variants?.filter(
+    (v) => (v.inventory?.availableQty ?? 0) > 0
+  ) ?? [];
 
   if (!size) {
-    const sizeOptions = splitCsv(product?.sizes);
+    const variantSizes =
+      availableVariants.length > 0
+        ? [...new Set(availableVariants.map((v) => v.size))]
+        : [];
+    const sizeOptions = variantSizes.length > 0 ? variantSizes : splitCsv(product?.sizes);
     prompts.push(
       sizeOptions.length > 0
         ? `Please let me know the size you need for ${productName}. Available sizes: ${sizeOptions.join(', ')}.`
@@ -62,7 +70,11 @@ export function buildVariantPrompt(
   }
 
   if (!color) {
-    const colorOptions = splitCsv(product?.colors);
+    const variantColors =
+      availableVariants.length > 0
+        ? [...new Set(availableVariants.map((v) => v.color))]
+        : [];
+    const colorOptions = variantColors.length > 0 ? variantColors : splitCsv(product?.colors);
     prompts.push(
       colorOptions.length > 0
         ? `Please let me know the color you need for ${productName}. Available colors: ${colorOptions.join(', ')}.`
@@ -106,12 +118,26 @@ export function buildProductQuestionReply(
     sizes: string;
     colors: string;
     inventory?: { availableQty: number } | null;
+    variants?: Array<{ size: string; color: string; inventory?: { availableQty: number } | null }>;
   },
   questionType: 'colors' | 'sizes' | 'price' | 'availability' | null
 ): string {
-  const sizeList = splitCsv(product.sizes);
-  const colorList = splitCsv(product.colors);
-  const availableQty = product.inventory?.availableQty ?? 0;
+  const availableVariants = product.variants?.filter(
+    (v) => (v.inventory?.availableQty ?? 0) > 0
+  ) ?? [];
+
+  const sizeList =
+    availableVariants.length > 0
+      ? [...new Set(availableVariants.map((v) => v.size))]
+      : splitCsv(product.sizes);
+  const colorList =
+    availableVariants.length > 0
+      ? [...new Set(availableVariants.map((v) => v.color))]
+      : splitCsv(product.colors);
+  const availableQty =
+    availableVariants.length > 0
+      ? availableVariants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
+      : (product.inventory?.availableQty ?? 0);
 
   if (questionType === 'colors') {
     return `${product.name} is currently available in ${colorList.join(', ')}.`;

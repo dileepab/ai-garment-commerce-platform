@@ -9,6 +9,11 @@ interface OrderProductLike {
   inventory?: {
     availableQty: number;
   } | null;
+  variants?: Array<{
+    size: string;
+    color: string;
+    inventory?: { availableQty: number } | null;
+  }>;
 }
 
 interface OrderItemLike {

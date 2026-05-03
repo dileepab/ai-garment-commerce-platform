@@ -14,6 +14,14 @@ const ic = {
   refresh: ["M23 4v6h-6", "M1 20v-6h6", "M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"],
 };
 
+export interface ProductVariantData {
+  id: number;
+  size: string;
+  color: string;
+  status: string;
+  inventory?: { availableQty: number; reservedQty: number } | null;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -28,6 +36,50 @@ export interface Product {
   sku?: string;
   threshold?: number;
   orders?: number;
+  variants?: ProductVariantData[];
+}
+
+function VariantStockGrid({ variants }: { variants: ProductVariantData[] }) {
+  if (variants.length === 0) return null;
+
+  // Group variants by size for a compact grid
+  const sizes = [...new Set(variants.map(v => v.size))];
+  const colors = [...new Set(variants.map(v => v.color))];
+
+  return (
+    <div>
+      <div className="drawer-section-label">Stock by Variant</div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ fontSize: 11, borderCollapse: 'collapse', width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: '4px 8px 4px 0', color: 'var(--color-fg-3)', fontWeight: 500 }}>Size</th>
+              {colors.map(c => (
+                <th key={c} style={{ textAlign: 'right', padding: '4px 0 4px 8px', color: 'var(--color-fg-3)', fontWeight: 500 }}>{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sizes.map(size => (
+              <tr key={size}>
+                <td style={{ padding: '3px 8px 3px 0', fontWeight: 600, fontSize: 12 }}>{size}</td>
+                {colors.map(color => {
+                  const variant = variants.find(v => v.size === size && v.color === color);
+                  const qty = variant?.inventory?.availableQty ?? 0;
+                  const stockColor = qty === 0 ? 'var(--color-fg-3)' : qty <= 2 ? '#8B2020' : qty <= 5 ? '#9B6B00' : '#1E6B45';
+                  return (
+                    <td key={color} style={{ textAlign: 'right', padding: '3px 0 3px 8px', fontWeight: 700, color: stockColor }}>
+                      {variant ? qty : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 export function ProductDrawer({
@@ -41,11 +93,18 @@ export function ProductDrawer({
 }) {
   const open = !!product;
   const threshold = product?.threshold || 50;
-  const stockPct = product ? Math.min(100, (product.stock / threshold) * 100) : 0;
+
+  // Derive total stock from variant inventory when available
+  const derivedStock = product?.variants && product.variants.length > 0
+    ? product.variants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
+    : (product?.stock ?? 0);
+
+  const stockPct = product ? Math.min(100, (derivedStock / threshold) * 100) : 0;
   const stockColor = product?.status === "critical" ? "#8B2020" : product?.status === "low-stock" ? "#9B6B00" : "#1E6B45";
-  
+
   const sizes = product?.sizes.split(',').map(s => s.trim()) || [];
   const colors = product?.colors.split(',').map(c => c.trim()) || [];
+  const hasVariants = (product?.variants?.length ?? 0) > 0;
 
   return (
     <>
@@ -80,7 +139,7 @@ export function ProductDrawer({
                   <path d="M40 26L29 40L12 35L19 67L32 67L32 116L88 116L88 67L101 67L108 35L91 40L80 26Q60 42 40 26Z" fill="none" stroke="#C4BDB4" strokeWidth="3" />
                 </svg>
               </div>
-              
+
               <div>
                 <div className="drawer-section-label">Brand & Style</div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{product.brand} — {product.style}</div>
@@ -105,16 +164,33 @@ export function ProductDrawer({
                 </div>
               </div>
 
-              <div>
-                <div className="drawer-section-label">Stock Level</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
-                  <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em", color: stockColor }}>{product.stock}</span>
-                  <span style={{ fontSize: 12, color: "var(--color-fg-3)" }}>units · threshold: {threshold}</span>
+              {hasVariants && product.variants ? (
+                <VariantStockGrid variants={product.variants} />
+              ) : (
+                <div>
+                  <div className="drawer-section-label">Stock Level</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em", color: stockColor }}>{derivedStock}</span>
+                    <span style={{ fontSize: 12, color: "var(--color-fg-3)" }}>units · threshold: {threshold}</span>
+                  </div>
+                  <div className="stock-bar-wrap">
+                    <div className="stock-bar-fill" style={{ width: `${stockPct}%`, background: stockColor }} />
+                  </div>
                 </div>
-                <div className="stock-bar-wrap">
-                  <div className="stock-bar-fill" style={{ width: `${stockPct}%`, background: stockColor }} />
+              )}
+
+              {hasVariants && (
+                <div>
+                  <div className="drawer-section-label">Total Stock</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em", color: stockColor }}>{derivedStock}</span>
+                    <span style={{ fontSize: 12, color: "var(--color-fg-3)" }}>units across all variants · threshold: {threshold}</span>
+                  </div>
+                  <div className="stock-bar-wrap">
+                    <div className="stock-bar-fill" style={{ width: `${stockPct}%`, background: stockColor }} />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "10px 12px" }}>

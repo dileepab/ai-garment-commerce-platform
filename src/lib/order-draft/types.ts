@@ -13,6 +13,7 @@ export interface ResolvedOrderDraft {
   productId: number;
   productName: string;
   brand: string;
+  variantId?: number;
   quantity: number;
   size?: string;
   color?: string;

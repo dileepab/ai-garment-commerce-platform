@@ -150,11 +150,50 @@ export async function handle_place_order(ctx: ChatContext) {
   }
 
   const nextDraft = buildDraftFromSource(sourceProduct, existingDraft);
-  const availableQty = sourceProduct.inventory?.availableQty ?? sourceProduct.stock;
+
+  // Validate variant combo if both size and color are known
+  const hasSize = Boolean(nextDraft.size);
+  const hasColor = Boolean(nextDraft.color);
+  const hasVariants = sourceProduct.variants && sourceProduct.variants.length > 0;
+
+  if (hasSize && hasColor && hasVariants) {
+    const matchedVariant = sourceProduct.variants.find(
+      (v) => v.size === nextDraft.size && v.color === nextDraft.color
+    );
+
+    if (!matchedVariant) {
+      // The chosen combo doesn't exist — clear it and re-prompt
+      const resetDraft = { ...nextDraft, size: undefined, color: undefined, variantId: undefined };
+      return finalizeReply({
+        reply: buildVariantPrompt(nextDraft.productName, undefined, undefined, sourceProduct),
+        nextState: {
+          pendingStep: 'order_draft',
+          orderDraft: resetDraft,
+          quantityUpdate: null,
+          lastMissingOrderId: null,
+        },
+      });
+    }
+  }
+
+  // Use variant-level availability when both size and color are resolved
+  let availableQty: number;
+  if (hasSize && hasColor && nextDraft.variantId) {
+    const matchedVariant = sourceProduct.variants.find((v) => v.id === nextDraft.variantId);
+    availableQty = matchedVariant?.inventory?.availableQty ?? 0;
+  } else if (hasSize && hasColor && hasVariants) {
+    const matchedVariant = sourceProduct.variants.find(
+      (v) => v.size === nextDraft.size && v.color === nextDraft.color
+    );
+    availableQty = matchedVariant?.inventory?.availableQty ?? 0;
+  } else {
+    // Size or color still unknown — use product-level as a guard
+    availableQty = sourceProduct.inventory?.availableQty ?? sourceProduct.stock;
+  }
 
   if (nextDraft.quantity > availableQty) {
     return finalizeReply({
-      reply: `${sourceProduct.name} currently has ${availableQty} item(s) available. Please send a lower quantity.`,
+      reply: `${sourceProduct.name}${nextDraft.color && nextDraft.size ? ` (${nextDraft.color} ${nextDraft.size})` : ''} currently has ${availableQty} item(s) available. Please send a lower quantity.`,
       nextState: {
         pendingStep: 'order_draft',
         orderDraft: {
@@ -311,6 +350,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         items: [
           {
             productId: state.orderDraft.productId,
+            variantId: state.orderDraft.variantId ?? null,
             quantity: state.orderDraft.quantity,
             size: state.orderDraft.size,
             color: state.orderDraft.color,
@@ -595,11 +635,22 @@ export async function handle_reorder_last(ctx: ChatContext) {
   }
 
   const sourceItem = sourceOrder.orderItems[0];
-  const availableQty = sourceItem.product.inventory?.availableQty ?? 0;
+  const reorderVariant =
+    sourceItem.size && sourceItem.color && sourceItem.product.variants?.length
+      ? (sourceItem.product.variants.find(
+          (v) => v.size === sourceItem.size && v.color === sourceItem.color
+        ) ?? null)
+      : null;
+  const availableQty = reorderVariant
+    ? (reorderVariant.inventory?.availableQty ?? 0)
+    : (sourceItem.product.inventory?.availableQty ?? 0);
 
   if (sourceItem.quantity > availableQty) {
+    const variantLabel = sourceItem.color && sourceItem.size
+      ? ` (${sourceItem.color} ${sourceItem.size})`
+      : '';
     return finalizeReply({
-      reply: `${sourceItem.product.name} currently has ${availableQty} item(s) available. Please send a lower quantity or choose a different item.`,
+      reply: `${sourceItem.product.name}${variantLabel} currently has ${availableQty} item(s) available. Please send a lower quantity or choose a different item.`,
       orderId: sourceOrder.id,
       nextState: {
         lastReferencedOrderId: sourceOrder.id,
@@ -867,7 +918,16 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
   }
 
   const item = targetOrder.orderItems[0];
-  const maxAvailableQuantity = item.quantity + (item.product.inventory?.availableQty ?? 0);
+  const updateVariant =
+    item.size && item.color && item.product.variants?.length
+      ? (item.product.variants.find(
+          (v) => v.size === item.size && v.color === item.color
+        ) ?? null)
+      : null;
+  const currentlyAvailable = updateVariant
+    ? (updateVariant.inventory?.availableQty ?? 0)
+    : (item.product.inventory?.availableQty ?? 0);
+  const maxAvailableQuantity = item.quantity + currentlyAvailable;
 
   if (nextQuantity > maxAvailableQuantity) {
     return finalizeReply({

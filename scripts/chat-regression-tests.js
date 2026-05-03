@@ -192,6 +192,29 @@ function buildSender(runId, slug) {
   return `chat-regression-${runId}-${slug}`;
 }
 
+async function resetInventoryToSeedValues() {
+  const { variantStocks } = require('../prisma/catalog-data');
+
+  for (const [key, sizeMap] of Object.entries(variantStocks)) {
+    const [brand, name] = key.split(':');
+    const product = await prisma.product.findFirst({ where: { name, brand } });
+    if (!product) continue;
+
+    for (const [size, colorMap] of Object.entries(sizeMap)) {
+      for (const [color, qty] of Object.entries(colorMap)) {
+        const variant = await prisma.productVariant.findUnique({
+          where: { productId_size_color: { productId: product.id, size, color } },
+        });
+        if (!variant) continue;
+        await prisma.variantInventory.updateMany({
+          where: { variantId: variant.id },
+          data: { availableQty: qty, reservedQty: 0 },
+        });
+      }
+    }
+  }
+}
+
 async function main() {
   const runId = Date.now();
   const port = DEFAULT_TEST_PORT;
@@ -1546,9 +1569,164 @@ async function main() {
           ], 'Last-order status reply after explicit reference');
         },
       },
+      // ─── Variant inventory regression tests ───────────────────────────────
+      {
+        name: 'Variant order reserves from the correct size+color variant inventory',
+        senderId: buildSender(runId, 'variant-reserve'),
+        before: async ({ context }) => {
+          const product = await prisma.product.findFirst({
+            where: { name: 'Oversized Casual Top' },
+            include: { variants: { include: { inventory: true } } },
+          });
+          assert(product, 'Expected Oversized Casual Top for variant reserve test.');
+          context.variantBefore = product.variants.find(v => v.size === 'M' && v.color === 'Black');
+          assert(context.variantBefore?.inventory, 'Expected M/Black variant inventory before variant reserve test.');
+          context.productBefore = product;
+        },
+        messages: [
+          'I want Oversized Casual Top in black, M size',
+          'Variant Reserve Customer',
+          '12 Main Street, Kurunegala',
+          '0771020001',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ transcript, senderId, context }) => {
+          assertIncludes(transcript[5].bot, [
+            'Thank you. Your order has been confirmed successfully ✅',
+            'Order ID: #',
+          ], 'Variant order placed reply');
+
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected an order to be created for variant reserve test.');
+          assert(
+            latestOrder.orderStatus === 'confirmed',
+            `Expected confirmed status, received ${latestOrder.orderStatus}.`
+          );
+          assert(
+            latestOrder.orderItems[0].size === 'M',
+            `Expected size M, received ${latestOrder.orderItems[0].size}.`
+          );
+          assert(
+            latestOrder.orderItems[0].color === 'Black',
+            `Expected color Black, received ${latestOrder.orderItems[0].color}.`
+          );
+          assert(
+            latestOrder.orderItems[0].variantId != null,
+            'Expected variantId to be set on the order item.'
+          );
+
+          const productAfter = await prisma.product.findFirst({
+            where: { name: 'Oversized Casual Top' },
+            include: { variants: { include: { inventory: true } } },
+          });
+          const variantAfter = productAfter?.variants.find(v => v.size === 'M' && v.color === 'Black');
+          const vBefore = context.variantBefore;
+
+          assert(
+            variantAfter?.inventory?.availableQty === vBefore.inventory.availableQty - 1,
+            `Expected M/Black variant availableQty delta -1, before ${vBefore.inventory.availableQty}, after ${variantAfter?.inventory?.availableQty}.`
+          );
+          assert(
+            variantAfter?.inventory?.reservedQty === vBefore.inventory.reservedQty + 1,
+            `Expected M/Black variant reservedQty delta +1, before ${vBefore.inventory.reservedQty}, after ${variantAfter?.inventory?.reservedQty}.`
+          );
+        },
+      },
+      {
+        name: 'Cancellation restores the correct variant inventory',
+        senderId: buildSender(runId, 'variant-cancel'),
+        before: async ({ context }) => {
+          const product = await prisma.product.findFirst({
+            where: { name: 'Oversized Casual Top' },
+            include: { variants: { include: { inventory: true } } },
+          });
+          assert(product, 'Expected Oversized Casual Top for variant cancel test.');
+          context.variantBefore = product.variants.find(v => v.size === 'M' && v.color === 'Black');
+          assert(context.variantBefore?.inventory, 'Expected M/Black variant inventory before cancel test.');
+        },
+        messages: [
+          'I want Oversized Casual Top in black, M size',
+          'Variant Cancel Customer',
+          '12 Main Street, Kurunegala',
+          '0771020002',
+          'yes correct',
+          'yes correct',
+          'Cancel my order',
+        ],
+        verify: async ({ transcript, context }) => {
+          assertIncludes(transcript[6].bot, [
+            'Cancelled Order ID: #',
+          ], 'Variant order cancellation reply');
+
+          const productAfter = await prisma.product.findFirst({
+            where: { name: 'Oversized Casual Top' },
+            include: { variants: { include: { inventory: true } } },
+          });
+          const variantAfter = productAfter?.variants.find(v => v.size === 'M' && v.color === 'Black');
+          const vBefore = context.variantBefore;
+
+          assert(
+            variantAfter?.inventory?.availableQty === vBefore.inventory.availableQty,
+            `Expected M/Black variant availableQty restored after cancel, before ${vBefore.inventory.availableQty}, after ${variantAfter?.inventory?.availableQty}.`
+          );
+          assert(
+            variantAfter?.inventory?.reservedQty === vBefore.inventory.reservedQty,
+            `Expected M/Black variant reservedQty restored after cancel, before ${vBefore.inventory.reservedQty}, after ${variantAfter?.inventory?.reservedQty}.`
+          );
+        },
+      },
+      {
+        name: 'Ordering an out-of-stock variant is rejected with a helpful reply',
+        senderId: buildSender(runId, 'variant-oos'),
+        before: async () => {
+          // Set M/Black Oversized Casual Top variant to 0 for this test
+          await prisma.variantInventory.updateMany({
+            where: {
+              variant: { product: { name: 'Oversized Casual Top' }, size: 'L', color: 'White' },
+            },
+            data: { availableQty: 0 },
+          });
+        },
+        messages: [
+          'I want Oversized Casual Top in white, L size',
+          'OOS Variant Customer',
+          '12 Main Street, Kurunegala',
+          '0771020003',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ transcript }) => {
+          // The order should be blocked — either at variant prompt or at quantity check
+          const allReplies = transcript.map(t => t.bot).join('\n');
+          assert(
+            allReplies.includes('available') || allReplies.includes('not available') || allReplies.includes('0 item'),
+            `Expected out-of-stock variant to be rejected.\n\nTranscript:\n${allReplies}`
+          );
+        },
+      },
+      {
+        name: 'Variant-aware availability reply distinguishes which sizes+colors are in stock',
+        senderId: buildSender(runId, 'variant-avail'),
+        messages: [
+          'What colors does the Ribbed Crop Top come in?',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'Ribbed Crop Top',
+          ], 'Variant availability reply mentions product');
+          // The reply should mention available colors (Beige or Pink) or sizes (S or M)
+          assert(
+            transcript[0].bot.includes('Beige') || transcript[0].bot.includes('Pink'),
+            `Expected variant colors in availability reply.\n\nActual reply:\n${transcript[0].bot}`
+          );
+        },
+      },
     ];
 
+    // Remove the one-time reset — we reset before every case instead.
     for (const testCase of cases) {
+      await resetInventoryToSeedValues();
       const testChannel = testCase.channel || 'messenger';
       createdSenders.push({ senderId: testCase.senderId, channel: testChannel });
       console.log(`\n=== ${testCase.name} ===`);

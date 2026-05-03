@@ -74,16 +74,28 @@ export async function getAiStockReply(
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // 1. Fetch real-time products & inventory context
+    // 1. Fetch real-time products & variant inventory context
     const whereClause = brandFilter ? { brand: brandFilter } : {};
     const products = await prisma.product.findMany({
       where: whereClause,
-      include: { inventory: true }
+      include: {
+        inventory: true,
+        variants: { include: { inventory: true } },
+      },
     });
 
-    const stockContext = products.map(p =>
-      `- ${p.name} (Style: ${p.style}, Brand: ${p.brand}, Sizes: ${p.sizes}, Colors: ${p.colors}): ${p.inventory?.availableQty || 0} pieces available. Price: Rs ${p.price}`
-    ).join('\n');
+    const stockContext = products.map(p => {
+      const activeVariants = p.variants.filter(v => (v.inventory?.availableQty ?? 0) > 0);
+      if (activeVariants.length > 0) {
+        // Show each in-stock variant so AI can answer "do you have black M?"
+        const variantLines = activeVariants.map(
+          v => `  • ${v.color} ${v.size}: ${v.inventory?.availableQty ?? 0} available`
+        ).join('\n');
+        return `- ${p.name} (Brand: ${p.brand}, Style: ${p.style}, Price: Rs ${p.price})\n${variantLines}`;
+      }
+      // Product has no in-stock variants — show product-level total
+      return `- ${p.name} (Style: ${p.style}, Brand: ${p.brand}, Sizes: ${p.sizes}, Colors: ${p.colors}): ${p.inventory?.availableQty || 0} pieces available. Price: Rs ${p.price}`;
+    }).join('\n');
 
     // 2. Fetch conversation history and customer profile if senderId is provided
     let chatHistory = '';
@@ -389,16 +401,27 @@ export async function getAiCommentReply(
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // 1. Fetch real-time products & inventory context
+    // 1. Fetch real-time products & variant inventory context
     const whereClause = brand ? { brand } : {};
     const products = await prisma.product.findMany({
       where: whereClause,
-      include: { inventory: true }
+      include: {
+        inventory: true,
+        variants: { include: { inventory: true } },
+      },
     });
 
-    const stockContext = products.map(p =>
-      `- ${p.name}: Rs ${p.price} | Style: ${p.style} | Sizes: ${p.sizes} | Colors: ${p.colors} | Stock: ${p.inventory?.availableQty || 0} available`
-    ).join('\n');
+    const stockContext = products.map(p => {
+      const activeVariants = p.variants.filter(v => (v.inventory?.availableQty ?? 0) > 0);
+      if (activeVariants.length > 0) {
+        const variantSummary = activeVariants
+          .map(v => `${v.color} ${v.size}`)
+          .join(', ');
+        const total = activeVariants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0);
+        return `- ${p.name}: Rs ${p.price} | Style: ${p.style} | Available variants: ${variantSummary} | Total stock: ${total}`;
+      }
+      return `- ${p.name}: Rs ${p.price} | Style: ${p.style} | Sizes: ${p.sizes} | Colors: ${p.colors} | Stock: ${p.inventory?.availableQty || 0} available`;
+    }).join('\n');
 
     const brandName = brand || 'our store';
 
