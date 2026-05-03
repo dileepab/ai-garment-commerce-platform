@@ -219,7 +219,39 @@ const variantStocks = {
   },
 };
 
+// Optional per-variant reorder thresholds.
+// Keys are "brand:name", values are { size: { color: reorderThreshold } }.
+// Any variant not listed here will use the system default (10).
+const variantThresholds = {
+  'Happyby:Oversized Casual Top': {
+    S: { Black: 5, White: 5 },
+    M: { Black: 5, White: 5 },
+    L: { Black: 5, White: 5 },
+  },
+  'Happyby:Ribbed Crop Top': {
+    S: { Beige: 4, Pink: 4 },
+    M: { Beige: 4, Pink: 4 },
+  },
+  'Cleopatra:Satin Evening Top': {
+    S: { Black: 3, Champagne: 3 },
+    M: { Black: 3, Champagne: 3 },
+    L: { Black: 3, Champagne: 3 },
+  },
+  'Cleopatra:Cocktail Midi Dress': {
+    S: { Emerald: 3, Black: 3 },
+    M: { Emerald: 3, Black: 3 },
+    L: { Emerald: 3, Black: 3 },
+  },
+  'Modabella:Classic Office Shirt': {
+    S:  { White: 8, Blue: 8 },
+    M:  { White: 8, Blue: 8 },
+    L:  { White: 8, Blue: 8 },
+    XL: { White: 6, Blue: 6 },
+  },
+};
+
 module.exports = {
   testCatalog,
   variantStocks,
+  variantThresholds,
 };

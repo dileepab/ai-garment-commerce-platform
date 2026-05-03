@@ -73,7 +73,7 @@ interface ExistingVariant {
   sku?: string | null;
   priceOverride?: number | null;
   status: string;
-  inventory?: { availableQty: number } | null;
+  inventory?: { availableQty: number; reorderThreshold?: number | null; criticalThreshold?: number | null } | null;
 }
 
 interface ProductForEdit {
@@ -101,7 +101,7 @@ let _keySeq = 0;
 const nextKey = () => `vr_${++_keySeq}`;
 
 function emptyRow(): VariantRow {
-  return { _key: nextKey(), size: '', color: '', availableQty: 0, sku: '', priceOverride: null, status: '' };
+  return { _key: nextKey(), size: '', color: '', availableQty: 0, reorderThreshold: null, criticalThreshold: null, sku: '', priceOverride: null, status: '' };
 }
 
 function rowsFromProduct(product: ProductForEdit): VariantRow[] {
@@ -112,6 +112,8 @@ function rowsFromProduct(product: ProductForEdit): VariantRow[] {
       size: v.size,
       color: v.color,
       availableQty: v.inventory?.availableQty ?? 0,
+      reorderThreshold: v.inventory?.reorderThreshold ?? null,
+      criticalThreshold: v.inventory?.criticalThreshold ?? null,
       sku: v.sku ?? '',
       priceOverride: v.priceOverride ?? null,
       status: v.status,
@@ -238,6 +240,8 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
         size: v.size.trim(),
         color: v.color.trim(),
         availableQty: Math.max(0, Number(v.availableQty) || 0),
+        reorderThreshold: v.reorderThreshold != null && Number(v.reorderThreshold) > 0 ? Number(v.reorderThreshold) : null,
+        criticalThreshold: v.criticalThreshold != null && Number(v.criticalThreshold) > 0 ? Number(v.criticalThreshold) : null,
         sku: v.sku?.trim() || undefined,
         priceOverride: v.priceOverride != null && Number(v.priceOverride) > 0 ? Number(v.priceOverride) : null,
         status: v.status && v.status !== 'auto' ? v.status : undefined,
@@ -465,8 +469,8 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
             </div>
 
             {variants.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 58px 76px 76px 88px 28px', gap: 5, marginBottom: 5, paddingLeft: 1 }}>
-                {['Size', 'Colour', 'Qty', 'SKU', 'Override', 'Status', ''].map((h, i) => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 52px 60px 76px 76px 88px 28px', gap: 5, marginBottom: 5, paddingLeft: 1 }}>
+                {['Size', 'Colour', 'Qty', 'Reorder', 'SKU', 'Override', 'Status', ''].map((h, i) => (
                   <div key={i} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)' }}>{h}</div>
                 ))}
               </div>
@@ -474,10 +478,11 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {variants.map((v) => (
-                <div key={v._key} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 58px 76px 76px 88px 28px', gap: 5, alignItems: 'center' }}>
+                <div key={v._key} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 52px 60px 76px 76px 88px 28px', gap: 5, alignItems: 'center' }}>
                   <input style={inpSm} value={v.size} onChange={(e) => patchVariant(v._key, 'size', e.target.value)} placeholder="S / M / L" disabled={isPending} aria-label="Size" />
                   <input style={inpSm} value={v.color} onChange={(e) => patchVariant(v._key, 'color', e.target.value)} placeholder="Black / White" disabled={isPending} aria-label="Colour" />
                   <input style={{ ...inpSm, textAlign: 'right' }} type="number" min="0" value={v.availableQty} onChange={(e) => patchVariant(v._key, 'availableQty', parseInt(e.target.value) || 0)} disabled={isPending} aria-label="Qty" />
+                  <input style={{ ...inpSm, textAlign: 'right' }} type="number" min="0" value={v.reorderThreshold ?? ''} onChange={(e) => patchVariant(v._key, 'reorderThreshold', e.target.value ? parseInt(e.target.value) : null)} placeholder="—" disabled={isPending} aria-label="Reorder threshold" title="Reorder threshold: alert when stock falls to this level" />
                   <input style={inpSm} value={v.sku ?? ''} onChange={(e) => patchVariant(v._key, 'sku', e.target.value)} placeholder="optional" disabled={isPending} aria-label="SKU" />
                   <input style={{ ...inpSm, textAlign: 'right' }} type="number" min="0" step="0.01" value={v.priceOverride ?? ''} onChange={(e) => patchVariant(v._key, 'priceOverride', e.target.value ? parseFloat(e.target.value) : null)} placeholder="—" disabled={isPending} aria-label="Override" />
                   <select

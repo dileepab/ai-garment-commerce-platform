@@ -21,7 +21,12 @@ export interface ProductVariantData {
   status: string;
   sku?: string | null;
   priceOverride?: number | null;
-  inventory?: { availableQty: number; reservedQty: number } | null;
+  inventory?: {
+    availableQty: number;
+    reservedQty: number;
+    reorderThreshold?: number | null;
+    criticalThreshold?: number | null;
+  } | null;
 }
 
 export interface Product {
@@ -43,16 +48,53 @@ export interface Product {
   variants?: ProductVariantData[];
 }
 
+const DEFAULT_CRITICAL_THRESH = 3;
+const DEFAULT_REORDER_THRESH = 10;
+
+function variantStockColor(qty: number, critT: number, reordT: number): string {
+  if (qty === 0) return 'var(--color-fg-3)';
+  if (qty <= critT) return '#8B2020';
+  if (qty <= reordT) return '#9B6B00';
+  return '#1E6B45';
+}
+
 function VariantStockGrid({ variants }: { variants: ProductVariantData[] }) {
   if (variants.length === 0) return null;
 
-  // Group variants by size for a compact grid
   const sizes = [...new Set(variants.map(v => v.size))];
   const colors = [...new Set(variants.map(v => v.color))];
 
+  // Aggregate planning signals across all variants
+  let criticalCount = 0, lowCount = 0, outCount = 0;
+  for (const v of variants) {
+    const qty = v.inventory?.availableQty ?? 0;
+    const critT = v.inventory?.criticalThreshold ?? DEFAULT_CRITICAL_THRESH;
+    const reordT = v.inventory?.reorderThreshold ?? DEFAULT_REORDER_THRESH;
+    if (qty === 0) outCount++;
+    else if (qty <= critT) criticalCount++;
+    else if (qty <= reordT) lowCount++;
+  }
+  const hasRisk = criticalCount > 0 || outCount > 0;
+  const hasLow = lowCount > 0;
+
   return (
     <div>
-      <div className="drawer-section-label">Stock by Variant</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div className="drawer-section-label" style={{ marginBottom: 0 }}>Stock by Variant</div>
+        {(hasRisk || hasLow) && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {outCount > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 9999, background: '#F5D8D8', color: '#701919' }}>{outCount} out</span>
+            )}
+            {criticalCount > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 9999, background: '#FCE2E2', color: '#8B2020' }}>{criticalCount} critical</span>
+            )}
+            {lowCount > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 9999, background: '#FFF0C2', color: '#7A5400' }}>{lowCount} low</span>
+            )}
+          </div>
+        )}
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ fontSize: 11, borderCollapse: 'collapse', width: '100%' }}>
           <thead>
@@ -70,9 +112,12 @@ function VariantStockGrid({ variants }: { variants: ProductVariantData[] }) {
                 {colors.map(color => {
                   const variant = variants.find(v => v.size === size && v.color === color);
                   const qty = variant?.inventory?.availableQty ?? 0;
-                  const stockColor = qty === 0 ? 'var(--color-fg-3)' : qty <= 2 ? '#8B2020' : qty <= 5 ? '#9B6B00' : '#1E6B45';
+                  const critT = variant?.inventory?.criticalThreshold ?? DEFAULT_CRITICAL_THRESH;
+                  const reordT = variant?.inventory?.reorderThreshold ?? DEFAULT_REORDER_THRESH;
+                  const color_ = variantStockColor(qty, critT, reordT);
                   return (
-                    <td key={color} style={{ textAlign: 'right', padding: '3px 0 3px 8px', fontWeight: 700, color: stockColor }}>
+                    <td key={color} style={{ textAlign: 'right', padding: '3px 0 3px 8px', fontWeight: 700, color: color_ }}
+                      title={variant ? `Reorder at ≤${reordT}, critical at ≤${critT}` : undefined}>
                       {variant ? qty : '—'}
                     </td>
                   );
@@ -82,6 +127,13 @@ function VariantStockGrid({ variants }: { variants: ProductVariantData[] }) {
           </tbody>
         </table>
       </div>
+      {(hasRisk || hasLow) && (
+        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--color-fg-3)' }}>
+          Colors: <span style={{ color: '#8B2020', fontWeight: 600 }}>red</span> = critical,{' '}
+          <span style={{ color: '#9B6B00', fontWeight: 600 }}>amber</span> = low stock,{' '}
+          <span style={{ color: '#1E6B45', fontWeight: 600 }}>green</span> = healthy
+        </div>
+      )}
     </div>
   );
 }
@@ -217,6 +269,26 @@ export function ProductDrawer({
                 </div>
               </div>
             </div>
+            {(() => {
+              // Compute variant-level restock suggestion for the drawer footer
+              const criticalVariants = (product.variants ?? []).filter(v => {
+                const qty = v.inventory?.availableQty ?? 0;
+                const critT = v.inventory?.criticalThreshold ?? DEFAULT_CRITICAL_THRESH;
+                return qty <= critT;
+              });
+              const totalSuggestedRestock = (product.variants ?? []).reduce((sum, v) => {
+                const qty = v.inventory?.availableQty ?? 0;
+                const reordT = v.inventory?.reorderThreshold ?? DEFAULT_REORDER_THRESH;
+                return sum + Math.max(0, reordT * 2 - qty);
+              }, 0);
+              const showRestockSuggestion = criticalVariants.length > 0 && totalSuggestedRestock > 0;
+              return showRestockSuggestion ? (
+                <div style={{ margin: '0 0 10px', padding: '10px 14px', background: '#FFF8E6', border: '1px solid #F0DFA0', borderRadius: 8, fontSize: 12, color: '#5C3A00', lineHeight: 1.5 }}>
+                  <strong>{criticalVariants.length} variant{criticalVariants.length > 1 ? 's' : ''} at critical stock.</strong>
+                  {' '}Suggested restock: ~{totalSuggestedRestock} units total to reach 2× reorder thresholds.
+                </div>
+              ) : null;
+            })()}
             <div className="drawer-actions">
               {canManage ? (
                 <>

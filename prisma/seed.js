@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { PrismaClient } = require('@prisma/client');
-const { testCatalog, variantStocks } = require('./catalog-data');
+const { testCatalog, variantStocks, variantThresholds } = require('./catalog-data');
 const prisma = new PrismaClient();
 
 async function main() {
@@ -29,9 +29,11 @@ async function main() {
 
     // Create per-variant inventory records
     const stockMap = variantStocks[`${product.brand}:${product.name}`];
+    const thresholdMap = variantThresholds[`${product.brand}:${product.name}`];
     if (stockMap) {
       for (const [size, colorMap] of Object.entries(stockMap)) {
         for (const [color, availableQty] of Object.entries(colorMap)) {
+          const reorderThreshold = thresholdMap?.[size]?.[color] ?? null;
           await prisma.productVariant.create({
             data: {
               productId: createdProduct.id,
@@ -39,7 +41,7 @@ async function main() {
               color,
               status: availableQty > 0 ? 'active' : 'out-of-stock',
               inventory: {
-                create: { availableQty },
+                create: { availableQty, reorderThreshold },
               },
             },
           });

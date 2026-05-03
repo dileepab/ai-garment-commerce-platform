@@ -299,6 +299,45 @@ export function summarizeStock(items: InventoryLike[]): StockHealth {
   };
 }
 
+export interface VariantInventoryLike {
+  variantId: number;
+  availableQty: number;
+  reservedQty: number;
+  inProductionQty: number;
+  reorderThreshold: number | null;
+  criticalThreshold: number | null;
+}
+
+// Variant-level stock health using per-variant thresholds (falls back to defaults 3/10).
+export function summarizeVariantStock(
+  items: VariantInventoryLike[],
+  defaults = { critical: 3, reorder: 10 },
+): StockHealth {
+  let outOfStock = 0, critical = 0, low = 0, healthy = 0;
+  let totalAvailable = 0, totalReserved = 0, totalInProduction = 0;
+  for (const i of items) {
+    totalAvailable += i.availableQty;
+    totalReserved += i.reservedQty;
+    totalInProduction += i.inProductionQty;
+    const critT = i.criticalThreshold ?? defaults.critical;
+    const reordT = i.reorderThreshold ?? defaults.reorder;
+    if (i.availableQty <= 0) outOfStock += 1;
+    else if (i.availableQty <= critT) critical += 1;
+    else if (i.availableQty <= reordT) low += 1;
+    else healthy += 1;
+  }
+  return {
+    totalSkus: items.length,
+    outOfStock,
+    critical,
+    low,
+    healthy,
+    totalAvailable,
+    totalReserved,
+    totalInProduction,
+  };
+}
+
 // ── Production health ────────────────────────────────────────────
 export interface ProductionBatchLike {
   status: string;

@@ -54,14 +54,15 @@ model ProductVariant {
 }
 
 model VariantInventory {
-  id               Int            @id @default(autoincrement())
-  variantId        Int            @unique
-  variant          ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  availableQty     Int            @default(0)
-  reservedQty      Int            @default(0)
-  inProductionQty  Int            @default(0)
-  reorderThreshold Int?
-  updatedAt        DateTime       @updatedAt
+  id                Int            @id @default(autoincrement())
+  variantId         Int            @unique
+  variant           ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  availableQty      Int            @default(0)
+  reservedQty       Int            @default(0)
+  inProductionQty   Int            @default(0)
+  reorderThreshold  Int?
+  criticalThreshold Int?
+  updatedAt         DateTime       @updatedAt
 }
 
 model Customer {

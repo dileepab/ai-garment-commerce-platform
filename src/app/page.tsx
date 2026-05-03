@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
-import { canScope, getBrandScopedWhere, getProductBrandScopedWhere } from '@/lib/access-control';
+import { canScope, getBrandScopedWhere, getBrandScopeValues } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import { getScopedConversationSenderIds } from '@/lib/conversation-scope';
 import { isActiveOrderStatus, getOrderStageLabel } from '@/lib/order-status-display';
@@ -11,10 +11,15 @@ import {
   summarizeOrders,
   topSellingProducts,
 } from '@/lib/analytics';
+import {
+  computeInventoryPlan,
+  getVariantInventoryBrandScopedWhere,
+  DEFAULT_REORDER_THRESHOLD,
+} from '@/lib/inventory-planning';
 
 export const dynamic = 'force-dynamic';
 
-// ── Helpers ──────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────
 function fmt(n: number) { return new Intl.NumberFormat('en-LK').format(n); }
 function fmtDate(d: Date) {
   const now = new Date();
@@ -44,7 +49,7 @@ function batchStatusPill(status: string) {
   return { bg: '#D4EDE0', color: '#1A5C3C', label: 'Active' };
 }
 
-// ── Icons ────────────────────────────────────────────────────
+// ── Icons ────────────────────────────────────────────────
 const ShirtIcon   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>;
 const BoxIcon     = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
 const AlertIcon   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
@@ -58,7 +63,8 @@ export default async function Dashboard() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const last30 = new Date(today); last30.setDate(last30.getDate() - 29);
   const brandWhere = getBrandScopedWhere(scope);
-  const productBrandWhere = getProductBrandScopedWhere(scope);
+  const brandValues = getBrandScopeValues(scope);
+  const variantInventoryWhere = getVariantInventoryBrandScopedWhere(brandValues);
   const canViewAnalytics = canScope(scope, 'analytics:view');
   const scopedSenderIds = await getScopedConversationSenderIds(scope);
   const todayChatWhere = {
@@ -72,11 +78,13 @@ export default async function Dashboard() {
 
   const [
     allOrders,
-    lowStockItems,
+    // Variant-level low-stock count (replaces product-level Inventory count)
+    lowStockVariantCount,
     openEscalationCount,
     activeBatchCount,
     recentOrders,
-    lowStockProducts,
+    // Critical/low variants for planning sections
+    criticalLowVariants,
     recentEscalations,
     activeBatches,
     operators,
@@ -87,9 +95,16 @@ export default async function Dashboard() {
     last30Items,
     last30Messages,
     last30Escalations,
+    // Order items with variant ids for slow-moving detection (all time for dead-stock)
+    allVariantSales,
   ] = await Promise.all([
     prisma.order.findMany({ where: brandWhere, select: { id: true, orderStatus: true, totalAmount: true, createdAt: true, customerId: true } }),
-    prisma.inventory.count({ where: { ...productBrandWhere, availableQty: { lte: 10 } } }),
+
+    // Count variant-level SKUs that are at or below the default reorder threshold
+    prisma.variantInventory.count({
+      where: { ...variantInventoryWhere, availableQty: { lte: DEFAULT_REORDER_THRESHOLD } },
+    }),
+
     prisma.supportEscalation.count({ where: { ...brandWhere, status: { not: 'resolved' } } }),
     prisma.productionBatch.count({ where: { ...brandWhere, status: { notIn: ['completed', 'cancelled'] } } }),
 
@@ -101,12 +116,16 @@ export default async function Dashboard() {
       include: { customer: true, orderItems: { include: { product: true }, take: 1 } },
     }),
 
-    // Low stock products
-    prisma.inventory.findMany({
-      where: { ...productBrandWhere, availableQty: { lte: 10 } },
-      take: 5,
+    // Critical and low variants for planning (ordered by urgency: out-of-stock first, then critical, then low)
+    prisma.variantInventory.findMany({
+      where: { ...variantInventoryWhere, availableQty: { lte: DEFAULT_REORDER_THRESHOLD } },
       orderBy: { availableQty: 'asc' },
-      include: { product: true },
+      take: 10,
+      include: {
+        variant: {
+          include: { product: { select: { id: true, name: true, brand: true } } },
+        },
+      },
     }),
 
     // Recent open escalations
@@ -159,7 +178,7 @@ export default async function Dashboard() {
       },
     }),
 
-    // AI messages last 30 days for response/escalation rates
+    // AI messages last 30 days
     prisma.chatMessage.findMany({
       where: last30ChatWhere,
       select: { senderId: true, channel: true, role: true, createdAt: true },
@@ -169,6 +188,15 @@ export default async function Dashboard() {
     prisma.supportEscalation.findMany({
       where: { ...brandWhere, createdAt: { gte: last30 } },
       select: { status: true, createdAt: true, resolvedAt: true, customerId: true },
+    }),
+
+    // All variant-level sales (for slow/dead-stock detection)
+    prisma.orderItem.findMany({
+      where: { variantId: { not: null }, order: brandWhere },
+      select: {
+        variantId: true, productId: true, quantity: true,
+        order: { select: { createdAt: true, orderStatus: true } },
+      },
     }),
   ]);
 
@@ -193,12 +221,40 @@ export default async function Dashboard() {
   const revenue30 = summarizeOrders(last30Orders);
   const topProducts = topSellingProducts(last30Items, 5);
 
-  // AI metrics over last 30 days (real, not heuristic)
+  // AI metrics over last 30 days
   const ai30 = summarizeAiMetrics({ messages: last30Messages, escalations: last30Escalations, convertedConversationCount: 0 });
 
   // Needs attention alerts
   const delayedBatches = activeBatches.filter((b) => b.status === 'delayed');
-  const criticalStock = lowStockProducts.filter((i) => i.availableQty <= 3);
+
+  // Build variant plan items from the fetched critical/low variants for planning display
+  const planVariants = criticalLowVariants.map((vi) => ({
+    variantId: vi.variantId,
+    productId: vi.variant.productId,
+    productName: vi.variant.product.name,
+    brand: vi.variant.product.brand,
+    size: vi.variant.size,
+    color: vi.variant.color,
+    availableQty: vi.availableQty,
+    reservedQty: vi.reservedQty,
+    inProductionQty: vi.inProductionQty,
+    reorderThreshold: vi.reorderThreshold,
+    criticalThreshold: vi.criticalThreshold,
+  }));
+
+  const saleRecords = allVariantSales.map((oi) => ({
+    variantId: oi.variantId,
+    productId: oi.productId,
+    quantity: oi.quantity,
+    orderedAt: oi.order.createdAt,
+    orderStatus: oi.order.orderStatus,
+  }));
+
+  const plan = computeInventoryPlan(planVariants, saleRecords);
+
+  const criticalVariantsForAlert = plan.topRestockPriorities.filter(
+    (i) => i.stockStatus === 'critical' || i.stockStatus === 'out-of-stock',
+  );
 
   const avatarColors = ['#C4622D', '#1E3452', '#1E6B45', '#9B6B00', '#8B2020'];
 
@@ -232,12 +288,12 @@ export default async function Dashboard() {
         {/* ── KPI Grid ─────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 16 }}>
           {[
-            { label: 'Revenue Today',     value: formatLkr(revenueToday.netRevenue), note: `${fmt(revenueToday.paidOrderCount)} paid orders`, iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: ShirtIcon },
-            { label: 'Revenue · 30d',     value: formatLkr(revenue30.netRevenue),    note: `AOV ${formatLkr(revenue30.averageOrderValue)}`,   iconBg: '#F2E4D8', iconColor: '#C4622D', Icon: BoxIcon },
-            { label: 'Open Orders',       value: fmt(openOrders.length),             note: `${allOrders.length} total`,                       iconBg: '#D6DDE8', iconColor: '#1E3452', Icon: BoxIcon },
-            { label: 'Low Stock Items',   value: fmt(lowStockItems),                 note: 'Need reorder soon',                               iconBg: '#FFF0C2', iconColor: '#9B6B00', Icon: AlertIcon },
-            { label: 'Escalated Cases',   value: fmt(openEscalationCount),           note: 'Open support cases',                              iconBg: '#F5D8D8', iconColor: '#8B2020', Icon: MsgIcon },
-            { label: 'Active Batches',    value: fmt(activeBatchCount),              note: `${delayedBatches.length} delayed`,                iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: FactoryIcon },
+            { label: 'Revenue Today',       value: formatLkr(revenueToday.netRevenue), note: `${fmt(revenueToday.paidOrderCount)} paid orders`,    iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: ShirtIcon },
+            { label: 'Revenue · 30d',       value: formatLkr(revenue30.netRevenue),    note: `AOV ${formatLkr(revenue30.averageOrderValue)}`,        iconBg: '#F2E4D8', iconColor: '#C4622D', Icon: BoxIcon },
+            { label: 'Open Orders',         value: fmt(openOrders.length),             note: `${allOrders.length} total`,                            iconBg: '#D6DDE8', iconColor: '#1E3452', Icon: BoxIcon },
+            { label: 'Low Stock Variants',  value: fmt(lowStockVariantCount),           note: plan.needsRestock > 0 ? `${plan.needsRestock} critical/out` : 'Need reorder',  iconBg: '#FFF0C2', iconColor: '#9B6B00', Icon: AlertIcon },
+            { label: 'Escalated Cases',     value: fmt(openEscalationCount),           note: 'Open support cases',                                   iconBg: '#F5D8D8', iconColor: '#8B2020', Icon: MsgIcon },
+            { label: 'Active Batches',      value: fmt(activeBatchCount),              note: `${delayedBatches.length} delayed`,                     iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: FactoryIcon },
           ].map((k, i) => (
             <div key={i} style={kpiCard}>
               <div style={{ width: 30, height: 30, borderRadius: 7, background: k.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, color: k.iconColor }}>
@@ -323,7 +379,7 @@ export default async function Dashboard() {
         </div>
 
         {/* ── Needs Attention ───────────────────────────── */}
-        {(criticalStock.length > 0 || openEscalationCount > 0 || delayedBatches.length > 0) && (
+        {(criticalVariantsForAlert.length > 0 || openEscalationCount > 0 || delayedBatches.length > 0) && (
           <div style={{ ...card, marginBottom: 16 }}>
             <div style={cardHeader}>
               <span style={{ ...cardTitle, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -342,12 +398,15 @@ export default async function Dashboard() {
                   <Link href="/production" style={alertAction}>Review batches →</Link>
                 </div>
               )}
-              {criticalStock.length > 0 && (
+              {criticalVariantsForAlert.length > 0 && (
                 <div style={alertRow}>
                   <div style={{ ...alertDot, background: '#9B6B00' }} />
                   <div style={{ flex: 1 }}>
-                    <div style={alertText}>{criticalStock.length} product{criticalStock.length > 1 ? 's' : ''} with 3 or fewer units remaining</div>
-                    <div style={alertSub}>{criticalStock.slice(0, 2).map(i => i.product.name).join(', ')}{criticalStock.length > 2 ? ` + ${criticalStock.length - 2} more` : ''}</div>
+                    <div style={alertText}>{criticalVariantsForAlert.length} variant{criticalVariantsForAlert.length > 1 ? 's' : ''} at critical or zero stock — reorder soon</div>
+                    <div style={alertSub}>
+                      {criticalVariantsForAlert.slice(0, 3).map(i => `${i.productName} (${i.size}/${i.color})`).join(' · ')}
+                      {criticalVariantsForAlert.length > 3 ? ` + ${criticalVariantsForAlert.length - 3} more` : ''}
+                    </div>
                   </div>
                   <Link href="/products" style={alertAction}>Reorder now →</Link>
                 </div>
@@ -467,56 +526,63 @@ export default async function Dashboard() {
           </div>
         </div>
 
-        {/* ── Low Stock Table ───────────────────────────── */}
-        <div style={{ ...card, marginBottom: 16 }}>
-          <div style={cardHeader}>
-            <span style={{ ...cardTitle, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ color: '#9B6B00' }}><AlertIcon /></span>
-              Low Stock Products
-            </span>
-            <Link href="/products" style={cardAction}>Reorder all →</Link>
+        {/* ── Restock Priorities ────────────────────────── */}
+        {plan.topRestockPriorities.length > 0 && (
+          <div style={{ ...card, marginBottom: 16 }}>
+            <div style={cardHeader}>
+              <span style={{ ...cardTitle, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#9B6B00' }}><AlertIcon /></span>
+                Restock Priorities · Variant Level
+              </span>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: '#9C9188' }}>
+                  {plan.outOfStock > 0 && <span style={{ color: '#8B2020', fontWeight: 700 }}>{plan.outOfStock} out · </span>}
+                  {plan.critical > 0 && <span style={{ color: '#8B2020', fontWeight: 700 }}>{plan.critical} critical · </span>}
+                  {plan.low > 0 && <span style={{ color: '#9B6B00', fontWeight: 600 }}>{plan.low} low</span>}
+                </span>
+                <Link href="/products" style={cardAction}>Manage all →</Link>
+              </div>
+            </div>
+            <div style={{ padding: '0 16px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {['Product', 'Brand', 'Variant', 'Available', 'Reserved', 'Reorder At', 'Suggest', 'Status'].map(h => (
+                      <th key={h} style={th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {plan.topRestockPriorities.map((item, idx) => {
+                    const isCrit = item.stockStatus === 'critical' || item.stockStatus === 'out-of-stock';
+                    const pillBg = item.stockStatus === 'out-of-stock' ? '#F5D8D8' : isCrit ? '#FCE2E2' : '#FFF0C2';
+                    const pillColor = item.stockStatus === 'out-of-stock' ? '#701919' : isCrit ? '#8B2020' : '#7A5400';
+                    const pillLabel = item.stockStatus === 'out-of-stock' ? 'Out of Stock' : isCrit ? 'Critical' : 'Low Stock';
+                    return (
+                      <tr key={item.variantId} style={{ borderBottom: idx < plan.topRestockPriorities.length - 1 ? '1px solid #EAE6E0' : 'none' }}>
+                        <td style={{ ...td, fontWeight: 600 }}>{item.productName}</td>
+                        <td style={{ ...td, color: '#6A635A' }}>{item.brand}</td>
+                        <td style={td}>
+                          <span style={varChip}>{item.size}</span>
+                          <span style={varChip}>{item.color}</span>
+                        </td>
+                        <td style={{ ...td, fontWeight: 700, color: isCrit ? '#8B2020' : '#9B6B00' }}>{item.availableQty}</td>
+                        <td style={{ ...td, color: '#9C9188' }}>{item.reservedQty}</td>
+                        <td style={{ ...td, color: '#6A635A' }}>{item.reorderThreshold}</td>
+                        <td style={{ ...td, fontWeight: 600, color: '#1E6B45' }}>+{item.suggestedRestockQty}</td>
+                        <td style={td}>
+                          <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 600, background: pillBg, color: pillColor }}>
+                            {pillLabel}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div style={{ padding: '0 16px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['Product', 'SKU', 'Sizes', 'Colors', 'Units Left', 'Urgency'].map(h => (
-                    <th key={h} style={th}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {lowStockProducts.length === 0 ? (
-                  <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#9C9188', padding: '20px 0' }}>All products are well stocked</td></tr>
-                ) : lowStockProducts.map((item) => {
-                  const isCritical = item.availableQty <= 3;
-                  const sizes = item.product.sizes.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4);
-                  const colors = item.product.colors.split(',').map(c => c.trim()).filter(Boolean).slice(0, 3);
-                  return (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #EAE6E0' }}>
-                      <td style={{ ...td, fontWeight: 600 }}>{item.product.name}</td>
-                      <td style={{ ...td, fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: '#9C9188' }}>#{item.productId}</td>
-                      <td style={td}>
-                        {sizes.map(s => <span key={s} style={varChip}>{s}</span>)}
-                      </td>
-                      <td style={td}>
-                        {colors.map(c => <span key={c} style={varChip}>{c}</span>)}
-                      </td>
-                      <td style={{ ...td, fontWeight: 700, color: isCritical ? '#8B2020' : '#9B6B00' }}>
-                        {item.availableQty}
-                      </td>
-                      <td style={td}>
-                        <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 600, background: isCritical ? '#F5D8D8' : '#FFF0C2', color: isCritical ? '#701919' : '#7A5400' }}>
-                          {isCritical ? 'Critical' : 'Low Stock'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
 
         {/* ── Production + Operators ────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

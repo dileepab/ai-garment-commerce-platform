@@ -14,6 +14,8 @@ export interface VariantInput {
   size: string;
   color: string;
   availableQty: number;
+  reorderThreshold?: number | null;
+  criticalThreshold?: number | null;
   sku?: string;
   priceOverride?: number | null;
   status?: string;
@@ -96,7 +98,13 @@ export async function createProduct(input: ProductFormInput): Promise<ProductAct
             sku: v.sku?.trim() || null,
             priceOverride: v.priceOverride ? Number(v.priceOverride) : null,
             status: resolveVariantStatus(v),
-            inventory: { create: { availableQty: v.availableQty || 0 } },
+            inventory: {
+              create: {
+                availableQty: v.availableQty || 0,
+                reorderThreshold: v.reorderThreshold ? Number(v.reorderThreshold) : null,
+                criticalThreshold: v.criticalThreshold ? Number(v.criticalThreshold) : null,
+              },
+            },
           },
         });
       }
@@ -177,8 +185,17 @@ export async function updateProduct(
           });
           await tx.variantInventory.upsert({
             where: { variantId: v.id },
-            create: { variantId: v.id, availableQty: v.availableQty || 0 },
-            update: { availableQty: v.availableQty || 0 },
+            create: {
+              variantId: v.id,
+              availableQty: v.availableQty || 0,
+              reorderThreshold: v.reorderThreshold ? Number(v.reorderThreshold) : null,
+              criticalThreshold: v.criticalThreshold ? Number(v.criticalThreshold) : null,
+            },
+            update: {
+              availableQty: v.availableQty || 0,
+              reorderThreshold: v.reorderThreshold ? Number(v.reorderThreshold) : null,
+              criticalThreshold: v.criticalThreshold ? Number(v.criticalThreshold) : null,
+            },
           });
         } else {
           await tx.productVariant.create({
@@ -189,7 +206,13 @@ export async function updateProduct(
               sku: v.sku?.trim() || null,
               priceOverride: v.priceOverride ? Number(v.priceOverride) : null,
               status: resolveVariantStatus(v),
-              inventory: { create: { availableQty: v.availableQty || 0 } },
+              inventory: {
+                create: {
+                  availableQty: v.availableQty || 0,
+                  reorderThreshold: v.reorderThreshold ? Number(v.reorderThreshold) : null,
+                  criticalThreshold: v.criticalThreshold ? Number(v.criticalThreshold) : null,
+                },
+              },
             },
           });
         }

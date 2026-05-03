@@ -2,7 +2,7 @@ import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import {
   getBrandScopedWhere,
-  getProductBrandScopedWhere,
+  getBrandScopeValues,
 } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import { getScopedConversationSenderIds } from '@/lib/conversation-scope';
@@ -19,6 +19,10 @@ import {
   summarizeStock,
   topSellingProducts,
 } from '@/lib/analytics';
+import {
+  computeInventoryPlan,
+  getVariantInventoryBrandScopedWhere,
+} from '@/lib/inventory-planning';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +36,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
   const { preset, from, to } = resolveDateRange(range);
 
   const brandWhere = getBrandScopedWhere(scope);
+  const brandValues = getBrandScopeValues(scope);
+  const variantInventoryWhere = getVariantInventoryBrandScopedWhere(brandValues);
   const orderWhere = {
     ...brandWhere,
     ...(from ? { createdAt: { gte: from, lte: to } } : {}),
@@ -52,6 +58,10 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
     escalations,
     productCount,
     activeOrderCount,
+    // Variant-level inventory for planning
+    variantInventoryItems,
+    // All variant-level sales (needed for slow-moving/dead-stock, use all-time)
+    allVariantSales,
   ] = await Promise.all([
     prisma.order.findMany({
       where: orderWhere,
@@ -66,7 +76,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
       },
     }),
     prisma.inventory.findMany({
-      where: getProductBrandScopedWhere(scope),
+      where: { product: brandValues ? { brand: { in: brandValues } } : {} },
       include: { product: { select: { name: true, brand: true } } },
     }),
     prisma.productionBatch.findMany({
@@ -89,6 +99,23 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
     }),
     prisma.product.count({ where: brandWhere }),
     prisma.order.count({ where: { ...brandWhere, orderStatus: { notIn: ['delivered', 'cancelled'] } } }),
+    // All variant inventory records for planning (not date-filtered — these are current stock levels)
+    prisma.variantInventory.findMany({
+      where: variantInventoryWhere,
+      include: {
+        variant: {
+          include: { product: { select: { id: true, name: true, brand: true } } },
+        },
+      },
+    }),
+    // All variant-level order items (all-time for dead-stock detection)
+    prisma.orderItem.findMany({
+      where: { variantId: { not: null }, order: brandWhere },
+      select: {
+        variantId: true, productId: true, quantity: true,
+        order: { select: { createdAt: true, orderStatus: true } },
+      },
+    }),
   ]);
 
   // Compute conversions: chat senderIds that resolve to customers who ordered in window
@@ -124,6 +151,31 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
     .filter((i) => i.availableQty <= 10)
     .sort((a, b) => a.availableQty - b.availableQty)
     .slice(0, 8);
+
+  // Build inventory plan from variant-level data
+  const planVariants = variantInventoryItems.map((vi) => ({
+    variantId: vi.variantId,
+    productId: vi.variant.productId,
+    productName: vi.variant.product.name,
+    brand: vi.variant.product.brand,
+    size: vi.variant.size,
+    color: vi.variant.color,
+    availableQty: vi.availableQty,
+    reservedQty: vi.reservedQty,
+    inProductionQty: vi.inProductionQty,
+    reorderThreshold: vi.reorderThreshold,
+    criticalThreshold: vi.criticalThreshold,
+  }));
+
+  const saleRecords = allVariantSales.map((oi) => ({
+    variantId: oi.variantId,
+    productId: oi.productId,
+    quantity: oi.quantity,
+    orderedAt: oi.order.createdAt,
+    orderStatus: oi.order.orderStatus,
+  }));
+
+  const plan = computeInventoryPlan(planVariants, saleRecords);
 
   const rangeLabel = DATE_RANGE_PRESETS.find((r) => r.id === preset)?.label ?? '';
   const rangeSubtitle = from
@@ -286,7 +338,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div style={card}>
             <div style={cardHeader}>
-              <span style={cardTitle}>Stock Health</span>
+              <span style={cardTitle}>Stock Health (Product Level)</span>
               <Link href="/products" style={cardAction}>Reorder →</Link>
             </div>
             <div style={{ padding: '12px 16px' }}>
@@ -350,9 +402,145 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
           </div>
         </div>
 
+        {/* ── Inventory Planning (Variant Level) ──────────── */}
+        {plan.totalVariants > 0 && (
+          <div style={{ ...card, marginBottom: 16 }}>
+            <div style={cardHeader}>
+              <span style={cardTitle}>Inventory Planning · Variant Level</span>
+              <Link href="/products" style={cardAction}>Manage catalog →</Link>
+            </div>
+
+            {/* Summary row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', borderBottom: '1px solid #EAE6E0' }}>
+              <PlanStat val={fmt(plan.totalVariants)}  label="Total variants"    note="all size/color SKUs"                color="#18160F" />
+              <PlanStat val={fmt(plan.outOfStock)}     label="Out of stock"      note="zero available"                     color={plan.outOfStock > 0 ? '#8B2020' : '#9C9188'} />
+              <PlanStat val={fmt(plan.critical)}       label="Critical"          note={`≤ threshold`}                      color={plan.critical > 0 ? '#8B2020' : '#9C9188'} />
+              <PlanStat val={fmt(plan.low)}            label="Low stock"         note="needs monitoring"                   color={plan.low > 0 ? '#9B6B00' : '#9C9188'} />
+              <PlanStat val={fmt(plan.slowMoving)}     label="Slow moving"       note="< 2 sales in 30d"                   color={plan.slowMoving > 0 ? '#9B6B00' : '#9C9188'} />
+              <PlanStat val={fmt(plan.deadStock)}      label="Dead stock"        note="0 sales in 90d"                     color={plan.deadStock > 0 ? '#8B2020' : '#9C9188'} />
+            </div>
+
+            {/* Restock priorities table */}
+            {plan.topRestockPriorities.length > 0 && (
+              <div style={{ padding: '12px 16px 0' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#9C9188', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Top Restock Priorities
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['Product', 'Brand', 'Variant', 'Available', 'In Prod', 'Reorder At', 'Suggest +', 'Status'].map((h) => (
+                        <th key={h} style={th}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {plan.topRestockPriorities.map((item, idx) => {
+                      const isCrit = item.stockStatus === 'critical' || item.stockStatus === 'out-of-stock';
+                      const pillBg = item.stockStatus === 'out-of-stock' ? '#F5D8D8' : isCrit ? '#FCE2E2' : '#FFF0C2';
+                      const pillColor = item.stockStatus === 'out-of-stock' ? '#701919' : isCrit ? '#8B2020' : '#7A5400';
+                      const pillLabel = item.stockStatus === 'out-of-stock' ? 'Out' : isCrit ? 'Critical' : 'Low';
+                      return (
+                        <tr key={item.variantId} style={{ borderBottom: idx < plan.topRestockPriorities.length - 1 ? '1px solid #EAE6E0' : 'none' }}>
+                          <td style={{ ...td, fontWeight: 600 }}>{item.productName}</td>
+                          <td style={{ ...td, color: '#6A635A' }}>{item.brand}</td>
+                          <td style={td}>
+                            <span style={varChip}>{item.size}</span>
+                            <span style={varChip}>{item.color}</span>
+                          </td>
+                          <td style={{ ...td, fontWeight: 700, color: isCrit ? '#8B2020' : '#9B6B00' }}>{item.availableQty}</td>
+                          <td style={{ ...td, color: '#9C9188' }}>{item.inProductionQty}</td>
+                          <td style={{ ...td, color: '#6A635A' }}>{item.reorderThreshold}</td>
+                          <td style={{ ...td, fontWeight: 600, color: '#1E6B45' }}>+{item.suggestedRestockQty}</td>
+                          <td style={td}>
+                            <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 600, background: pillBg, color: pillColor }}>
+                              {pillLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Risk by brand */}
+            {plan.riskByBrand.length > 0 && (
+              <div style={{ padding: '14px 16px 16px', borderTop: '1px solid #EAE6E0', marginTop: plan.topRestockPriorities.length > 0 ? 12 : 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#9C9188', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 10 }}>
+                  Risk Concentration by Brand
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {plan.riskByBrand.map((b) => {
+                    const riskPct = b.totalVariants > 0 ? ((b.outOfStock + b.critical + b.low) / b.totalVariants) : 0;
+                    const riskColor = riskPct >= 0.6 ? '#8B2020' : riskPct >= 0.3 ? '#9B6B00' : '#1E6B45';
+                    return (
+                      <div key={b.brand}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, color: '#18160F' }}>{b.brand}</span>
+                          <span style={{ color: '#9C9188' }}>
+                            {b.outOfStock > 0 && <span style={{ color: '#8B2020' }}>{b.outOfStock} out · </span>}
+                            {b.critical > 0 && <span style={{ color: '#8B2020' }}>{b.critical} critical · </span>}
+                            {b.low > 0 && <span style={{ color: '#9B6B00' }}>{b.low} low · </span>}
+                            <span style={{ color: '#1E6B45' }}>{b.healthy} healthy</span>
+                            {' · '}{b.totalVariants} total
+                          </span>
+                        </div>
+                        <div style={{ background: '#EAE6E0', borderRadius: 99, height: 5, overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.round(riskPct * 100)}%`, height: '100%', background: riskColor, borderRadius: 99 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Slow moving + dead stock lists */}
+            {(plan.slowMovingVariants.length > 0 || plan.deadStockVariants.length > 0) && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #EAE6E0' }}>
+                {plan.slowMovingVariants.length > 0 && (
+                  <div style={{ padding: '12px 16px', borderRight: plan.deadStockVariants.length > 0 ? '1px solid #EAE6E0' : 'none' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#9B6B00', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Slow Moving (&lt; 2 sales in 30d)
+                    </div>
+                    {plan.slowMovingVariants.map((item, idx) => (
+                      <div key={item.variantId} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: idx < plan.slowMovingVariants.length - 1 ? '1px solid #EAE6E0' : 'none', fontSize: 12 }}>
+                        <div>
+                          <span style={{ fontWeight: 600, color: '#18160F' }}>{item.productName}</span>
+                          <span style={{ color: '#9C9188', marginLeft: 6 }}>{item.size}/{item.color}</span>
+                        </div>
+                        <span style={{ color: '#9B6B00', fontWeight: 600 }}>{item.availableQty} left · {item.unitsSoldInWindow} sold</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {plan.deadStockVariants.length > 0 && (
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#8B2020', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Dead Stock (0 sales in 90d)
+                    </div>
+                    {plan.deadStockVariants.map((item, idx) => (
+                      <div key={item.variantId} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: idx < plan.deadStockVariants.length - 1 ? '1px solid #EAE6E0' : 'none', fontSize: 12 }}>
+                        <div>
+                          <span style={{ fontWeight: 600, color: '#18160F' }}>{item.productName}</span>
+                          <span style={{ color: '#9C9188', marginLeft: 6 }}>{item.size}/{item.color}</span>
+                        </div>
+                        <span style={{ color: '#8B2020', fontWeight: 600 }}>{item.availableQty} units stalled</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Footer context ───────────────────────────────── */}
         <div style={{ fontSize: 11, color: '#9C9188', textAlign: 'center', padding: '10px 0' }}>
           {fmt(productCount)} products in catalog · {fmt(activeOrderCount)} active orders overall
+          {plan.totalVariants > 0 && ` · ${fmt(plan.totalVariants)} variant SKUs tracked`}
         </div>
       </div>
     </main>
@@ -390,6 +578,16 @@ function MiniStat({ val, label, color }: { val: string; label: string; color: st
   );
 }
 
+function PlanStat({ val, label, note, color }: { val: string; label: string; note: string; color: string }) {
+  return (
+    <div style={{ padding: '14px 16px', borderLeft: '1px solid #EAE6E0' }}>
+      <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 3, color }}>{val}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#6A635A', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#9C9188' }}>{note}</div>
+    </div>
+  );
+}
+
 // ── Style constants ─────────────────────────────────────────────
 const card: React.CSSProperties = {
   background: '#fff',
@@ -415,6 +613,11 @@ const th: React.CSSProperties = {
 };
 const td: React.CSSProperties = {
   fontSize: 13, color: '#18160F', padding: '9px 12px',
+};
+const varChip: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center',
+  padding: '1px 7px', borderRadius: 4, fontSize: 11, fontWeight: 500,
+  background: '#fff', border: '1px solid #D8D3CB', color: '#6A635A', marginRight: 3,
 };
 const topbar: React.CSSProperties = {
   height: 60, background: '#fff',
