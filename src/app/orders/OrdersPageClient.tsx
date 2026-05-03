@@ -414,6 +414,7 @@ export default function OrdersPageClient({
 
       <div className="content" style={{ flex: 1 }}>
         <div className="card overflow-hidden">
+          <div className="table-scroll">
           <table className="data-table">
             <thead>
               <tr>
@@ -502,6 +503,7 @@ export default function OrdersPageClient({
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

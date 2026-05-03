@@ -23,7 +23,7 @@ const STATUS_TABS = [
   { key: "low-stock", label: "Low Stock" },
   { key: "critical", label: "Critical" },
   { key: "out-of-stock", label: "Out of Stock" },
-];
+] as const;
 
 interface ProductsPageStats {
   totalProducts: number;
@@ -60,7 +60,7 @@ export default function ProductsPageClient({
   }), [initialProducts, search, statusFilter]);
 
   const counts = useMemo(() => {
-    const c: Record<ProductStatusFilter, number> = { all: initialProducts.length };
+    const c: Record<string, number> = { all: initialProducts.length };
     STATUS_TABS.slice(1).forEach(t => {
       c[t.key] = initialProducts.filter(p => p.status === t.key).length;
     });
@@ -157,60 +157,62 @@ export default function ProductsPageClient({
 
       <div className="content">
         <div className="card overflow-hidden">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ width: 60 }}></th>
-                <th>Product</th>
-                <th>Brand</th>
-                <th>Sizes</th>
-                <th style={{ textAlign: "right" }}>Stock</th>
-                <th style={{ textAlign: "right" }}>Price</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.map(p => (
-                <tr key={p.id} onClick={() => setSelectedProduct(p)} className="cursor-pointer">
-                  <td style={{ paddingRight: 4 }}>
-                    <ProductThumb status={p.status} />
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
-                    <code style={{ fontSize: 10, color: "var(--color-fg-3)", fontFamily: "var(--font-mono)" }}>
-                      SKU-{p.id.toString().padStart(4, '0')}
-                    </code>
-                  </td>
-                  <td><span style={{ fontSize: 12 }}>{p.brand}</span></td>
-                  <td>
-                    <div className="flex gap-1 flex-wrap">
-                      {p.sizes.split(',').map((s: string) => (
-                        <span key={s} className="var-chip" style={{ fontSize: 10 }}>{s.trim()}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: "right", fontWeight: 700 }}>
-                    {p.variants && p.variants.length > 0
-                      ? p.variants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
-                      : p.stock}
-                  </td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>₺{p.price.toLocaleString()}</td>
-                  <td>
-                    <span className={`pill pill-${p.status}`}>
-                      {p.status.replace('-', ' ')}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {filteredProducts.length === 0 && (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-fg-3)" }}>
-                    No products match your filters.
-                  </td>
+                  <th style={{ width: 60 }}></th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Sizes</th>
+                  <th style={{ textAlign: "right" }}>Stock</th>
+                  <th style={{ textAlign: "right" }}>Price</th>
+                  <th>Status</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredProducts.map(p => (
+                  <tr key={p.id} onClick={() => setSelectedProduct(p)} className="cursor-pointer">
+                    <td style={{ paddingRight: 4 }}>
+                      <ProductThumb status={p.status} />
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
+                      <code style={{ fontSize: 10, color: "var(--color-fg-3)", fontFamily: "var(--font-mono)" }}>
+                        SKU-{p.id.toString().padStart(4, '0')}
+                      </code>
+                    </td>
+                    <td><span style={{ fontSize: 12 }}>{p.brand}</span></td>
+                    <td>
+                      <div className="flex gap-1 flex-wrap">
+                        {p.sizes.split(',').map((s: string) => (
+                          <span key={s} className="var-chip" style={{ fontSize: 10 }}>{s.trim()}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 700 }}>
+                      {p.variants && p.variants.length > 0
+                        ? p.variants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
+                        : p.stock}
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 600 }}>₺{p.price.toLocaleString()}</td>
+                    <td>
+                      <span className={`pill pill-${p.status}`}>
+                        {p.status.replace('-', ' ')}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {filteredProducts.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-fg-3)" }}>
+                      No products match your filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

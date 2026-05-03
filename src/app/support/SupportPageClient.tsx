@@ -196,6 +196,8 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
       initialEscalations[0]?.id ||
       null
   );
+  // Mobile: toggle between conversation list and thread view
+  const [mobileView, setMobileView] = useState<'list' | 'thread'>('list');
 
   useEffect(() => {
     setEscalations(initialEscalations);
@@ -364,7 +366,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
       </div>
 
       <div className="inbox-body">
-        <div className="convo-panel">
+        <div className={`convo-panel${mobileView === 'thread' ? ' mobile-panel-hidden' : ''}`}>
           <div className="convo-header">
             <div className="convo-search">
               <Icon d={ic.search} size={12} color="var(--color-fg-3)" />
@@ -429,7 +431,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
                 <div
                   key={e.id}
                   className={`convo-item${selectedId === e.id ? " active" : ""}${active ? ' unread' : ''}`}
-                  onClick={() => setSelectedId(e.id)}
+                  onClick={() => { setSelectedId(e.id); setMobileView('thread'); }}
                 >
                   <div className="convo-item-top">
                     <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
@@ -478,7 +480,15 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
             )}
           </div>
         </div>
-        <Thread convo={activeConvo} onConvoUpdate={updateEscalation} canReply={canReply} />
+        <div className={`thread-panel-wrap${mobileView === 'list' ? ' mobile-panel-hidden' : ''}`}>
+          <button className="mobile-back-btn" onClick={() => setMobileView('list')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Back to inbox
+          </button>
+          <Thread convo={activeConvo} onConvoUpdate={updateEscalation} canReply={canReply} />
+        </div>
       </div>
     </main>
   );

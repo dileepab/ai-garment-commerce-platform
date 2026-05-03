@@ -770,13 +770,185 @@ select.filter-select-sm { padding:5px 8px; font-size:11px; max-width:132px; }
 .drawer-error { padding:9px 11px; border:1px solid rgba(139,32,32,0.25); border-radius:var(--radius-md); background:var(--color-error-muted); color:#701919; font-size:12px; font-weight:600; line-height:1.4; }
 .drawer-actions { padding:16px 20px; border-top:1px solid var(--color-border-subtle); display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
 
-@media (max-width: 1100px) {
-  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
-  .ai-grid { grid-template-columns: repeat(3, 1fr); }
+/* ── Mobile navigation controls ─────────────────────────── */
+
+/* Hamburger trigger — fixed, only shown when sidebar is off-canvas */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 201;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-card);
+  color: var(--color-fg-1);
+  padding: 0;
+  flex-shrink: 0;
 }
+
+/* Dim overlay behind the mobile sidebar */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(24,22,15,0.5);
+  z-index: 299;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+/* Desktop sidebar sticky positioning (replaces inline position:sticky) */
+.sidebar-nav { position: sticky; top: 0; }
+
+/* Close button inside sidebar header (mobile only) */
+.sidebar-close-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  margin-left: auto;
+}
+
+/* Mobile back button (support inbox — list → thread) */
+.mobile-back-btn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent);
+  cursor: pointer;
+  background: var(--color-surface);
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-family: var(--font-ui);
+  width: 100%;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+/* Thread-panel wrapper for support inbox mobile toggle */
+.thread-panel-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Horizontal-scroll wrapper for data tables on small screens */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Analytics responsive grid helpers (classnames added to inline-style grids) */
+.analytics-kpi-4     { display: grid; grid-template-columns: repeat(4, 1fr); }
+.analytics-two-col   { display: grid; grid-template-columns: 1fr 1.4fr; }
+.analytics-ai-6      { display: grid; grid-template-columns: repeat(6, 1fr); }
+.analytics-half-half { display: grid; grid-template-columns: 1fr 1fr; }
+.analytics-plan-6    { display: grid; grid-template-columns: repeat(6, 1fr); border-bottom: 1px solid #EAE6E0; }
+
+/* ── 1100px — reduce wide grids ──────────────────────────── */
+@media (max-width: 1100px) {
+  .kpi-grid         { grid-template-columns: repeat(3, 1fr); }
+  .ai-grid          { grid-template-columns: repeat(3, 1fr); }
+  .analytics-ai-6   { grid-template-columns: repeat(3, 1fr); }
+  .analytics-plan-6 { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── 900px — sidebar off-canvas, topbar adjusts ─────────── */
 @media (max-width: 900px) {
+  /* Show hamburger, activate overlay */
+  .mobile-menu-btn { display: flex; }
+  .sidebar-overlay { display: block; }
+  .sidebar-overlay.visible { opacity: 1; pointer-events: all; }
+
+  /* Sidebar: hidden by default, overlays when open */
+  .sidebar-nav {
+    display: none !important;
+    position: fixed !important;
+    top: 0; left: 0;
+    height: 100vh;
+    z-index: 300 !important;
+    overflow-y: auto;
+  }
+  .sidebar-nav.open {
+    display: flex !important;
+    animation: sidebarSlideIn 260ms cubic-bezier(0.16,1,0.3,1);
+  }
+  .sidebar-close-btn { display: flex; }
+
+  /* Indent topbar content past the hamburger */
+  .topbar { padding-left: 60px; }
+  .analytics-topbar { padding-left: 60px !important; }
+
+  /* Grid stacking */
   .app-shell { grid-template-columns: 1fr; }
-  .sidebar { display: none; } /* Or whatever the original behavior was */
   .two-col, .three-col { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .ai-grid  { grid-template-columns: repeat(2, 1fr); }
+
+  /* Analytics grids */
+  .analytics-kpi-4     { grid-template-columns: repeat(2, 1fr); }
+  .analytics-two-col   { grid-template-columns: 1fr; }
+  .analytics-half-half { grid-template-columns: 1fr; }
+  .analytics-ai-6      { grid-template-columns: repeat(2, 1fr); }
+  .analytics-plan-6    { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── 768px — tablet portrait / large phone landscape ────── */
+@media (max-width: 768px) {
+  /* Compact topbar */
+  .topbar { padding: 10px 16px 10px 60px; height: auto; min-height: 52px; flex-wrap: wrap; }
+  .topbar-subtitle { display: none; }
+
+  /* Analytics topbar */
+  .analytics-topbar { height: auto !important; min-height: 52px; flex-wrap: wrap !important;
+    padding: 10px 16px 10px 60px !important; }
+  .analytics-range-btns { flex-wrap: wrap !important; gap: 4px !important; }
+
+  /* KPI strips → 2 columns */
+  .kpi-strip  { grid-template-columns: repeat(2, 1fr); padding: 12px 16px; gap: 8px; }
+  .stat-strip { grid-template-columns: repeat(2, 1fr); }
+
+  /* Reduced content padding */
+  .content { padding: 16px 16px 40px; }
+
+  /* Filter bar → vertical stack */
+  .filter-bar { flex-direction: column; align-items: stretch; padding: 12px 16px; gap: 8px; }
+  .search-wrap { max-width: none; }
+  .filter-group { flex-wrap: wrap; }
+
+  /* Status tabs → horizontal scroll (no visible scrollbar) */
+  .status-tabs { overflow-x: auto; width: 100%; scrollbar-width: none; flex-wrap: nowrap; }
+  .status-tabs::-webkit-scrollbar { display: none; }
+
+  /* Pipeline strip → vertical */
+  .pipeline-strip { flex-direction: column; gap: 12px; padding: 12px 16px; }
+
+  /* Support inbox mobile panel toggle */
+  .mobile-panel-hidden { display: none !important; }
+  .mobile-back-btn { display: flex; }
+}
+
+/* ── 640px — phones ──────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Drawer goes full-screen on phones */
+  .drawer { width: 100%; }
 }

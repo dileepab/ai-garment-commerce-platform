@@ -119,7 +119,7 @@ const NAV_ITEMS: {
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const scope = session?.user ? getUserScopeFromSessionUser(session.user) : null;
@@ -140,6 +140,7 @@ export default function Sidebar() {
 
   return (
     <aside
+      className={`sidebar-nav${isOpen ? ' open' : ''}`}
       style={{
         width: 220,
         flexShrink: 0,
@@ -148,12 +149,10 @@ export default function Sidebar() {
         flexDirection: 'column',
         padding: '16px 10px',
         minHeight: '100vh',
-        position: 'sticky',
-        top: 0,
         zIndex: 200,
       }}
     >
-      {/* Logo */}
+      {/* Logo + mobile close button */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 9,
         padding: '4px 8px 16px',
@@ -171,6 +170,11 @@ export default function Sidebar() {
         <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', letterSpacing: '-0.02em' }}>
           Garment<span style={{ color: '#C4622D', fontWeight: 300 }}>OS</span>
         </div>
+        <button className="sidebar-close-btn" onClick={onClose} aria-label="Close navigation">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
       </div>
 
       {/* Nav items */}

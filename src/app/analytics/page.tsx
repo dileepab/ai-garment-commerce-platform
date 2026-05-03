@@ -185,12 +185,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
   return (
     <main style={{ minHeight: '100vh', background: '#F7F5F2' }}>
       {/* ── Topbar ───────────────────────────────────────── */}
-      <div style={topbar}>
+      <div style={topbar} className="analytics-topbar">
         <div style={{ flex: 1 }}>
           <div style={topTitle}>Analytics &amp; Reporting</div>
           <div style={topSubtitle}>{rangeLabel} · {rangeSubtitle}</div>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6 }} className="analytics-range-btns">
           {DATE_RANGE_PRESETS.map((r) => {
             const active = r.id === preset;
             return (
@@ -214,7 +214,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
       <div style={{ padding: '24px 28px 48px', maxWidth: 1400, margin: '0 auto' }}>
 
         {/* ── Headline KPIs ────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <div className="analytics-kpi-4" style={{ gap: 12, marginBottom: 16 }}>
           <KpiCard label="Net Revenue"    value={formatLkr(revenue.netRevenue)}      note={`${fmt(revenue.paidOrderCount)} paid orders`} accent="#1E6B45" />
           <KpiCard label="Avg Order Value" value={formatLkr(revenue.averageOrderValue)} note="Excludes cancellations" accent="#1E3452" />
           <KpiCard label="Customers"       value={fmt(revenue.uniqueCustomerCount)}    note={`${fmt(revenue.repeatOrderCount)} repeat orders`} accent="#C4622D" />
@@ -253,7 +253,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
         </div>
 
         {/* ── Order status + top products ──────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 16, marginBottom: 16 }}>
+        <div className="analytics-two-col" style={{ gap: 16, marginBottom: 16 }}>
           {/* Order status */}
           <div style={card}>
             <div style={cardHeader}>
@@ -324,7 +324,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
             <span style={cardTitle}>AI Performance ({rangeLabel.toLowerCase()})</span>
             <Link href="/support" style={cardAction}>Support inbox →</Link>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)' }}>
+          <div className="analytics-ai-6">
             <Metric val={fmt(ai.totalMessages)}       label="Messages"          note={`${fmt(ai.uniqueConversations)} convos`} />
             <Metric val={formatPct(ai.responseRate)}  label="Response Rate"     note="Replied vs received" good={ai.responseRate >= 0.9} />
             <Metric val={formatPct(ai.conversionRate)} label="Conversion Rate"   note={`${fmt(ai.conversionsFromCustomers)} converted`} good={ai.conversionRate > 0} />
@@ -335,7 +335,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
         </div>
 
         {/* ── Stock + production ───────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <div className="analytics-half-half" style={{ gap: 16, marginBottom: 16 }}>
           <div style={card}>
             <div style={cardHeader}>
               <span style={cardTitle}>Stock Health (Product Level)</span>
@@ -411,7 +411,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
             </div>
 
             {/* Summary row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', borderBottom: '1px solid #EAE6E0' }}>
+            <div className="analytics-plan-6">
               <PlanStat val={fmt(plan.totalVariants)}  label="Total variants"    note="all size/color SKUs"                color="#18160F" />
               <PlanStat val={fmt(plan.outOfStock)}     label="Out of stock"      note="zero available"                     color={plan.outOfStock > 0 ? '#8B2020' : '#9C9188'} />
               <PlanStat val={fmt(plan.critical)}       label="Critical"          note={`≤ threshold`}                      color={plan.critical > 0 ? '#8B2020' : '#9C9188'} />
@@ -499,7 +499,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
 
             {/* Slow moving + dead stock lists */}
             {(plan.slowMovingVariants.length > 0 || plan.deadStockVariants.length > 0) && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #EAE6E0' }}>
+              <div className="analytics-half-half" style={{ borderTop: '1px solid #EAE6E0' }}>
                 {plan.slowMovingVariants.length > 0 && (
                   <div style={{ padding: '12px 16px', borderRight: plan.deadStockVariants.length > 0 ? '1px solid #EAE6E0' : 'none' }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: '#9B6B00', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
