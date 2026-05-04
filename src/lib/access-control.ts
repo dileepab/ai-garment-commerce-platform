@@ -32,7 +32,9 @@ export type Permission =
   | 'customers:view'
   | 'customers:write'
   | 'settings:view'
-  | 'settings:write';
+  | 'settings:write'
+  | 'content:view'
+  | 'content:write';
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Owner',
@@ -62,6 +64,8 @@ const ALL_PERMISSIONS: Permission[] = [
   'customers:write',
   'settings:view',
   'settings:write',
+  'content:view',
+  'content:write',
 ];
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -83,10 +87,12 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'operators:write',
     'inventory:view',
     'inventory:reserve',
+    'content:view',
   ],
 };
 
 const PAGE_PERMISSIONS: { prefix: string; permission: Permission }[] = [
+  { prefix: '/content', permission: 'content:view' },
   { prefix: '/analytics', permission: 'analytics:view' },
   { prefix: '/settings', permission: 'settings:view' },
   { prefix: '/operators', permission: 'operators:view' },

@@ -308,6 +308,21 @@ model MerchantSettings {
   @@index([brand])
 }
 
+model SocialPost {
+  id                Int       @id @default(autoincrement())
+  brand             String
+  channels          String    // comma-separated: "facebook", "instagram", or "facebook,instagram"
+  caption           String
+  generatedCaptions String?   // JSON array of AI-generated suggestions
+  productContext    String?   // optional context used for generation
+  status            String    @default("draft") // draft | ready
+  createdBy         String?   // user email
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([brand, status, createdAt])
+}
+
 model ReturnRequest {
   id                 Int       @id @default(autoincrement())
   orderId            Int
