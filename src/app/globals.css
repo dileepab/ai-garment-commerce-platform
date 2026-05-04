@@ -486,7 +486,7 @@ a {
   display: flex; align-items: center;
   padding: 0 28px;
   gap: 12px;
-  z-index: 100;
+  position: sticky; top: 0; z-index: 100;
 }
 .topbar-title-group { flex: 1; }
 .topbar-title { font-family: var(--font-display); font-size: 22px; font-weight: 400; letter-spacing: -0.01em; color: var(--color-fg-1); line-height: 1; }
@@ -571,7 +571,7 @@ a {
 
 /* Tables */
 .data-table { width: 100%; border-collapse: collapse; }
-.data-table th { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-fg-3); padding: 0 12px 8px; text-align: left; border-bottom: 1px solid var(--color-border-subtle); }
+.data-table th { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-fg-3); padding: 8px 12px 8px; text-align: left; border-bottom: 1px solid var(--color-border-subtle); }
 .data-table td { font-size: 13px; color: var(--color-fg-1); padding: 9px 12px; border-bottom: 1px solid var(--color-border-subtle); }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: #FAFAF8; }

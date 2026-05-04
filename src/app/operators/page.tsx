@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { requirePagePermission } from '@/lib/authz';
+import { PageHeader } from '@/components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,18 +16,13 @@ export default async function OperatorsPage() {
   });
 
   return (
-    <main className="app-shell">
-      <div className="app-container space-y-6">
-        <div className="app-header">
-          <div>
-            <p className="app-kicker">Operators</p>
-            <h1 className="app-title">Operator performance</h1>
-            <p className="app-subtitle">
-              Output totals, skills, and current status across your production floor.
-            </p>
-          </div>
-        </div>
+    <main className="main">
+      <PageHeader
+        title="Operators"
+        subtitle="Output totals, skills, and current status across your production floor"
+      />
 
+      <div className="content">
         {operators.length === 0 ? (
           <section className="app-panel px-6 py-12 text-center">
             <h2 className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>No operators registered yet</h2>

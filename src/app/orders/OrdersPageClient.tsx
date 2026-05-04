@@ -8,6 +8,7 @@ import {
   type OrderDrawerOrder,
   type OrderPipelineStats,
 } from '@/components/OrderComponents';
+import { PageHeader } from '@/components/PageHeader';
 import type { FulfillmentAction } from '@/lib/fulfillment';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
@@ -293,15 +294,13 @@ export default function OrdersPageClient({
 
   return (
     <main className="main">
-      <div className="topbar">
-        <div className="topbar-title-group">
-          <div className="topbar-title">Orders</div>
-          <div className="topbar-subtitle">{stats.total} total orders · Today&apos;s Revenue: ₺{stats.revenueToday.toLocaleString()}</div>
-        </div>
-        <div className="topbar-actions">
+      <PageHeader
+        title="Orders"
+        subtitle={`${stats.total} total orders · Today's Revenue: ₺${stats.revenueToday.toLocaleString()}`}
+        actions={
           <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export</button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="kpi-strip">
         <div className="kpi-strip-card">

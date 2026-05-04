@@ -10,6 +10,7 @@ import {
   getMerchantSettings,
   type MerchantSettings,
 } from '@/lib/runtime-config';
+import { PageHeader } from '@/components/PageHeader';
 import { saveMerchantSettingsAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -250,19 +251,14 @@ export default async function SettingsPage() {
   const scopedSettings = await Promise.all(brandNames.map((brand) => getMerchantSettings(brand)));
 
   return (
-    <main className="app-shell">
-      <div className="app-container" style={{ display: 'grid', gap: 18 }}>
-        <div className="app-header" style={{ marginBottom: 0 }}>
-          <div>
-            <p className="app-kicker">Merchant Settings</p>
-            <h1 className="app-title">Business configuration</h1>
-            <p className="app-subtitle">
-              Operational defaults for support, delivery, payments, automation timing, and brand-specific customer replies.
-            </p>
-          </div>
-          <span className="app-chip app-chip-neutral">{describeScope(scope)}</span>
-        </div>
+    <main className="main">
+      <PageHeader
+        title="Merchant Settings"
+        subtitle="Operational defaults for support, delivery, payments, automation timing, and brand-specific customer replies"
+        actions={<span className="app-chip app-chip-neutral">{describeScope(scope)}</span>}
+      />
 
+      <div className="content" style={{ display: 'grid', gap: 18 }}>
         <SettingsForm
           settings={globalSettings}
           title="Global defaults"

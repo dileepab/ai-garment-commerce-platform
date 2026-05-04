@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { getBrandScopedWhere } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
+import { PageHeader } from '@/components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,18 +33,13 @@ export default async function ProductionPage() {
   });
 
   return (
-    <main className="app-shell">
-      <div className="app-container space-y-6">
-        <div className="app-header">
-          <div>
-            <p className="app-kicker">Production</p>
-            <h1 className="app-title">Production batches with clearer progress</h1>
-            <p className="app-subtitle">
-              Planned and finished quantities with a clear completion indicator per batch.
-            </p>
-          </div>
-        </div>
+    <main className="main">
+      <PageHeader
+        title="Production"
+        subtitle="Planned and finished quantities with a clear completion indicator per batch"
+      />
 
+      <div className="content">
         {batches.length === 0 ? (
           <section className="app-panel px-6 py-12 text-center">
             <h2 className="text-2xl font-semibold" style={{ color: 'var(--foreground)' }}>No production batches found</h2>

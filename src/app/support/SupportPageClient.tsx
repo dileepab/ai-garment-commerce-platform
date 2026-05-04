@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Thread } from '@/components/SupportComponents';
+import { PageHeader } from '@/components/PageHeader';
 import type { SupportStats, SupportThread } from './types';
 import { SUPPORT_THREAD_POLL_MS } from './format';
 import { updateEscalationWorkflowAction } from './actions';
@@ -326,21 +327,21 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
 
   return (
     <main className="main support-main">
-      <div className="topbar">
-        <div className="topbar-title-group">
-          <div className="topbar-title">Support Inbox</div>
-          <div className="topbar-subtitle" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <PageHeader
+        title="Support Inbox"
+        subtitle={
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className="live-dot" />
             {liveStats.open} active case locks · AI replies continue for other customers · <span suppressHydrationWarning>{liveStats.dateLabel || new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
-        </div>
-        <div className="topbar-actions">
+        }
+        actions={
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>
             <Icon d={ic.zap} size={12} color="var(--color-accent)" />
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{liveStats.open > 0 ? `${liveStats.open} Case Lock${liveStats.open === 1 ? "" : "s"}` : "AI Live"}</span>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="stat-strip">
         <div className="stat-cell">

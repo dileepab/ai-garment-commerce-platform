@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ReturnRequestDrawer } from '@/components/ReturnComponents';
 import type { SerializedReturnRequest } from '@/components/ReturnComponents';
+import { PageHeader } from '@/components/PageHeader';
 
 interface ReturnsStats {
   total: number;
@@ -62,162 +63,160 @@ export default function ReturnRequestsPageClient({
   });
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1100 }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-fg-1)', marginBottom: 4 }}>
-          Returns & Exchanges
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--color-fg-3)' }}>
-          Manage post-delivery return and exchange requests.
-        </p>
-      </div>
+    <main className="main">
+      <PageHeader
+        title="Returns & Exchanges"
+        subtitle="Manage post-delivery return and exchange requests"
+      />
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 24 }}>
-        {[
-          { label: 'Total', value: stats.total },
-          { label: 'Open', value: stats.open },
-          { label: 'Awaiting Item', value: stats.pendingItemReceipt },
-          { label: 'Completed', value: stats.completed },
-          { label: 'Returns', value: stats.returns },
-          { label: 'Exchanges', value: stats.exchanges },
-        ].map((s) => (
-          <div key={s.label} style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
-            <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginBottom: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-fg-1)' }}>{s.value}</div>
-          </div>
-        ))}
-      </div>
+      <div className="content" style={{ maxWidth: 1100 }}>
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 24 }}>
+          {[
+            { label: 'Total', value: stats.total },
+            { label: 'Open', value: stats.open },
+            { label: 'Awaiting Item', value: stats.pendingItemReceipt },
+            { label: 'Completed', value: stats.completed },
+            { label: 'Returns', value: stats.returns },
+            { label: 'Exchanges', value: stats.exchanges },
+          ].map((s) => (
+            <div key={s.label} style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--color-border-subtle)' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginBottom: 4 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-fg-1)' }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Search by ID, order, customer, reason…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 240 }}
-        />
-        <select
-          className="search-input"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="all">All statuses</option>
-          <option value="open">Open</option>
-          <option value="requested">Requested</option>
-          <option value="under_review">Under review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="item_received">Item received</option>
-          <option value="replacement_processing">Replacement processing</option>
-          <option value="completed">Completed</option>
-        </select>
-        <select
-          className="search-input"
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-        >
-          <option value="all">All types</option>
-          <option value="return">Returns</option>
-          <option value="exchange">Exchanges</option>
-        </select>
-      </div>
+        {/* Filters */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search by ID, order, customer, reason…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 240 }}
+          />
+          <select
+            className="search-input"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="open">Open</option>
+            <option value="requested">Requested</option>
+            <option value="under_review">Under review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="item_received">Item received</option>
+            <option value="replacement_processing">Replacement processing</option>
+            <option value="completed">Completed</option>
+          </select>
+          <select
+            className="search-input"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value="all">All types</option>
+            <option value="return">Returns</option>
+            <option value="exchange">Exchanges</option>
+          </select>
+        </div>
 
-      {/* Table */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-              {['ID', 'Order', 'Customer', 'Type', 'Reason', 'Status', 'Stock', 'Created'].map((h) => (
-                <th
-                  key={h}
-                  style={{
-                    padding: '8px 10px',
-                    textAlign: 'left',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--color-fg-3)',
-                    whiteSpace: 'nowrap',
-                  }}
+        {/* Table */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                {['ID', 'Order', 'Customer', 'Type', 'Reason', 'Status', 'Stock', 'Created'].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: '8px 12px 8px',
+                      textAlign: 'left',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--color-fg-3)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ padding: '24px 10px', textAlign: 'center', color: 'var(--color-fg-3)', fontSize: 13 }}>
+                    No return or exchange requests found.
+                  </td>
+                </tr>
+              )}
+              {filtered.map((r) => (
+                <tr
+                  key={r.id}
+                  style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+                  onClick={() => setSelected(r)}
+                  className="table-row-hover"
                 >
-                  {h}
-                </th>
+                  <td style={{ padding: '10px 10px' }}>
+                    <code style={{ fontSize: 12, fontWeight: 600 }}>#{r.id}</code>
+                  </td>
+                  <td style={{ padding: '10px 10px' }}>
+                    <code style={{ fontSize: 12 }}>ORD-{r.orderId}</code>
+                  </td>
+                  <td style={{ padding: '10px 10px' }}>
+                    {r.customer?.name ?? '—'}
+                  </td>
+                  <td style={{ padding: '10px 10px' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: TYPE_COLORS[r.type] + '22',
+                        color: TYPE_COLORS[r.type],
+                      }}
+                    >
+                      {r.type === 'exchange' ? 'Exchange' : 'Return'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.reason}
+                  </td>
+                  <td style={{ padding: '10px 10px' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: (STATUS_COLORS[r.status] ?? '#888') + '22',
+                        color: STATUS_COLORS[r.status] ?? '#888',
+                      }}
+                    >
+                      {r.status.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 10px', fontSize: 11 }}>
+                    {r.stockReconciled ? (
+                      <span style={{ color: '#38A169', fontWeight: 600 }}>✓ Reconciled</span>
+                    ) : (
+                      <span style={{ color: 'var(--color-fg-3)' }}>Pending</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '10px 10px', fontSize: 11, color: 'var(--color-fg-3)', whiteSpace: 'nowrap' }} suppressHydrationWarning>
+                    {new Date(r.createdAt).toLocaleDateString()}
+                  </td>
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ padding: '24px 10px', textAlign: 'center', color: 'var(--color-fg-3)', fontSize: 13 }}>
-                  No return or exchange requests found.
-                </td>
-              </tr>
-            )}
-            {filtered.map((r) => (
-              <tr
-                key={r.id}
-                style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
-                onClick={() => setSelected(r)}
-                className="table-row-hover"
-              >
-                <td style={{ padding: '10px 10px' }}>
-                  <code style={{ fontSize: 12, fontWeight: 600 }}>#{r.id}</code>
-                </td>
-                <td style={{ padding: '10px 10px' }}>
-                  <code style={{ fontSize: 12 }}>ORD-{r.orderId}</code>
-                </td>
-                <td style={{ padding: '10px 10px' }}>
-                  {r.customer?.name ?? '—'}
-                </td>
-                <td style={{ padding: '10px 10px' }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: TYPE_COLORS[r.type] + '22',
-                      color: TYPE_COLORS[r.type],
-                    }}
-                  >
-                    {r.type === 'exchange' ? 'Exchange' : 'Return'}
-                  </span>
-                </td>
-                <td style={{ padding: '10px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.reason}
-                </td>
-                <td style={{ padding: '10px 10px' }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: (STATUS_COLORS[r.status] ?? '#888') + '22',
-                      color: STATUS_COLORS[r.status] ?? '#888',
-                    }}
-                  >
-                    {r.status.replace(/_/g, ' ')}
-                  </span>
-                </td>
-                <td style={{ padding: '10px 10px', fontSize: 11 }}>
-                  {r.stockReconciled ? (
-                    <span style={{ color: '#38A169', fontWeight: 600 }}>✓ Reconciled</span>
-                  ) : (
-                    <span style={{ color: 'var(--color-fg-3)' }}>Pending</span>
-                  )}
-                </td>
-                <td style={{ padding: '10px 10px', fontSize: 11, color: 'var(--color-fg-3)', whiteSpace: 'nowrap' }} suppressHydrationWarning>
-                  {new Date(r.createdAt).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <ReturnRequestDrawer
@@ -228,6 +227,6 @@ export default function ReturnRequestsPageClient({
         }}
         canManage={canManage}
       />
-    </div>
+    </main>
   );
 }

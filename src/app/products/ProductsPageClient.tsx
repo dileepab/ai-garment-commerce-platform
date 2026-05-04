@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProductThumb, ProductDrawer, type Product, type ProductVariantData } from '@/components/ProductComponents';
+import { PageHeader } from '@/components/PageHeader';
 import { ProductFormModal } from './ProductFormModal';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
@@ -96,18 +97,18 @@ export default function ProductsPageClient({
 
   return (
     <main className="main">
-      <div className="topbar">
-        <div className="topbar-title-group">
-          <div className="topbar-title">Products</div>
-          <div className="topbar-subtitle">{initialProducts.length} SKUs across all categories</div>
-        </div>
-        <div className="topbar-actions">
-          <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export CSV</button>
-          {canManageProducts && (
-            <button className="btn btn-primary" onClick={openAddForm}><Icon d={ic.plus} size={13} />Add Product</button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Products"
+        subtitle={`${initialProducts.length} SKUs across all categories`}
+        actions={
+          <>
+            <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export CSV</button>
+            {canManageProducts && (
+              <button className="btn btn-primary" onClick={openAddForm}><Icon d={ic.plus} size={13} />Add Product</button>
+            )}
+          </>
+        }
+      />
 
       <div className="kpi-strip">
         <div className="kpi-strip-card">
