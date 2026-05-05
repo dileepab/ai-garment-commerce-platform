@@ -8,8 +8,25 @@ import {
   updateSocialPost,
   generatePostCaptions,
 } from './actions';
+import CreativeStudioModal from './CreativeStudioModal';
+import PublishHistoryModal, { type PublishLogEntry } from './PublishHistoryModal';
+import CreativeDetailModal from './CreativeDetailModal';
+import { PERSONA_OPTIONS } from '@/lib/creative-generator';
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+export interface CreativeRecord {
+  id: number;
+  brand: string;
+  generatedImageData: string;
+  prompt: string;
+  personaStyle: string | null;
+  productContext: string | null;
+  sourceImageUrl: string | null;
+  status: string;
+  createdBy: string | null;
+  createdAt: Date;
+}
 
 export interface PostRecord {
   id: number;
@@ -22,6 +39,10 @@ export interface PostRecord {
   createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  publishStatus: string | null;
+  publishedAt: Date | null;
+  publishedBy: string | null;
+  publishLogs: PublishLogEntry[];
 }
 
 interface Stats {
@@ -59,6 +80,13 @@ const Ic = {
       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
     </svg>
   ),
+  image: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" />
+    </svg>
+  ),
   fb: (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
       <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" />
@@ -69,6 +97,18 @@ const Ic = {
       <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
       <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" />
       <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  ),
+  send: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  ),
+  history: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="1 4 1 10 7 10" />
+      <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
     </svg>
   ),
 };
@@ -121,12 +161,17 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
-function StatusPill({ status }: { status: string }) {
+function StatusPill({ status, publishStatus }: { status: string; publishStatus?: string | null }) {
+  // Publish status takes visual precedence when set
+  const effective = publishStatus ?? status;
   const map: Record<string, { label: string; bg: string; color: string }> = {
-    draft: { label: 'Draft', bg: 'var(--color-surface-muted)', color: 'var(--color-fg-2)' },
-    ready: { label: 'Ready', bg: 'var(--color-success-muted)', color: '#1A5C3C' },
+    draft:     { label: 'Draft',     bg: 'var(--color-surface-muted)', color: 'var(--color-fg-2)' },
+    ready:     { label: 'Ready',     bg: 'var(--color-success-muted)', color: '#1A5C3C' },
+    published: { label: 'Published', bg: '#E6F4EA',                    color: '#1A5C3C' },
+    partial:   { label: 'Partial',   bg: '#FFF3CD',                    color: '#7A5200' },
+    failed:    { label: 'Failed',    bg: 'var(--color-error-muted)',    color: 'var(--color-error)' },
   };
-  const style = map[status] ?? map.draft;
+  const style = map[effective] ?? map.draft;
   return (
     <span
       style={{
@@ -567,33 +612,54 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
 // ── Main Page Client ─────────────────────────────────────────────────────────
 
 const STATUS_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'draft', label: 'Draft' },
-  { key: 'ready', label: 'Ready' },
+  { key: 'all',       label: 'All' },
+  { key: 'draft',     label: 'Draft' },
+  { key: 'ready',     label: 'Ready' },
+  { key: 'published', label: 'Published' },
+  { key: 'failed',    label: 'Failed' },
 ] as const;
 
 type StatusFilter = (typeof STATUS_TABS)[number]['key'];
 
+type ViewMode = 'posts' | 'creatives';
+
 export default function ContentPageClient({
   initialPosts,
+  initialCreatives,
   stats,
   canWrite,
   availableBrands,
 }: {
   initialPosts: PostRecord[];
+  initialCreatives: CreativeRecord[];
   stats: Stats;
   canWrite: boolean;
   availableBrands: string[] | null;
 }) {
   const router = useRouter();
+  const [viewMode, setViewMode] = useState<ViewMode>('posts');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingPost, setEditingPost] = useState<PostRecord | null>(null);
+  const [showCreativeStudio, setShowCreativeStudio] = useState(false);
+  const [historyPost, setHistoryPost] = useState<PostRecord | null>(null);
+  const [viewingCreative, setViewingCreative] = useState<CreativeRecord | null>(null);
+
+  const totalPublished = useMemo(
+    () => initialPosts.filter((p) => p.publishStatus === 'published' || p.publishStatus === 'partial').length,
+    [initialPosts],
+  );
 
   const filtered = useMemo(() => {
     return initialPosts.filter((p) => {
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (statusFilter === 'published') {
+        if (p.publishStatus !== 'published' && p.publishStatus !== 'partial') return false;
+      } else if (statusFilter === 'failed') {
+        if (p.publishStatus !== 'failed') return false;
+      } else if (statusFilter !== 'all') {
+        if (p.status !== statusFilter) return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         if (
@@ -606,9 +672,11 @@ export default function ContentPageClient({
   }, [initialPosts, search, statusFilter]);
 
   const counts: Record<string, number> = useMemo(() => ({
-    all: initialPosts.length,
-    draft: initialPosts.filter((p) => p.status === 'draft').length,
-    ready: initialPosts.filter((p) => p.status === 'ready').length,
+    all:       initialPosts.length,
+    draft:     initialPosts.filter((p) => p.status === 'draft').length,
+    ready:     initialPosts.filter((p) => p.status === 'ready').length,
+    published: initialPosts.filter((p) => p.publishStatus === 'published' || p.publishStatus === 'partial').length,
+    failed:    initialPosts.filter((p) => p.publishStatus === 'failed').length,
   }), [initialPosts]);
 
   function openNew() {
@@ -632,22 +700,50 @@ export default function ContentPageClient({
     setEditingPost(null);
   }
 
+  function handleCreativeSaved() {
+    setShowCreativeStudio(false);
+    router.refresh();
+  }
+
+  function openHistory(post: PostRecord) {
+    setHistoryPost(post);
+  }
+
+  function handleHistoryClose() {
+    setHistoryPost(null);
+  }
+
+  function handleHistoryRetried() {
+    router.refresh();
+  }
+
+  const creativeCountLabel = `${initialCreatives.length} creative${initialCreatives.length !== 1 ? 's' : ''}`;
+  const postCountLabel = `${stats.total} post${stats.total !== 1 ? 's' : ''}`;
+
   return (
     <main className="main">
       <PageHeader
         title="Content Studio"
-        subtitle={`${stats.total} posts · ${stats.totalDrafts} draft${stats.totalDrafts !== 1 ? 's' : ''} · ${stats.totalReady} ready`}
+        subtitle={`${postCountLabel} · ${creativeCountLabel}`}
         actions={
           canWrite ? (
-            <button className="btn btn-primary" onClick={openNew}>
-              {Ic.plus} New Draft
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {viewMode === 'creatives' ? (
+                <button className="btn btn-primary" onClick={() => setShowCreativeStudio(true)}>
+                  {Ic.image} New Creative
+                </button>
+              ) : (
+                <button className="btn btn-primary" onClick={openNew}>
+                  {Ic.plus} New Draft
+                </button>
+              )}
+            </div>
           ) : undefined
         }
       />
 
       {/* KPI strip */}
-      <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
         <div className="kpi-strip-card">
           <div className="kpi-strip-label">Total Posts</div>
           <div className="kpi-strip-val">{stats.total}</div>
@@ -663,132 +759,291 @@ export default function ContentPageClient({
           <div className="kpi-strip-val" style={{ color: 'var(--color-success)' }}>{stats.totalReady}</div>
           <div className="kpi-strip-note">awaiting publish</div>
         </div>
-      </div>
-
-      {/* Filter bar */}
-      <div className="filter-bar">
-        <div className="search-wrap">
-          {Ic.search}
-          <input
-            className="search-input"
-            placeholder="Search brand or caption…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="kpi-strip-card">
+          <div className="kpi-strip-label">Published</div>
+          <div className="kpi-strip-val" style={{ color: '#1A5C3C' }}>{totalPublished}</div>
+          <div className="kpi-strip-note">live on social</div>
         </div>
-        <div className="status-tabs">
-          {STATUS_TABS.map((t) => (
-            <button
-              key={t.key}
-              className={`status-tab${statusFilter === t.key ? ' active' : ''}`}
-              onClick={() => setStatusFilter(t.key)}
-            >
-              {t.label}
-              <span className="tab-count">{counts[t.key]}</span>
-            </button>
-          ))}
+        <div className="kpi-strip-card">
+          <div className="kpi-strip-label">Creatives</div>
+          <div className="kpi-strip-val" style={{ color: 'var(--color-accent)' }}>{initialCreatives.length}</div>
+          <div className="kpi-strip-note">generated images</div>
         </div>
       </div>
 
-      {/* Content area */}
-      <div className="content">
-        {filtered.length === 0 ? (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', gap: 12, padding: '60px 20px',
-            color: 'var(--color-fg-3)', textAlign: 'center',
-          }}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-              <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-fg-1)', marginBottom: 4 }}>
-                {search || statusFilter !== 'all' ? 'No posts match your filters' : 'No content drafts yet'}
-              </div>
-              <div style={{ fontSize: 13 }}>
-                {canWrite && !search && statusFilter === 'all'
-                  ? 'Create your first draft to get started.'
-                  : 'Try adjusting your search or filter.'}
-              </div>
+      {/* View-mode tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+        {(['posts', 'creatives'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            style={{
+              padding: '7px 16px',
+              borderRadius: 'var(--radius-md)',
+              border: viewMode === mode ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border)',
+              background: viewMode === mode ? 'var(--color-accent-subtle)' : 'var(--color-bg)',
+              color: viewMode === mode ? 'var(--color-accent)' : 'var(--color-fg-2)',
+              fontSize: 13, fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            {mode === 'posts' ? Ic.edit : Ic.image}
+            {mode === 'posts' ? 'Caption Drafts' : 'AI Creatives'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Posts view ─────────────────────────────────────────────────── */}
+      {viewMode === 'posts' && (
+        <>
+          <div className="filter-bar">
+            <div className="search-wrap">
+              {Ic.search}
+              <input
+                className="search-input"
+                placeholder="Search brand or caption…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
-            {canWrite && !search && statusFilter === 'all' && (
-              <button className="btn btn-primary" onClick={openNew} style={{ marginTop: 4 }}>
-                {Ic.plus} New Draft
-              </button>
+            <div className="status-tabs">
+              {STATUS_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  className={`status-tab${statusFilter === t.key ? ' active' : ''}`}
+                  onClick={() => setStatusFilter(t.key)}
+                >
+                  {t.label}
+                  <span className="tab-count">{counts[t.key]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="content">
+            {filtered.length === 0 ? (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', gap: 12, padding: '60px 20px',
+                color: 'var(--color-fg-3)', textAlign: 'center',
+              }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                  <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-fg-1)', marginBottom: 4 }}>
+                    {search || statusFilter !== 'all' ? 'No posts match your filters' : 'No content drafts yet'}
+                  </div>
+                  <div style={{ fontSize: 13 }}>
+                    {canWrite && !search && statusFilter === 'all'
+                      ? 'Create your first draft to get started.'
+                      : 'Try adjusting your search or filter.'}
+                  </div>
+                </div>
+                {canWrite && !search && statusFilter === 'all' && (
+                  <button className="btn btn-primary" onClick={openNew} style={{ marginTop: 4 }}>
+                    {Ic.plus} New Draft
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="card">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Brand · Channels</th>
+                      <th>Caption</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th style={{ width: 120 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((post) => {
+                      const chs = parseChannels(post.channels);
+                      const hasPublishHistory = post.publishLogs.length > 0 || post.publishStatus != null;
+                      return (
+                        <tr key={post.id}>
+                          <td style={{ minWidth: 160 }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{post.brand}</div>
+                            <div>
+                              {chs.map((ch) => <ChannelBadge key={ch} channel={ch} />)}
+                            </div>
+                          </td>
+                          <td style={{ maxWidth: 340 }}>
+                            <div style={{
+                              fontSize: 13, color: 'var(--color-fg-1)',
+                              overflow: 'hidden', display: '-webkit-box',
+                              WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                              lineHeight: 1.5,
+                            }}>
+                              {post.caption}
+                            </div>
+                            {post.productContext && (
+                              <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginTop: 3 }}>
+                                Context: {post.productContext.slice(0, 60)}{post.productContext.length > 60 ? '…' : ''}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <StatusPill status={post.status} publishStatus={post.publishStatus} />
+                          </td>
+                          <td className="cell-muted">{formatDate(post.createdAt)}</td>
+                          <td>
+                            <div className="row-actions">
+                              {canWrite && post.status === 'ready' && !post.publishStatus && (
+                                <button
+                                  className="row-action-btn"
+                                  onClick={() => openHistory(post)}
+                                  title="Publish post"
+                                  style={{ color: 'var(--color-success)' }}
+                                >
+                                  {Ic.send} Publish
+                                </button>
+                              )}
+                              {hasPublishHistory && (
+                                <button
+                                  className="row-action-btn"
+                                  onClick={() => openHistory(post)}
+                                  title="View publish history"
+                                >
+                                  {Ic.history} History
+                                </button>
+                              )}
+                              {canWrite && (
+                                <button className="row-action-btn" onClick={() => openEdit(post)} title="Edit draft">
+                                  {Ic.edit} Edit
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-        ) : (
-          <div className="card">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Brand · Channels</th>
-                  <th>Caption</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  {canWrite && <th style={{ width: 60 }} />}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((post) => {
-                  const chs = parseChannels(post.channels);
-                  return (
-                    <tr key={post.id}>
-                      {/* Brand + channels */}
-                      <td style={{ minWidth: 160 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{post.brand}</div>
-                        <div>
-                          {chs.map((ch) => <ChannelBadge key={ch} channel={ch} />)}
-                        </div>
-                      </td>
+        </>
+      )}
 
-                      {/* Caption preview */}
-                      <td style={{ maxWidth: 340 }}>
-                        <div style={{
-                          fontSize: 13, color: 'var(--color-fg-1)',
-                          overflow: 'hidden', display: '-webkit-box',
-                          WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                          lineHeight: 1.5,
-                        }}>
-                          {post.caption}
-                        </div>
-                        {post.productContext && (
-                          <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginTop: 3 }}>
-                            Context: {post.productContext.slice(0, 60)}{post.productContext.length > 60 ? '…' : ''}
-                          </div>
-                        )}
-                      </td>
+      {/* ── Creatives view ──────────────────────────────────────────────── */}
+      {viewMode === 'creatives' && (
+        <div className="content">
+          {initialCreatives.length === 0 ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', gap: 12, padding: '60px 20px',
+              color: 'var(--color-fg-3)', textAlign: 'center',
+            }}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-fg-1)', marginBottom: 4 }}>
+                  No creatives yet
+                </div>
+                <div style={{ fontSize: 13 }}>
+                  {canWrite
+                    ? 'Generate your first branded marketing image.'
+                    : 'No generated creatives available yet.'}
+                </div>
+              </div>
+              {canWrite && (
+                <button className="btn btn-primary" onClick={() => setShowCreativeStudio(true)} style={{ marginTop: 4 }}>
+                  {Ic.sparkle} Generate Creative
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: 16,
+            }}>
+              {initialCreatives.map((c) => (
+                <div key={c.id} className="card" style={{ overflow: 'hidden', padding: 0, display: 'flex', flexDirection: 'column' }}>
+                  {/* Clickable thumbnail */}
+                  <button
+                    onClick={() => setViewingCreative(c)}
+                    title="View creative"
+                    style={{
+                      display: 'block', width: '100%', padding: 0, border: 'none',
+                      background: 'none', cursor: 'pointer',
+                      position: 'relative',
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={c.generatedImageData}
+                      alt={`Creative for ${c.brand}`}
+                      style={{ display: 'block', width: '100%', aspectRatio: '4/3', objectFit: 'cover' }}
+                    />
+                    {/* Hover overlay hint */}
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      background: 'rgba(0,0,0,0.0)',
+                      transition: 'background 150ms',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }} className="creative-thumb-overlay" />
+                  </button>
 
-                      {/* Status */}
-                      <td>
-                        <StatusPill status={post.status} />
-                      </td>
+                  {/* Metadata */}
+                  <div style={{ padding: '10px 12px', flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)', marginBottom: 2 }}>
+                      {c.brand}
+                    </div>
+                    {c.personaStyle && (
+                      <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginBottom: 2 }}>
+                        {PERSONA_OPTIONS.find((p) => p.id === c.personaStyle)?.label ?? c.personaStyle}
+                      </div>
+                    )}
+                    {c.productContext && (
+                      <div style={{
+                        fontSize: 11, color: 'var(--color-fg-3)',
+                        overflow: 'hidden', display: '-webkit-box',
+                        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                      }}>
+                        {c.productContext}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: 'var(--color-fg-3)', marginTop: 4 }}>
+                      {formatDate(c.createdAt)}
+                    </div>
+                  </div>
 
-                      {/* Date */}
-                      <td className="cell-muted">{formatDate(post.createdAt)}</td>
-
-                      {/* Actions */}
-                      {canWrite && (
-                        <td>
-                          <div className="row-actions">
-                            <button
-                              className="row-action-btn"
-                              onClick={() => openEdit(post)}
-                              title="Edit draft"
-                            >
-                              {Ic.edit} Edit
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                  {/* Action row */}
+                  <div style={{
+                    padding: '8px 12px',
+                    borderTop: '1px solid var(--color-border-subtle)',
+                    display: 'flex', gap: 6,
+                  }}>
+                    <button
+                      className="row-action-btn"
+                      onClick={() => setViewingCreative(c)}
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      {Ic.image} View
+                    </button>
+                    <button
+                      className="row-action-btn"
+                      onClick={() => setViewingCreative(c)}
+                      title="Download"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      {Ic.sparkle} Details
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Draft form modal */}
       {showForm && (
@@ -797,6 +1052,42 @@ export default function ContentPageClient({
           availableBrands={availableBrands}
           onClose={handleClose}
           onSuccess={handleSuccess}
+        />
+      )}
+
+      {/* Creative studio modal */}
+      {showCreativeStudio && (
+        <CreativeStudioModal
+          availableBrands={availableBrands}
+          onClose={() => setShowCreativeStudio(false)}
+          onSaved={handleCreativeSaved}
+        />
+      )}
+
+      {/* Publish history / publish modal */}
+      {historyPost && (
+        <PublishHistoryModal
+          postId={historyPost.id}
+          brand={historyPost.brand}
+          caption={historyPost.caption}
+          channels={parseChannels(historyPost.channels)}
+          publishStatus={historyPost.publishStatus}
+          publishLogs={historyPost.publishLogs}
+          onClose={handleHistoryClose}
+          onRetried={handleHistoryRetried}
+        />
+      )}
+
+      {/* Creative detail / download / delete modal */}
+      {viewingCreative && (
+        <CreativeDetailModal
+          creative={viewingCreative}
+          canWrite={canWrite}
+          onClose={() => setViewingCreative(null)}
+          onDeleted={() => {
+            setViewingCreative(null);
+            router.refresh();
+          }}
         />
       )}
     </main>

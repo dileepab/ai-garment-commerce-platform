@@ -319,6 +319,44 @@ model SocialPost {
   createdBy         String?   // user email
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  // publish tracking
+  publishStatus     String?   // null | published | partial | failed
+  publishedAt       DateTime?
+  publishedBy       String?   // email of user who triggered publish
+  publishLogs       SocialPostPublishLog[]
+
+  @@index([brand, status, createdAt])
+}
+
+model SocialPostPublishLog {
+  id             Int        @id @default(autoincrement())
+  socialPostId   Int
+  socialPost     SocialPost @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+  channel        String     // facebook | instagram
+  brand          String
+  status         String     // published | failed
+  externalPostId String?    // Meta post ID returned on success
+  errorCode      String?
+  errorMessage   String?
+  publishedBy    String?    // user email
+  createdAt      DateTime   @default(now())
+
+  @@index([socialPostId, createdAt])
+  @@index([brand, channel, createdAt])
+}
+
+model GeneratedCreative {
+  id                 Int      @id @default(autoincrement())
+  brand              String
+  sourceImageUrl     String?
+  generatedImageData String   // base64 data URL
+  prompt             String
+  personaStyle       String?
+  productContext     String?
+  status             String   @default("draft") // draft | saved
+  createdBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([brand, status, createdAt])
 }
