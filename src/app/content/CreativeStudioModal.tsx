@@ -102,6 +102,7 @@ export default function CreativeStudioModal({
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [, startSearching] = useTransition();
   const [productContext, setProductContext] = useState('');
+  const [garmentFitNotes, setGarmentFitNotes] = useState('');
   const [sourceImageUrl, setSourceImageUrl] = useState('');
   const [sourceImgError, setSourceImgError] = useState(false);
   const [linkedProductId, setLinkedProductId] = useState<number | null>(null);
@@ -141,6 +142,7 @@ export default function CreativeStudioModal({
         brand: brand.trim(),
         personaId,
         productContext,
+        garmentFitNotes,
         sourceImageUrl: sourceImageUrl.trim() || undefined,
         productId: linkedProductId ?? undefined,
         viewAngles,
@@ -210,6 +212,7 @@ export default function CreativeStudioModal({
     setLinkedProductId(null);
     setLinkedProductName(null);
     setSourceImageUrl('');
+    setGarmentFitNotes('');
     setExistingCreatives([]);
   }
 
@@ -574,6 +577,23 @@ export default function CreativeStudioModal({
               disabled={isLoading}
               rows={3}
               style={{ resize: 'none', minHeight: 72 }}
+            />
+          </div>
+
+          {/* Fit measurements */}
+          <div>
+            <label style={labelStyle}>
+              Garment Fit / Length{' '}
+              <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+                (optional — exact dress height, target length, sleeve length)
+              </span>
+            </label>
+            <input
+              className="app-input"
+              placeholder={`e.g. dress length 92cm; on a 5'6" model it ends just above the knee; no side slit`}
+              value={garmentFitNotes}
+              onChange={(e) => setGarmentFitNotes(e.target.value)}
+              disabled={isLoading}
             />
           </div>
 

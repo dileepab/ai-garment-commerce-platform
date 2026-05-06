@@ -138,6 +138,7 @@ export default function CreatePostWizardModal({
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(null);
   const [productContext, setProductContext] = useState('');
+  const [garmentFitNotes, setGarmentFitNotes] = useState('');
   const [sourceImageUrl, setSourceImageUrl] = useState('');
 
   // Step 1 cont. — view angles + existing creatives (per linked product)
@@ -219,6 +220,7 @@ export default function CreatePostWizardModal({
   function handleClearProduct() {
     setSelectedProduct(null);
     setProductContext('');
+    setGarmentFitNotes('');
     setProductSearch('');
     setSourceImageUrl('');
     setExistingCreatives([]);
@@ -276,6 +278,7 @@ export default function CreatePostWizardModal({
         brand: brand.trim(),
         personaId,
         productContext,
+        garmentFitNotes,
         sourceImageUrl: sourceImageUrl.trim() || undefined,
         productId: selectedProduct?.id,
         viewAngles,
@@ -647,6 +650,8 @@ export default function CreatePostWizardModal({
               onClearProduct={handleClearProduct}
               productContext={productContext}
               setProductContext={setProductContext}
+              garmentFitNotes={garmentFitNotes}
+              setGarmentFitNotes={setGarmentFitNotes}
               sourceImageUrl={sourceImageUrl}
               setSourceImageUrl={setSourceImageUrl}
               viewAngles={viewAngles}
@@ -871,6 +876,8 @@ interface Step1Props {
   onClearProduct: () => void;
   productContext: string;
   setProductContext: (s: string) => void;
+  garmentFitNotes: string;
+  setGarmentFitNotes: (s: string) => void;
   sourceImageUrl: string;
   setSourceImageUrl: (s: string) => void;
   viewAngles: ViewAngle[];
@@ -1056,6 +1063,23 @@ function Step1Setup(props: Step1Props) {
           )}
         </div>
       )}
+
+      {/* Fit measurements */}
+      <div>
+        <label style={labelStyle}>
+          Garment Fit / Length{' '}
+          <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+            (optional — exact dress height, target length, sleeve length)
+          </span>
+        </label>
+        <input
+          className="app-input"
+          placeholder={`e.g. dress length 92cm; on a 5'6" model it ends just above the knee; no side slit`}
+          value={props.garmentFitNotes}
+          onChange={(e) => props.setGarmentFitNotes(e.target.value)}
+          disabled={props.isLoading}
+        />
+      </div>
 
       {/* View angles */}
       <div>

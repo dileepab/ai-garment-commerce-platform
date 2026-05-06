@@ -199,6 +199,7 @@ export interface GenerateCreativeParams {
   brand: string;
   personaId: PersonaId;
   productContext: string;
+  garmentFitNotes?: string;
   sourceImageUrl?: string;
   productId?: number;
   viewAngle?: ViewAngle;
@@ -242,10 +243,16 @@ export async function generateCreativeAction(
       sourceImageMimeType = mimeType;
     }
 
+    const combinedProductContext = [
+      params.productContext?.trim(),
+      params.garmentFitNotes?.trim() ? `Fit measurements: ${params.garmentFitNotes.trim()}` : '',
+    ].filter(Boolean).join(' ');
+
     const input: CreativeGenerationInput = {
       brand: params.brand,
       personaId: params.personaId,
-      productContext: params.productContext,
+      productContext: combinedProductContext,
+      garmentFitNotes: params.garmentFitNotes,
       sourceImageBase64,
       sourceImageMimeType,
       viewAngle: params.viewAngle,
@@ -264,7 +271,7 @@ export async function generateCreativeAction(
         generatedImageData: result.imageData,
         prompt: result.prompt,
         personaStyle: params.personaId !== 'none' ? params.personaId : null,
-        productContext: params.productContext?.trim() || null,
+        productContext: combinedProductContext || null,
         status: 'draft',
         createdBy: scope.email ?? null,
       },

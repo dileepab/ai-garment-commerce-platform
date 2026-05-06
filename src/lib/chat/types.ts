@@ -1,6 +1,7 @@
 import type {
   Customer,
   Inventory,
+  GeneratedCreative,
   Order,
   OrderItem,
   Product,
@@ -31,6 +32,7 @@ export type ChatProductVariant = ProductVariant & {
 export type ChatProduct = Product & {
   inventory: Inventory | null;
   variants: ChatProductVariant[];
+  creatives: Array<Pick<GeneratedCreative, 'id' | 'status' | 'viewAngle' | 'createdAt'>>;
 };
 
 export type ChatOrderItem = OrderItem & {

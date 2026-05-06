@@ -48,6 +48,7 @@ export interface CreativeGenerationInput {
   brand: string;
   personaId: PersonaId;
   productContext: string;
+  garmentFitNotes?: string;
   sourceImageBase64?: string;
   sourceImageMimeType?: string;
   viewAngle?: ViewAngle;
@@ -62,7 +63,7 @@ function viewAngleClause(angle: ViewAngle | undefined): string {
     case 'side':
       return 'Camera angle: full profile (90 degrees) side view of the model. Show the side silhouette, but keep any front floral/graphic artwork anchored on the garment front panel near the model-facing/front edge. Do not center the artwork on the side seam, underarm, or side torso.';
     case 'back':
-      return 'Camera angle: rear view of the model facing away from camera. Showcase the back of the garment - neckline, seams, and hemline. Do not move front-only buttons, plackets, embroidery, pockets, or prints onto the back unless the source image clearly shows those details wrap around.';
+      return 'Camera angle: rear view of the model facing away from camera. Showcase the back neckline, sleeve shape, stripe continuation, and hemline. Keep the back plain if the source garment appears plain: no added vertical seam lines, black contour lines, darts, piping, or panels.';
     case 'closeup':
       return 'Camera angle: tight close-up on the garment fabric, print, buttons, stitching, and construction details. Half-body crop, sharp focus on the exact source garment texture.';
     case 'front':
@@ -73,18 +74,24 @@ function viewAngleClause(angle: ViewAngle | undefined): string {
 
 function garmentAccuracyClause(viewAngle: ViewAngle | undefined): string {
   const angleSpecific = viewAngle === 'back'
-    ? '- For the back view, infer only the hidden back shape from the same garment. Keep color, fabric, sleeve shape, neckline style, and hem shape consistent; do not transplant front-only decoration to the back.\n'
+    ? '- For the back view, infer only the hidden back shape from the same garment. Keep color, fabric, sleeve shape, neckline style, and hem shape consistent; do not transplant front-only decoration to the back. Do not add vertical black back contour lines, princess seams, darts, piping, or panel lines unless Image B clearly shows them.\n'
     : viewAngle === 'side'
-      ? '- For the side view, the floral/graphic artwork remains on the front-left panel of the garment. It should appear only on the visible front edge/near-front torso, with the same height from the hem and the same distance from the button placket as the source. Never move the artwork to the center of the side panel or underneath the sleeve.\n'
+      ? '- For the side view, the floral/graphic artwork remains on the front-left panel of the garment. It should appear only on the visible front edge/near-front torso, with the same height from the hem and the same distance from the button placket as the source. Never move the artwork to the center of the side panel or underneath the sleeve. Keep the side seam closed; do not expose skin through a slit or side opening.\n'
       : viewAngle === 'front'
-        ? '- For the front view, duplicate the source neckline exactly. If the source neckline is a smooth continuous round/scoop neck, keep it smooth and continuous: no V slit, notch, keyhole, vertical opening, collar, tie, zipper, or extra cutout at the center front.\n'
+        ? '- For the front view, duplicate the source neckline exactly. If the source neckline is a smooth continuous round/scoop neck, keep it smooth and continuous: no V slit, notch, keyhole, vertical opening, collar, tie, zipper, or extra cutout at the center front. Keep both dress sides closed; do not expose leg/skin through a slit.\n'
         : '';
 
   return (
     `GARMENT FIDELITY - HIGHEST PRIORITY:\n` +
-    `- Before rendering, inspect Image B and mentally lock the garment blueprint: neckline shape, center-front opening, button/placket line, artwork placement, sleeve cuff, hem curve, and fabric color.\n` +
+    `- Before rendering, inspect Image B and mentally lock the garment blueprint: neckline shape, side seams/openings, back seams, stripe sequence, sleeve cuff/hem color, artwork placement, hem curve, and fabric color.\n` +
     `- Treat Image B as a product reference that must be duplicated, not re-designed or re-colored.\n` +
     `- The output garment must be the same SKU/product as Image B. A different color, darker/lighter color family, alternate neckline, different sleeve roll, different hem, changed button line, or moved floral/graphic placement is a failed result.\n` +
+    `- For striped garments, preserve the exact stripe sequence, band thickness, spacing, and color order across body, sleeves, neckline, side panels, and back. Do not turn a red garment into mostly white, do not remove red base areas, and do not change thin dark stripe positions.\n` +
+    `- Thin black lines in Image B are pinstripes only. Never convert thin pinstripes into thick black cuffs, thick black sleeve hems, a thick black bottom hem band, black piping, or black binding.\n` +
+    `- For side seams and hems, copy Image B exactly. Do not invent side slits, open side panels, wrap openings, overlapping side flaps, vents, or cutouts. A flat-lay fold or visible side layer is not permission to create a slit on the model.\n` +
+    `- Sleeve hems/cuffs must copy Image B exactly. Do not create a black sleeve cuff, black sleeve hem, or dark sleeve edge unless the source sleeve hem itself is a thick black cuff.\n` +
+    `- Dress bottom hem must copy Image B exactly. Do not create a thick black bottom band or black border; preserve only the same thin stripe/hem details visible in Image B.\n` +
+    `- Back view must stay faithful to the source construction. Do not add two vertical black lines, princess seams, darts, piping, or contour panels unless Image B explicitly shows those lines.\n` +
     `- The neckline must be copied exactly. Do not invent a center-front neck slit, V notch, keyhole, collar, zipper, or extra opening unless that exact opening is clearly visible in Image B.\n` +
     `- The front placket/buttons must start and stop where they do in Image B. Do not extend the placket into the neckline or create a new opening above the first real button.\n` +
     `- Preserve the exact base color/hue from Image B under realistic lighting. Do not let brand palette, warm sunlight, shadows, or color grading shift the garment into black, gray, blue, brown, or another green.\n` +
@@ -95,6 +102,40 @@ function garmentAccuracyClause(viewAngle: ViewAngle | undefined): string {
     `- Do not add, remove, mirror, relocate, resize, recolor, or simplify buttons, flowers, seams, folds, or trims.\n` +
     angleSpecific +
     `- Fit the exact garment onto the model naturally; only the model pose, background, and companion clothing may change.`
+  );
+}
+
+function hardRejectClause(garmentFitNotes: string | undefined): string {
+  const noSideSlit = garmentFitNotes?.toLowerCase().includes('no side slit')
+    ? '- The user explicitly says "no side slit": the rendered dress must have fully closed side seams with no leg/skin visible through the side.\n'
+    : '';
+
+  return (
+    `FINAL SELF-CHECK BEFORE OUTPUT - REJECT AND FIX IF PRESENT:\n` +
+    noSideSlit +
+    `- No side slit, open side panel, wrap opening, vent, or exposed leg at the side unless the input text explicitly asks for one.\n` +
+    `- No black sleeve cuffs, no black sleeve hems, no black sleeve edge bands.\n` +
+    `- No thick black dress bottom hem or black bottom border; keep bottom hem/stripes exactly as Image B.\n` +
+    `- No added vertical black back lines, piping, princess seams, darts, or contour panels.\n` +
+    `- No red-to-white color shift: red bands must remain dominant red bands with the same stripe order as Image B.\n` +
+    `If any of these forbidden artifacts appear, remove them before returning the image.`
+  );
+}
+
+function fitCalibrationClause(persona: PersonaDef | undefined, garmentFitNotes: string | undefined): string {
+  const modelHeight = persona?.height
+    ? `- Model height reference: ${persona.height}. Use this to scale garment length and sleeve length on the body.\n`
+    : '';
+  const fitNotes = garmentFitNotes?.trim()
+    ? `- Garment fit/measurement reference: ${garmentFitNotes.trim()}.\n`
+    : '- If no exact garment measurement is provided, estimate the garment length and sleeve length from Image B and preserve those proportions on the model.\n';
+
+  return (
+    `FIT AND LENGTH CALIBRATION:\n` +
+    modelHeight +
+    fitNotes +
+    `- Garment length on the model must follow the source garment proportions. Do not shorten a knee-length dress into a mini dress or lengthen it beyond the source proportions.\n` +
+    `- Use measurements only to scale the garment; measurements must not override visible source details such as stripes, side seams, sleeve cuffs, neckline, or hem color.`
   );
 }
 
@@ -125,6 +166,7 @@ function buildTryOnPrompt(
   style: BrandStyle,
   hasPersonaImage: boolean,
   viewAngle: ViewAngle | undefined,
+  garmentFitNotes: string | undefined,
   correctionText: string | undefined,
 ): string {
   const correctionLine = correctionText?.trim()
@@ -145,6 +187,7 @@ function buildTryOnPrompt(
       `- If Image B shows a different person wearing the garment, IGNORE that person completely. Only use Image B for the garment design.\n` +
       `- Model height: ${persona.height}. Body type: ${persona.bodyShape}.\n\n` +
       `${garmentAccuracyClause(viewAngle)}\n` +
+      `${fitCalibrationClause(persona, garmentFitNotes)}\n` +
       `- The garment must drape naturally on the model's body with realistic folds and shadows.\n` +
       (productContext.trim() ? `- Garment details: ${productContext.trim()}.\n` : '') +
       `\n${OUTFIT_COMPLETION_CLAUSE}\n` +
@@ -157,6 +200,7 @@ function buildTryOnPrompt(
       `- Subtle film grain for an authentic editorial feel. NOT overly smooth or airbrushed.\n` +
       `- ${viewAngleClause(viewAngle)}\n` +
       `- Style: Premium ${brand} brand campaign. ${style.mood}.\n` +
+      `${hardRejectClause(garmentFitNotes)}\n` +
       `- Absolutely NO text, logos, or watermarks.` +
       correctionLine
     );
@@ -169,9 +213,11 @@ function buildTryOnPrompt(
   return (
     `Generate a professional fashion marketing photo showing the exact source garment in a premium setting.\n\n` +
     `${garmentAccuracyClause(viewAngle)}\n\n` +
+    `${fitCalibrationClause(persona, garmentFitNotes)}\n\n` +
     `${contextNote} ` +
     `Brand: ${brand}. Visual style: ${style.aesthetic}. Mood: ${style.mood}. ` +
     `High-end editorial composition. Sharp focus, beautiful lighting. ` +
+    `${hardRejectClause(garmentFitNotes)} ` +
     `No text, logos, or watermarks.` +
     correctionLine
   );
@@ -183,6 +229,7 @@ function buildTextToImagePrompt(
   productContext: string,
   style: BrandStyle,
   viewAngle: ViewAngle | undefined,
+  garmentFitNotes: string | undefined,
   correctionText: string | undefined,
 ): string {
   const correctionLine = correctionText?.trim()
@@ -203,9 +250,11 @@ function buildTextToImagePrompt(
     `Professional fashion marketing photograph for ${brand}, a Sri Lankan women's fashion brand. ` +
     `Subject: ${subjectClause}. ` +
     `${physicalAttributes}` +
+    `${fitCalibrationClause(persona, garmentFitNotes)} ` +
     `Visual aesthetic: ${style.aesthetic}. Color palette: ${style.colorPalette}. Mood: ${style.mood}. ` +
     `${viewAngleClause(viewAngle)} The garment is the hero — all key design details clearly visible. ` +
     `Professional studio or natural fashion lighting. Sharp focus on the outfit. ` +
+    `${hardRejectClause(garmentFitNotes)} ` +
     `Post-ready social media marketing composition. No text, logos, or watermarks.` +
     correctionLine
   );
@@ -232,7 +281,7 @@ export async function generateCreative(
   if (hasSourceImage) {
     const selectedPersona = getPersona(input.brand, input.personaId);
     const hasPersonaImage = !!(selectedPersona?.imageUrl);
-    const prompt = buildTryOnPrompt(input.brand, input.personaId, input.productContext, style, hasPersonaImage, input.viewAngle, input.correctionText);
+    const prompt = buildTryOnPrompt(input.brand, input.personaId, input.productContext, style, hasPersonaImage, input.viewAngle, input.garmentFitNotes, input.correctionText);
 
     logDebug('CreativeGen', `Try-on generation via ${IMAGE_EDIT_MODEL} — brand "${input.brand}" persona "${input.personaId}".`);
 
@@ -323,7 +372,7 @@ export async function generateCreative(
   // ── Path B: text-to-image (no source photo) ──────────────────────────────
   // Imagen 4 is used when the user only provides a text description.
 
-  const prompt = buildTextToImagePrompt(input.brand, input.personaId, input.productContext, style, input.viewAngle, input.correctionText);
+  const prompt = buildTextToImagePrompt(input.brand, input.personaId, input.productContext, style, input.viewAngle, input.garmentFitNotes, input.correctionText);
 
   logDebug('CreativeGen', `Text-to-image via ${TEXT_TO_IMAGE_MODEL} — brand "${input.brand}" persona "${input.personaId}".`);
 
