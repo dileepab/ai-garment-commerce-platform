@@ -5,6 +5,7 @@ import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
 import type { ViewAngle } from '@/lib/creative-generator';
 import {
   generateCreativeBatchAction,
+  regenerateCreativeAction,
   saveGeneratedCreative,
   discardCreativeDraft,
   searchProductsForContent,
@@ -31,6 +32,18 @@ interface ExistingCreative {
   viewAngle: string | null;
   personaStyle: string | null;
   createdAt: string | Date;
+}
+
+interface ProductSearchResult {
+  id: number;
+  name: string;
+  brand: string;
+  style: string | null;
+  price: number;
+  fabric: string | null;
+  colors: string | null;
+  sizes: string | null;
+  imageUrl: string | null;
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -86,7 +99,7 @@ export default function CreativeStudioModal({
   const [brand, setBrand] = useState(defaultBrands[0]);
   const [personaId, setPersonaId] = useState<PersonaId>(PERSONAS_BY_BRAND[defaultBrands[0]]?.[0]?.id ?? 'none');
   const [productSearch, setProductSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [, startSearching] = useTransition();
   const [productContext, setProductContext] = useState('');
   const [sourceImageUrl, setSourceImageUrl] = useState('');
@@ -97,13 +110,16 @@ export default function CreativeStudioModal({
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
 
   const [drafts, setDrafts] = useState<DraftResult[]>([]);
+  const [correctionTextById, setCorrectionTextById] = useState<Record<number, string>>({});
+  const [regeneratingDraftId, setRegeneratingDraftId] = useState<number | null>(null);
   const [existingCreatives, setExistingCreatives] = useState<ExistingCreative[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   const [isGenerating, startGenerating] = useTransition();
+  const [isRegeneratingDraft, startRegeneratingDraft] = useTransition();
   const [isSaving, startSaving] = useTransition();
 
-  const isLoading = isGenerating || isSaving;
+  const isLoading = isGenerating || isRegeneratingDraft || isSaving;
   const hasUnsavedDrafts = drafts.some(d => !d.saved);
 
   async function discardAllUnsavedDrafts() {
@@ -119,6 +135,7 @@ export default function CreativeStudioModal({
     startGenerating(async () => {
       await discardAllUnsavedDrafts();
       setDrafts([]);
+      setCorrectionTextById({});
 
       const result = await generateCreativeBatchAction({
         brand: brand.trim(),
@@ -160,7 +177,7 @@ export default function CreativeStudioModal({
       startSearching(async () => {
         const res = await searchProductsForContent(q, brand);
         if (res.success && 'products' in res && res.products) {
-          setSearchResults(res.products);
+          setSearchResults(res.products as ProductSearchResult[]);
         }
       });
     } else {
@@ -168,7 +185,7 @@ export default function CreativeStudioModal({
     }
   }
 
-  function handleSelectProduct(product: any) {
+  function handleSelectProduct(product: ProductSearchResult) {
     const context = `Name: ${product.name}. Fabric: ${product.fabric || 'N/A'}. Style: ${product.style || 'N/A'}. Price: Rs ${product.price}. Colors: ${product.colors || 'N/A'}. Sizes: ${product.sizes || 'N/A'}.`;
     setProductContext(context);
     setProductSearch('');
@@ -200,6 +217,42 @@ export default function CreativeStudioModal({
     setViewAngles(prev =>
       prev.includes(angle) ? prev.filter(a => a !== angle) : [...prev, angle],
     );
+  }
+
+  function handleCorrectionTextChange(creativeId: number, value: string) {
+    setCorrectionTextById(prev => ({ ...prev, [creativeId]: value }));
+  }
+
+  function handleRegenerateDraft(creativeId: number) {
+    const correctionText = correctionTextById[creativeId]?.trim();
+    if (!correctionText) {
+      setFormError('Add a correction note before regenerating this image.');
+      return;
+    }
+
+    setFormError(null);
+    setRegeneratingDraftId(creativeId);
+    startRegeneratingDraft(async () => {
+      const result = await regenerateCreativeAction(creativeId, correctionText);
+      setRegeneratingDraftId(null);
+
+      if (result.success && result.imageData) {
+        setDrafts(prev => prev.map(d => (
+          d.creativeId === creativeId
+            ? {
+                ...d,
+                imageData: result.imageData!,
+                prompt: result.prompt ?? d.prompt,
+                viewAngle: result.viewAngle ?? d.viewAngle,
+                saved: false,
+              }
+            : d
+        )));
+        setCorrectionTextById(prev => ({ ...prev, [creativeId]: '' }));
+      } else {
+        setFormError(result.error ?? 'Regeneration failed. Please retry.');
+      }
+    });
   }
 
   function handleSaveAll() {
@@ -356,7 +409,10 @@ export default function CreativeStudioModal({
             <div>
               <label style={labelStyle}>Source Product Image</label>
               <div style={{
-                display: 'flex', gap: 12, alignItems: 'center',
+                display: 'grid',
+                gridTemplateColumns: '108px 1fr auto',
+                gap: 12,
+                alignItems: 'center',
                 padding: 10,
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
@@ -368,10 +424,10 @@ export default function CreativeStudioModal({
                     src={sourceImageUrl}
                     alt={linkedProductName ?? 'Linked product'}
                     onError={() => setSourceImgError(true)}
-                    style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }}
+                    style={{ width: 108, height: 128, objectFit: 'contain', borderRadius: 'var(--radius-sm)', background: 'white', border: '1px solid var(--color-border-subtle)' }}
                   />
                 ) : (
-                  <div style={{ width: 60, height: 60, background: 'var(--color-surface-muted)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-fg-3)' }}>
+                  <div style={{ width: 108, height: 128, background: 'var(--color-surface-muted)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-fg-3)' }}>
                     {Ic.image}
                   </div>
                 )}
@@ -386,6 +442,7 @@ export default function CreativeStudioModal({
                   onClick={handleClearProduct}
                   disabled={isLoading}
                   style={{
+                    alignSelf: 'start',
                     padding: '5px 10px', fontSize: 11, fontWeight: 600,
                     background: 'var(--color-surface)', border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-sm)', color: 'var(--color-fg-2)',
@@ -419,11 +476,12 @@ export default function CreativeStudioModal({
                   onError={() => setSourceImgError(true)}
                   style={{
                     marginTop: 8,
-                    maxHeight: 100,
+                    maxHeight: 180,
                     maxWidth: '100%',
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--color-border)',
-                    objectFit: 'cover',
+                    objectFit: 'contain',
+                    background: 'white',
                   }}
                 />
               )}
@@ -579,9 +637,32 @@ export default function CreativeStudioModal({
 
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+                gridTemplateColumns: drafts.length === 1 && sourceImageUrl.trim() && !sourceImgError ? 'repeat(2, 1fr)' : drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
                 gap: 10,
               }}>
+                {sourceImageUrl.trim() && !sourceImgError && (
+                  <div style={{
+                    background: 'var(--color-bg)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    overflow: 'hidden',
+                  }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={sourceImageUrl}
+                      alt="Source product reference"
+                      style={{ display: 'block', width: '100%', height: 320, objectFit: 'contain', background: 'white' }}
+                    />
+                    <div style={{
+                      padding: '6px 10px',
+                      fontSize: 11, fontWeight: 600,
+                      color: 'var(--color-fg-2)',
+                      borderTop: '1px solid var(--color-border-subtle)',
+                    }}>
+                      Source product
+                    </div>
+                  </div>
+                )}
                 {drafts.map(d => (
                   <div key={d.creativeId} style={{
                     background: 'var(--color-bg)',
@@ -607,6 +688,47 @@ export default function CreativeStudioModal({
                         <span style={{ color: 'var(--color-accent)', fontSize: 10 }}>✓ Saved</span>
                       )}
                     </div>
+                    {!d.saved && (
+                      <div style={{
+                        padding: 10,
+                        borderTop: '1px solid var(--color-border-subtle)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}>
+                        <textarea
+                          className="app-textarea"
+                          placeholder="Correction, e.g. make sleeves shorter like source image"
+                          value={correctionTextById[d.creativeId] ?? ''}
+                          onChange={(e) => handleCorrectionTextChange(d.creativeId, e.target.value)}
+                          disabled={isLoading}
+                          rows={2}
+                          style={{ resize: 'none', minHeight: 58, fontSize: 12 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerateDraft(d.creativeId)}
+                          disabled={isLoading || !(correctionTextById[d.creativeId]?.trim())}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            padding: '7px 12px',
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-md)',
+                            color: 'var(--color-fg-2)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: isLoading || !(correctionTextById[d.creativeId]?.trim()) ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {Ic.refresh}
+                          {regeneratingDraftId === d.creativeId ? 'Regenerating…' : 'Regenerate this'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

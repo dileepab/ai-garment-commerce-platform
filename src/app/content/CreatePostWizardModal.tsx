@@ -5,6 +5,7 @@ import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
 import type { ViewAngle } from '@/lib/creative-generator';
 import {
   generateCreativeBatchAction,
+  regenerateCreativeAction,
   saveGeneratedCreative,
   discardCreativeDraft,
   searchProductsForContent,
@@ -143,18 +144,25 @@ export default function CreatePostWizardModal({
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
   const [existingCreatives, setExistingCreatives] = useState<ExistingCreative[]>([]);
 
-  // Step 2 — Generate (drafts is the batch; selectedDraftId is the one carried into Step 3)
+  // Step 2 — Generate (drafts is the batch; selectedDraftIds are carried into Step 3/4)
   const [drafts, setDrafts] = useState<DraftResult[]>([]);
-  const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
+  const [selectedDraftIds, setSelectedDraftIds] = useState<number[]>([]);
   const [reusedExistingId, setReusedExistingId] = useState<number | null>(null);
+  const [correctionTextById, setCorrectionTextById] = useState<Record<number, string>>({});
+  const [regeneratingDraftId, setRegeneratingDraftId] = useState<number | null>(null);
 
-  // Convenience: the chosen creative's image data (either a fresh draft or a reused existing).
-  const selectedDraft = drafts.find(d => d.creativeId === selectedDraftId) ?? null;
-  const generatedImageData =
-    selectedDraft?.imageData
+  // Convenience: selected creative images (fresh drafts or one reused existing creative).
+  const selectedDrafts = selectedDraftIds
+    .map(id => drafts.find(d => d.creativeId === id))
+    .filter((d): d is DraftResult => Boolean(d));
+  const selectedDraft = selectedDrafts[0] ?? null;
+  const generatedImageData = selectedDrafts[0]?.imageData
     ?? (reusedExistingId !== null ? `/api/content/creatives/${reusedExistingId}/image` : null);
+  const generatedImageDataList = selectedDrafts.length > 0
+    ? selectedDrafts.map(d => d.imageData)
+    : (reusedExistingId !== null ? [`/api/content/creatives/${reusedExistingId}/image`] : []);
   const usedPrompt = selectedDraft?.prompt ?? null;
-  const draftCreativeId = selectedDraftId ?? reusedExistingId;
+  const selectedCreativeIds = reusedExistingId !== null ? [reusedExistingId] : selectedDraftIds;
 
   // Step 3 — Caption & Review
   const [channels, setChannels] = useState<string[]>(['facebook', 'instagram']);
@@ -168,10 +176,11 @@ export default function CreatePostWizardModal({
 
   const [isSearching, startSearching] = useTransition();
   const [isGenerating, startGenerating] = useTransition();
+  const [isRegeneratingDraft, startRegeneratingDraft] = useTransition();
   const [isGeneratingCaptions, startGeneratingCaptions] = useTransition();
   const [isFinishing, startFinishing] = useTransition();
 
-  const isLoading = isGenerating || isGeneratingCaptions || isFinishing;
+  const isLoading = isGenerating || isRegeneratingDraft || isGeneratingCaptions || isFinishing;
 
   // ── Step 1 helpers ─────────────────────────────────────────────────────────
 
@@ -226,7 +235,7 @@ export default function CreatePostWizardModal({
     // Reusing a saved creative skips Step 2 entirely — no Gemini call, no draft cleanup.
     discardAllUnsavedDrafts().catch(() => {});
     setDrafts([]);
-    setSelectedDraftId(null);
+    setSelectedDraftIds([]);
     setReusedExistingId(id);
     setStep(3);
     if (!imageDescription.trim()) setImageDescription(buildAutoDescription());
@@ -235,9 +244,9 @@ export default function CreatePostWizardModal({
 
   async function discardAllUnsavedDrafts() {
     const unsavedIds = drafts
-      .filter(d => d.creativeId !== selectedDraftId)
+      .filter(d => !selectedDraftIds.includes(d.creativeId))
       .map(d => d.creativeId);
-    // Also discard the selected one only if user is closing without saving — handled in handleClose.
+    // Also discard selected ones only if user is closing without saving — handled in handleClose.
     await Promise.all(unsavedIds.map(id => discardCreativeDraft(id).catch(() => {})));
   }
 
@@ -259,7 +268,8 @@ export default function CreatePostWizardModal({
       const allOldIds = drafts.map(d => d.creativeId);
       await Promise.all(allOldIds.map(id => discardCreativeDraft(id).catch(() => {})));
       setDrafts([]);
-      setSelectedDraftId(null);
+      setCorrectionTextById({});
+      setSelectedDraftIds([]);
       setReusedExistingId(null);
 
       const result = await generateCreativeBatchAction({
@@ -286,8 +296,8 @@ export default function CreatePostWizardModal({
         }
       }
       setDrafts(newDrafts);
-      // Auto-select the first successful draft so the user can continue without an extra click.
-      if (newDrafts.length > 0) setSelectedDraftId(newDrafts[0].creativeId);
+      // Auto-select every successful draft so the user can save all, then deselect any they do not want.
+      if (newDrafts.length > 0) setSelectedDraftIds(newDrafts.map(d => d.creativeId));
 
       if (errors.length > 0 && newDrafts.length === 0) {
         setFormError(errors[0]);
@@ -301,8 +311,55 @@ export default function CreatePostWizardModal({
     handleGenerateImage();
   }
 
-  function handleSelectDraft(creativeId: number) {
-    setSelectedDraftId(creativeId);
+  function handleCorrectionTextChange(creativeId: number, value: string) {
+    setCorrectionTextById(prev => ({ ...prev, [creativeId]: value }));
+  }
+
+  function handleRegenerateDraft(creativeId: number) {
+    const correctionText = correctionTextById[creativeId]?.trim();
+    if (!correctionText) {
+      setFormError('Add a correction note before regenerating this image.');
+      return;
+    }
+
+    setFormError(null);
+    setRegeneratingDraftId(creativeId);
+    startRegeneratingDraft(async () => {
+      const result = await regenerateCreativeAction(creativeId, correctionText);
+      setRegeneratingDraftId(null);
+
+      if (result.success && result.imageData) {
+        setDrafts(prev => prev.map(d => (
+          d.creativeId === creativeId
+            ? {
+                ...d,
+                imageData: result.imageData!,
+                prompt: result.prompt ?? d.prompt,
+                viewAngle: result.viewAngle ?? d.viewAngle,
+              }
+            : d
+        )));
+        setCorrectionTextById(prev => ({ ...prev, [creativeId]: '' }));
+      } else {
+        setFormError(result.error ?? 'Regeneration failed. Please retry.');
+      }
+    });
+  }
+
+  function handleToggleDraftSelection(creativeId: number) {
+    setSelectedDraftIds(prev =>
+      prev.includes(creativeId)
+        ? prev.filter(id => id !== creativeId)
+        : [...prev, creativeId],
+    );
+  }
+
+  function handleSelectAllDrafts() {
+    setSelectedDraftIds(drafts.map(d => d.creativeId));
+  }
+
+  function handleClearDraftSelection() {
+    setSelectedDraftIds([]);
   }
 
   // ── Step 3 helpers ─────────────────────────────────────────────────────────
@@ -367,8 +424,8 @@ export default function CreatePostWizardModal({
 
   function goToStep3() {
     setFormError(null);
-    if (!generatedImageData || !draftCreativeId) {
-      setFormError('Generate an image first.');
+    if (selectedCreativeIds.length === 0 || !generatedImageData) {
+      setFormError('Select at least one generated image first.');
       return;
     }
     // Seed image description from product data if empty
@@ -405,21 +462,23 @@ export default function CreatePostWizardModal({
   // ── Finish actions ─────────────────────────────────────────────────────────
 
   function handleSaveAsDraft() {
-    if (!draftCreativeId) {
-      setFormError('No creative to save.');
+    if (selectedCreativeIds.length === 0) {
+      setFormError('Select at least one creative to save.');
       return;
     }
     setFormError(null);
     startFinishing(async () => {
-      // If the user picked a fresh draft, save it and discard the unselected ones.
+      // If the user picked fresh drafts, save selected ones and discard unselected ones.
       // If they reused an existing creative, it's already saved — skip both steps.
       if (reusedExistingId === null) {
-        const saveRes = await saveGeneratedCreative(draftCreativeId);
-        if (!saveRes.success) {
-          setFormError(saveRes.error ?? 'Failed to save creative.');
-          return;
+        for (const creativeId of selectedDraftIds) {
+          const saveRes = await saveGeneratedCreative(creativeId);
+          if (!saveRes.success) {
+            setFormError(saveRes.error ?? 'Failed to save creative.');
+            return;
+          }
         }
-        const unselectedIds = drafts.filter(d => d.creativeId !== draftCreativeId).map(d => d.creativeId);
+        const unselectedIds = drafts.filter(d => !selectedDraftIds.includes(d.creativeId)).map(d => d.creativeId);
         await Promise.all(unselectedIds.map(id => discardCreativeDraft(id).catch(() => {})));
       }
 
@@ -431,11 +490,11 @@ export default function CreatePostWizardModal({
         generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
         productContext: productContext.trim() || undefined,
         status: 'draft',
-        postCreatives: [{
-          creativeId: draftCreativeId,
+        postCreatives: selectedCreativeIds.map((creativeId, index) => ({
+          creativeId,
           description: imageDescription.trim() || undefined,
-          displayOrder: 0,
-        }],
+          displayOrder: index,
+        })),
       });
 
       if (!postRes.success) {
@@ -447,19 +506,21 @@ export default function CreatePostWizardModal({
   }
 
   function handlePublishNow() {
-    if (!draftCreativeId) {
-      setFormError('No creative to publish.');
+    if (selectedCreativeIds.length === 0) {
+      setFormError('Select at least one creative to publish.');
       return;
     }
     setFormError(null);
     startFinishing(async () => {
       if (reusedExistingId === null) {
-        const saveRes = await saveGeneratedCreative(draftCreativeId);
-        if (!saveRes.success) {
-          setFormError(saveRes.error ?? 'Failed to save creative.');
-          return;
+        for (const creativeId of selectedDraftIds) {
+          const saveRes = await saveGeneratedCreative(creativeId);
+          if (!saveRes.success) {
+            setFormError(saveRes.error ?? 'Failed to save creative.');
+            return;
+          }
         }
-        const unselectedIds = drafts.filter(d => d.creativeId !== draftCreativeId).map(d => d.creativeId);
+        const unselectedIds = drafts.filter(d => !selectedDraftIds.includes(d.creativeId)).map(d => d.creativeId);
         await Promise.all(unselectedIds.map(id => discardCreativeDraft(id).catch(() => {})));
       }
 
@@ -470,11 +531,11 @@ export default function CreatePostWizardModal({
         generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
         productContext: productContext.trim() || undefined,
         status: 'ready',
-        postCreatives: [{
-          creativeId: draftCreativeId,
+        postCreatives: selectedCreativeIds.map((creativeId, index) => ({
+          creativeId,
           description: imageDescription.trim() || undefined,
-          displayOrder: 0,
-        }],
+          displayOrder: index,
+        })),
       });
 
       if (!postRes.success || !postRes.postId) {
@@ -604,12 +665,19 @@ export default function CreatePostWizardModal({
               sourceImageUrl={sourceImageUrl}
               viewAngles={viewAngles}
               drafts={drafts}
-              selectedDraftId={selectedDraftId}
-              onSelectDraft={handleSelectDraft}
+              selectedDraftIds={selectedDraftIds}
+              onToggleDraftSelection={handleToggleDraftSelection}
+              onSelectAllDrafts={handleSelectAllDrafts}
+              onClearDraftSelection={handleClearDraftSelection}
               usedPrompt={usedPrompt}
               isGenerating={isGenerating}
+              isRegeneratingDraft={isRegeneratingDraft}
+              regeneratingDraftId={regeneratingDraftId}
+              correctionTextById={correctionTextById}
+              onCorrectionTextChange={handleCorrectionTextChange}
               onGenerate={handleGenerateImage}
               onRegenerate={handleRegenerate}
+              onRegenerateDraft={handleRegenerateDraft}
             />
           )}
 
@@ -618,7 +686,7 @@ export default function CreatePostWizardModal({
               brand={brand}
               channels={channels}
               toggleChannel={toggleChannel}
-              generatedImageData={generatedImageData}
+              generatedImageDataList={generatedImageDataList}
               imageDescription={imageDescription}
               setImageDescription={setImageDescription}
               caption={caption}
@@ -636,7 +704,7 @@ export default function CreatePostWizardModal({
               channels={channels}
               caption={caption}
               imageDescription={imageDescription}
-              generatedImageData={generatedImageData}
+              generatedImageDataList={generatedImageDataList}
               isFinishing={isFinishing}
             />
           )}
@@ -686,7 +754,7 @@ export default function CreatePostWizardModal({
               <button
                 className="btn btn-primary"
                 onClick={goToStep3}
-                disabled={isLoading || !generatedImageData}
+                disabled={isLoading || selectedCreativeIds.length === 0}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
                 Continue {Ic.arrowRight}
@@ -843,7 +911,10 @@ function Step1Setup(props: Step1Props) {
         </label>
         {props.selectedProduct ? (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
+            display: 'grid',
+            gridTemplateColumns: props.selectedProduct.imageUrl ? '96px 1fr auto' : '1fr auto',
+            alignItems: 'center',
+            gap: 10,
             padding: 10,
             background: 'var(--color-bg)',
             border: '1px solid var(--color-border)',
@@ -854,7 +925,7 @@ function Step1Setup(props: Step1Props) {
               <img
                 src={props.selectedProduct.imageUrl}
                 alt={props.selectedProduct.name}
-                style={{ width: 48, height: 48, borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 }}
+                style={{ width: 96, height: 112, borderRadius: 'var(--radius-sm)', objectFit: 'contain', flexShrink: 0, background: 'white', border: '1px solid var(--color-border-subtle)' }}
               />
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -872,6 +943,7 @@ function Step1Setup(props: Step1Props) {
               onClick={props.onClearProduct}
               disabled={props.isLoading}
               style={{
+                alignSelf: 'start',
                 background: 'none', border: 'none',
                 color: 'var(--color-fg-2)', cursor: 'pointer', padding: 4,
               }}
@@ -966,6 +1038,22 @@ function Step1Setup(props: Step1Props) {
             onChange={(e) => props.setSourceImageUrl(e.target.value)}
             disabled={props.isLoading}
           />
+          {props.sourceImageUrl.trim() && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={props.sourceImageUrl}
+              alt="Source product"
+              style={{
+                marginTop: 8,
+                maxHeight: 180,
+                maxWidth: '100%',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+                objectFit: 'contain',
+                background: 'white',
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -1092,12 +1180,19 @@ interface Step2Props {
   sourceImageUrl: string;
   viewAngles: ViewAngle[];
   drafts: DraftResult[];
-  selectedDraftId: number | null;
-  onSelectDraft: (creativeId: number) => void;
+  selectedDraftIds: number[];
+  onToggleDraftSelection: (creativeId: number) => void;
+  onSelectAllDrafts: () => void;
+  onClearDraftSelection: () => void;
   usedPrompt: string | null;
   isGenerating: boolean;
+  isRegeneratingDraft: boolean;
+  regeneratingDraftId: number | null;
+  correctionTextById: Record<number, string>;
+  onCorrectionTextChange: (creativeId: number, value: string) => void;
   onGenerate: () => void;
   onRegenerate: () => void;
+  onRegenerateDraft: (creativeId: number) => void;
 }
 
 function Step2Generate(props: Step2Props) {
@@ -1160,27 +1255,96 @@ function Step2Generate(props: Step2Props) {
       ) : (
         <>
           {props.drafts.length > 1 && (
-            <div style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>
-              Pick the creative to use for this post (the others are discarded on save).
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              fontSize: 11,
+              color: 'var(--color-fg-3)',
+            }}>
+              <span>
+                {props.selectedDraftIds.length} of {props.drafts.length} generated images selected for this post.
+              </span>
+              <span style={{ display: 'inline-flex', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={props.onSelectAllDrafts}
+                  disabled={props.isGenerating || props.isRegeneratingDraft}
+                  style={{
+                    padding: '4px 8px',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-fg-2)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: props.isGenerating || props.isRegeneratingDraft ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={props.onClearDraftSelection}
+                  disabled={props.isGenerating || props.isRegeneratingDraft}
+                  style={{
+                    padding: '4px 8px',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-fg-2)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: props.isGenerating || props.isRegeneratingDraft ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Clear
+                </button>
+              </span>
             </div>
           )}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: props.drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+            gridTemplateColumns: props.drafts.length === 1 && props.sourceImageUrl.trim() ? 'repeat(2, 1fr)' : props.drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
             gap: 10,
           }}>
+            {props.sourceImageUrl.trim() && (
+              <div style={{
+                background: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                overflow: 'hidden',
+              }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={props.sourceImageUrl}
+                  alt="Source product reference"
+                  style={{ display: 'block', width: '100%', height: 320, objectFit: 'contain', background: 'white' }}
+                />
+                <div style={{
+                  padding: '6px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-fg-2)',
+                  borderTop: '1px solid var(--color-border-subtle)',
+                }}>
+                  Source product
+                </div>
+              </div>
+            )}
             {props.drafts.map(d => {
-              const selected = d.creativeId === props.selectedDraftId;
+              const selected = props.selectedDraftIds.includes(d.creativeId);
               return (
                 <div
                   key={d.creativeId}
-                  onClick={() => !props.isGenerating && props.onSelectDraft(d.creativeId)}
+                  onClick={() => !props.isGenerating && !props.isRegeneratingDraft && props.onToggleDraftSelection(d.creativeId)}
                   style={{
                     background: 'var(--color-bg)',
                     border: selected ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-md)',
                     overflow: 'hidden',
-                    cursor: props.isGenerating ? 'default' : 'pointer',
+                    cursor: props.isGenerating || props.isRegeneratingDraft ? 'default' : 'pointer',
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1198,7 +1362,49 @@ function Step2Generate(props: Step2Props) {
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   }}>
                     <span style={{ textTransform: 'capitalize' }}>{d.viewAngle ?? 'front'}</span>
-                    {selected && <span style={{ fontSize: 10 }}>✓ Selected</span>}
+                    <span style={{ fontSize: 10 }}>{selected ? '✓ Selected' : 'Click to include'}</span>
+                  </div>
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      padding: 10,
+                      borderTop: '1px solid var(--color-border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <textarea
+                      className="app-textarea"
+                      placeholder="Correction, e.g. make sleeves shorter like source image"
+                      value={props.correctionTextById[d.creativeId] ?? ''}
+                      onChange={(e) => props.onCorrectionTextChange(d.creativeId, e.target.value)}
+                      disabled={props.isGenerating || props.isRegeneratingDraft}
+                      rows={2}
+                      style={{ resize: 'none', minHeight: 58, fontSize: 12 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => props.onRegenerateDraft(d.creativeId)}
+                      disabled={props.isGenerating || props.isRegeneratingDraft || !(props.correctionTextById[d.creativeId]?.trim())}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '7px 12px',
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--color-fg-2)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: props.isGenerating || props.isRegeneratingDraft || !(props.correctionTextById[d.creativeId]?.trim()) ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {Ic.refresh}
+                      {props.regeneratingDraftId === d.creativeId ? 'Regenerating…' : 'Regenerate this'}
+                    </button>
                   </div>
                 </div>
               );
@@ -1251,7 +1457,7 @@ interface Step3Props {
   brand: string;
   channels: string[];
   toggleChannel: (ch: string) => void;
-  generatedImageData: string | null;
+  generatedImageDataList: string[];
   imageDescription: string;
   setImageDescription: (s: string) => void;
   caption: string;
@@ -1423,7 +1629,7 @@ function Step3CaptionReview(props: Step3Props) {
             brand={props.brand}
             channels={props.channels}
             caption={props.caption}
-            imageData={props.generatedImageData}
+            imageDataList={props.generatedImageDataList}
           />
         </div>
       )}
@@ -1438,7 +1644,7 @@ interface Step4Props {
   channels: string[];
   caption: string;
   imageDescription: string;
-  generatedImageData: string | null;
+  generatedImageDataList: string[];
   isFinishing: boolean;
 }
 
@@ -1460,7 +1666,7 @@ function Step4Publish(props: Step4Props) {
         brand={props.brand}
         channels={props.channels}
         caption={props.caption}
-        imageData={props.generatedImageData}
+        imageDataList={props.generatedImageDataList}
       />
 
       {props.imageDescription && (
@@ -1497,12 +1703,12 @@ function SocialPreview({
   brand,
   channels,
   caption,
-  imageData,
+  imageDataList,
 }: {
   brand: string;
   channels: string[];
   caption: string;
-  imageData: string | null;
+  imageDataList: string[];
 }) {
   return (
     <div style={{
@@ -1545,14 +1751,30 @@ function SocialPreview({
         </div>
       </div>
 
-      {/* Image */}
-      {imageData && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageData}
-          alt="Post preview"
-          style={{ display: 'block', width: '100%', maxHeight: 360, objectFit: 'cover' }}
-        />
+      {/* Images */}
+      {imageDataList.length > 0 && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: imageDataList.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+          gap: 2,
+          background: 'var(--color-border-subtle)',
+        }}>
+          {imageDataList.map((imageData, index) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`${imageData}-${index}`}
+              src={imageData}
+              alt={`Post preview ${index + 1}`}
+              style={{
+                display: 'block',
+                width: '100%',
+                aspectRatio: imageDataList.length === 1 ? '4/3' : '1/1',
+                maxHeight: imageDataList.length === 1 ? 360 : 260,
+                objectFit: 'cover',
+              }}
+            />
+          ))}
+        </div>
       )}
 
       {/* Caption */}

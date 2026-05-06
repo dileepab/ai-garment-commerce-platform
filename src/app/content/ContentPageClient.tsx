@@ -29,6 +29,16 @@ export interface CreativeRecord {
   createdAt: Date;
 }
 
+interface PostCreativeRecord {
+  creativeId: number;
+  description: string | null;
+  displayOrder: number;
+  creative: {
+    id: number;
+    generatedImageData: string;
+  };
+}
+
 export interface PostRecord {
   id: number;
   brand: string;
@@ -44,6 +54,7 @@ export interface PostRecord {
   publishedAt: Date | null;
   publishedBy: string | null;
   publishLogs: PublishLogEntry[];
+  postCreatives: PostCreativeRecord[];
 }
 
 interface Stats {
@@ -196,9 +207,14 @@ function StatusPill({ status, publishStatus }: { status: string; publishStatus?:
 interface PostFormProps {
   post: PostRecord | null;
   availableBrands: string[] | null;
-  availableCreatives: any[];
+  availableCreatives: CreativeRecord[];
   onClose: () => void;
   onSuccess: () => void;
+}
+
+interface PostCreativeFormState {
+  creativeId: number;
+  description: string;
 }
 
 function PostFormModal({ post, availableBrands, availableCreatives, onClose, onSuccess }: PostFormProps) {
@@ -216,8 +232,10 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
     parseGeneratedCaptions(post?.generatedCaptions ?? null),
   );
   // Support for multiple creatives per post
-  const [postCreatives, setPostCreatives] = useState<{ creativeId: number; description: string }[]>(
-    post?.postCreatives ? post.postCreatives.map((pc: any) => ({ creativeId: pc.creativeId, description: pc.description || '' })) : []
+  const [postCreatives, setPostCreatives] = useState<PostCreativeFormState[]>(
+    post?.postCreatives
+      ? post.postCreatives.map((pc) => ({ creativeId: pc.creativeId, description: pc.description || '' }))
+      : []
   );
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -273,7 +291,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
   }
 
   function handleCreativeSelect(index: number, creativeId: number) {
-    const creative = availableCreatives.find((c: any) => c.id === creativeId);
+    const creative = availableCreatives.find((c) => c.id === creativeId);
 
     // Build a short description from product context (e.g. "Breezy Summer Dress — Rs 2,950")
     let autoDescription = '';

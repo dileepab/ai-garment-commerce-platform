@@ -1,4 +1,6 @@
 import { GoogleGenAI, Modality } from '@google/genai';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { logDebug, logError } from '@/lib/app-log';
 
 // ── Brand style system ───────────────────────────────────────────────────────
@@ -58,15 +60,42 @@ export interface CreativeGenerationInput {
 function viewAngleClause(angle: ViewAngle | undefined): string {
   switch (angle) {
     case 'side':
-      return 'Camera angle: full profile (90°) side view of the model. Show the silhouette of the garment from the side.';
+      return 'Camera angle: full profile (90 degrees) side view of the model. Show the side silhouette, but keep any front floral/graphic artwork anchored on the garment front panel near the model-facing/front edge. Do not center the artwork on the side seam, underarm, or side torso.';
     case 'back':
-      return 'Camera angle: rear view of the model facing away from camera. Showcase the back of the garment — neckline, seams, hemline.';
+      return 'Camera angle: rear view of the model facing away from camera. Showcase the back of the garment - neckline, seams, and hemline. Do not move front-only buttons, plackets, embroidery, pockets, or prints onto the back unless the source image clearly shows those details wrap around.';
     case 'closeup':
-      return 'Camera angle: tight close-up on the garment fabric, print and stitching detail. Half-body crop, sharp focus on garment texture.';
+      return 'Camera angle: tight close-up on the garment fabric, print, buttons, stitching, and construction details. Half-body crop, sharp focus on the exact source garment texture.';
     case 'front':
     default:
-      return 'Camera angle: front-facing three-quarter or full-body shot of the model.';
+      return 'Camera angle: front-facing three-quarter or full-body shot of the model. The front of the garment must match the source image exactly.';
   }
+}
+
+function garmentAccuracyClause(viewAngle: ViewAngle | undefined): string {
+  const angleSpecific = viewAngle === 'back'
+    ? '- For the back view, infer only the hidden back shape from the same garment. Keep color, fabric, sleeve shape, neckline style, and hem shape consistent; do not transplant front-only decoration to the back.\n'
+    : viewAngle === 'side'
+      ? '- For the side view, the floral/graphic artwork remains on the front-left panel of the garment. It should appear only on the visible front edge/near-front torso, with the same height from the hem and the same distance from the button placket as the source. Never move the artwork to the center of the side panel or underneath the sleeve.\n'
+      : viewAngle === 'front'
+        ? '- For the front view, duplicate the source neckline exactly. If the source neckline is a smooth continuous round/scoop neck, keep it smooth and continuous: no V slit, notch, keyhole, vertical opening, collar, tie, zipper, or extra cutout at the center front.\n'
+        : '';
+
+  return (
+    `GARMENT FIDELITY - HIGHEST PRIORITY:\n` +
+    `- Before rendering, inspect Image B and mentally lock the garment blueprint: neckline shape, center-front opening, button/placket line, artwork placement, sleeve cuff, hem curve, and fabric color.\n` +
+    `- Treat Image B as a product reference that must be duplicated, not re-designed or re-colored.\n` +
+    `- The output garment must be the same SKU/product as Image B. A different color, darker/lighter color family, alternate neckline, different sleeve roll, different hem, changed button line, or moved floral/graphic placement is a failed result.\n` +
+    `- The neckline must be copied exactly. Do not invent a center-front neck slit, V notch, keyhole, collar, zipper, or extra opening unless that exact opening is clearly visible in Image B.\n` +
+    `- The front placket/buttons must start and stop where they do in Image B. Do not extend the placket into the neckline or create a new opening above the first real button.\n` +
+    `- Preserve the exact base color/hue from Image B under realistic lighting. Do not let brand palette, warm sunlight, shadows, or color grading shift the garment into black, gray, blue, brown, or another green.\n` +
+    `- Preserve the exact print/embroidery artwork, scale, orientation, and placement relative to the neckline, placket, side seams, bust, waist, and hem.\n` +
+    `- Floral/graphic placement must be spatially faithful: keep the same side of the garment, same vertical height, same distance from the hem, and same relationship to the placket/buttons. Do not slide it toward the side seam or center torso.\n` +
+    `- Preserve every visible construction detail: button count, button color/rim, button spacing, placket position, seams, cuffs, sleeve length, sleeve opening width, shoulder seam position, neckline shape, fabric texture, and hem curve.\n` +
+    `- Sleeve length must match Image B exactly relative to the upper arm/elbow/wrist. Do not lengthen short sleeves into longer sleeves or shorten longer sleeves unless the user correction explicitly asks for it.\n` +
+    `- Do not add, remove, mirror, relocate, resize, recolor, or simplify buttons, flowers, seams, folds, or trims.\n` +
+    angleSpecific +
+    `- Fit the exact garment onto the model naturally; only the model pose, background, and companion clothing may change.`
+  );
 }
 
 // Instruct the model to complete the outfit when the source garment covers
@@ -82,6 +111,10 @@ export interface CreativeGenerationResult {
   mimeType: string;
   prompt: string;
 }
+
+type GeminiContentPart =
+  | { text: string }
+  | { inlineData: { data: string; mimeType: string } };
 
 // ── Prompt builders ──────────────────────────────────────────────────────────
 
@@ -111,8 +144,7 @@ function buildTryOnPrompt(
       `- The person in the output MUST be the model from Image A. Same face, same hair, same skin tone (${persona.skinTone}).\n` +
       `- If Image B shows a different person wearing the garment, IGNORE that person completely. Only use Image B for the garment design.\n` +
       `- Model height: ${persona.height}. Body type: ${persona.bodyShape}.\n\n` +
-      `GARMENT ACCURACY:\n` +
-      `- Copy the garment's exact print, pattern, colours, fabric texture, and silhouette from Image B.\n` +
+      `${garmentAccuracyClause(viewAngle)}\n` +
       `- The garment must drape naturally on the model's body with realistic folds and shadows.\n` +
       (productContext.trim() ? `- Garment details: ${productContext.trim()}.\n` : '') +
       `\n${OUTFIT_COMPLETION_CLAUSE}\n` +
@@ -121,7 +153,7 @@ function buildTryOnPrompt(
       `- Natural skin texture: visible pores, subtle skin imperfections, realistic subsurface scattering on skin.\n` +
       `- Slight natural wind movement in hair and fabric for a candid, lived-in feel.\n` +
       `- Setting: Beautiful, aspirational ${style.aesthetic} outdoor location. Golden hour warm sunlight with soft shadows.\n` +
-      `- Realistic catch-lights in the model's eyes. Natural color grading — not over-saturated.\n` +
+      `- Realistic catch-lights in the model's eyes. Natural color grading for skin and scene only; keep the garment color matched to Image B.\n` +
       `- Subtle film grain for an authentic editorial feel. NOT overly smooth or airbrushed.\n` +
       `- ${viewAngleClause(viewAngle)}\n` +
       `- Style: Premium ${brand} brand campaign. ${style.mood}.\n` +
@@ -135,7 +167,8 @@ function buildTryOnPrompt(
     ? ` The garment is described as: ${productContext.trim()}.` : '';
 
   return (
-    `Generate a professional fashion marketing photo showing this exact dress in a premium setting.` +
+    `Generate a professional fashion marketing photo showing the exact source garment in a premium setting.\n\n` +
+    `${garmentAccuracyClause(viewAngle)}\n\n` +
     `${contextNote} ` +
     `Brand: ${brand}. Visual style: ${style.aesthetic}. Mood: ${style.mood}. ` +
     `High-end editorial composition. Sharp focus, beautiful lighting. ` +
@@ -203,17 +236,15 @@ export async function generateCreative(
 
     logDebug('CreativeGen', `Try-on generation via ${IMAGE_EDIT_MODEL} — brand "${input.brand}" persona "${input.personaId}".`);
 
-    // Parts order: [prompt] → [Image A: persona/model] → [Image B: garment]
+    // Parts order: [prompt] -> [Image A: persona/model] -> [Image B: garment]
     // Persona goes FIRST so the AI anchors on the model's identity before seeing the garment.
-    const parts: any[] = [
+    const parts: GeminiContentPart[] = [
       { text: prompt },
     ];
 
     // Image A — MODEL (persona reference) — goes first to anchor identity
     if (selectedPersona?.imageUrl) {
       try {
-        const fs = require('fs');
-        const path = require('path');
         const imagePath = path.join(process.cwd(), 'public', selectedPersona.imageUrl);
         
         if (fs.existsSync(imagePath)) {
@@ -224,6 +255,9 @@ export async function generateCreative(
           if (selectedPersona.imageUrl.endsWith('.png')) contentType = 'image/png';
           else if (selectedPersona.imageUrl.endsWith('.webp')) contentType = 'image/webp';
 
+          parts.push({
+            text: 'IMAGE A - MODEL REFERENCE. Use only this person for face, body, hair, and skin tone.',
+          });
           parts.push({
             inlineData: {
               data: base64,
@@ -240,6 +274,11 @@ export async function generateCreative(
     }
 
     // Image B — GARMENT (product photo) — goes second
+    parts.push({
+      text: selectedPersona?.imageUrl
+        ? 'IMAGE B - GARMENT PRODUCT REFERENCE. Duplicate this garment exactly on Image A model.'
+        : 'IMAGE B - GARMENT PRODUCT REFERENCE. Generate this exact garment/product without changing design or color.',
+    });
     parts.push({
       inlineData: {
         data: input.sourceImageBase64!,
