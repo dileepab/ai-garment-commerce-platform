@@ -28,6 +28,16 @@ export default async function ContentPage() {
             createdAt: true,
           },
         },
+        postCreatives: {
+          include: {
+            creative: {
+              select: {
+                id: true,
+                generatedImageData: true
+              }
+            }
+          }
+        }
       },
     }),
     prisma.generatedCreative.findMany({

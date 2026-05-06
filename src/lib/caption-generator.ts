@@ -11,6 +11,7 @@ export interface CaptionGenerationInput {
   brand: string;
   channels: string[]; // 'facebook' | 'instagram'
   productContext?: string;
+  imageBase64?: string; // base64 data URL of the generated creative image
 }
 
 interface ModelError {
@@ -25,7 +26,7 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function buildSystemPrompt(brand: string, channels: string[]): string {
+function buildSystemPrompt(brand: string, channels: string[], hasImage: boolean): string {
   const forInstagram = channels.includes('instagram');
   const forFacebook = channels.includes('facebook');
 
@@ -36,10 +37,14 @@ function buildSystemPrompt(brand: string, channels: string[]): string {
     .filter(Boolean)
     .join(' ');
 
+  const imageNote = hasImage
+    ? `\nIMPORTANT: I am providing a campaign image. Analyze the image carefully — describe the outfit, the model, the setting, and the mood you see. Your captions MUST match what is visually shown in the image. Reference specific visual details (colours, fabric, setting, model's pose/mood) to make the captions authentic and specific.`
+    : '';
+
   return `You are a social media copywriter for ${brand}, a Sri Lankan women's clothing brand known for stylish, quality garments at accessible prices.
 
 Brand tone: warm, aspirational, feminine, confident — like a knowledgeable friend who loves fashion.
-
+${imageNote}
 Task: Write exactly 3 distinct social media captions for the brand's post. Return ONLY a JSON array of 3 strings, no other text.
 
 Channel guidance: ${channelGuidance}
@@ -50,9 +55,9 @@ Rules:
 - Use natural, conversational language. No corporate jargon.
 - Emojis are encouraged but not excessive (2-4 per caption).
 - If channels include Instagram, at least one caption should end with hashtags.
+- Reference specific garment details (colour, pattern, fabric, length) — do NOT be generic.
 - Never mention competitors. Never make false claims about pricing or stock.
-- Output format: ["caption one", "caption two", "caption three"]`;
-}
+- Output format: ["caption one", "caption two", "caption three"]`;}
 
 function buildUserPrompt(input: CaptionGenerationInput): string {
   if (input.productContext?.trim()) {
@@ -86,16 +91,36 @@ export async function generateCaptions(input: CaptionGenerationInput): Promise<s
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const systemInstruction = buildSystemPrompt(input.brand, input.channels);
-  const contents = buildUserPrompt(input);
+  const hasImage = !!(input.imageBase64);
+  const systemInstruction = buildSystemPrompt(input.brand, input.channels, hasImage);
+  const userText = buildUserPrompt(input);
+
+  // Build multimodal content parts when an image is available
+  const contentParts: any[] = [];
+
+  if (hasImage && input.imageBase64) {
+    // Extract base64 data and mime type from data URL
+    const match = input.imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      contentParts.push({
+        inlineData: {
+          mimeType: match[1],
+          data: match[2],
+        },
+      });
+      logDebug('CaptionGen', 'Attached campaign image for vision-aware caption generation.');
+    }
+  }
+
+  contentParts.push({ text: userText });
 
   for (let i = 0; i < MODEL_CHAIN.length; i++) {
     const model = MODEL_CHAIN[i];
     try {
-      logDebug('CaptionGen', `Trying model ${model}.`);
+      logDebug('CaptionGen', `Trying model ${model}${hasImage ? ' (with image)' : ''}.`);
       const response = await ai.models.generateContent({
         model,
-        contents,
+        contents: [{ role: 'user', parts: contentParts }],
         config: { systemInstruction },
       });
       const text = response.text ?? '';

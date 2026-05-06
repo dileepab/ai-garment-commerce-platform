@@ -13,8 +13,15 @@ import {
   generateCreative as generateCreativeLib,
   type CreativeGenerationInput,
   type PersonaId,
+  type ViewAngle,
 } from '@/lib/creative-generator';
 import { publishToFacebook, publishToInstagram } from '@/lib/meta-publish';
+
+export interface SocialPostCreativeInput {
+  creativeId: number;
+  description?: string;
+  displayOrder: number;
+}
 
 export interface SocialPostInput {
   brand: string;
@@ -23,6 +30,7 @@ export interface SocialPostInput {
   generatedCaptions?: string[];
   productContext?: string;
   status: 'draft' | 'ready';
+  postCreatives?: SocialPostCreativeInput[];
 }
 
 export interface SocialPostResult {
@@ -60,6 +68,13 @@ export async function createSocialPost(input: SocialPostInput): Promise<SocialPo
         productContext: input.productContext?.trim() || null,
         status: input.status,
         createdBy: scope.email ?? null,
+        postCreatives: input.postCreatives && input.postCreatives.length > 0 ? {
+          create: input.postCreatives.map(pc => ({
+            creativeId: pc.creativeId,
+            description: pc.description,
+            displayOrder: pc.displayOrder,
+          }))
+        } : undefined,
       },
     });
 
@@ -107,6 +122,22 @@ export async function updateSocialPost(
       },
     });
 
+    if (input.postCreatives) {
+      await prisma.socialPostCreative.deleteMany({
+        where: { socialPostId: postId }
+      });
+      if (input.postCreatives.length > 0) {
+        await prisma.socialPostCreative.createMany({
+          data: input.postCreatives.map(pc => ({
+            socialPostId: postId,
+            creativeId: pc.creativeId,
+            description: pc.description,
+            displayOrder: pc.displayOrder,
+          }))
+        });
+      }
+    }
+
     revalidatePath('/content');
     return { success: true, postId };
   } catch (error) {
@@ -130,6 +161,38 @@ export async function generatePostCaptions(
   }
 }
 
+// ── Product Search ──────────────────────────────────────────────────────────
+
+export async function searchProductsForContent(query: string, brand: string) {
+  try {
+    const scope = await requireActionPermission('content:view');
+    assertBrandAccess(scope, brand);
+
+    const products = await prisma.product.findMany({
+      where: {
+        brand,
+        name: { contains: query, mode: 'insensitive' },
+      },
+      take: 10,
+      select: {
+        id: true,
+        name: true,
+        brand: true,
+        style: true,
+        price: true,
+        fabric: true,
+        colors: true,
+        sizes: true,
+        imageUrl: true,
+      },
+    });
+    return { success: true, products };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    return { success: false, error: 'Failed to search products.' };
+  }
+}
+
 // ── Creative generation ──────────────────────────────────────────────────────
 
 export interface GenerateCreativeParams {
@@ -137,6 +200,8 @@ export interface GenerateCreativeParams {
   personaId: PersonaId;
   productContext: string;
   sourceImageUrl?: string;
+  productId?: number;
+  viewAngle?: ViewAngle;
 }
 
 export interface GenerateCreativeResult {
@@ -144,6 +209,13 @@ export interface GenerateCreativeResult {
   imageData?: string;
   prompt?: string;
   creativeId?: number; // ID of the auto-saved draft record
+  viewAngle?: ViewAngle;
+  error?: string;
+}
+
+export interface GenerateCreativeBatchResult {
+  success: boolean;
+  results: GenerateCreativeResult[];
   error?: string;
 }
 
@@ -176,6 +248,7 @@ export async function generateCreativeAction(
       productContext: params.productContext,
       sourceImageBase64,
       sourceImageMimeType,
+      viewAngle: params.viewAngle,
     };
 
     const result = await generateCreativeLib(input);
@@ -185,6 +258,8 @@ export async function generateCreativeAction(
     const draft = await prisma.generatedCreative.create({
       data: {
         brand: params.brand.trim(),
+        productId: params.productId ?? null,
+        viewAngle: params.viewAngle ?? null,
         sourceImageUrl: params.sourceImageUrl || null,
         generatedImageData: result.imageData,
         prompt: result.prompt,
@@ -195,11 +270,135 @@ export async function generateCreativeAction(
       },
     });
 
-    return { success: true, imageData: result.imageData, prompt: result.prompt, creativeId: draft.id };
+    return {
+      success: true,
+      imageData: result.imageData,
+      prompt: result.prompt,
+      creativeId: draft.id,
+      viewAngle: params.viewAngle,
+    };
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error);
     const msg = error instanceof Error ? error.message : 'Creative generation failed.';
     return { success: false, error: msg };
+  }
+}
+
+// Batch variant — generates one creative per requested view angle, sequentially.
+// Each generation is a separate Gemini call; failures on individual angles do not
+// abort the whole batch.
+export async function generateCreativeBatchAction(
+  params: Omit<GenerateCreativeParams, 'viewAngle'> & { viewAngles: ViewAngle[] },
+): Promise<GenerateCreativeBatchResult> {
+  const angles = params.viewAngles.length > 0 ? params.viewAngles : (['front'] as ViewAngle[]);
+  const results: GenerateCreativeResult[] = [];
+  for (const angle of angles) {
+    const r = await generateCreativeAction({ ...params, viewAngle: angle });
+    results.push(r);
+  }
+  return { success: results.some(r => r.success), results };
+}
+
+// Regenerate a single existing draft with the same params + an optional user
+// correction note ("e.g. no buttons on back"). Replaces the old draft in place
+// so the UI tile updates without renumbering. The original creative must be in
+// 'draft' status — saved creatives are immutable.
+export async function regenerateCreativeAction(
+  creativeId: number,
+  correctionText?: string,
+): Promise<GenerateCreativeResult> {
+  try {
+    const scope = await requireActionPermission('content:write');
+
+    const original = await prisma.generatedCreative.findUnique({
+      where: { id: creativeId },
+      select: {
+        brand: true, status: true, productId: true, viewAngle: true,
+        sourceImageUrl: true, personaStyle: true, productContext: true,
+      },
+    });
+    if (!original) return { success: false, error: 'Creative not found.' };
+    if (original.status !== 'draft') {
+      return { success: false, error: 'Only draft creatives can be regenerated.' };
+    }
+    assertBrandAccess(scope, original.brand);
+
+    let sourceImageBase64: string | undefined;
+    let sourceImageMimeType: string | undefined;
+    if (original.sourceImageUrl) {
+      const res = await fetch(original.sourceImageUrl);
+      if (!res.ok) throw new Error(`Failed to fetch source image: ${res.status}`);
+      const contentType = res.headers.get('content-type') ?? 'image/jpeg';
+      const mimeType = contentType.split(';')[0].trim();
+      if (!mimeType.startsWith('image/')) {
+        throw new Error('Source URL does not point to an image.');
+      }
+      const buffer = await res.arrayBuffer();
+      sourceImageBase64 = Buffer.from(buffer).toString('base64');
+      sourceImageMimeType = mimeType;
+    }
+
+    const result = await generateCreativeLib({
+      brand: original.brand,
+      personaId: (original.personaStyle ?? 'none') as PersonaId,
+      productContext: original.productContext ?? '',
+      sourceImageBase64,
+      sourceImageMimeType,
+      viewAngle: (original.viewAngle ?? undefined) as ViewAngle | undefined,
+      correctionText,
+    });
+
+    // Replace in place — keep the same id so the UI tile slot stays consistent.
+    await prisma.generatedCreative.update({
+      where: { id: creativeId },
+      data: {
+        generatedImageData: result.imageData,
+        prompt: result.prompt,
+      },
+    });
+
+    return {
+      success: true,
+      imageData: result.imageData,
+      prompt: result.prompt,
+      creativeId,
+      viewAngle: (original.viewAngle ?? undefined) as ViewAngle | undefined,
+    };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    const msg = error instanceof Error ? error.message : 'Regeneration failed.';
+    return { success: false, error: msg };
+  }
+}
+
+// Fetch saved generations for a product so the user can reuse them instead of
+// regenerating. Returns metadata only — image bytes are streamed via the
+// /api/content/creatives/[id]/image route.
+export async function getCreativesForProduct(productId: number) {
+  try {
+    const scope = await requireActionPermission('content:view');
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { brand: true },
+    });
+    if (!product) return { success: false, error: 'Product not found.' };
+    assertBrandAccess(scope, product.brand);
+
+    const creatives = await prisma.generatedCreative.findMany({
+      where: { productId, status: 'saved' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        viewAngle: true,
+        personaStyle: true,
+        createdAt: true,
+      },
+    });
+    return { success: true, creatives };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    return { success: false, error: 'Failed to load creatives.' };
   }
 }
 
@@ -295,14 +494,14 @@ export interface PublishSocialPostResult {
 
 export async function publishSocialPost(
   postId: number,
-  imageUrl?: string,
+  baseUrl?: string,
 ): Promise<PublishSocialPostResult> {
   try {
     const scope = await requireActionPermission('content:write');
 
     const post = await prisma.socialPost.findUnique({
       where: { id: postId },
-      select: { id: true, brand: true, channels: true, caption: true, status: true },
+      select: { id: true, brand: true, channels: true, caption: true, status: true, postCreatives: true },
     });
 
     if (!post) return { success: false, error: 'Post not found.' };
@@ -322,12 +521,16 @@ export async function publishSocialPost(
 
     const outcomes: ChannelPublishOutcome[] = [];
 
+    const imageUrls = baseUrl && post.postCreatives && post.postCreatives.length > 0
+      ? post.postCreatives.map(pc => `${baseUrl}/api/content/creatives/${pc.creativeId}/image`)
+      : undefined;
+
     for (const channel of channels) {
       let result;
       if (channel === 'facebook') {
-        result = await publishToFacebook(post.brand, post.caption);
+        result = await publishToFacebook(post.brand, post.caption, imageUrls);
       } else if (channel === 'instagram') {
-        result = await publishToInstagram(post.brand, post.caption, imageUrl);
+        result = await publishToInstagram(post.brand, post.caption, imageUrls);
       } else {
         outcomes.push({
           channel,

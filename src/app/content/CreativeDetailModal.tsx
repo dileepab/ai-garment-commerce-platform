@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { PERSONA_OPTIONS } from '@/lib/creative-generator';
+import { PERSONAS_BY_BRAND } from '@/lib/persona-data';
 import { deleteGeneratedCreative } from './actions';
 import type { CreativeRecord } from './ContentPageClient';
 
@@ -46,9 +46,9 @@ function formatDateTime(date: Date): string {
   });
 }
 
-function personaLabel(id: string | null): string | null {
-  if (!id) return null;
-  return PERSONA_OPTIONS.find((p) => p.id === id)?.label ?? id;
+function getPersonaLabel(brand: string, id: string | null) {
+  if (!id) return 'None';
+  return PERSONAS_BY_BRAND[brand]?.find((p) => p.id === id)?.label ?? id;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ export default function CreativeDetailModal({ creative, canWrite, onClose, onDel
               <div>
                 <div style={labelStyle}>Model Persona</div>
                 <div style={{ fontSize: 13, color: 'var(--color-fg-1)' }}>
-                  {personaLabel(creative.personaStyle)}
+                  {getPersonaLabel(creative.brand, creative.personaStyle)}
                 </div>
               </div>
             )}

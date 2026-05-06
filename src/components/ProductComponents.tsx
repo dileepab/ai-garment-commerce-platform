@@ -314,7 +314,13 @@ export function ProductDrawer({
   );
 }
 
-export function ProductThumb({ status }: { status: string }) {
+export function ProductThumb({ status, imageUrl }: { status: string; imageUrl?: string | null }) {
+  if (imageUrl) {
+    return (
+      <img src={imageUrl} alt="" className="thumb" style={{ width: 40, height: 48, objectFit: 'cover', borderRadius: '4px' }} />
+    );
+  }
+
   const bg = status === "out-of-stock" ? "#EDEAE5" : "#F2EFE9";
   const lineColor = status === "out-of-stock" ? "#DDD9D1" : "#E5E0D8";
   return (

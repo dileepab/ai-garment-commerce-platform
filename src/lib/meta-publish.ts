@@ -52,7 +52,7 @@ function resolveIgConfig(brand: string): IgPublishConfig | null {
 
 // ── Facebook Page post ───────────────────────────────────────────────────────
 
-export async function publishToFacebook(brand: string, caption: string): Promise<PublishResult> {
+export async function publishToFacebook(brand: string, caption: string, imageUrls?: string[]): Promise<PublishResult> {
   const config = resolveFbConfig(brand);
   if (!config) {
     logError('MetaPublish', `Missing Facebook publish config for brand "${brand}". Set META_FB_PAGE_ID and META_FB_PAGE_TOKEN (or their brand-scoped variants).`);
@@ -66,10 +66,34 @@ export async function publishToFacebook(brand: string, caption: string): Promise
   const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${config.pageId}/feed`;
 
   try {
+    let attachedMedia: any[] = [];
+    
+    // Upload photos if any
+    if (imageUrls && imageUrls.length > 0) {
+      for (const url of imageUrls) {
+        const photoRes = await fetch(`https://graph.facebook.com/${META_GRAPH_VERSION}/${config.pageId}/photos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, published: false, access_token: config.token }),
+        });
+        const photoData = await photoRes.json() as any;
+        if (photoRes.ok && photoData.id) {
+          attachedMedia.push({ media_fbid: photoData.id });
+        } else {
+          logError('MetaPublish', `Failed to upload FB photo for brand "${brand}"`, photoData);
+        }
+      }
+    }
+
+    const payload: any = { message: caption, access_token: config.token };
+    if (attachedMedia.length > 0) {
+      payload.attached_media = attachedMedia;
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: caption, access_token: config.token }),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json() as Record<string, unknown>;
@@ -100,7 +124,7 @@ export async function publishToFacebook(brand: string, caption: string): Promise
 export async function publishToInstagram(
   brand: string,
   caption: string,
-  imageUrl?: string,
+  imageUrls?: string[],
 ): Promise<PublishResult> {
   const config = resolveIgConfig(brand);
   if (!config) {
@@ -112,7 +136,7 @@ export async function publishToInstagram(
     };
   }
 
-  if (!imageUrl) {
+  if (!imageUrls || imageUrls.length === 0) {
     return {
       ok: false,
       errorCode: 'IMAGE_REQUIRED',
@@ -124,27 +148,64 @@ export async function publishToInstagram(
   const containerUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${config.accountId}/media`;
 
   try {
-    const containerRes = await fetch(containerUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        image_url: imageUrl,
-        caption,
-        access_token: config.token,
-      }),
-    });
+    let creationId: string | undefined;
 
-    const containerData = await containerRes.json() as Record<string, unknown>;
+    if (imageUrls.length === 1) {
+      // Single image container
+      const containerRes = await fetch(containerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: imageUrls[0],
+          caption,
+          access_token: config.token,
+        }),
+      });
 
-    if (!containerRes.ok) {
-      const err = containerData.error as Record<string, unknown> | undefined;
-      const code = err?.code != null ? String(err.code) : String(containerRes.status);
-      const msg = typeof err?.message === 'string' ? err.message : `Meta Graph returned ${containerRes.status} creating media container.`;
-      logError('MetaPublish', `Instagram media container creation failed for brand "${brand}".`, { status: containerRes.status, data: containerData });
-      return { ok: false, errorCode: code, errorMessage: msg };
+      const containerData = await containerRes.json() as any;
+      if (!containerRes.ok) {
+        return { ok: false, errorCode: containerData.error?.code, errorMessage: containerData.error?.message };
+      }
+      creationId = containerData.id;
+    } else {
+      // Carousel items
+      const itemIds: string[] = [];
+      for (const url of imageUrls) {
+        const itemRes = await fetch(containerUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_url: url,
+            is_carousel_item: true,
+            access_token: config.token,
+          }),
+        });
+        const itemData = await itemRes.json() as any;
+        if (itemRes.ok && itemData.id) {
+          itemIds.push(itemData.id);
+        } else {
+          return { ok: false, errorCode: itemData.error?.code, errorMessage: itemData.error?.message };
+        }
+      }
+
+      // Carousel container
+      const carouselRes = await fetch(containerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          media_type: 'CAROUSEL',
+          children: itemIds,
+          caption,
+          access_token: config.token,
+        }),
+      });
+      const carouselData = await carouselRes.json() as any;
+      if (!carouselRes.ok) {
+        return { ok: false, errorCode: carouselData.error?.code, errorMessage: carouselData.error?.message };
+      }
+      creationId = carouselData.id;
     }
 
-    const creationId = typeof containerData.id === 'string' ? containerData.id : undefined;
     if (!creationId) {
       return { ok: false, errorCode: 'NO_CREATION_ID', errorMessage: 'Meta did not return a media creation ID.' };
     }

@@ -240,3 +240,54 @@ export async function updateProduct(
     return { success: false, error: 'Failed to update product. Please retry.' };
   }
 }
+
+// ── Image upload (Vercel Blob) ───────────────────────────────────────────────
+// The client resizes the image first (max 2048px long edge, JPEG q≈0.85) so
+// only ~300–500 KB hits the server. Returns a public CDN URL stored in
+// Product.imageUrl.
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB hard ceiling after client-resize
+
+export interface UploadProductImageResult {
+  success: boolean;
+  url?: string;
+  error?: string;
+}
+
+export async function uploadProductImage(formData: FormData): Promise<UploadProductImageResult> {
+  try {
+    await requireActionPermission('products:write');
+
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+      return { success: false, error: 'No file provided.' };
+    }
+    if (!file.type.startsWith('image/')) {
+      return { success: false, error: 'Only image files are allowed.' };
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return { success: false, error: 'File exceeds 5 MB limit after compression.' };
+    }
+
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return { success: false, error: 'BLOB_READ_WRITE_TOKEN is not configured.' };
+    }
+
+    const { put } = await import('@vercel/blob');
+    const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+    const key = `products/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const blob = await put(key, file, {
+      access: 'public',
+      contentType: file.type,
+      addRandomSuffix: false,
+    });
+
+    return { success: true, url: blob.url };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    console.error('[uploadProductImage] failed:', error);
+    const msg = error instanceof Error ? error.message : 'Upload failed.';
+    return { success: false, error: msg };
+  }
+}

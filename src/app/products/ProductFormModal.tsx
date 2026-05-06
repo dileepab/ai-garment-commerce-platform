@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
-import { createProduct, updateProduct } from './actions';
+import React, { useRef, useState, useTransition } from 'react';
+import { createProduct, updateProduct, uploadProductImage } from './actions';
 import type { VariantInput, ProductFormInput } from './actions';
+import { resizeImageFile } from '@/lib/image-resize';
 
 // ── Static option lists ──────────────────────────────────────────────────────
 
@@ -184,6 +185,33 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<FormState>(() => buildInitialState(product));
   const [imgError, setImgError] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    setUploadError(null);
+    setImgError(false);
+    setIsUploading(true);
+    try {
+      const resized = await resizeImageFile(file, { maxEdge: 2048, quality: 0.85 });
+      const formData = new FormData();
+      formData.append('file', resized);
+      const res = await uploadProductImage(formData);
+      if (res.success && res.url) {
+        set('imageUrl', res.url);
+      } else {
+        setUploadError(res.error ?? 'Upload failed.');
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setIsUploading(false);
+    }
+  }
 
   // brand/fabric "Other" modes — initialise from product data at mount time
   const [brandIsCustom, setBrandIsCustom] = useState(
@@ -439,19 +467,54 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
                   </svg>
                 )}
               </div>
-              {/* URL input */}
+              {/* Upload + URL */}
               <div style={{ flex: 1 }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleFilePick}
+                  disabled={isPending || isUploading}
+                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 11, padding: '5px 12px', height: 28 }}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isPending || isUploading}
+                  >
+                    {isUploading ? 'Uploading…' : (imageUrl ? 'Replace image' : 'Upload image')}
+                  </button>
+                  {imageUrl && !isUploading && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: 11, padding: '5px 12px', height: 28 }}
+                      onClick={() => { set('imageUrl', ''); setImgError(false); }}
+                      disabled={isPending}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
                 <label style={lbl}>Image URL</label>
                 <input
                   style={inp}
                   value={imageUrl}
                   onChange={(e) => { set('imageUrl', e.target.value); setImgError(false); }}
-                  placeholder="https://example.com/product.jpg"
-                  disabled={isPending}
+                  placeholder="Upload above, or paste a direct link"
+                  disabled={isPending || isUploading}
                 />
                 <div style={{ fontSize: 10, color: 'var(--color-fg-3)', marginTop: 5, lineHeight: 1.4 }}>
-                  Paste a direct link to a publicly accessible image. Shown in the product drawer and on chat carousels.
+                  Photos are resized to 2048 px before upload (no quality loss for AI generation).
                 </div>
+                {uploadError && (
+                  <div style={{ fontSize: 11, color: 'var(--color-error)', marginTop: 5 }}>
+                    {uploadError}
+                  </div>
+                )}
               </div>
             </div>
           </section>

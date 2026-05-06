@@ -25,6 +25,7 @@ model Product {
   inventory  Inventory?
   variants   ProductVariant[]
   orderItems OrderItem[]
+  creatives  GeneratedCreative[]
 }
 
 model Inventory {
@@ -324,8 +325,21 @@ model SocialPost {
   publishedAt       DateTime?
   publishedBy       String?   // email of user who triggered publish
   publishLogs       SocialPostPublishLog[]
+  postCreatives     SocialPostCreative[]
 
   @@index([brand, status, createdAt])
+}
+
+model SocialPostCreative {
+  id              Int               @id @default(autoincrement())
+  socialPostId    Int
+  socialPost      SocialPost        @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+  creativeId      Int
+  creative        GeneratedCreative @relation(fields: [creativeId], references: [id])
+  description     String?           // Auto-generated description for this specific product image
+  displayOrder    Int               @default(0)
+
+  @@index([socialPostId])
 }
 
 model SocialPostPublishLog {
@@ -348,6 +362,9 @@ model SocialPostPublishLog {
 model GeneratedCreative {
   id                 Int      @id @default(autoincrement())
   brand              String
+  productId          Int?
+  product            Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  viewAngle          String?  // front | side | back | closeup
   sourceImageUrl     String?
   generatedImageData String   // base64 data URL
   prompt             String
@@ -357,8 +374,10 @@ model GeneratedCreative {
   createdBy          String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  socialPostCreatives SocialPostCreative[]
 
   @@index([brand, status, createdAt])
+  @@index([productId, status, createdAt])
 }
 
 model ReturnRequest {

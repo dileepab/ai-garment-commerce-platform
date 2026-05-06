@@ -9,9 +9,10 @@ import {
   generatePostCaptions,
 } from './actions';
 import CreativeStudioModal from './CreativeStudioModal';
+import CreatePostWizardModal from './CreatePostWizardModal';
 import PublishHistoryModal, { type PublishLogEntry } from './PublishHistoryModal';
 import CreativeDetailModal from './CreativeDetailModal';
-import { PERSONA_OPTIONS } from '@/lib/creative-generator';
+import { PERSONAS_BY_BRAND } from '@/lib/persona-data';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -165,11 +166,11 @@ function StatusPill({ status, publishStatus }: { status: string; publishStatus?:
   // Publish status takes visual precedence when set
   const effective = publishStatus ?? status;
   const map: Record<string, { label: string; bg: string; color: string }> = {
-    draft:     { label: 'Draft',     bg: 'var(--color-surface-muted)', color: 'var(--color-fg-2)' },
-    ready:     { label: 'Ready',     bg: 'var(--color-success-muted)', color: '#1A5C3C' },
-    published: { label: 'Published', bg: '#E6F4EA',                    color: '#1A5C3C' },
-    partial:   { label: 'Partial',   bg: '#FFF3CD',                    color: '#7A5200' },
-    failed:    { label: 'Failed',    bg: 'var(--color-error-muted)',    color: 'var(--color-error)' },
+    draft: { label: 'Draft', bg: 'var(--color-surface-muted)', color: 'var(--color-fg-2)' },
+    ready: { label: 'Ready', bg: 'var(--color-success-muted)', color: '#1A5C3C' },
+    published: { label: 'Published', bg: '#E6F4EA', color: '#1A5C3C' },
+    partial: { label: 'Partial', bg: '#FFF3CD', color: '#7A5200' },
+    failed: { label: 'Failed', bg: 'var(--color-error-muted)', color: 'var(--color-error)' },
   };
   const style = map[effective] ?? map.draft;
   return (
@@ -195,12 +196,14 @@ function StatusPill({ status, publishStatus }: { status: string; publishStatus?:
 interface PostFormProps {
   post: PostRecord | null;
   availableBrands: string[] | null;
+  availableCreatives: any[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormProps) {
-  const [brand, setBrand] = useState(post?.brand ?? (availableBrands?.[0] ?? ''));
+function PostFormModal({ post, availableBrands, availableCreatives, onClose, onSuccess }: PostFormProps) {
+  const defaultBrands = availableBrands ?? ['Happyby', 'Cleopatra', 'Modabella'];
+  const [brand, setBrand] = useState(post?.brand ?? defaultBrands[0]);
   const [channels, setChannels] = useState<string[]>(
     post ? parseChannels(post.channels) : ['facebook', 'instagram'],
   );
@@ -211,6 +214,10 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
   );
   const [generatedCaptions, setGeneratedCaptions] = useState<string[]>(
     parseGeneratedCaptions(post?.generatedCaptions ?? null),
+  );
+  // Support for multiple creatives per post
+  const [postCreatives, setPostCreatives] = useState<{ creativeId: number; description: string }[]>(
+    post?.postCreatives ? post.postCreatives.map((pc: any) => ({ creativeId: pc.creativeId, description: pc.description || '' })) : []
   );
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -237,11 +244,22 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
       return;
     }
     setFormError(null);
+
+    // Gather the first attached creative's image for vision-aware caption generation
+    let imageBase64: string | undefined;
+    if (postCreatives.length > 0 && postCreatives[0].creativeId > 0) {
+      const cr = availableCreatives.find(c => c.id === postCreatives[0].creativeId);
+      if (cr?.generatedImageData) {
+        imageBase64 = cr.generatedImageData;
+      }
+    }
+
     startGenerating(async () => {
       const result = await generatePostCaptions({
         brand: brand.trim(),
         channels,
         productContext: productContext.trim() || undefined,
+        imageBase64,
       });
       if (result.success && result.captions) {
         setGeneratedCaptions(result.captions);
@@ -252,6 +270,53 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
         setFormError(result.error ?? 'Caption generation failed.');
       }
     });
+  }
+
+  function handleCreativeSelect(index: number, creativeId: number) {
+    const creative = availableCreatives.find((c: any) => c.id === creativeId);
+
+    // Build a short description from product context (e.g. "Breezy Summer Dress — Rs 2,950")
+    let autoDescription = '';
+    if (creative?.productContext) {
+      const nameMatch = creative.productContext.match(/Name:\s*([^.]+)/);
+      const priceMatch = creative.productContext.match(/Price:\s*([^.]+)/);
+      if (nameMatch) {
+        autoDescription = nameMatch[1].trim();
+        if (priceMatch) autoDescription += ` — ${priceMatch[1].trim()}`;
+      }
+    }
+
+    // Update the creative selection + auto-fill description
+    const newArr = [...postCreatives];
+    newArr[index] = {
+      creativeId,
+      description: autoDescription || newArr[index].description,
+    };
+    setPostCreatives(newArr);
+
+    // Auto-fill post context from the creative's product context (if not already filled)
+    if (creative?.productContext && !productContext.trim()) {
+      setProductContext(creative.productContext);
+    }
+
+    // Auto-trigger caption generation when first creative is attached and no captions exist yet
+    if (index === 0 && creativeId > 0 && generatedCaptions.length === 0 && channels.length > 0 && brand.trim()) {
+      const imageBase64 = creative?.generatedImageData;
+      startGenerating(async () => {
+        const result = await generatePostCaptions({
+          brand: brand.trim(),
+          channels,
+          productContext: creative?.productContext?.trim() || productContext.trim() || undefined,
+          imageBase64,
+        });
+        if (result.success && result.captions) {
+          setGeneratedCaptions(result.captions);
+          if (!caption.trim() && result.captions.length > 0) {
+            setCaption(result.captions[0]);
+          }
+        }
+      });
+    }
   }
 
   function handleSave() {
@@ -267,6 +332,11 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
       generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
       productContext: productContext.trim() || undefined,
       status: postStatus,
+      postCreatives: postCreatives.map((pc, i) => ({
+        creativeId: pc.creativeId,
+        description: pc.description.trim() || undefined,
+        displayOrder: i
+      }))
     };
 
     startSaving(async () => {
@@ -362,18 +432,21 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
                   onChange={(e) => setBrand(e.target.value)}
                   disabled={isLoading}
                 >
-                  {availableBrands.map((b) => (
+                  {defaultBrands.map((b) => (
                     <option key={b} value={b}>{b}</option>
                   ))}
                 </select>
               ) : (
-                <input
+                <select
                   className="app-input"
-                  placeholder="e.g. Nisha Collections"
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
                   disabled={isLoading}
-                />
+                >
+                  {defaultBrands.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
               )}
             </div>
 
@@ -434,6 +507,66 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
             </div>
           </div>
 
+          {/* Campaign Images (Creatives) */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 8 }}>
+              Campaign Images <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(Select creatives to attach)</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {postCreatives.map((pc, index) => {
+                const cr = availableCreatives.find(c => c.id === pc.creativeId);
+                return (
+                  <div key={index} style={{ display: 'flex', gap: 10, background: 'var(--color-bg)', padding: 10, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                    {cr && (
+                      <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--color-surface-muted)' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={cr.generatedImageData} alt="Creative" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <select
+                        className="app-input"
+                        value={pc.creativeId}
+                        onChange={e => handleCreativeSelect(index, Number(e.target.value))}
+                      >
+                        <option value={0}>Select a creative...</option>
+                        {availableCreatives.filter(c => c.brand === brand).map(c => (
+                          <option key={c.id} value={c.id}>Creative #{c.id} - {c.personaStyle || 'Product Only'}</option>
+                        ))}
+                      </select>
+                      <input
+                        className="app-input"
+                        placeholder="Product description for this image (optional)"
+                        value={pc.description}
+                        onChange={e => {
+                          const newArr = [...postCreatives];
+                          newArr[index].description = e.target.value;
+                          setPostCreatives(newArr);
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPostCreatives(postCreatives.filter((_, i) => i !== index))}
+                      style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', padding: 4 }}
+                    >
+                      {Ic.close}
+                    </button>
+                  </div>
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => setPostCreatives([...postCreatives, { creativeId: 0, description: '' }])}
+                style={{
+                  padding: '8px 12px', background: 'var(--color-surface)', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-fg-2)', fontSize: 12, cursor: 'pointer', textAlign: 'center'
+                }}
+              >
+                + Add Image
+              </button>
+            </div>
+          </div>
+
           {/* Product context */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 6 }}>
@@ -469,7 +602,11 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
               }}
             >
               {Ic.sparkle}
-              {isGenerating ? 'Generating captions…' : 'Generate AI Captions'}
+              {isGenerating ? 'Analyzing image & generating captions…' : (
+                postCreatives.length > 0 && postCreatives[0].creativeId > 0
+                  ? '✨ Generate Captions from Image'
+                  : 'Generate AI Captions'
+              )}
             </button>
           </div>
 
@@ -612,11 +749,11 @@ function PostFormModal({ post, availableBrands, onClose, onSuccess }: PostFormPr
 // ── Main Page Client ─────────────────────────────────────────────────────────
 
 const STATUS_TABS = [
-  { key: 'all',       label: 'All' },
-  { key: 'draft',     label: 'Draft' },
-  { key: 'ready',     label: 'Ready' },
+  { key: 'all', label: 'All' },
+  { key: 'draft', label: 'Draft' },
+  { key: 'ready', label: 'Ready' },
   { key: 'published', label: 'Published' },
-  { key: 'failed',    label: 'Failed' },
+  { key: 'failed', label: 'Failed' },
 ] as const;
 
 type StatusFilter = (typeof STATUS_TABS)[number]['key'];
@@ -643,6 +780,7 @@ export default function ContentPageClient({
   const [showForm, setShowForm] = useState(false);
   const [editingPost, setEditingPost] = useState<PostRecord | null>(null);
   const [showCreativeStudio, setShowCreativeStudio] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [historyPost, setHistoryPost] = useState<PostRecord | null>(null);
   const [viewingCreative, setViewingCreative] = useState<CreativeRecord | null>(null);
 
@@ -672,11 +810,11 @@ export default function ContentPageClient({
   }, [initialPosts, search, statusFilter]);
 
   const counts: Record<string, number> = useMemo(() => ({
-    all:       initialPosts.length,
-    draft:     initialPosts.filter((p) => p.status === 'draft').length,
-    ready:     initialPosts.filter((p) => p.status === 'ready').length,
+    all: initialPosts.length,
+    draft: initialPosts.filter((p) => p.status === 'draft').length,
+    ready: initialPosts.filter((p) => p.status === 'ready').length,
     published: initialPosts.filter((p) => p.publishStatus === 'published' || p.publishStatus === 'partial').length,
-    failed:    initialPosts.filter((p) => p.publishStatus === 'failed').length,
+    failed: initialPosts.filter((p) => p.publishStatus === 'failed').length,
   }), [initialPosts]);
 
   function openNew() {
@@ -705,6 +843,11 @@ export default function ContentPageClient({
     router.refresh();
   }
 
+  function handleWizardComplete() {
+    setShowWizard(false);
+    router.refresh();
+  }
+
   function openHistory(post: PostRecord) {
     setHistoryPost(post);
   }
@@ -728,12 +871,15 @@ export default function ContentPageClient({
         actions={
           canWrite ? (
             <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" onClick={() => setShowWizard(true)}>
+                {Ic.sparkle} Create &amp; Post
+              </button>
               {viewMode === 'creatives' ? (
-                <button className="btn btn-primary" onClick={() => setShowCreativeStudio(true)}>
+                <button className="btn btn-secondary" onClick={() => setShowCreativeStudio(true)}>
                   {Ic.image} New Creative
                 </button>
               ) : (
-                <button className="btn btn-primary" onClick={openNew}>
+                <button className="btn btn-secondary" onClick={openNew}>
                   {Ic.plus} New Draft
                 </button>
               )}
@@ -842,9 +988,14 @@ export default function ContentPageClient({
                   </div>
                 </div>
                 {canWrite && !search && statusFilter === 'all' && (
-                  <button className="btn btn-primary" onClick={openNew} style={{ marginTop: 4 }}>
-                    {Ic.plus} New Draft
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button className="btn btn-primary" onClick={() => setShowWizard(true)}>
+                      {Ic.sparkle} Create &amp; Post
+                    </button>
+                    <button className="btn btn-secondary" onClick={openNew}>
+                      {Ic.plus} New Draft
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (
@@ -852,6 +1003,7 @@ export default function ContentPageClient({
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th style={{ width: 60 }}>Asset</th>
                       <th>Brand · Channels</th>
                       <th>Caption</th>
                       <th>Status</th>
@@ -865,6 +1017,23 @@ export default function ContentPageClient({
                       const hasPublishHistory = post.publishLogs.length > 0 || post.publishStatus != null;
                       return (
                         <tr key={post.id}>
+                          <td>
+                            {post.postCreatives && post.postCreatives.length > 0 ? (
+                              <div style={{ position: 'relative', width: 40, height: 40, borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={post.postCreatives[0].creative?.generatedImageData} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                {post.postCreatives.length > 1 && (
+                                  <div style={{ position: 'absolute', bottom: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 9, padding: '1px 3px', borderTopLeftRadius: 3 }}>
+                                    +{post.postCreatives.length - 1}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: 'var(--color-surface-muted)', border: '1px dashed var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-fg-3)' }}>
+                                {Ic.image}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ minWidth: 160 }}>
                             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{post.brand}</div>
                             <div>
@@ -999,7 +1168,7 @@ export default function ContentPageClient({
                     </div>
                     {c.personaStyle && (
                       <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginBottom: 2 }}>
-                        {PERSONA_OPTIONS.find((p) => p.id === c.personaStyle)?.label ?? c.personaStyle}
+                        {PERSONAS_BY_BRAND[c.brand]?.find((p) => p.id === c.personaStyle)?.label ?? c.personaStyle}
                       </div>
                     )}
                     {c.productContext && (
@@ -1050,6 +1219,7 @@ export default function ContentPageClient({
         <PostFormModal
           post={editingPost}
           availableBrands={availableBrands}
+          availableCreatives={initialCreatives}
           onClose={handleClose}
           onSuccess={handleSuccess}
         />
@@ -1061,6 +1231,15 @@ export default function ContentPageClient({
           availableBrands={availableBrands}
           onClose={() => setShowCreativeStudio(false)}
           onSaved={handleCreativeSaved}
+        />
+      )}
+
+      {/* Combined wizard modal */}
+      {showWizard && (
+        <CreatePostWizardModal
+          availableBrands={availableBrands}
+          onClose={() => setShowWizard(false)}
+          onComplete={handleWizardComplete}
         />
       )}
 

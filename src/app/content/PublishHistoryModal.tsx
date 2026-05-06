@@ -116,14 +116,12 @@ interface ConfirmPublishProps {
 }
 
 function ConfirmPublishPanel({ postId, channels, onOutcomes, onError }: ConfirmPublishProps) {
-  const [imageUrl, setImageUrl] = useState('');
   const [publishing, startPublish] = useTransition();
-
-  const needsImage = channels.includes('instagram');
 
   function handlePublish() {
     startPublish(async () => {
-      const result = await publishSocialPost(postId, imageUrl.trim() || undefined);
+      const baseUrl = window.location.origin;
+      const result = await publishSocialPost(postId, baseUrl);
       if (result.outcomes && result.publishStatus) {
         onOutcomes(result.outcomes, result.publishStatus);
       } else {
@@ -144,7 +142,7 @@ function ConfirmPublishPanel({ postId, channels, onOutcomes, onError }: ConfirmP
         Confirm publish
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--color-fg-2)', marginBottom: 10, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: 'var(--color-fg-2)', marginBottom: 16, lineHeight: 1.5 }}>
         This will post to:&nbsp;
         {channels.map((ch) => (
           <span key={ch} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8 }}>
@@ -152,33 +150,13 @@ function ConfirmPublishPanel({ postId, channels, onOutcomes, onError }: ConfirmP
             <span style={{ fontWeight: 600 }}>{ch === 'instagram' ? 'Instagram' : 'Facebook'}</span>
           </span>
         ))}
-        {' '}using the saved caption. This action cannot be undone.
+        {' '}using the saved caption and attached campaign images. This action cannot be undone.
       </div>
-
-      {needsImage && (
-        <div style={{ marginBottom: 12 }}>
-          <label style={{
-            display: 'block', fontSize: 11, fontWeight: 700,
-            letterSpacing: '0.07em', textTransform: 'uppercase',
-            color: 'var(--color-fg-3)', marginBottom: 5,
-          }}>
-            Image URL for Instagram <span style={{ fontWeight: 400, textTransform: 'none' }}>(required for Instagram feed posts)</span>
-          </label>
-          <input
-            className="app-input"
-            type="url"
-            placeholder="https://example.com/image.jpg"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            disabled={publishing}
-          />
-        </div>
-      )}
 
       <button
         className="btn btn-primary"
         onClick={handlePublish}
-        disabled={publishing || (needsImage && !imageUrl.trim())}
+        disabled={publishing}
         style={{ width: '100%' }}
       >
         {publishing ? 'Publishing…' : 'Publish Now'}

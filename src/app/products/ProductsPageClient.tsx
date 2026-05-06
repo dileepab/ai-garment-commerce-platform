@@ -175,7 +175,7 @@ export default function ProductsPageClient({
                 {filteredProducts.map(p => (
                   <tr key={p.id} onClick={() => setSelectedProduct(p)} className="cursor-pointer">
                     <td style={{ paddingRight: 4 }}>
-                      <ProductThumb status={p.status} />
+                      <ProductThumb status={p.status} imageUrl={p.imageUrl} />
                     </td>
                     <td>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
