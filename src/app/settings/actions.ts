@@ -19,6 +19,11 @@ function readBoolean(formData: FormData, key: string): boolean {
   return formData.get(key) === 'on';
 }
 
+function cleanOptionalText(value: string | null): string | null {
+  const cleaned = value?.trim();
+  return cleaned ? cleaned : null;
+}
+
 function readList(formData: FormData, key: string): string[] {
   return (readText(formData, key) || '')
     .split(/[\n,]/)
@@ -70,6 +75,36 @@ export async function saveMerchantSettingsAction(formData: FormData) {
     create: data,
     update: updateData,
   });
+
+  if (brand) {
+    const facebookPageId = cleanOptionalText(readText(formData, 'facebookPageId'));
+    const facebookPageAccessToken = cleanOptionalText(readText(formData, 'facebookPageAccessToken'));
+    const instagramAccountId = cleanOptionalText(readText(formData, 'instagramAccountId'));
+    const instagramAccessToken = cleanOptionalText(readText(formData, 'instagramAccessToken'));
+    const notes = cleanOptionalText(readText(formData, 'channelNotes'));
+    const channelUpdateData = {
+      facebookPageId,
+      instagramAccountId,
+      isTestBrand: readBoolean(formData, 'isTestBrand'),
+      notes,
+      ...(facebookPageAccessToken ? { facebookPageAccessToken } : {}),
+      ...(instagramAccessToken ? { instagramAccessToken } : {}),
+    };
+
+    await prisma.brandChannelConfig.upsert({
+      where: { brand },
+      create: {
+        brand,
+        facebookPageId,
+        facebookPageAccessToken,
+        instagramAccountId,
+        instagramAccessToken,
+        isTestBrand: readBoolean(formData, 'isTestBrand'),
+        notes,
+      },
+      update: channelUpdateData,
+    });
+  }
 
   revalidatePath('/settings');
 }

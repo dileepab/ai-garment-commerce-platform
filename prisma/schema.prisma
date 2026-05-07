@@ -309,6 +309,22 @@ model MerchantSettings {
   @@index([brand])
 }
 
+model BrandChannelConfig {
+  id                      Int      @id @default(autoincrement())
+  brand                   String   @unique
+  facebookPageId          String?
+  facebookPageAccessToken String?
+  instagramAccountId      String?
+  instagramAccessToken    String?
+  isTestBrand             Boolean  @default(false)
+  notes                   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([facebookPageId])
+  @@index([instagramAccountId])
+}
+
 model SocialPost {
   id                Int       @id @default(autoincrement())
   brand             String

@@ -154,6 +154,16 @@ export async function routeCustomerMessage(
                 include: {
                   inventory: true,
                   variants: { include: { inventory: true } },
+                  creatives: {
+                    where: { status: 'saved' },
+                    select: {
+                      id: true,
+                      status: true,
+                      viewAngle: true,
+                      createdAt: true,
+                    },
+                    orderBy: { createdAt: 'desc' },
+                  },
                 },
               },
             },
@@ -344,6 +354,16 @@ export async function routeCustomerMessage(
               include: {
                 inventory: true,
                 variants: { include: { inventory: true } },
+                creatives: {
+                  where: { status: 'saved' },
+                  select: {
+                    id: true,
+                    status: true,
+                    viewAngle: true,
+                    createdAt: true,
+                  },
+                  orderBy: { createdAt: 'desc' },
+                },
               },
             },
           },

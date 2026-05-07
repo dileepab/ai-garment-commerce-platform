@@ -15,6 +15,11 @@ export interface MetaSendResult {
 
 interface MessengerSendOptions {
   payloadType: string;
+  pageAccessToken?: string;
+}
+
+export interface MetaPageTokenOptions {
+  pageAccessToken?: string | null;
 }
 
 function getMimeType(filePath: string): string {
@@ -66,7 +71,7 @@ async function sendMessengerPayload(
   payload: Record<string, unknown>,
   options: MessengerSendOptions
 ): Promise<MetaSendResult> {
-  const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
+  const PAGE_ACCESS_TOKEN = options.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
 
   if (!PAGE_ACCESS_TOKEN) {
     logError('Meta', 'Missing META_PAGE_ACCESS_TOKEN in environment variables.');
@@ -125,13 +130,17 @@ async function sendMessengerPayload(
   }
 }
 
-export async function sendMessengerMessage(senderId: string, messageText: string) {
+export async function sendMessengerMessage(
+  senderId: string,
+  messageText: string,
+  options?: MetaPageTokenOptions,
+) {
   return sendMessengerPayload(
     senderId,
     {
       message: { text: messageText },
     },
-    { payloadType: 'text' }
+    { payloadType: 'text', pageAccessToken: options?.pageAccessToken ?? undefined }
   );
 }
 
@@ -149,14 +158,21 @@ function buildOrderNowPayload(product: CarouselProduct): string {
   return `ORDER_NOW|productId=${product.id}|productName=${encodedName}`;
 }
 
-export async function sendMessengerCarousel(senderId: string, products: CarouselProduct[]) {
+export async function sendMessengerCarousel(
+  senderId: string,
+  products: CarouselProduct[],
+  options?: MetaPageTokenOptions,
+) {
   if (products.length === 0) {
     return { ok: true } satisfies MetaSendResult;
   }
 
   const elements = products.map((product) => ({
     title: `${product.name} (Rs ${product.price})`,
-    image_url: product.imageUrl || 'https://placehold.co/600x400/png',
+    image_url: product.imageUrl
+      ? (/^https?:\/\//i.test(product.imageUrl) ? product.imageUrl : getPublicAssetUrl(product.imageUrl))
+        || 'https://placehold.co/600x400/png'
+      : 'https://placehold.co/600x400/png',
     subtitle: `Sizes: ${product.sizes} | Colors: ${product.colors}`,
     buttons: [
       {
@@ -180,19 +196,23 @@ export async function sendMessengerCarousel(senderId: string, products: Carousel
         },
       },
     },
-    { payloadType: 'carousel' }
+    { payloadType: 'carousel', pageAccessToken: options?.pageAccessToken ?? undefined }
   );
 }
 
-async function uploadReusableMessengerAttachment(publicPath: string): Promise<string | null> {
-  const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
+async function uploadReusableMessengerAttachment(
+  publicPath: string,
+  options?: MetaPageTokenOptions,
+): Promise<string | null> {
+  const PAGE_ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
 
   if (!PAGE_ACCESS_TOKEN) {
     logError('Meta', 'Missing META_PAGE_ACCESS_TOKEN in environment variables.');
     return null;
   }
 
-  const cachedAttachmentId = reusableAttachmentCache.get(publicPath);
+  const cacheKey = `${publicPath}:${PAGE_ACCESS_TOKEN.slice(-8)}`;
+  const cachedAttachmentId = reusableAttachmentCache.get(cacheKey);
   if (cachedAttachmentId) {
     return cachedAttachmentId;
   }
@@ -238,7 +258,7 @@ async function uploadReusableMessengerAttachment(publicPath: string): Promise<st
       typeof data?.attachment_id === 'string' ? data.attachment_id : null;
 
     if (attachmentId) {
-      reusableAttachmentCache.set(publicPath, attachmentId);
+      reusableAttachmentCache.set(cacheKey, attachmentId);
     }
 
     return attachmentId;
@@ -248,7 +268,11 @@ async function uploadReusableMessengerAttachment(publicPath: string): Promise<st
   }
 }
 
-export async function sendMessengerImage(senderId: string, imagePathOrUrl: string) {
+export async function sendMessengerImage(
+  senderId: string,
+  imagePathOrUrl: string,
+  options?: MetaPageTokenOptions,
+) {
   if (/^https?:\/\//i.test(imagePathOrUrl)) {
     return sendMessengerPayload(
       senderId,
@@ -263,11 +287,11 @@ export async function sendMessengerImage(senderId: string, imagePathOrUrl: strin
           },
         },
       },
-      { payloadType: 'image_url' }
+      { payloadType: 'image_url', pageAccessToken: options?.pageAccessToken ?? undefined }
     );
   }
 
-  const attachmentId = await uploadReusableMessengerAttachment(imagePathOrUrl);
+  const attachmentId = await uploadReusableMessengerAttachment(imagePathOrUrl, options);
 
   if (attachmentId) {
     return sendMessengerPayload(
@@ -282,7 +306,7 @@ export async function sendMessengerImage(senderId: string, imagePathOrUrl: strin
           },
         },
       },
-      { payloadType: 'image_attachment' }
+      { payloadType: 'image_attachment', pageAccessToken: options?.pageAccessToken ?? undefined }
     );
   }
 
@@ -303,7 +327,7 @@ export async function sendMessengerImage(senderId: string, imagePathOrUrl: strin
           },
         },
       },
-      { payloadType: 'image_public_url' }
+      { payloadType: 'image_public_url', pageAccessToken: options?.pageAccessToken ?? undefined }
     );
   }
 
@@ -317,8 +341,11 @@ export async function sendMessengerImage(senderId: string, imagePathOrUrl: strin
   } satisfies MetaSendResult;
 }
 
-export async function getUserProfile(senderId: string): Promise<{ firstName: string; lastName: string; gender: string } | null> {
-  const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
+export async function getUserProfile(
+  senderId: string,
+  options?: MetaPageTokenOptions,
+): Promise<{ firstName: string; lastName: string; gender: string } | null> {
+  const PAGE_ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
 
   if (!PAGE_ACCESS_TOKEN) return null;
 

@@ -16,6 +16,10 @@ import {
   normalizeMessengerEvent,
   type NormalizedMessage,
 } from '@/lib/meta-normalize';
+import {
+  resolveBrandForFacebookPageId,
+  resolveFacebookConfigForPageId,
+} from '@/lib/brand-channel-config';
 import { getAiCommentReply } from '@/lib/ai';
 import {
   buildHumanSupportReply,
@@ -131,48 +135,40 @@ function describeMetaResult(result: MetaSendResult): string {
   return result.error || (result.status ? `Meta Graph returned ${result.status}.` : 'Unknown delivery failure.');
 }
 
-function getPageBrand(pageId: string): string | null {
-  const PAGE_BRAND_MAP: Record<string, string> = {};
-
-  if (process.env.HAPPYBY_PAGE_ID) PAGE_BRAND_MAP[process.env.HAPPYBY_PAGE_ID] = 'Happyby';
-  if (process.env.CLEOPATRA_PAGE_ID) PAGE_BRAND_MAP[process.env.CLEOPATRA_PAGE_ID] = 'Cleopatra';
-  if (process.env.MODABELLA_PAGE_ID) PAGE_BRAND_MAP[process.env.MODABELLA_PAGE_ID] = 'Modabella';
-
-  return PAGE_BRAND_MAP[pageId] || null;
-}
-
 async function deliverCustomerResult(
   senderId: string,
   result: CustomerMessageResult,
-  stats: WebhookStats
+  stats: WebhookStats,
+  pageAccessToken?: string
 ) {
   if (IS_CHAT_TEST_MODE || !result.reply) {
     return;
   }
 
   const failures: string[] = [];
-  const messageResult = await sendMessengerMessage(senderId, result.reply);
+  const metaOptions = { pageAccessToken };
+  const messageResult = await sendMessengerMessage(senderId, result.reply, metaOptions);
 
   if (!messageResult.ok) {
     failures.push(`text: ${describeMetaResult(messageResult)}`);
   }
 
   if (result.carouselProducts && result.carouselProducts.length > 0) {
-    const carouselResult = await sendMessengerCarousel(senderId, result.carouselProducts);
+    const carouselResult = await sendMessengerCarousel(senderId, result.carouselProducts, metaOptions);
 
     if (!carouselResult.ok) {
       failures.push(`carousel: ${describeMetaResult(carouselResult)}`);
     }
   } else if (result.imagePaths?.length) {
     for (const imagePath of result.imagePaths) {
-      const imageResult = await sendMessengerImage(senderId, imagePath);
+      const imageResult = await sendMessengerImage(senderId, imagePath, metaOptions);
 
       if (!imageResult.ok) {
         failures.push(`image ${imagePath}: ${describeMetaResult(imageResult)}`);
       }
     }
   } else if (result.imagePath) {
-    const imageResult = await sendMessengerImage(senderId, result.imagePath);
+    const imageResult = await sendMessengerImage(senderId, result.imagePath, metaOptions);
 
     if (!imageResult.ok) {
       failures.push(`image ${result.imagePath}: ${describeMetaResult(imageResult)}`);
@@ -190,6 +186,7 @@ async function escalateRepeatedFailure(params: {
   brand?: string;
   error: unknown;
   stats: WebhookStats;
+  pageAccessToken?: string;
 }) {
   const failureCount = await countRecentWebhookFailures({
     channel: params.normalized.channel,
@@ -201,7 +198,9 @@ async function escalateRepeatedFailure(params: {
     if (!IS_CHAT_TEST_MODE) {
       const settings = await getMerchantSettings(params.brand);
       const fallbackReply = settings.support.processingErrorMessage;
-      const delivery = await sendMessengerMessage(params.normalized.senderId, fallbackReply);
+      const delivery = await sendMessengerMessage(params.normalized.senderId, fallbackReply, {
+        pageAccessToken: params.pageAccessToken,
+      });
 
       if (!delivery.ok) {
         params.stats.deliveryFailures += 1;
@@ -242,7 +241,8 @@ async function escalateRepeatedFailure(params: {
       buildHumanSupportReply({
         reason: 'unclear_request',
         supportConfig: settings.support,
-      })
+      }),
+      { pageAccessToken: params.pageAccessToken }
     );
 
     if (!delivery.ok) {
@@ -260,6 +260,7 @@ async function processMessengerEvent(params: {
   webhookEvent: Record<string, unknown>;
   pageId: string;
   brand: string | null;
+  pageAccessToken?: string;
   stats: WebhookStats;
 }) {
   params.stats.received += 1;
@@ -309,7 +310,9 @@ async function processMessengerEvent(params: {
       isPostback: normalized.isPostback,
     });
 
-    const profile = IS_CHAT_TEST_MODE ? null : await getUserProfile(normalized.senderId);
+    const profile = IS_CHAT_TEST_MODE ? null : await getUserProfile(normalized.senderId, {
+      pageAccessToken: params.pageAccessToken,
+    });
     const customerName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : undefined;
     const customerGender = profile?.gender;
 
@@ -323,7 +326,7 @@ async function processMessengerEvent(params: {
       imageUrl: normalized.imageUrl,
     });
 
-    await deliverCustomerResult(normalized.senderId, result, params.stats);
+    await deliverCustomerResult(normalized.senderId, result, params.stats, params.pageAccessToken);
     await markWebhookEventProcessed(normalized.eventId);
     params.stats.processed += 1;
   } catch (error: unknown) {
@@ -341,6 +344,7 @@ async function processMessengerEvent(params: {
       brand: params.brand || undefined,
       error,
       stats: params.stats,
+      pageAccessToken: params.pageAccessToken,
     }).catch((escalationError) => {
       logError('Meta Webhook', 'Could not escalate repeated Messenger failure.', escalationError);
     });
@@ -351,6 +355,7 @@ async function processFacebookCommentChange(params: {
   changeValue: FacebookCommentChangeInput;
   pageId: string;
   brand: string | null;
+  pageAccessToken?: string;
   stats: WebhookStats;
 }) {
   params.stats.received += 1;
@@ -402,12 +407,16 @@ async function processFacebookCommentChange(params: {
     const replyText = await getAiCommentReply(normalized.message, params.brand || undefined);
     const publicResult = IS_CHAT_TEST_MODE
       ? ({ ok: true } satisfies MetaSendResult)
-      : await sendFacebookCommentReply(normalized.commentId, replyText);
+      : await sendFacebookCommentReply(normalized.commentId, replyText, {
+        pageAccessToken: params.pageAccessToken,
+      });
     const privateResult = IS_CHAT_TEST_MODE
       ? ({ ok: true } satisfies MetaSendResult)
-      : await sendFacebookPrivateReply(normalized.commentId, replyText);
+      : await sendFacebookPrivateReply(normalized.commentId, replyText, {
+        pageAccessToken: params.pageAccessToken,
+      });
 
-    if (publicResult.ok || privateResult.ok) {
+    if (publicResult.ok) {
       await prisma.commentLog.create({
         data: {
           id: normalized.commentId,
@@ -417,11 +426,19 @@ async function processFacebookCommentChange(params: {
       });
     }
 
-    if (!publicResult.ok || !privateResult.ok) {
-      params.stats.deliveryFailures += Number(!publicResult.ok) + Number(!privateResult.ok);
+    if (!publicResult.ok) {
+      params.stats.deliveryFailures += 1;
       throw new Error(
-        `Facebook comment delivery failed. Public: ${describeMetaResult(publicResult)} Private: ${describeMetaResult(privateResult)}`
+        `Facebook public comment delivery failed: ${describeMetaResult(publicResult)}`
       );
+    }
+
+    if (!privateResult.ok) {
+      params.stats.deliveryFailures += 1;
+      logWarn('Meta Webhook', 'Facebook private comment reply failed after public reply succeeded.', {
+        commentId: normalized.commentId,
+        error: describeMetaResult(privateResult),
+      });
     }
 
     await markWebhookEventProcessed(eventId);
@@ -497,7 +514,9 @@ export async function POST(request: Request) {
     }
 
     const pageId = typeof entry.id === 'string' ? entry.id : '';
-    const brand = getPageBrand(pageId);
+    const pageConfig = pageId ? await resolveFacebookConfigForPageId(pageId) : null;
+    const brand = pageConfig?.brand ?? (pageId ? await resolveBrandForFacebookPageId(pageId) : null);
+    const pageAccessToken = pageConfig?.pageAccessToken;
     const messagingEvents = Array.isArray(entry.messaging) ? entry.messaging : [];
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
 
@@ -511,6 +530,7 @@ export async function POST(request: Request) {
         webhookEvent,
         pageId,
         brand,
+        pageAccessToken,
         stats,
       }).catch((error: unknown) => {
         stats.failed += 1;
@@ -532,6 +552,7 @@ export async function POST(request: Request) {
         changeValue: change.value as unknown as FacebookCommentChangeInput,
         pageId,
         brand,
+        pageAccessToken,
         stats,
       }).catch((error: unknown) => {
         stats.failed += 1;

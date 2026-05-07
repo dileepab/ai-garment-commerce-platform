@@ -1,5 +1,5 @@
 import { logDebug, logError } from '@/lib/app-log';
-import type { MetaSendResult } from '@/lib/meta';
+import type { MetaPageTokenOptions, MetaSendResult } from '@/lib/meta';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 
@@ -38,8 +38,12 @@ async function readGraphResponseBody(response: Response): Promise<unknown> {
  * Sends a public reply to a Facebook comment.
  * FB Endpoint: POST /v22.0/{comment_id}/comments
  */
-export async function sendFacebookCommentReply(commentId: string, message: string) {
-  const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
+export async function sendFacebookCommentReply(
+  commentId: string,
+  message: string,
+  options?: MetaPageTokenOptions,
+) {
+  const PAGE_ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
   if (!PAGE_ACCESS_TOKEN) return missingTokenResult();
 
   try {
@@ -79,8 +83,12 @@ export async function sendFacebookCommentReply(commentId: string, message: strin
  * Sends a private reply (DM) to a Facebook comment.
  * FB Endpoint: POST /v22.0/{comment_id}/private_replies
  */
-export async function sendFacebookPrivateReply(commentId: string, message: string) {
-  const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
+export async function sendFacebookPrivateReply(
+  commentId: string,
+  message: string,
+  options?: MetaPageTokenOptions,
+) {
+  const PAGE_ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
   if (!PAGE_ACCESS_TOKEN) return missingTokenResult();
 
   try {
@@ -120,8 +128,12 @@ export async function sendFacebookPrivateReply(commentId: string, message: strin
  * Sends a public reply to an Instagram comment.
  * IG Endpoint: POST /v22.0/{comment_id}/replies
  */
-export async function sendInstagramCommentReply(commentId: string, message: string) {
-  const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
+export async function sendInstagramCommentReply(
+  commentId: string,
+  message: string,
+  options?: MetaPageTokenOptions,
+) {
+  const PAGE_ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
   if (!PAGE_ACCESS_TOKEN) return missingTokenResult();
 
   try {
@@ -162,8 +174,13 @@ export async function sendInstagramCommentReply(commentId: string, message: stri
  * IG Endpoint: POST /v22.0/{page_id}/messages
  * Note: page_id here belongs to the Instagram Professional Account.
  */
-export async function sendInstagramPrivateReply(commentId: string, pageIdOrAccountId: string, message: string) {
-  const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN;
+export async function sendInstagramPrivateReply(
+  commentId: string,
+  pageIdOrAccountId: string,
+  message: string,
+  options?: MetaPageTokenOptions,
+) {
+  const PAGE_ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
   if (!PAGE_ACCESS_TOKEN) return missingTokenResult();
 
   try {

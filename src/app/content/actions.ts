@@ -15,7 +15,12 @@ import {
   type PersonaId,
   type ViewAngle,
 } from '@/lib/creative-generator';
-import { publishToFacebook, publishToInstagram } from '@/lib/meta-publish';
+import {
+  publishToFacebook,
+  publishToInstagram,
+  type PublishImageInput,
+} from '@/lib/meta-publish';
+import { getPublicAssetUrl } from '@/lib/runtime-config';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -499,6 +504,77 @@ export interface PublishSocialPostResult {
   publishStatus?: string;
 }
 
+function cleanDetailValue(value?: string | null): string {
+  const cleaned = value?.trim();
+  return cleaned || 'N/A';
+}
+
+function formatRsPrice(price?: number | null): string {
+  return typeof price === 'number' && Number.isFinite(price)
+    ? `Rs ${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+    : 'N/A';
+}
+
+function parseProductContextValue(context: string | null | undefined, label: string): string | null {
+  if (!context) return null;
+  const match = context.match(new RegExp(`${label}:\\s*([^.]+)`, 'i'));
+  return match?.[1]?.trim() || null;
+}
+
+function buildItemDescription(input: {
+  fallbackDescription?: string | null;
+  productContext?: string | null;
+  product?: {
+    id: number;
+    name: string;
+    price: number;
+    sizes: string;
+    colors: string;
+    variants: Array<{ sku: string | null }>;
+  } | null;
+}): string {
+  const product = input.product;
+  const itemName = product?.name ?? parseProductContextValue(input.productContext, 'Name');
+  const itemCode = product?.variants
+    .map((variant) => variant.sku?.trim())
+    .find((sku): sku is string => Boolean(sku))
+    ?? (product ? `#${product.id}` : null);
+  const sizes = product?.sizes ?? parseProductContextValue(input.productContext, 'Sizes');
+  const colors = product?.colors ?? parseProductContextValue(input.productContext, 'Colors');
+  const price = product
+    ? formatRsPrice(product.price)
+    : cleanDetailValue(parseProductContextValue(input.productContext, 'Price'));
+
+  if (!itemName && !itemCode && !sizes && !colors && price === 'N/A') {
+    return cleanDetailValue(input.fallbackDescription);
+  }
+
+  return [
+    `Item Name: ${cleanDetailValue(itemName)}`,
+    `Item Code: ${cleanDetailValue(itemCode)}`,
+    `Available Sizes: ${cleanDetailValue(sizes)}`,
+    `Available Colors: ${cleanDetailValue(colors)}`,
+    `Item Price: ${price}`,
+  ].join('\n');
+}
+
+function appendItemDescriptions(caption: string, descriptions: string[]): string {
+  const cleanCaption = caption.trim();
+  if (cleanCaption.includes('Item Name:')) {
+    return cleanCaption;
+  }
+
+  const uniqueDescriptions = Array.from(
+    new Set(descriptions.map((description) => description.trim()).filter(Boolean)),
+  );
+
+  if (uniqueDescriptions.length === 0) {
+    return cleanCaption;
+  }
+
+  return `${cleanCaption}\n\n${uniqueDescriptions.join('\n\n')}`;
+}
+
 export async function publishSocialPost(
   postId: number,
   baseUrl?: string,
@@ -508,7 +584,38 @@ export async function publishSocialPost(
 
     const post = await prisma.socialPost.findUnique({
       where: { id: postId },
-      select: { id: true, brand: true, channels: true, caption: true, status: true, postCreatives: true },
+      select: {
+        id: true,
+        brand: true,
+        channels: true,
+        caption: true,
+        status: true,
+        postCreatives: {
+          select: {
+            creativeId: true,
+            description: true,
+            creative: {
+              select: {
+                productContext: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    sizes: true,
+                    colors: true,
+                    variants: {
+                      select: { sku: true },
+                      orderBy: { id: 'asc' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
     });
 
     if (!post) return { success: false, error: 'Post not found.' };
@@ -528,16 +635,38 @@ export async function publishSocialPost(
 
     const outcomes: ChannelPublishOutcome[] = [];
 
-    const imageUrls = baseUrl && post.postCreatives && post.postCreatives.length > 0
-      ? post.postCreatives.map(pc => `${baseUrl}/api/content/creatives/${pc.creativeId}/image`)
+    const fallbackBaseUrl = baseUrl && !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')
+      ? baseUrl.replace(/\/$/, '')
+      : null;
+    const imageInputs: PublishImageInput[] | undefined = post.postCreatives.length > 0
+      ? post.postCreatives
+        .flatMap((pc): PublishImageInput[] => {
+          const path = `/api/content/creatives/${pc.creativeId}/image`;
+          const url = getPublicAssetUrl(path) ?? (fallbackBaseUrl ? `${fallbackBaseUrl}${path}` : null);
+          if (!url) return [];
+
+          return [{
+            url,
+            description: buildItemDescription({
+              fallbackDescription: pc.description,
+              productContext: pc.creative?.productContext,
+              product: pc.creative?.product,
+            }),
+          }];
+        })
       : undefined;
+    const imageUrls = imageInputs?.map((image) => image.url);
+    const publishCaption = appendItemDescriptions(
+      post.caption,
+      imageInputs?.map((image) => image.description ?? '') ?? [],
+    );
 
     for (const channel of channels) {
       let result;
       if (channel === 'facebook') {
-        result = await publishToFacebook(post.brand, post.caption, imageUrls);
+        result = await publishToFacebook(post.brand, publishCaption, imageInputs);
       } else if (channel === 'instagram') {
-        result = await publishToInstagram(post.brand, post.caption, imageUrls);
+        result = await publishToInstagram(post.brand, publishCaption, imageUrls);
       } else {
         outcomes.push({
           channel,

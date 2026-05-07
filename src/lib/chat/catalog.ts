@@ -11,12 +11,71 @@ import {
   buildSizeChartReply,
   buildSizeChartSelectionReply,
 } from '@/lib/chat/reply-builders';
+import { getPublicAssetUrl } from '@/lib/runtime-config';
 import type { ChatContext } from './types';
 
-function toCarouselProducts(products: Array<{ id: number; name: string; price: number; sizes: string; colors: string; imageUrl?: string | null }>) {
-  return products.map(({ id, name, price, sizes, colors, imageUrl }) => ({
-    id, name, price, sizes, colors,
-    ...(imageUrl ? { imageUrl } : {}),
+type ProductImageSource = {
+  imageUrl?: string | null;
+  creatives?: Array<{
+    id: number;
+    status?: string | null;
+    viewAngle?: string | null;
+    createdAt?: Date | string;
+  }>;
+};
+
+function absoluteImageUrl(imageUrl?: string | null): string | undefined {
+  if (!imageUrl) return undefined;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return getPublicAssetUrl(imageUrl) ?? undefined;
+}
+
+function creativeImageUrl(creativeId: number): string | undefined {
+  return getPublicAssetUrl(`/api/content/creatives/${creativeId}/image`) ?? undefined;
+}
+
+function sortedSavedCreatives(product: ProductImageSource) {
+  const anglePriority: Record<string, number> = {
+    front: 0,
+    side: 1,
+    back: 2,
+    closeup: 3,
+  };
+
+  return [...(product.creatives ?? [])]
+    .filter((creative) => !creative.status || creative.status === 'saved')
+    .sort((a, b) => {
+      const angleA = anglePriority[a.viewAngle ?? ''] ?? 9;
+      const angleB = anglePriority[b.viewAngle ?? ''] ?? 9;
+      if (angleA !== angleB) return angleA - angleB;
+      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+    });
+}
+
+function productImageUrls(product: ProductImageSource, limit = 4): string[] {
+  const creativeUrls = sortedSavedCreatives(product)
+    .map((creative) => creativeImageUrl(creative.id))
+    .filter((url): url is string => Boolean(url))
+    .slice(0, limit);
+
+  if (creativeUrls.length > 0) return creativeUrls;
+
+  const productUrl = absoluteImageUrl(product.imageUrl);
+  return productUrl ? [productUrl] : [];
+}
+
+function productPrimaryImageUrl(product: ProductImageSource): string | undefined {
+  return productImageUrls(product, 1)[0];
+}
+
+function toCarouselProducts(products: Array<{ id: number; name: string; price: number; sizes: string; colors: string; imageUrl?: string | null } & ProductImageSource>) {
+  return products.map((product) => ({
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    sizes: product.sizes,
+    colors: product.colors,
+    ...(productPrimaryImageUrl(product) ? { imageUrl: productPrimaryImageUrl(product) } : {}),
   }));
 }
 
@@ -157,6 +216,7 @@ export async function handle_product_question(ctx: ChatContext) {
 
   return finalizeReply({
     reply: buildProductQuestionReply(selectedProduct, aiAction.questionType),
+    imagePaths: productImageUrls(selectedProduct),
     nextState: {
       lastMissingOrderId: null,
     },

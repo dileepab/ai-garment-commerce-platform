@@ -1,4 +1,8 @@
 import { logDebug, logError } from '@/lib/app-log';
+import {
+  resolveFacebookConfigForBrand,
+  resolveInstagramConfigForBrand,
+} from '@/lib/brand-channel-config';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 
@@ -9,83 +13,93 @@ export interface PublishResult {
   errorMessage?: string;
 }
 
-// ── Brand-to-channel config resolution ──────────────────────────────────────
-// Per-brand env vars override the generic fallback:
-//   META_FB_PAGE_ID_{BRAND_KEY}    or  META_FB_PAGE_ID
-//   META_FB_PAGE_TOKEN_{BRAND_KEY} or  META_PAGE_ACCESS_TOKEN
-//   META_IG_ACCOUNT_ID_{BRAND_KEY} or  META_IG_ACCOUNT_ID
-//   META_IG_TOKEN_{BRAND_KEY}      or  META_PAGE_ACCESS_TOKEN
-
-function brandEnvKey(brand: string): string {
-  return brand.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+export interface PublishImageInput {
+  url: string;
+  description?: string;
 }
 
-function resolveEnv(brandKey: string, suffix: string, fallback: string | undefined): string | undefined {
-  return process.env[`${suffix}_${brandKey}`] ?? process.env[suffix] ?? fallback;
+interface MetaErrorPayload {
+  error?: {
+    code?: string | number;
+    message?: string;
+  };
 }
 
-interface FbPublishConfig {
-  pageId: string;
-  token: string;
+interface MetaIdResponse extends MetaErrorPayload {
+  id?: string;
 }
 
-interface IgPublishConfig {
-  accountId: string;
-  token: string;
+interface FbAttachedMedia {
+  media_fbid: string;
 }
 
-function resolveFbConfig(brand: string): FbPublishConfig | null {
-  const bk = brandEnvKey(brand);
-  const pageId = resolveEnv(bk, 'META_FB_PAGE_ID', undefined);
-  const token = resolveEnv(bk, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
-  if (!pageId || !token) return null;
-  return { pageId, token };
+function getMetaErrorCode(data: MetaErrorPayload, fallback: string | number): string {
+  return data.error?.code != null ? String(data.error.code) : String(fallback);
 }
 
-function resolveIgConfig(brand: string): IgPublishConfig | null {
-  const bk = brandEnvKey(brand);
-  const accountId = resolveEnv(bk, 'META_IG_ACCOUNT_ID', undefined);
-  const token = resolveEnv(bk, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
-  if (!accountId || !token) return null;
-  return { accountId, token };
+function getMetaErrorMessage(data: MetaErrorPayload, fallback: string): string {
+  return data.error?.message ?? fallback;
 }
 
 // ── Facebook Page post ───────────────────────────────────────────────────────
 
-export async function publishToFacebook(brand: string, caption: string, imageUrls?: string[]): Promise<PublishResult> {
-  const config = resolveFbConfig(brand);
+export async function publishToFacebook(
+  brand: string,
+  caption: string,
+  images?: PublishImageInput[],
+): Promise<PublishResult> {
+  const config = await resolveFacebookConfigForBrand(brand);
   if (!config) {
-    logError('MetaPublish', `Missing Facebook publish config for brand "${brand}". Set META_FB_PAGE_ID and META_FB_PAGE_TOKEN (or their brand-scoped variants).`);
+    logError('MetaPublish', `Missing Facebook publish config for brand "${brand}". Add a Facebook Page ID and token in Settings > Meta Channels.`);
     return {
       ok: false,
       errorCode: 'CONFIG_MISSING',
-      errorMessage: `Facebook publish config not set for brand "${brand}". Configure META_FB_PAGE_ID and META_FB_PAGE_TOKEN.`,
+      errorMessage: `Facebook publish config not set for brand "${brand}". Configure Settings > Meta Channels.`,
     };
   }
 
   const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${config.pageId}/feed`;
 
   try {
-    let attachedMedia: any[] = [];
+    const attachedMedia: FbAttachedMedia[] = [];
     
     // Upload photos if any
-    if (imageUrls && imageUrls.length > 0) {
-      for (const url of imageUrls) {
+    if (images && images.length > 0) {
+      for (const image of images) {
+        const body = new URLSearchParams({
+          url: image.url,
+          published: 'false',
+          access_token: config.pageAccessToken,
+        });
+        if (image.description?.trim()) {
+          body.set('caption', image.description.trim());
+        }
         const photoRes = await fetch(`https://graph.facebook.com/${META_GRAPH_VERSION}/${config.pageId}/photos`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, published: false, access_token: config.token }),
+          body,
         });
-        const photoData = await photoRes.json() as any;
+        const photoData = await photoRes.json() as MetaIdResponse;
         if (photoRes.ok && photoData.id) {
           attachedMedia.push({ media_fbid: photoData.id });
         } else {
           logError('MetaPublish', `Failed to upload FB photo for brand "${brand}"`, photoData);
         }
       }
+
+      if (attachedMedia.length === 0) {
+        return {
+          ok: false,
+          errorCode: 'IMAGE_UPLOAD_FAILED',
+          errorMessage: 'Facebook could not fetch any generated image URLs. Check APP_BASE_URL and the public creative image route.',
+        };
+      }
     }
 
-    const payload: any = { message: caption, access_token: config.token };
+    const payload: {
+      message: string;
+      access_token: string;
+      attached_media?: FbAttachedMedia[];
+    } = { message: caption, access_token: config.pageAccessToken };
     if (attachedMedia.length > 0) {
       payload.attached_media = attachedMedia;
     }
@@ -99,9 +113,8 @@ export async function publishToFacebook(brand: string, caption: string, imageUrl
     const data = await response.json() as Record<string, unknown>;
 
     if (!response.ok) {
-      const err = data.error as Record<string, unknown> | undefined;
-      const code = err?.code != null ? String(err.code) : String(response.status);
-      const msg = typeof err?.message === 'string' ? err.message : `Meta Graph returned ${response.status}.`;
+      const code = getMetaErrorCode(data, response.status);
+      const msg = getMetaErrorMessage(data, `Meta Graph returned ${response.status}.`);
       logError('MetaPublish', `Facebook publish failed for brand "${brand}".`, { status: response.status, data });
       return { ok: false, errorCode: code, errorMessage: msg };
     }
@@ -126,13 +139,13 @@ export async function publishToInstagram(
   caption: string,
   imageUrls?: string[],
 ): Promise<PublishResult> {
-  const config = resolveIgConfig(brand);
+  const config = await resolveInstagramConfigForBrand(brand);
   if (!config) {
-    logError('MetaPublish', `Missing Instagram publish config for brand "${brand}". Set META_IG_ACCOUNT_ID and META_IG_TOKEN.`);
+    logError('MetaPublish', `Missing Instagram publish config for brand "${brand}". Add an Instagram account ID and token in Settings > Meta Channels.`);
     return {
       ok: false,
       errorCode: 'CONFIG_MISSING',
-      errorMessage: `Instagram publish config not set for brand "${brand}". Configure META_IG_ACCOUNT_ID and META_IG_TOKEN.`,
+      errorMessage: `Instagram publish config not set for brand "${brand}". Configure Settings > Meta Channels.`,
     };
   }
 
@@ -158,13 +171,17 @@ export async function publishToInstagram(
         body: JSON.stringify({
           image_url: imageUrls[0],
           caption,
-          access_token: config.token,
+          access_token: config.accessToken,
         }),
       });
 
-      const containerData = await containerRes.json() as any;
+      const containerData = await containerRes.json() as MetaIdResponse;
       if (!containerRes.ok) {
-        return { ok: false, errorCode: containerData.error?.code, errorMessage: containerData.error?.message };
+        return {
+          ok: false,
+          errorCode: getMetaErrorCode(containerData, containerRes.status),
+          errorMessage: getMetaErrorMessage(containerData, `Meta Graph returned ${containerRes.status} creating media.`),
+        };
       }
       creationId = containerData.id;
     } else {
@@ -177,14 +194,18 @@ export async function publishToInstagram(
           body: JSON.stringify({
             image_url: url,
             is_carousel_item: true,
-            access_token: config.token,
+            access_token: config.accessToken,
           }),
         });
-        const itemData = await itemRes.json() as any;
+        const itemData = await itemRes.json() as MetaIdResponse;
         if (itemRes.ok && itemData.id) {
           itemIds.push(itemData.id);
         } else {
-          return { ok: false, errorCode: itemData.error?.code, errorMessage: itemData.error?.message };
+          return {
+            ok: false,
+            errorCode: getMetaErrorCode(itemData, itemRes.status),
+            errorMessage: getMetaErrorMessage(itemData, `Meta Graph returned ${itemRes.status} creating carousel item.`),
+          };
         }
       }
 
@@ -196,12 +217,16 @@ export async function publishToInstagram(
           media_type: 'CAROUSEL',
           children: itemIds,
           caption,
-          access_token: config.token,
+          access_token: config.accessToken,
         }),
       });
-      const carouselData = await carouselRes.json() as any;
+      const carouselData = await carouselRes.json() as MetaIdResponse;
       if (!carouselRes.ok) {
-        return { ok: false, errorCode: carouselData.error?.code, errorMessage: carouselData.error?.message };
+        return {
+          ok: false,
+          errorCode: getMetaErrorCode(carouselData, carouselRes.status),
+          errorMessage: getMetaErrorMessage(carouselData, `Meta Graph returned ${carouselRes.status} creating carousel.`),
+        };
       }
       creationId = carouselData.id;
     }
@@ -216,15 +241,14 @@ export async function publishToInstagram(
     const publishRes = await fetch(publishUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creation_id: creationId, access_token: config.token }),
+      body: JSON.stringify({ creation_id: creationId, access_token: config.accessToken }),
     });
 
     const publishData = await publishRes.json() as Record<string, unknown>;
 
     if (!publishRes.ok) {
-      const err = publishData.error as Record<string, unknown> | undefined;
-      const code = err?.code != null ? String(err.code) : String(publishRes.status);
-      const msg = typeof err?.message === 'string' ? err.message : `Meta Graph returned ${publishRes.status} publishing media.`;
+      const code = getMetaErrorCode(publishData, publishRes.status);
+      const msg = getMetaErrorMessage(publishData, `Meta Graph returned ${publishRes.status} publishing media.`);
       logError('MetaPublish', `Instagram media publish failed for brand "${brand}".`, { status: publishRes.status, data: publishData });
       return { ok: false, errorCode: code, errorMessage: msg };
     }

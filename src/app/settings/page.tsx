@@ -10,6 +10,10 @@ import {
   getMerchantSettings,
   type MerchantSettings,
 } from '@/lib/runtime-config';
+import {
+  getBrandChannelConfigView,
+  type BrandChannelConfigView,
+} from '@/lib/brand-channel-config';
 import { PageHeader } from '@/components/PageHeader';
 import { saveMerchantSettingsAction } from './actions';
 
@@ -123,13 +127,42 @@ function ToggleField({
   );
 }
 
+function TokenField({
+  label,
+  name,
+  hasValue,
+  disabled,
+}: {
+  label: string;
+  name: string;
+  hasValue: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <label style={fieldStyle}>
+      <span style={labelStyle}>{label}</span>
+      <input
+        className="app-input"
+        name={name}
+        type="password"
+        defaultValue=""
+        disabled={disabled}
+        placeholder={hasValue ? 'Saved - leave blank to keep' : 'Paste token'}
+        autoComplete="off"
+      />
+    </label>
+  );
+}
+
 function SettingsForm({
   settings,
+  channelConfig,
   title,
   subtitle,
   canManage,
 }: {
   settings: MerchantSettings;
+  channelConfig?: BrandChannelConfigView;
   title: string;
   subtitle: string;
   canManage: boolean;
@@ -227,6 +260,60 @@ function SettingsForm({
             <NumberField label="Purchase nudge cooldown" name="purchaseNudgeCooldownDays" value={settings.automation.purchaseNudgeCooldownDays} disabled={!canManage} suffix="days" />
           </div>
         </section>
+
+        {settings.brand && channelConfig && (
+          <section className="app-subpanel">
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-fg-1)', marginBottom: 12 }}>
+              Meta Channels
+            </h3>
+            <p className="app-muted" style={{ marginBottom: 12 }}>
+              Configure the Facebook Page and Instagram account used for this brand. Tokens are stored server-side; leave token fields blank to keep the saved value.
+            </p>
+            <div style={gridStyle}>
+              <TextField
+                label="Facebook Page ID"
+                name="facebookPageId"
+                value={channelConfig.facebookPageId}
+                disabled={!canManage}
+                placeholder="e.g. 1078757381992224"
+              />
+              <TokenField
+                label="Facebook Page token"
+                name="facebookPageAccessToken"
+                hasValue={channelConfig.hasFacebookPageAccessToken}
+                disabled={!canManage}
+              />
+              <TextField
+                label="Instagram Account ID"
+                name="instagramAccountId"
+                value={channelConfig.instagramAccountId}
+                disabled={!canManage}
+                placeholder="Optional"
+              />
+              <TokenField
+                label="Instagram token"
+                name="instagramAccessToken"
+                hasValue={channelConfig.hasInstagramAccessToken}
+                disabled={!canManage}
+              />
+            </div>
+            <div style={{ ...gridStyle, marginTop: 12 }}>
+              <ToggleField
+                label="Test/sandbox brand"
+                name="isTestBrand"
+                checked={channelConfig.isTestBrand}
+                disabled={!canManage}
+              />
+              <TextField
+                label="Notes"
+                name="channelNotes"
+                value={channelConfig.notes}
+                disabled={!canManage}
+                placeholder="e.g. BestBuy testing Page before Happy Buy goes live"
+              />
+            </div>
+          </section>
+        )}
       </div>
     </form>
   );
@@ -235,20 +322,27 @@ function SettingsForm({
 export default async function SettingsPage() {
   const scope = await requirePagePermission('settings:view');
   const canManage = canScope(scope, 'settings:write');
-  const [settingsRows, productBrands, orderBrands, supportBrands] = await Promise.all([
+  const [settingsRows, channelRows, productBrands, orderBrands, supportBrands] = await Promise.all([
     prisma.merchantSettings.findMany({ select: { brand: true } }),
+    prisma.brandChannelConfig.findMany({ select: { brand: true } }),
     prisma.product.findMany({ distinct: ['brand'], select: { brand: true } }),
     prisma.order.findMany({ distinct: ['brand'], select: { brand: true } }),
     prisma.supportEscalation.findMany({ distinct: ['brand'], select: { brand: true } }),
   ]);
   const brandNames = uniqueBrands([
     ...settingsRows.map((row) => row.brand),
+    ...channelRows.map((row) => row.brand),
     ...productBrands.map((row) => row.brand),
     ...orderBrands.map((row) => row.brand),
     ...supportBrands.map((row) => row.brand),
   ]).filter((brand) => canAccessBrand(scope, brand));
   const globalSettings = await getMerchantSettings();
-  const scopedSettings = await Promise.all(brandNames.map((brand) => getMerchantSettings(brand)));
+  const scopedSettings = await Promise.all(
+    brandNames.map(async (brand) => ({
+      settings: await getMerchantSettings(brand),
+      channelConfig: await getBrandChannelConfigView(brand),
+    }))
+  );
 
   return (
     <main className="main">
@@ -274,10 +368,11 @@ export default async function SettingsPage() {
                 Store-specific settings
               </h2>
             </div>
-            {scopedSettings.map((settings) => (
+            {scopedSettings.map(({ settings, channelConfig }) => (
               <SettingsForm
                 key={settings.storeKey}
                 settings={settings}
+                channelConfig={channelConfig}
                 title={settings.displayName}
                 subtitle={`Overrides customer-facing behavior for ${settings.brand}.`}
                 canManage={canManage}

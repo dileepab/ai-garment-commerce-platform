@@ -431,15 +431,28 @@ export default function CreatePostWizardModal({
       setFormError('Select at least one generated image first.');
       return;
     }
-    // Seed image description from product data if empty
-    if (!imageDescription.trim()) {
-      setImageDescription(buildAutoDescription());
-    }
-    setStep(3);
-    // Auto-trigger caption generation if not already populated
-    if (generatedCaptions.length === 0) {
-      generateCaptionsForImage();
-    }
+
+    startFinishing(async () => {
+      if (reusedExistingId === null) {
+        for (const creativeId of selectedDraftIds) {
+          const saveRes = await saveGeneratedCreative(creativeId);
+          if (!saveRes.success) {
+            setFormError(saveRes.error ?? 'Failed to save selected image.');
+            return;
+          }
+        }
+      }
+
+      // Seed image description from product data if empty
+      if (!imageDescription.trim()) {
+        setImageDescription(buildAutoDescription());
+      }
+      setStep(3);
+      // Auto-trigger caption generation if not already populated
+      if (generatedCaptions.length === 0) {
+        generateCaptionsForImage();
+      }
+    });
   }
 
   function goToStep4() {
