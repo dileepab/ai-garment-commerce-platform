@@ -13,7 +13,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:migrate:sqlite-to-postgres": "node scripts/migrate-sqlite-to-postgres.js",
-    "vercel-build": "prisma generate && next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "check:meta": "node scripts/check-meta-subscription.js",
     "test:chat": "npm run build && node scripts/chat-regression-tests.js",
     "test:access-control": "node --test --experimental-strip-types --no-warnings scripts/access-control.test.ts",
