@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { CustomerLanguage } from '@/lib/chat/language';
+import { formatCarouselSubtitle, getCarouselButtonTitle } from '@/lib/chat/language';
 import { logDebug, logError } from '@/lib/app-log';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 
@@ -20,6 +22,7 @@ interface MessengerSendOptions {
 
 export interface MetaPageTokenOptions {
   pageAccessToken?: string | null;
+  language?: CustomerLanguage;
 }
 
 function getMimeType(filePath: string): string {
@@ -167,17 +170,18 @@ export async function sendMessengerCarousel(
     return { ok: true } satisfies MetaSendResult;
   }
 
+  const language = options?.language || 'english';
   const elements = products.map((product) => ({
     title: `${product.name} (Rs ${product.price})`,
     image_url: product.imageUrl
       ? (/^https?:\/\//i.test(product.imageUrl) ? product.imageUrl : getPublicAssetUrl(product.imageUrl))
         || 'https://placehold.co/600x400/png'
       : 'https://placehold.co/600x400/png',
-    subtitle: `Sizes: ${product.sizes} | Colors: ${product.colors}`,
+    subtitle: formatCarouselSubtitle(product, language),
     buttons: [
       {
         type: 'postback',
-        title: `Order Now`,
+        title: getCarouselButtonTitle(language),
         payload: buildOrderNowPayload(product),
       },
     ],

@@ -278,6 +278,22 @@ a {
     background: var(--background);
   }
 
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details > summary::marker {
+    content: "";
+  }
+
+  .settings-expand-glyph::before {
+    content: "+";
+  }
+
+  details[open] > summary .settings-expand-glyph::before {
+    content: "-";
+  }
+
   .app-soft-panel {
     border-radius: var(--radius-lg);
     border: 1px solid var(--border);

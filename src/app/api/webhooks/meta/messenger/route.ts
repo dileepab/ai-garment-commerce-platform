@@ -146,7 +146,7 @@ async function deliverCustomerResult(
   }
 
   const failures: string[] = [];
-  const metaOptions = { pageAccessToken };
+  const metaOptions = { pageAccessToken, language: result.language };
   const messageResult = await sendMessengerMessage(senderId, result.reply, metaOptions);
 
   if (!messageResult.ok) {

@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       imageUrl: result.imagePath ?? null,
       imageUrls: result.imagePaths ?? null,
       orderId: result.orderId ?? null,
+      language: result.language ?? null,
     });
   } catch (error: unknown) {
     return NextResponse.json(

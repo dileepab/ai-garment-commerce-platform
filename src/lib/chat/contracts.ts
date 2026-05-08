@@ -1,3 +1,5 @@
+import type { CustomerLanguage } from './language';
+
 export interface CustomerMessageInput {
   senderId: string;
   channel: string;
@@ -21,4 +23,5 @@ export interface CustomerMessageResult {
     imageUrl?: string;
   }>;
   orderId?: number | null;
+  language?: CustomerLanguage;
 }

@@ -1,5 +1,6 @@
 import type { ResolvedOrderDraft } from '@/lib/order-draft';
 import type { SizeChartCategory } from '@/lib/size-charts';
+import type { CustomerLanguage } from '@/lib/chat/language';
 import prisma from '@/lib/prisma';
 
 export type PendingConversationStep =
@@ -59,6 +60,7 @@ export interface ConversationStateData {
   supportMode: SupportWorkflowMode;
   lastAssistantReplyKind: AssistantReplyKind;
   unclearMessageCount: number;
+  preferredLanguage: CustomerLanguage;
 }
 
 const VALID_PENDING_STEPS = new Set<PendingConversationStep>([
@@ -100,6 +102,7 @@ const VALID_SUPPORT_MODES = new Set<SupportWorkflowMode>([
   'human_active',
   'resolved',
 ]);
+const VALID_LANGUAGES = new Set<CustomerLanguage>(['english', 'sinhala', 'tamil']);
 
 export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   pendingStep: 'none',
@@ -111,6 +114,7 @@ export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   supportMode: 'bot_active',
   lastAssistantReplyKind: 'generic',
   unclearMessageCount: 0,
+  preferredLanguage: 'english',
 };
 
 function parseConversationState(value?: string | null): Partial<ConversationStateData> {
@@ -154,6 +158,12 @@ function normalizeSupportMode(value?: string | null): SupportWorkflowMode {
     : 'bot_active';
 }
 
+function normalizeCustomerLanguage(value?: string | null): CustomerLanguage {
+  return VALID_LANGUAGES.has(value as CustomerLanguage)
+    ? (value as CustomerLanguage)
+    : 'english';
+}
+
 export function normalizeConversationState(
   value?: Partial<ConversationStateData> | null
 ): ConversationStateData {
@@ -178,6 +188,7 @@ export function normalizeConversationState(
       typeof nextState.unclearMessageCount === 'number' && nextState.unclearMessageCount > 0
         ? Math.floor(nextState.unclearMessageCount)
         : 0,
+    preferredLanguage: normalizeCustomerLanguage(nextState.preferredLanguage),
   };
 }
 
@@ -285,5 +296,6 @@ export function clearPendingConversationState(
     lastSizeChartCategory: state.lastSizeChartCategory,
     supportMode: state.supportMode,
     lastAssistantReplyKind: state.lastAssistantReplyKind,
+    preferredLanguage: state.preferredLanguage,
   };
 }

@@ -30,6 +30,12 @@ import {
   buildMissingContactPrompt,
   buildSizeChartReply,
 } from '@/lib/chat/reply-builders';
+import {
+  buildLanguagePreferenceAcknowledgement,
+  isLanguagePreferenceOnlyMessage,
+  localizeReplyWithGemini,
+  resolveCustomerLanguage,
+} from '@/lib/chat/language';
 import { routeCustomerMessageWithAi } from '@/lib/ai-action-router';
 import {
   clearPendingConversationState,
@@ -126,6 +132,28 @@ export async function routeCustomerMessage(
   });
 
   const state = await loadConversationState(input.senderId, input.channel);
+  const languageResolution = resolveCustomerLanguage(input.currentMessage, state.preferredLanguage);
+  const replyLanguage = languageResolution.language;
+
+  if (
+    languageResolution.isExplicitPreferenceRequest &&
+    isLanguagePreferenceOnlyMessage(input.currentMessage)
+  ) {
+    const reply = buildLanguagePreferenceAcknowledgement(replyLanguage);
+
+    await saveConversationState(input.senderId, input.channel, {
+      ...state,
+      preferredLanguage: replyLanguage,
+      lastAssistantReplyKind: 'generic',
+      unclearMessageCount: 0,
+    });
+    await saveConversationPair(input.senderId, input.channel, input.currentMessage, reply);
+
+    return {
+      reply,
+      language: replyLanguage,
+    };
+  }
 
   const recentMessages = await prisma.chatMessage.findMany({
     where: {
@@ -438,12 +466,17 @@ export async function routeCustomerMessage(
     assistantReplyKind?: AssistantReplyKind;
   }): Promise<CustomerMessageResult> {
     const assistantReplyKind = params.assistantReplyKind || 'generic';
+    const localizedReply = await localizeReplyWithGemini(params.reply, replyLanguage);
     const shouldPersistState =
-      Boolean(params.nextState) || Boolean(params.assistantReplyKind);
+      Boolean(params.nextState) ||
+      Boolean(params.assistantReplyKind) ||
+      Boolean(languageResolution.detectedLanguage) ||
+      replyLanguage !== state.preferredLanguage;
     const nextState = shouldPersistState
       ? await saveConversationState(input.senderId, input.channel, {
           ...state,
           ...params.nextState,
+          preferredLanguage: replyLanguage,
           lastAssistantReplyKind: assistantReplyKind,
           unclearMessageCount:
             assistantReplyKind === 'fallback'
@@ -452,7 +485,7 @@ export async function routeCustomerMessage(
         })
       : state;
 
-    await saveConversationPair(input.senderId, input.channel, input.currentMessage, params.reply);
+    await saveConversationPair(input.senderId, input.channel, input.currentMessage, localizedReply);
 
     if (nextState.orderDraft || mergedContact.name || mergedContact.phone) {
       await upsertCustomerContact({
@@ -475,14 +508,16 @@ export async function routeCustomerMessage(
       hasReply: Boolean(params.reply),
       hasMedia: Boolean(params.imagePath || params.imagePaths?.length || params.carouselProducts?.length),
       orderId: params.orderId ?? null,
+      language: replyLanguage,
     });
 
     return {
-      reply: params.reply,
+      reply: localizedReply,
       imagePath: params.imagePath ?? params.imagePaths?.[0],
       imagePaths: params.imagePaths ?? (params.imagePath ? [params.imagePath] : undefined),
       carouselProducts: params.carouselProducts,
       orderId: params.orderId ?? null,
+      language: replyLanguage,
     };
   }
 

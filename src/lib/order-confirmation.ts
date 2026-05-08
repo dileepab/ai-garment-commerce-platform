@@ -59,6 +59,18 @@ const ALLOWED_CONFIRMATIONS = new Set([
   'no changes',
   'no change',
   'nothing to change',
+  'ow',
+  'ow confirm',
+  'hari',
+  'hari confirm',
+  'hariyata',
+  'hariyata thiyenawa',
+  'confirm karanna',
+  'order eka confirm karanna',
+  'āma',
+  'ama',
+  'sari',
+  'sari confirm',
 ]);
 
 const CONFIRMATION_PATTERNS = [
@@ -73,6 +85,10 @@ const CONFIRMATION_PATTERNS = [
   /\byes\b.*\bno need to change\b/i,
   /\bno changes? needed\b/i,
   /\bnothing to change\b/i,
+  /\b(ow|hari|hariyata)\b.*\b(confirm|karanna|danna|place)\b/i,
+  /\b(confirm|place)\b.*\b(karanna|danna)\b/i,
+  /^(ඔව්|හරි|හරියට|තහවුරු කරන්න|ඇණවුම තහවුරු කරන්න)[\s.!✅]*$/i,
+  /^(ஆம்|சரி|உறுதி செய்|ஆர்டர் செய்|ஆர்டர் பண்ணுங்கள்)[\s.!✅]*$/i,
 ];
 
 function normalizeConfirmationText(message: string): string {
