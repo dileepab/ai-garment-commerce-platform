@@ -21,6 +21,7 @@ import {
   type PublishImageInput,
 } from '@/lib/meta-publish';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
+import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -189,6 +190,20 @@ export async function searchProductsForContent(query: string, brand: string) {
         colors: true,
         sizes: true,
         imageUrl: true,
+        garmentLengthCm: true,
+        sleeveLengthCm: true,
+        sleeveType: true,
+        fitType: true,
+        neckline: true,
+        closureDetails: true,
+        hasSideSlit: true,
+        sideSlitHeightCm: true,
+        hemDetails: true,
+        sleeveHemDetails: true,
+        patternDetails: true,
+        referenceModelHeightCm: true,
+        wornLengthNote: true,
+        aiFidelityNotes: true,
       },
     });
     return { success: true, products };
@@ -248,9 +263,39 @@ export async function generateCreativeAction(
       sourceImageMimeType = mimeType;
     }
 
+    const linkedProduct = params.productId
+      ? await prisma.product.findUnique({
+          where: { id: params.productId },
+          select: {
+            brand: true,
+            garmentLengthCm: true,
+            sleeveLengthCm: true,
+            sleeveType: true,
+            fitType: true,
+            neckline: true,
+            closureDetails: true,
+            hasSideSlit: true,
+            sideSlitHeightCm: true,
+            hemDetails: true,
+            sleeveHemDetails: true,
+            patternDetails: true,
+            referenceModelHeightCm: true,
+            wornLengthNote: true,
+            aiFidelityNotes: true,
+          },
+        })
+      : null;
+    if (linkedProduct) assertBrandAccess(scope, linkedProduct.brand);
+
+    const manualFitNotes = params.garmentFitNotes?.trim() || '';
+    const structuredSpecs =
+      linkedProduct && !manualFitNotes.includes('Structured garment specs from product record')
+        ? buildGarmentSpecsForAi(linkedProduct)
+        : '';
     const combinedProductContext = [
       params.productContext?.trim(),
-      params.garmentFitNotes?.trim() ? `Fit measurements: ${params.garmentFitNotes.trim()}` : '',
+      structuredSpecs,
+      manualFitNotes ? `Fit measurements: ${manualFitNotes}` : '',
     ].filter(Boolean).join(' ');
 
     const input: CreativeGenerationInput = {
@@ -350,10 +395,42 @@ export async function regenerateCreativeAction(
       sourceImageMimeType = mimeType;
     }
 
+    const linkedProduct = original.productId
+      ? await prisma.product.findUnique({
+          where: { id: original.productId },
+          select: {
+            brand: true,
+            garmentLengthCm: true,
+            sleeveLengthCm: true,
+            sleeveType: true,
+            fitType: true,
+            neckline: true,
+            closureDetails: true,
+            hasSideSlit: true,
+            sideSlitHeightCm: true,
+            hemDetails: true,
+            sleeveHemDetails: true,
+            patternDetails: true,
+            referenceModelHeightCm: true,
+            wornLengthNote: true,
+            aiFidelityNotes: true,
+          },
+        })
+      : null;
+    const originalProductContext = original.productContext ?? '';
+    const structuredSpecs =
+      linkedProduct && !originalProductContext.includes('Structured garment specs from product record')
+        ? buildGarmentSpecsForAi(linkedProduct)
+        : '';
+    const regeneratedProductContext = [
+      originalProductContext,
+      structuredSpecs,
+    ].filter(Boolean).join('\n\n');
+
     const result = await generateCreativeLib({
       brand: original.brand,
       personaId: (original.personaStyle ?? 'none') as PersonaId,
-      productContext: original.productContext ?? '',
+      productContext: regeneratedProductContext,
       sourceImageBase64,
       sourceImageMimeType,
       viewAngle: (original.viewAngle ?? undefined) as ViewAngle | undefined,

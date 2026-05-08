@@ -23,7 +23,7 @@ export const ROUTED_ACTIONS = [
   'fallback',
 ] as const;
 
-export const PRODUCT_QUESTION_TYPES = ['colors', 'sizes', 'price', 'availability'] as const;
+export const PRODUCT_QUESTION_TYPES = ['colors', 'sizes', 'price', 'availability', 'fit'] as const;
 export const PAYMENT_METHODS = ['COD', 'Online Transfer'] as const;
 export const PRODUCT_TYPES = ['tops', 'dresses', 'pants', 'skirts'] as const;
 
@@ -58,6 +58,7 @@ export interface RouterProductContext {
   sizes: string;
   colors: string;
   availableQty: number;
+  garmentSpecs?: string;
 }
 
 export interface RouterInput {

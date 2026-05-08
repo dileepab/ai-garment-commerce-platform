@@ -18,6 +18,10 @@ interface ModelError {
   status?: number;
 }
 
+type CaptionContentPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
 function getErrorStatus(error: unknown): number | undefined {
   if (typeof error === 'object' && error !== null && 'status' in error) {
     const s = (error as ModelError).status;
@@ -96,7 +100,7 @@ export async function generateCaptions(input: CaptionGenerationInput): Promise<s
   const userText = buildUserPrompt(input);
 
   // Build multimodal content parts when an image is available
-  const contentParts: any[] = [];
+  const contentParts: CaptionContentPart[] = [];
 
   if (hasImage && input.imageBase64) {
     // Extract base64 data and mime type from data URL

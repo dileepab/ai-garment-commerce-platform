@@ -17,6 +17,7 @@ import {
 } from '@/lib/size-charts';
 import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
 import { splitCsv, firstNameOf } from '@/lib/chat/message-utils';
+import { buildGarmentSpecsForCustomer, type ProductGarmentSpecSource } from '@/lib/product-garment-specs';
 
 export function buildMissingFieldLabels(missingFields: ContactField[]): string {
   return missingFields
@@ -119,8 +120,8 @@ export function buildProductQuestionReply(
     colors: string;
     inventory?: { availableQty: number } | null;
     variants?: Array<{ size: string; color: string; inventory?: { availableQty: number } | null }>;
-  },
-  questionType: 'colors' | 'sizes' | 'price' | 'availability' | null
+  } & ProductGarmentSpecSource,
+  questionType: 'colors' | 'sizes' | 'price' | 'availability' | 'fit' | null
 ): string {
   const availableVariants = product.variants?.filter(
     (v) => (v.inventory?.availableQty ?? 0) > 0
@@ -151,9 +152,18 @@ export function buildProductQuestionReply(
     return `${product.name} is priced at Rs ${product.price}.`;
   }
 
+  const specText = buildGarmentSpecsForCustomer(product);
+  const specBlock = specText ? `\n\nFit/details:\n${specText}` : '';
+
+  if (questionType === 'fit') {
+    return specText
+      ? `${product.name} fit/details:\n${specText}`
+      : `${product.name} fit details are not recorded yet.`;
+  }
+
   return `${product.name} is currently available for Rs ${product.price}. Sizes: ${sizeList.join(
     ', '
-  )}. Colors: ${colorList.join(', ')}. Available stock: ${availableQty}.`;
+  )}. Colors: ${colorList.join(', ')}. Available stock: ${availableQty}.${specBlock}`;
 }
 
 export function buildDeliveryReply(params: {

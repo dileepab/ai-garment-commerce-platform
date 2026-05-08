@@ -1,0 +1,15 @@
+ALTER TABLE "Product"
+ADD COLUMN "garmentLengthCm" DOUBLE PRECISION,
+ADD COLUMN "sleeveLengthCm" DOUBLE PRECISION,
+ADD COLUMN "sleeveType" TEXT,
+ADD COLUMN "fitType" TEXT,
+ADD COLUMN "neckline" TEXT,
+ADD COLUMN "closureDetails" TEXT,
+ADD COLUMN "hasSideSlit" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "sideSlitHeightCm" DOUBLE PRECISION,
+ADD COLUMN "hemDetails" TEXT,
+ADD COLUMN "sleeveHemDetails" TEXT,
+ADD COLUMN "patternDetails" TEXT,
+ADD COLUMN "referenceModelHeightCm" DOUBLE PRECISION,
+ADD COLUMN "wornLengthNote" TEXT,
+ADD COLUMN "aiFidelityNotes" TEXT;

@@ -10,7 +10,7 @@ export function buildRouterPrompt(input: RouterInput): string {
   const products = input.products
     .map(
       (product) =>
-        `- ${product.name} | Style: ${product.style || '-'} | Price: Rs ${product.price} | Sizes: ${product.sizes || '-'} | Colors: ${product.colors || '-'} | Available: ${product.availableQty}`
+        `- ${product.name} | Style: ${product.style || '-'} | Price: Rs ${product.price} | Sizes: ${product.sizes || '-'} | Colors: ${product.colors || '-'} | Available: ${product.availableQty}${product.garmentSpecs ? ` | Garment specs: ${product.garmentSpecs}` : ''}`
     )
     .join('\n');
 
@@ -47,7 +47,7 @@ ${input.currentMessage}${imageInstruction}
 Choose exactly one action from this list:
 - greeting: simple hello / thanks / casual greeting
 - catalog_list: asking available items/products/dresses/tops in store
-- product_question: asking colors, sizes, price, or availability of a specific product
+- product_question: asking colors, sizes, price, availability, garment length, sleeve length, fit, neckline, slit, hem, fabric construction, or product details of a specific product
 - size_chart: asking for size chart / measurement chart
 - place_order: starting a new order OR changing product/size/color/quantity/contact details for a pending new order
 - confirm_pending: explicit confirmation of the currently pending contact block, order summary, or quantity-update summary
@@ -74,7 +74,7 @@ Routing rules:
 - If the customer asks to change the delivery address or phone/contact number of an existing order, use update_order_contact and return only the new address/phone values you can confidently extract. Do not use this for a pending new-order draft.
 - If the customer asks to change quantity of "last order" or "previous order", use update_order_quantity.
 - If the customer asks about total, delivery, payment, or gift instructions while a new order is pending, stay on that pending draft instead of switching to an older stored order.
-- If the customer asks for available colors/sizes of a named product, use product_question and set questionType.
+- If the customer asks for available colors/sizes/price/fit/length/sleeves/side slit/hem/neckline of a named product, use product_question and set questionType.
 - If the customer asks for a size chart and the product type is obvious from the message or recent context, set productType.
 - If the customer asks for a size chart without a clear item type, use size_chart and leave productType null so the app can ask which type they want.
 - If the customer asks for available dresses, tops, pants, or skirts, use catalog_list.

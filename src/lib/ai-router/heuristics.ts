@@ -337,7 +337,7 @@ export function buildHeuristicAction(
     };
   }
 
-  if (product && /\bwhat colors?\b|\bavailable colors?\b|\bwhat sizes?\b|\bavailable sizes?\b|\bprice\b|\bhow much\b/.test(normalized)) {
+  if (product && /\bwhat colors?\b|\bavailable colors?\b|\bwhat sizes?\b|\bavailable sizes?\b|\bprice\b|\bhow much\b|\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized)) {
     let questionType: AiRoutedAction['questionType'] = 'availability';
 
     if (/\bcolor\b/.test(normalized)) {
@@ -346,6 +346,8 @@ export function buildHeuristicAction(
       questionType = 'sizes';
     } else if (/\bprice\b|\bhow much\b/.test(normalized)) {
       questionType = 'price';
+    } else if (/\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized)) {
+      questionType = 'fit';
     }
 
     return {

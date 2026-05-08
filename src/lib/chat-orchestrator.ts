@@ -36,6 +36,7 @@ import {
   localizeReplyWithGemini,
   resolveCustomerLanguage,
 } from '@/lib/chat/language';
+import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
 import { routeCustomerMessageWithAi } from '@/lib/ai-action-router';
 import {
   clearPendingConversationState,
@@ -282,6 +283,7 @@ export async function routeCustomerMessage(
           sizes: product.sizes,
           colors: product.colors,
           availableQty: variantTotal ?? product.inventory?.availableQty ?? product.stock,
+          garmentSpecs: buildGarmentSpecsForCustomer(product).replace(/\n/g, '; '),
         };
       }),
       imageUrl: input.imageUrl,

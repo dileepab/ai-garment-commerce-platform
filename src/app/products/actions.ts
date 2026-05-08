@@ -29,6 +29,20 @@ export interface ProductFormInput {
   price: number;
   status: string;
   imageUrl?: string | null;
+  garmentLengthCm?: number | null;
+  sleeveLengthCm?: number | null;
+  sleeveType?: string | null;
+  fitType?: string | null;
+  neckline?: string | null;
+  closureDetails?: string | null;
+  hasSideSlit?: boolean;
+  sideSlitHeightCm?: number | null;
+  hemDetails?: string | null;
+  sleeveHemDetails?: string | null;
+  patternDetails?: string | null;
+  referenceModelHeightCm?: number | null;
+  wornLengthNote?: string | null;
+  aiFidelityNotes?: string | null;
   variants: VariantInput[];
 }
 
@@ -47,6 +61,35 @@ function deriveProductSizesColors(variants: VariantInput[]): { sizes: string; co
 function resolveVariantStatus(v: VariantInput): string {
   if (v.status && v.status !== '') return v.status;
   return (v.availableQty || 0) > 0 ? 'active' : 'out-of-stock';
+}
+
+function cleanOptionalText(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function cleanOptionalNumber(value?: number | null): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
+function productGarmentSpecData(input: ProductFormInput) {
+  return {
+    garmentLengthCm: cleanOptionalNumber(input.garmentLengthCm),
+    sleeveLengthCm: cleanOptionalNumber(input.sleeveLengthCm),
+    sleeveType: cleanOptionalText(input.sleeveType),
+    fitType: cleanOptionalText(input.fitType),
+    neckline: cleanOptionalText(input.neckline),
+    closureDetails: cleanOptionalText(input.closureDetails),
+    hasSideSlit: Boolean(input.hasSideSlit),
+    sideSlitHeightCm: input.hasSideSlit ? cleanOptionalNumber(input.sideSlitHeightCm) : null,
+    hemDetails: cleanOptionalText(input.hemDetails),
+    sleeveHemDetails: cleanOptionalText(input.sleeveHemDetails),
+    patternDetails: cleanOptionalText(input.patternDetails),
+    referenceModelHeightCm: cleanOptionalNumber(input.referenceModelHeightCm),
+    wornLengthNote: cleanOptionalText(input.wornLengthNote),
+    aiFidelityNotes: cleanOptionalText(input.aiFidelityNotes),
+  };
 }
 
 function validateVariants(variants: VariantInput[]): string | null {
@@ -82,6 +125,7 @@ export async function createProduct(input: ProductFormInput): Promise<ProductAct
           price: Number(input.price),
           status: input.status || 'active',
           imageUrl: input.imageUrl?.trim() || null,
+          ...productGarmentSpecData(input),
           sizes,
           colors,
           stock: totalStock,
@@ -156,6 +200,7 @@ export async function updateProduct(
           price: Number(input.price),
           status: input.status || 'active',
           imageUrl: input.imageUrl?.trim() || null,
+          ...productGarmentSpecData(input),
           sizes,
           colors,
           stock: totalStock,

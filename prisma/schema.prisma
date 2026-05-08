@@ -10,22 +10,36 @@ datasource db {
 }
 
 model Product {
-  id         Int              @id @default(autoincrement())
-  name       String
-  brand      String
-  style      String
-  price      Float
-  fabric     String?
-  sizes      String // Store as JSON or comma-separated string
-  colors     String // Store as JSON or comma-separated string
-  stock      Int              @default(0)
-  status     String           @default("active")
-  imageUrl   String?
-  createdAt  DateTime         @default(now())
-  inventory  Inventory?
-  variants   ProductVariant[]
-  orderItems OrderItem[]
-  creatives  GeneratedCreative[]
+  id                     Int                 @id @default(autoincrement())
+  name                   String
+  brand                  String
+  style                  String
+  price                  Float
+  fabric                 String?
+  sizes                  String // Store as JSON or comma-separated string
+  colors                 String // Store as JSON or comma-separated string
+  stock                  Int                 @default(0)
+  status                 String              @default("active")
+  imageUrl               String?
+  createdAt              DateTime            @default(now())
+  garmentLengthCm        Float?
+  sleeveLengthCm         Float?
+  sleeveType             String?
+  fitType                String?
+  neckline               String?
+  closureDetails         String?
+  hasSideSlit            Boolean             @default(false)
+  sideSlitHeightCm       Float?
+  hemDetails             String?
+  sleeveHemDetails       String?
+  patternDetails         String?
+  referenceModelHeightCm Float?
+  wornLengthNote         String?
+  aiFidelityNotes        String?
+  inventory              Inventory?
+  variants               ProductVariant[]
+  orderItems             OrderItem[]
+  creatives              GeneratedCreative[]
 }
 
 model Inventory {
@@ -326,20 +340,20 @@ model BrandChannelConfig {
 }
 
 model SocialPost {
-  id                Int       @id @default(autoincrement())
+  id                Int                    @id @default(autoincrement())
   brand             String
-  channels          String    // comma-separated: "facebook", "instagram", or "facebook,instagram"
+  channels          String // comma-separated: "facebook", "instagram", or "facebook,instagram"
   caption           String
-  generatedCaptions String?   // JSON array of AI-generated suggestions
-  productContext    String?   // optional context used for generation
-  status            String    @default("draft") // draft | ready
-  createdBy         String?   // user email
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  generatedCaptions String? // JSON array of AI-generated suggestions
+  productContext    String? // optional context used for generation
+  status            String                 @default("draft") // draft | ready
+  createdBy         String? // user email
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
   // publish tracking
-  publishStatus     String?   // null | published | partial | failed
+  publishStatus     String? // null | published | partial | failed
   publishedAt       DateTime?
-  publishedBy       String?   // email of user who triggered publish
+  publishedBy       String? // email of user who triggered publish
   publishLogs       SocialPostPublishLog[]
   postCreatives     SocialPostCreative[]
 
@@ -347,13 +361,13 @@ model SocialPost {
 }
 
 model SocialPostCreative {
-  id              Int               @id @default(autoincrement())
-  socialPostId    Int
-  socialPost      SocialPost        @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
-  creativeId      Int
-  creative        GeneratedCreative @relation(fields: [creativeId], references: [id])
-  description     String?           // Auto-generated description for this specific product image
-  displayOrder    Int               @default(0)
+  id           Int               @id @default(autoincrement())
+  socialPostId Int
+  socialPost   SocialPost        @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+  creativeId   Int
+  creative     GeneratedCreative @relation(fields: [creativeId], references: [id])
+  description  String? // Auto-generated description for this specific product image
+  displayOrder Int               @default(0)
 
   @@index([socialPostId])
 }
@@ -362,13 +376,13 @@ model SocialPostPublishLog {
   id             Int        @id @default(autoincrement())
   socialPostId   Int
   socialPost     SocialPost @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
-  channel        String     // facebook | instagram
+  channel        String // facebook | instagram
   brand          String
-  status         String     // published | failed
-  externalPostId String?    // Meta post ID returned on success
+  status         String // published | failed
+  externalPostId String? // Meta post ID returned on success
   errorCode      String?
   errorMessage   String?
-  publishedBy    String?    // user email
+  publishedBy    String? // user email
   createdAt      DateTime   @default(now())
 
   @@index([socialPostId, createdAt])
@@ -376,20 +390,20 @@ model SocialPostPublishLog {
 }
 
 model GeneratedCreative {
-  id                 Int      @id @default(autoincrement())
-  brand              String
-  productId          Int?
-  product            Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  viewAngle          String?  // front | side | back | closeup
-  sourceImageUrl     String?
-  generatedImageData String   // base64 data URL
-  prompt             String
-  personaStyle       String?
-  productContext     String?
-  status             String   @default("draft") // draft | saved
-  createdBy          String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                  Int                  @id @default(autoincrement())
+  brand               String
+  productId           Int?
+  product             Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  viewAngle           String? // front | side | back | closeup
+  sourceImageUrl      String?
+  generatedImageData  String // base64 data URL
+  prompt              String
+  personaStyle        String?
+  productContext      String?
+  status              String               @default("draft") // draft | saved
+  createdBy           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   socialPostCreatives SocialPostCreative[]
 
   @@index([brand, status, createdAt])
@@ -403,7 +417,7 @@ model ReturnRequest {
   customerId         Int?
   customer           Customer? @relation(fields: [customerId], references: [id])
   brand              String?
-  type               String    // "return" | "exchange"
+  type               String // "return" | "exchange"
   reason             String
   status             String    @default("requested")
   requestedBy        String    @default("admin") // "customer" | "admin"

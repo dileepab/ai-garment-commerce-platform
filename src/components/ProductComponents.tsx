@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -41,6 +42,20 @@ export interface Product {
   colors: string;
   fabric?: string | null;
   imageUrl?: string | null;
+  garmentLengthCm?: number | null;
+  sleeveLengthCm?: number | null;
+  sleeveType?: string | null;
+  fitType?: string | null;
+  neckline?: string | null;
+  closureDetails?: string | null;
+  hasSideSlit?: boolean | null;
+  sideSlitHeightCm?: number | null;
+  hemDetails?: string | null;
+  sleeveHemDetails?: string | null;
+  patternDetails?: string | null;
+  referenceModelHeightCm?: number | null;
+  wornLengthNote?: string | null;
+  aiFidelityNotes?: string | null;
   category?: string;
   sku?: string;
   threshold?: number;
@@ -163,6 +178,7 @@ export function ProductDrawer({
   const sizes = product?.sizes.split(',').map(s => s.trim()) || [];
   const colors = product?.colors.split(',').map(c => c.trim()) || [];
   const hasVariants = (product?.variants?.length ?? 0) > 0;
+  const garmentSpecLines = product ? buildGarmentSpecsForCustomer(product).split('\n').filter(Boolean) : [];
 
   return (
     <>
@@ -241,6 +257,19 @@ export function ProductDrawer({
                   </div>
                   <div className="stock-bar-wrap">
                     <div className="stock-bar-fill" style={{ width: `${stockPct}%`, background: stockColor }} />
+                  </div>
+                </div>
+              )}
+
+              {garmentSpecLines.length > 0 && (
+                <div>
+                  <div className="drawer-section-label">Garment Fit & Construction</div>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {garmentSpecLines.map((line) => (
+                      <div key={line} style={{ fontSize: 12, color: 'var(--color-fg-2)', lineHeight: 1.45 }}>
+                        {line}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

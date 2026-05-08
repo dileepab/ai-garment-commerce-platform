@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
 import type { ViewAngle } from '@/lib/creative-generator';
+import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
 import {
   generateCreativeBatchAction,
   regenerateCreativeAction,
@@ -44,6 +45,20 @@ interface ProductSearchResult {
   colors: string | null;
   sizes: string | null;
   imageUrl: string | null;
+  garmentLengthCm?: number | null;
+  sleeveLengthCm?: number | null;
+  sleeveType?: string | null;
+  fitType?: string | null;
+  neckline?: string | null;
+  closureDetails?: string | null;
+  hasSideSlit?: boolean | null;
+  sideSlitHeightCm?: number | null;
+  hemDetails?: string | null;
+  sleeveHemDetails?: string | null;
+  patternDetails?: string | null;
+  referenceModelHeightCm?: number | null;
+  wornLengthNote?: string | null;
+  aiFidelityNotes?: string | null;
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -189,7 +204,9 @@ export default function CreativeStudioModal({
 
   function handleSelectProduct(product: ProductSearchResult) {
     const context = `Name: ${product.name}. Fabric: ${product.fabric || 'N/A'}. Style: ${product.style || 'N/A'}. Price: Rs ${product.price}. Colors: ${product.colors || 'N/A'}. Sizes: ${product.sizes || 'N/A'}.`;
+    const garmentSpecs = buildGarmentSpecsForAi(product);
     setProductContext(context);
+    setGarmentFitNotes(garmentSpecs);
     setProductSearch('');
     setSearchResults([]);
     setLinkedProductId(product.id);
