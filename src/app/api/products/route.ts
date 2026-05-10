@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
 import { getBrandScopedWhere } from '@/lib/access-control';
+import { nextProductSku } from '@/lib/product-sku';
 import {
   accessDeniedResponse,
   assertBrandAccess,
@@ -28,6 +29,9 @@ export async function GET(request: Request) {
         variants: {
           include: { inventory: true },
           orderBy: [{ size: 'asc' }, { color: 'asc' }],
+        },
+        colorImages: {
+          orderBy: { color: 'asc' },
         },
       },
     });
@@ -63,8 +67,10 @@ export async function POST(request: Request) {
       : (data.stock || 0);
 
     const product = await prisma.$transaction(async (tx) => {
+      const productSku = await nextProductSku(tx, data.brand);
       const created = await tx.product.create({
         data: {
+          sku: productSku,
           name: data.name,
           brand: data.brand,
           style: data.style,

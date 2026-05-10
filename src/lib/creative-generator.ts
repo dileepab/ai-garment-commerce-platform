@@ -36,6 +36,8 @@ function getPersona(brand: string, personaId: string): PersonaDef | undefined {
 // Accepts image input AND generates image output via generateContent.
 // This enables the virtual try-on path (product photo → model wearing it).
 const IMAGE_EDIT_MODEL = 'gemini-2.5-flash-image';
+const HIGH_ACCURACY_IMAGE_MODEL =
+  process.env.GEMINI_HIGH_ACCURACY_IMAGE_MODEL || 'gemini-3-pro-image-preview';
 
 // Text-to-image only — used when no source image is provided.
 const TEXT_TO_IMAGE_MODEL = 'imagen-4.0-generate-001';
@@ -43,6 +45,7 @@ const TEXT_TO_IMAGE_MODEL = 'imagen-4.0-generate-001';
 // ── Interfaces ───────────────────────────────────────────────────────────────
 
 export type ViewAngle = 'front' | 'side' | 'back' | 'closeup';
+export type CreativeGenerationQuality = 'standard' | 'high_accuracy';
 
 export interface CreativeGenerationInput {
   brand: string;
@@ -52,6 +55,8 @@ export interface CreativeGenerationInput {
   sourceImageBase64?: string;
   sourceImageMimeType?: string;
   viewAngle?: ViewAngle;
+  quality?: CreativeGenerationQuality;
+  poseInstruction?: string;
   // Free-form correction note appended to the prompt as a final user instruction.
   // Used by per-tile regenerate to fix specific issues (e.g. "no buttons on back").
   correctionText?: string;
@@ -61,15 +66,53 @@ export interface CreativeGenerationInput {
 function viewAngleClause(angle: ViewAngle | undefined): string {
   switch (angle) {
     case 'side':
-      return 'Camera angle: full profile (90 degrees) side view of the model. Show the side silhouette, but keep any front floral/graphic artwork anchored on the garment front panel near the model-facing/front edge. Do not center the artwork on the side seam, underarm, or side torso.';
+      return 'Camera angle: side/profile view of the model, approximately 80-100 degrees. The model may be standing, mid-step, or lightly turning, but the side silhouette must remain clear. Keep any front floral/graphic artwork anchored on the garment front panel near the model-facing/front edge. Do not center the artwork on the side seam, underarm, or side torso.';
     case 'back':
-      return 'Camera angle: rear view of the model facing away from camera. Showcase the back neckline, sleeve shape, stripe continuation, and hemline. Keep the back plain if the source garment appears plain: no added vertical seam lines, black contour lines, darts, piping, or panels.';
+      return 'Camera angle: rear view of the model facing mostly away from camera, approximately 160-180 degrees. The model may glance slightly over shoulder or shift weight, but the back of the garment must remain the hero. Showcase the back neckline, sleeve shape, stripe continuation, and hemline. Keep the back plain if the source garment appears plain: no added vertical seam lines, black contour lines, darts, piping, or panels.';
     case 'closeup':
       return 'Camera angle: tight close-up on the garment fabric, print, buttons, stitching, and construction details. Half-body crop, sharp focus on the exact source garment texture.';
     case 'front':
     default:
-      return 'Camera angle: front-facing three-quarter or full-body shot of the model. The front of the garment must match the source image exactly.';
+      return 'Camera angle: front-facing or slight three-quarter full-body shot of the model. The model may walk toward camera, shift weight, place one hand at waist, lightly raise one hand, or hold a relaxed natural fashion pose, but the garment front must remain fully visible and match the source image exactly.';
   }
+}
+
+function poseVariationClause(angle: ViewAngle | undefined, poseInstruction?: string): string {
+  const defaultByAngle: Record<ViewAngle, string[]> = {
+    front: [
+      'model walking slowly toward camera with relaxed arms',
+      'model standing with one hand lightly raised near hair',
+      'model shifting weight with one hand at waist and the other relaxed',
+      'model taking a small forward step, natural candid expression',
+      'model standing straight with one arm softly bent',
+    ],
+    side: [
+      'model in a gentle mid-step profile pose',
+      'model standing side-on with one hand relaxed near hip',
+      'model lightly turning head forward while body remains side profile',
+      'model walking past camera in a clean profile silhouette',
+    ],
+    back: [
+      'model walking away from camera with natural arm movement',
+      'model standing with weight shifted, looking slightly over shoulder',
+      'model facing away with one hand lightly touching hair',
+      'model taking a small step forward away from camera',
+    ],
+    closeup: [
+      'natural half-body close-up with one hand near the garment edge',
+      'close-up crop with relaxed hand showing fabric scale',
+      'editorial close-up focused on print, texture, and construction',
+    ],
+  };
+  const options = defaultByAngle[angle ?? 'front'];
+  const selected = poseInstruction?.trim() || options[Math.floor(Math.random() * options.length)];
+
+  return (
+    `MODEL POSE VARIATION:\n` +
+    `- Use this natural pose direction: ${selected}.\n` +
+    `- Keep the requested camera/view angle accurate. Pose variation must never hide, crop away, distort, recolor, or redesign the garment.\n` +
+    `- Avoid repeating the exact same stiff catalog stance across generated images; make the pose feel like a real fashion shoot.`
+  );
 }
 
 function garmentAccuracyClause(viewAngle: ViewAngle | undefined): string {
@@ -167,6 +210,7 @@ function buildTryOnPrompt(
   hasPersonaImage: boolean,
   viewAngle: ViewAngle | undefined,
   garmentFitNotes: string | undefined,
+  poseInstruction: string | undefined,
   correctionText: string | undefined,
 ): string {
   const correctionLine = correctionText?.trim()
@@ -188,6 +232,7 @@ function buildTryOnPrompt(
       `- Model height: ${persona.height}. Body type: ${persona.bodyShape}.\n\n` +
       `${garmentAccuracyClause(viewAngle)}\n` +
       `${fitCalibrationClause(persona, garmentFitNotes)}\n` +
+      `${poseVariationClause(viewAngle, poseInstruction)}\n` +
       `- The garment must drape naturally on the model's body with realistic folds and shadows.\n` +
       (productContext.trim() ? `- Garment details: ${productContext.trim()}.\n` : '') +
       `\n${OUTFIT_COMPLETION_CLAUSE}\n` +
@@ -214,6 +259,7 @@ function buildTryOnPrompt(
     `Generate a professional fashion marketing photo showing the exact source garment in a premium setting.\n\n` +
     `${garmentAccuracyClause(viewAngle)}\n\n` +
     `${fitCalibrationClause(persona, garmentFitNotes)}\n\n` +
+    `${poseVariationClause(viewAngle, poseInstruction)}\n\n` +
     `${contextNote} ` +
     `Brand: ${brand}. Visual style: ${style.aesthetic}. Mood: ${style.mood}. ` +
     `High-end editorial composition. Sharp focus, beautiful lighting. ` +
@@ -230,6 +276,7 @@ function buildTextToImagePrompt(
   style: BrandStyle,
   viewAngle: ViewAngle | undefined,
   garmentFitNotes: string | undefined,
+  poseInstruction: string | undefined,
   correctionText: string | undefined,
 ): string {
   const correctionLine = correctionText?.trim()
@@ -251,6 +298,7 @@ function buildTextToImagePrompt(
     `Subject: ${subjectClause}. ` +
     `${physicalAttributes}` +
     `${fitCalibrationClause(persona, garmentFitNotes)} ` +
+    `${poseVariationClause(viewAngle, poseInstruction)} ` +
     `Visual aesthetic: ${style.aesthetic}. Color palette: ${style.colorPalette}. Mood: ${style.mood}. ` +
     `${viewAngleClause(viewAngle)} The garment is the hero — all key design details clearly visible. ` +
     `Professional studio or natural fashion lighting. Sharp focus on the outfit. ` +
@@ -281,9 +329,10 @@ export async function generateCreative(
   if (hasSourceImage) {
     const selectedPersona = getPersona(input.brand, input.personaId);
     const hasPersonaImage = !!(selectedPersona?.imageUrl);
-    const prompt = buildTryOnPrompt(input.brand, input.personaId, input.productContext, style, hasPersonaImage, input.viewAngle, input.garmentFitNotes, input.correctionText);
+    const imageModel = input.quality === 'high_accuracy' ? HIGH_ACCURACY_IMAGE_MODEL : IMAGE_EDIT_MODEL;
+    const prompt = buildTryOnPrompt(input.brand, input.personaId, input.productContext, style, hasPersonaImage, input.viewAngle, input.garmentFitNotes, input.poseInstruction, input.correctionText);
 
-    logDebug('CreativeGen', `Try-on generation via ${IMAGE_EDIT_MODEL} — brand "${input.brand}" persona "${input.personaId}".`);
+    logDebug('CreativeGen', `Try-on generation via ${imageModel} — brand "${input.brand}" persona "${input.personaId}".`);
 
     // Parts order: [prompt] -> [Image A: persona/model] -> [Image B: garment]
     // Persona goes FIRST so the AI anchors on the model's identity before seeing the garment.
@@ -337,7 +386,7 @@ export async function generateCreative(
     logDebug('CreativeGen', `[Image B — GARMENT] Added product source image.`);
 
     const response = await ai.models.generateContent({
-      model: IMAGE_EDIT_MODEL,
+      model: imageModel,
       contents: [{
         role: 'user',
         parts,
@@ -362,7 +411,7 @@ export async function generateCreative(
     // If the model returned text instead of an image (e.g. safety refusal), surface it
     const textPart = candidates[0]?.content?.parts?.find(p => p.text);
     const reason = textPart?.text ?? candidates[0]?.finishReason ?? 'unknown';
-    logError('CreativeGen', `${IMAGE_EDIT_MODEL} returned no image.`, { reason });
+    logError('CreativeGen', `${imageModel} returned no image.`, { reason });
     throw new Error(
       `Image generation was blocked or returned no output. Reason: ${reason}. ` +
       `Try rephrasing the product description or using a different product image.`,
@@ -372,7 +421,7 @@ export async function generateCreative(
   // ── Path B: text-to-image (no source photo) ──────────────────────────────
   // Imagen 4 is used when the user only provides a text description.
 
-  const prompt = buildTextToImagePrompt(input.brand, input.personaId, input.productContext, style, input.viewAngle, input.garmentFitNotes, input.correctionText);
+  const prompt = buildTextToImagePrompt(input.brand, input.personaId, input.productContext, style, input.viewAngle, input.garmentFitNotes, input.poseInstruction, input.correctionText);
 
   logDebug('CreativeGen', `Text-to-image via ${TEXT_TO_IMAGE_MODEL} — brand "${input.brand}" persona "${input.personaId}".`);
 

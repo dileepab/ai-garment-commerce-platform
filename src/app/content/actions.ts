@@ -12,6 +12,7 @@ import { generateCaptions, type CaptionGenerationInput } from '@/lib/caption-gen
 import {
   generateCreative as generateCreativeLib,
   type CreativeGenerationInput,
+  type CreativeGenerationQuality,
   type PersonaId,
   type ViewAngle,
 } from '@/lib/creative-generator';
@@ -22,6 +23,7 @@ import {
 } from '@/lib/meta-publish';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
+import { displayProductSku } from '@/lib/product-sku';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -182,6 +184,7 @@ export async function searchProductsForContent(query: string, brand: string) {
       take: 10,
       select: {
         id: true,
+        sku: true,
         name: true,
         brand: true,
         style: true,
@@ -190,6 +193,14 @@ export async function searchProductsForContent(query: string, brand: string) {
         colors: true,
         sizes: true,
         imageUrl: true,
+        colorImages: {
+          orderBy: { color: 'asc' },
+          select: {
+            id: true,
+            color: true,
+            imageUrl: true,
+          },
+        },
         garmentLengthCm: true,
         sleeveLengthCm: true,
         sleeveType: true,
@@ -221,8 +232,10 @@ export interface GenerateCreativeParams {
   productContext: string;
   garmentFitNotes?: string;
   sourceImageUrl?: string;
+  sourceColor?: string;
   productId?: number;
   viewAngle?: ViewAngle;
+  quality?: CreativeGenerationQuality;
 }
 
 export interface GenerateCreativeResult {
@@ -231,6 +244,7 @@ export interface GenerateCreativeResult {
   prompt?: string;
   creativeId?: number; // ID of the auto-saved draft record
   viewAngle?: ViewAngle;
+  sourceColor?: string;
   error?: string;
 }
 
@@ -294,6 +308,7 @@ export async function generateCreativeAction(
         : '';
     const combinedProductContext = [
       params.productContext?.trim(),
+      params.sourceColor?.trim() ? `Selected colour variant: ${params.sourceColor.trim()}. Use the source image for this exact colour.` : '',
       structuredSpecs,
       manualFitNotes ? `Fit measurements: ${manualFitNotes}` : '',
     ].filter(Boolean).join(' ');
@@ -306,6 +321,7 @@ export async function generateCreativeAction(
       sourceImageBase64,
       sourceImageMimeType,
       viewAngle: params.viewAngle,
+      quality: params.quality,
     };
 
     const result = await generateCreativeLib(input);
@@ -333,6 +349,7 @@ export async function generateCreativeAction(
       prompt: result.prompt,
       creativeId: draft.id,
       viewAngle: params.viewAngle,
+      sourceColor: params.sourceColor,
     };
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error);
@@ -345,13 +362,31 @@ export async function generateCreativeAction(
 // Each generation is a separate Gemini call; failures on individual angles do not
 // abort the whole batch.
 export async function generateCreativeBatchAction(
-  params: Omit<GenerateCreativeParams, 'viewAngle'> & { viewAngles: ViewAngle[] },
+  params: Omit<GenerateCreativeParams, 'viewAngle' | 'sourceImageUrl' | 'sourceColor'> & {
+    viewAngles: ViewAngle[];
+    sourceImageUrl?: string;
+    sourceImages?: Array<{ imageUrl: string; color?: string; viewAngles?: ViewAngle[] }>;
+  },
 ): Promise<GenerateCreativeBatchResult> {
   const angles = params.viewAngles.length > 0 ? params.viewAngles : (['front'] as ViewAngle[]);
+  const sourceImages =
+    params.sourceImages && params.sourceImages.length > 0
+      ? params.sourceImages
+      : [{ imageUrl: params.sourceImageUrl ?? '', color: undefined }];
   const results: GenerateCreativeResult[] = [];
-  for (const angle of angles) {
-    const r = await generateCreativeAction({ ...params, viewAngle: angle });
-    results.push(r);
+  for (const sourceImage of sourceImages) {
+    const sourceAngles = sourceImage.viewAngles && sourceImage.viewAngles.length > 0
+      ? sourceImage.viewAngles
+      : angles;
+    for (const angle of sourceAngles) {
+      const r = await generateCreativeAction({
+        ...params,
+        sourceImageUrl: sourceImage.imageUrl || undefined,
+        sourceColor: sourceImage.color,
+        viewAngle: angle,
+      });
+      results.push(r);
+    }
   }
   return { success: results.some(r => r.success), results };
 }
@@ -363,6 +398,7 @@ export async function generateCreativeBatchAction(
 export async function regenerateCreativeAction(
   creativeId: number,
   correctionText?: string,
+  quality?: CreativeGenerationQuality,
 ): Promise<GenerateCreativeResult> {
   try {
     const scope = await requireActionPermission('content:write');
@@ -434,6 +470,7 @@ export async function regenerateCreativeAction(
       sourceImageBase64,
       sourceImageMimeType,
       viewAngle: (original.viewAngle ?? undefined) as ViewAngle | undefined,
+      quality,
       correctionText,
     });
 
@@ -603,6 +640,8 @@ function buildItemDescription(input: {
   productContext?: string | null;
   product?: {
     id: number;
+    sku: string | null;
+    brand: string;
     name: string;
     price: number;
     sizes: string;
@@ -612,10 +651,10 @@ function buildItemDescription(input: {
 }): string {
   const product = input.product;
   const itemName = product?.name ?? parseProductContextValue(input.productContext, 'Name');
-  const itemCode = product?.variants
+  const variantCode = product?.variants
     .map((variant) => variant.sku?.trim())
-    .find((sku): sku is string => Boolean(sku))
-    ?? (product ? `#${product.id}` : null);
+    .find((sku): sku is string => Boolean(sku));
+  const itemCode = product ? displayProductSku(product) : variantCode ?? null;
   const sizes = product?.sizes ?? parseProductContextValue(input.productContext, 'Sizes');
   const colors = product?.colors ?? parseProductContextValue(input.productContext, 'Colors');
   const price = product
@@ -677,6 +716,8 @@ export async function publishSocialPost(
                 product: {
                   select: {
                     id: true,
+                    sku: true,
+                    brand: true,
                     name: true,
                     price: true,
                     sizes: true,

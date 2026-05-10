@@ -5,6 +5,7 @@ import type {
   Order,
   OrderItem,
   Product,
+  ProductColorImage,
   ProductVariant,
   VariantInventory,
 } from '@prisma/client';
@@ -32,7 +33,8 @@ export type ChatProductVariant = ProductVariant & {
 export type ChatProduct = Product & {
   inventory: Inventory | null;
   variants: ChatProductVariant[];
-  creatives: Array<Pick<GeneratedCreative, 'id' | 'status' | 'viewAngle' | 'createdAt'>>;
+  colorImages: ProductColorImage[];
+  creatives: Array<Pick<GeneratedCreative, 'id' | 'status' | 'viewAngle' | 'sourceImageUrl' | 'createdAt'>>;
 };
 
 export type ChatOrderItem = OrderItem & {

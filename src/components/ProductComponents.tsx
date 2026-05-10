@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
+import { displayProductSku } from '@/lib/product-sku';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -28,6 +29,12 @@ export interface ProductVariantData {
     reorderThreshold?: number | null;
     criticalThreshold?: number | null;
   } | null;
+}
+
+export interface ProductColorImageData {
+  id: number;
+  color: string;
+  imageUrl: string;
 }
 
 export interface Product {
@@ -57,10 +64,11 @@ export interface Product {
   wornLengthNote?: string | null;
   aiFidelityNotes?: string | null;
   category?: string;
-  sku?: string;
+  sku?: string | null;
   threshold?: number;
   orders?: number;
   variants?: ProductVariantData[];
+  colorImages?: ProductColorImageData[];
 }
 
 const DEFAULT_CRITICAL_THRESH = 3;
@@ -71,6 +79,10 @@ function variantStockColor(qty: number, critT: number, reordT: number): string {
   if (qty <= critT) return '#8B2020';
   if (qty <= reordT) return '#9B6B00';
   return '#1E6B45';
+}
+
+function getProductDisplayImage(product?: Pick<Product, 'imageUrl' | 'colorImages'> | null): string | null {
+  return product?.imageUrl || product?.colorImages?.[0]?.imageUrl || null;
 }
 
 function VariantStockGrid({ variants }: { variants: ProductVariantData[] }) {
@@ -179,6 +191,7 @@ export function ProductDrawer({
   const colors = product?.colors.split(',').map(c => c.trim()) || [];
   const hasVariants = (product?.variants?.length ?? 0) > 0;
   const garmentSpecLines = product ? buildGarmentSpecsForCustomer(product).split('\n').filter(Boolean) : [];
+  const displayImageUrl = getProductDisplayImage(product);
 
   return (
     <>
@@ -192,7 +205,7 @@ export function ProductDrawer({
                   {product.name}
                 </div>
                 <code style={{ fontSize: 11, color: "var(--color-fg-3)", fontFamily: "var(--font-mono)" }}>
-                  SKU-{product.id.toString().padStart(4, '0')}
+                  {displayProductSku(product)}
                 </code>
                 <div style={{ marginTop: 6 }}>
                   <span className={`pill pill-${product.status}`}>
@@ -207,15 +220,15 @@ export function ProductDrawer({
             <div className="drawer-body">
               {/* Product Image */}
               <div style={{ display: "flex", justifyContent: "center" }}>
-                {product.imageUrl ? (
+                {displayImageUrl ? (
                   <img
-                    src={product.imageUrl}
+                    src={displayImageUrl}
                     alt={product.name}
                     style={{ width: 120, height: 144, objectFit: "cover", borderRadius: 8, display: "block" }}
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement).style.display = 'block'; }}
                   />
                 ) : null}
-                <svg viewBox="0 0 120 144" width="120" height="144" style={{ borderRadius: 8, display: product.imageUrl ? "none" : "block" }}>
+                <svg viewBox="0 0 120 144" width="120" height="144" style={{ borderRadius: 8, display: displayImageUrl ? "none" : "block" }}>
                   <rect width="120" height="144" fill="#F2EFE9" />
                   {[-20, 5, 30, 55, 80, 105, 130].map((x, i) => <line key={i} x1={x} y1="0" x2={x + 144} y2="144" stroke="#E5E0D8" strokeWidth="12" />)}
                   <path d="M40 26L29 40L12 35L19 67L32 67L32 116L88 116L88 67L101 67L108 35L91 40L80 26Q60 42 40 26Z" fill="none" stroke="#C4BDB4" strokeWidth="3" />
@@ -245,6 +258,20 @@ export function ProductDrawer({
                   ))}
                 </div>
               </div>
+
+              {(product.colorImages?.length ?? 0) > 0 && (
+                <div>
+                  <div className="drawer-section-label">Colour Images</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(86px, 1fr))", gap: 8 }}>
+                    {product.colorImages?.map((image) => (
+                      <div key={image.id} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        <img src={image.imageUrl} alt={`${image.color} ${product.name}`} style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "cover", borderRadius: 6, border: "1px solid var(--color-border-subtle)" }} />
+                        <div style={{ fontSize: 11, color: "var(--color-fg-2)", fontWeight: 600 }}>{image.color}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {hasVariants && product.variants ? (
                 <VariantStockGrid variants={product.variants} />
@@ -343,10 +370,12 @@ export function ProductDrawer({
   );
 }
 
-export function ProductThumb({ status, imageUrl }: { status: string; imageUrl?: string | null }) {
-  if (imageUrl) {
+export function ProductThumb({ status, imageUrl, colorImages }: { status: string; imageUrl?: string | null; colorImages?: ProductColorImageData[] }) {
+  const displayImageUrl = imageUrl || colorImages?.[0]?.imageUrl;
+
+  if (displayImageUrl) {
     return (
-      <img src={imageUrl} alt="" className="thumb" style={{ width: 40, height: 48, objectFit: 'cover', borderRadius: '4px' }} />
+      <img src={displayImageUrl} alt="" className="thumb" style={{ width: 40, height: 48, objectFit: 'cover', borderRadius: '4px' }} />
     );
   }
 

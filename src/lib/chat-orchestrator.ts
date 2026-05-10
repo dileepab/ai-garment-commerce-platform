@@ -183,12 +183,14 @@ export async function routeCustomerMessage(
                 include: {
                   inventory: true,
                   variants: { include: { inventory: true } },
+                  colorImages: { orderBy: { color: 'asc' } },
                   creatives: {
                     where: { status: 'saved' },
                     select: {
                       id: true,
                       status: true,
                       viewAngle: true,
+                      sourceImageUrl: true,
                       createdAt: true,
                     },
                     orderBy: { createdAt: 'desc' },
@@ -209,12 +211,14 @@ export async function routeCustomerMessage(
     include: {
       inventory: true,
       variants: { include: { inventory: true } },
+      colorImages: { orderBy: { color: 'asc' } },
       creatives: {
         where: { status: 'saved' },
         select: {
           id: true,
           status: true,
           viewAngle: true,
+          sourceImageUrl: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -384,12 +388,14 @@ export async function routeCustomerMessage(
               include: {
                 inventory: true,
                 variants: { include: { inventory: true } },
+                colorImages: { orderBy: { color: 'asc' } },
                 creatives: {
                   where: { status: 'saved' },
                   select: {
                     id: true,
                     status: true,
                     viewAngle: true,
+                    sourceImageUrl: true,
                     createdAt: true,
                   },
                   orderBy: { createdAt: 'desc' },

@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProductThumb, ProductDrawer, type Product, type ProductVariantData } from '@/components/ProductComponents';
 import { PageHeader } from '@/components/PageHeader';
+import { displayProductSku } from '@/lib/product-sku';
 import { ProductFormModal } from './ProductFormModal';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
@@ -175,12 +176,12 @@ export default function ProductsPageClient({
                 {filteredProducts.map(p => (
                   <tr key={p.id} onClick={() => setSelectedProduct(p)} className="cursor-pointer">
                     <td style={{ paddingRight: 4 }}>
-                      <ProductThumb status={p.status} imageUrl={p.imageUrl} />
+                      <ProductThumb status={p.status} imageUrl={p.imageUrl} colorImages={p.colorImages} />
                     </td>
                     <td>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
                       <code style={{ fontSize: 10, color: "var(--color-fg-3)", fontFamily: "var(--font-mono)" }}>
-                        SKU-{p.id.toString().padStart(4, '0')}
+                        {displayProductSku(p)}
                       </code>
                     </td>
                     <td><span style={{ fontSize: 12 }}>{p.brand}</span></td>

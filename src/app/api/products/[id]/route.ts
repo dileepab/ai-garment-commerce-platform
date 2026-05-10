@@ -7,6 +7,7 @@ import {
   isAuthorizationError,
   requireApiPermission,
 } from '@/lib/authz';
+import { nextProductSku } from '@/lib/product-sku';
 
 export async function PATCH(
   request: Request,
@@ -22,7 +23,7 @@ export async function PATCH(
 
     const existing = await prisma.product.findUnique({
       where: { id: productId },
-      select: { brand: true, variants: { select: { id: true } } },
+      select: { brand: true, sku: true, variants: { select: { id: true } } },
     });
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Product not found.' }, { status: 404 });
@@ -50,9 +51,14 @@ export async function PATCH(
       : (data.stock ?? undefined);
 
     const product = await prisma.$transaction(async (tx) => {
+      const nextBrand = data.brand ?? existing.brand;
+      const productSku = nextBrand !== existing.brand
+        ? await nextProductSku(tx, nextBrand)
+        : existing.sku;
       const updated = await tx.product.update({
         where: { id: productId },
         data: {
+          sku: productSku,
           ...(data.name != null && { name: data.name }),
           ...(data.brand != null && { brand: data.brand }),
           ...(data.style != null && { style: data.style }),

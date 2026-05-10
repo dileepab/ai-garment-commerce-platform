@@ -15,6 +15,9 @@ export default async function ProductsPage() {
         include: { inventory: true },
         orderBy: [{ size: 'asc' }, { color: 'asc' }],
       },
+      colorImages: {
+        orderBy: { color: 'asc' },
+      },
     },
   });
 

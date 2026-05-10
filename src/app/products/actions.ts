@@ -8,6 +8,7 @@ import {
   isAuthorizationError,
   requireActionPermission,
 } from '@/lib/authz';
+import { nextProductSku } from '@/lib/product-sku';
 
 export interface VariantInput {
   id?: number;
@@ -43,6 +44,7 @@ export interface ProductFormInput {
   referenceModelHeightCm?: number | null;
   wornLengthNote?: string | null;
   aiFidelityNotes?: string | null;
+  colorImages?: Array<{ color: string; imageUrl: string | null }>;
   variants: VariantInput[];
 }
 
@@ -92,6 +94,23 @@ function productGarmentSpecData(input: ProductFormInput) {
   };
 }
 
+function cleanColorImages(input: ProductFormInput): Array<{ color: string; imageUrl: string }> {
+  const seen = new Set<string>();
+  const rows: Array<{ color: string; imageUrl: string }> = [];
+
+  for (const image of input.colorImages ?? []) {
+    const color = image.color.trim();
+    const imageUrl = image.imageUrl?.trim();
+    if (!color || !imageUrl) continue;
+    const key = color.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ color, imageUrl });
+  }
+
+  return rows;
+}
+
 function validateVariants(variants: VariantInput[]): string | null {
   if (variants.length === 0) return 'At least one variant is required.';
   const combos = new Set<string>();
@@ -114,10 +133,13 @@ export async function createProduct(input: ProductFormInput): Promise<ProductAct
 
     const { sizes, colors } = deriveProductSizesColors(input.variants);
     const totalStock = input.variants.reduce((sum, v) => sum + (v.availableQty || 0), 0);
+    const colorImages = cleanColorImages(input);
 
     const product = await prisma.$transaction(async (tx) => {
+      const productSku = await nextProductSku(tx, input.brand);
       const created = await tx.product.create({
         data: {
+          sku: productSku,
           name: input.name.trim(),
           brand: input.brand.trim(),
           style: input.style.trim(),
@@ -130,6 +152,11 @@ export async function createProduct(input: ProductFormInput): Promise<ProductAct
           colors,
           stock: totalStock,
           inventory: { create: { availableQty: totalStock } },
+          colorImages: colorImages.length > 0
+            ? {
+                create: colorImages,
+              }
+            : undefined,
         },
       });
 
@@ -174,7 +201,7 @@ export async function updateProduct(
 
     const existing = await prisma.product.findUnique({
       where: { id: productId },
-      select: { brand: true, variants: { select: { id: true } } },
+      select: { brand: true, sku: true, variants: { select: { id: true } } },
     });
 
     if (!existing) return { success: false, error: 'Product not found.' };
@@ -188,11 +215,16 @@ export async function updateProduct(
 
     const { sizes, colors } = deriveProductSizesColors(input.variants);
     const totalStock = input.variants.reduce((sum, v) => sum + (v.availableQty || 0), 0);
+    const colorImages = cleanColorImages(input);
 
     await prisma.$transaction(async (tx) => {
+      const productSku = input.brand.trim() !== existing.brand
+        ? await nextProductSku(tx, input.brand)
+        : existing.sku;
       await tx.product.update({
         where: { id: productId },
         data: {
+          sku: productSku,
           name: input.name.trim(),
           brand: input.brand.trim(),
           style: input.style.trim(),
@@ -274,6 +306,32 @@ export async function updateProduct(
         await tx.variantInventory.updateMany({
           where: { variantId: { in: removedIds } },
           data: { availableQty: 0 },
+        });
+      }
+
+      await tx.productColorImage.deleteMany({
+        where: {
+          productId,
+          color: colorImages.length > 0 ? { notIn: colorImages.map((image) => image.color) } : undefined,
+        },
+      });
+
+      for (const image of colorImages) {
+        await tx.productColorImage.upsert({
+          where: {
+            productId_color: {
+              productId,
+              color: image.color,
+            },
+          },
+          create: {
+            productId,
+            color: image.color,
+            imageUrl: image.imageUrl,
+          },
+          update: {
+            imageUrl: image.imageUrl,
+          },
         });
       }
     });

@@ -16,10 +16,15 @@ import type { ChatContext } from './types';
 
 type ProductImageSource = {
   imageUrl?: string | null;
+  colorImages?: Array<{
+    color: string;
+    imageUrl: string;
+  }>;
   creatives?: Array<{
     id: number;
     status?: string | null;
     viewAngle?: string | null;
+    sourceImageUrl?: string | null;
     createdAt?: Date | string;
   }>;
 };
@@ -34,7 +39,19 @@ function creativeImageUrl(creativeId: number): string | undefined {
   return getPublicAssetUrl(`/api/content/creatives/${creativeId}/image`) ?? undefined;
 }
 
-function sortedSavedCreatives(product: ProductImageSource) {
+function colorImageUrl(product: ProductImageSource, preferredColor?: string | null): string | undefined {
+  const colorImages = product.colorImages ?? [];
+  if (colorImages.length === 0) return undefined;
+
+  const preferred = preferredColor?.trim().toLowerCase();
+  const matched = preferred
+    ? colorImages.find((image) => image.color.trim().toLowerCase() === preferred)
+    : null;
+  const imageUrl = preferred ? matched?.imageUrl : colorImages[0]?.imageUrl;
+  return absoluteImageUrl(imageUrl);
+}
+
+function sortedSavedCreatives(product: ProductImageSource, sourceImageUrl?: string | null) {
   const anglePriority: Record<string, number> = {
     front: 0,
     side: 1,
@@ -44,6 +61,7 @@ function sortedSavedCreatives(product: ProductImageSource) {
 
   return [...(product.creatives ?? [])]
     .filter((creative) => !creative.status || creative.status === 'saved')
+    .filter((creative) => !sourceImageUrl || creative.sourceImageUrl === sourceImageUrl)
     .sort((a, b) => {
       const angleA = anglePriority[a.viewAngle ?? ''] ?? 9;
       const angleB = anglePriority[b.viewAngle ?? ''] ?? 9;
@@ -52,7 +70,16 @@ function sortedSavedCreatives(product: ProductImageSource) {
     });
 }
 
-function productImageUrls(product: ProductImageSource, limit = 4): string[] {
+function productImageUrls(product: ProductImageSource, limit = 4, preferredColor?: string | null): string[] {
+  const preferredColorUrl = colorImageUrl(product, preferredColor);
+  if (preferredColorUrl && preferredColor) {
+    const matchedCreativeUrls = sortedSavedCreatives(product, preferredColorUrl)
+      .map((creative) => creativeImageUrl(creative.id))
+      .filter((url): url is string => Boolean(url))
+      .slice(0, limit);
+    return matchedCreativeUrls.length > 0 ? matchedCreativeUrls : [preferredColorUrl];
+  }
+
   const creativeUrls = sortedSavedCreatives(product)
     .map((creative) => creativeImageUrl(creative.id))
     .filter((url): url is string => Boolean(url))
@@ -61,7 +88,8 @@ function productImageUrls(product: ProductImageSource, limit = 4): string[] {
   if (creativeUrls.length > 0) return creativeUrls;
 
   const productUrl = absoluteImageUrl(product.imageUrl);
-  return productUrl ? [productUrl] : [];
+  if (productUrl) return [productUrl];
+  return preferredColorUrl ? [preferredColorUrl] : [];
 }
 
 function productPrimaryImageUrl(product: ProductImageSource): string | undefined {
@@ -216,7 +244,7 @@ export async function handle_product_question(ctx: ChatContext) {
 
   return finalizeReply({
     reply: buildProductQuestionReply(selectedProduct, aiAction.questionType),
-    imagePaths: productImageUrls(selectedProduct),
+    imagePaths: productImageUrls(selectedProduct, 4, aiAction.color),
     nextState: {
       lastMissingOrderId: null,
     },

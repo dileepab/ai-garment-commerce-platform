@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
-import type { ViewAngle } from '@/lib/creative-generator';
+import type { CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
 import {
   generateCreativeBatchAction,
@@ -25,6 +25,7 @@ interface DraftResult {
   imageData: string;
   prompt: string;
   viewAngle?: ViewAngle;
+  sourceColor?: string;
   saved: boolean;
 }
 
@@ -45,6 +46,7 @@ interface ProductSearchResult {
   colors: string | null;
   sizes: string | null;
   imageUrl: string | null;
+  colorImages?: Array<{ id: number; color: string; imageUrl: string }>;
   garmentLengthCm?: number | null;
   sleeveLengthCm?: number | null;
   sleeveType?: string | null;
@@ -59,6 +61,10 @@ interface ProductSearchResult {
   referenceModelHeightCm?: number | null;
   wornLengthNote?: string | null;
   aiFidelityNotes?: string | null;
+}
+
+function productDisplayImage(product: ProductSearchResult | null): string | null {
+  return product?.imageUrl || product?.colorImages?.[0]?.imageUrl || null;
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -122,8 +128,11 @@ export default function CreativeStudioModal({
   const [sourceImgError, setSourceImgError] = useState(false);
   const [linkedProductId, setLinkedProductId] = useState<number | null>(null);
   const [linkedProductName, setLinkedProductName] = useState<string | null>(null);
+  const [linkedColorImages, setLinkedColorImages] = useState<Array<{ color: string; imageUrl: string }>>([]);
+  const [colorViewAngles, setColorViewAngles] = useState<Record<string, ViewAngle[]>>({});
 
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
+  const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('standard');
 
   const [drafts, setDrafts] = useState<DraftResult[]>([]);
   const [correctionTextById, setCorrectionTextById] = useState<Record<number, string>>({});
@@ -137,6 +146,10 @@ export default function CreativeStudioModal({
 
   const isLoading = isGenerating || isRegeneratingDraft || isSaving;
   const hasUnsavedDrafts = drafts.some(d => !d.saved);
+  const colorImagesWithUrls = linkedColorImages.filter(image => image.imageUrl.trim());
+  const plannedGenerationCount = colorImagesWithUrls.length > 0
+    ? colorImagesWithUrls.reduce((sum, image) => sum + (colorViewAngles[image.color] ?? viewAngles).length, 0)
+    : Math.max(1, viewAngles.length);
 
   async function discardAllUnsavedDrafts() {
     const unsaved = drafts.filter(d => !d.saved);
@@ -146,21 +159,34 @@ export default function CreativeStudioModal({
   function handleGenerate() {
     setFormError(null);
     if (!brand.trim()) { setFormError('Select a brand before generating.'); return; }
-    if (viewAngles.length === 0) { setFormError('Select at least one view angle.'); return; }
+    if (colorImagesWithUrls.length === 0 && viewAngles.length === 0) { setFormError('Select at least one view angle.'); return; }
+    if (colorImagesWithUrls.length > 0 && plannedGenerationCount === 0) {
+      setFormError('Select at least one view angle for a colour variant.');
+      return;
+    }
 
     startGenerating(async () => {
       await discardAllUnsavedDrafts();
       setDrafts([]);
       setCorrectionTextById({});
 
+      const colorSources = colorImagesWithUrls
+        .map((image) => ({
+          color: image.color,
+          imageUrl: image.imageUrl,
+          viewAngles: colorViewAngles[image.color] ?? viewAngles,
+        }))
+        .filter((image) => image.viewAngles.length > 0);
       const result = await generateCreativeBatchAction({
         brand: brand.trim(),
         personaId,
         productContext,
         garmentFitNotes,
         sourceImageUrl: sourceImageUrl.trim() || undefined,
+        sourceImages: colorSources.length > 0 ? colorSources : undefined,
         productId: linkedProductId ?? undefined,
         viewAngles,
+        quality: generationQuality,
       });
 
       const newDrafts: DraftResult[] = [];
@@ -172,6 +198,7 @@ export default function CreativeStudioModal({
             imageData: r.imageData,
             prompt: r.prompt ?? '',
             viewAngle: r.viewAngle,
+            sourceColor: r.sourceColor,
             saved: false,
           });
         } else if (r.error) {
@@ -211,8 +238,12 @@ export default function CreativeStudioModal({
     setSearchResults([]);
     setLinkedProductId(product.id);
     setLinkedProductName(product.name);
-    if (product.imageUrl) {
-      setSourceImageUrl(product.imageUrl);
+    const nextColorImages = product.colorImages?.map((image) => ({ color: image.color, imageUrl: image.imageUrl })) ?? [];
+    setLinkedColorImages(nextColorImages);
+    setColorViewAngles(Object.fromEntries(nextColorImages.map(image => [image.color, viewAngles])));
+    const sourceImage = productDisplayImage(product);
+    if (sourceImage) {
+      setSourceImageUrl(sourceImage);
       setSourceImgError(false);
     }
     // Load existing saved generations for this product so the user can reuse them.
@@ -228,6 +259,8 @@ export default function CreativeStudioModal({
   function handleClearProduct() {
     setLinkedProductId(null);
     setLinkedProductName(null);
+    setLinkedColorImages([]);
+    setColorViewAngles({});
     setSourceImageUrl('');
     setGarmentFitNotes('');
     setExistingCreatives([]);
@@ -237,6 +270,18 @@ export default function CreativeStudioModal({
     setViewAngles(prev =>
       prev.includes(angle) ? prev.filter(a => a !== angle) : [...prev, angle],
     );
+  }
+
+  function toggleColorAngle(color: string, angle: ViewAngle) {
+    setColorViewAngles(prev => {
+      const current = prev[color] ?? viewAngles;
+      return {
+        ...prev,
+        [color]: current.includes(angle)
+          ? current.filter(a => a !== angle)
+          : [...current, angle],
+      };
+    });
   }
 
   function handleCorrectionTextChange(creativeId: number, value: string) {
@@ -253,7 +298,7 @@ export default function CreativeStudioModal({
     setFormError(null);
     setRegeneratingDraftId(creativeId);
     startRegeneratingDraft(async () => {
-      const result = await regenerateCreativeAction(creativeId, correctionText);
+      const result = await regenerateCreativeAction(creativeId, correctionText, generationQuality);
       setRegeneratingDraftId(null);
 
       if (result.success && result.imageData) {
@@ -382,8 +427,17 @@ export default function CreativeStudioModal({
               {searchResults.length > 0 && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', zIndex: 10, maxHeight: 150, overflowY: 'auto', boxShadow: 'var(--shadow-sm)' }}>
                   {searchResults.map(p => (
-                    <div key={p.id} onClick={() => handleSelectProduct(p)} style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--color-border-subtle)' }}>
-                      <strong>{p.name}</strong> - Rs {p.price}
+                    <div key={p.id} onClick={() => handleSelectProduct(p)} style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--color-border-subtle)', display: 'flex', gap: 10, alignItems: 'center' }}>
+                      {productDisplayImage(p) && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={productDisplayImage(p)!} alt={p.name} style={{ width: 34, height: 40, borderRadius: 'var(--radius-sm)', objectFit: 'cover', border: '1px solid var(--color-border-subtle)' }} />
+                      )}
+                      <div>
+                        <strong>{p.name}</strong> - Rs {p.price}
+                        {(p.colorImages?.length ?? 0) > 0 && (
+                          <div style={{ color: 'var(--color-fg-3)', fontSize: 10 }}>{p.colorImages!.length} colour image{p.colorImages!.length !== 1 ? 's' : ''}</div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -516,9 +570,11 @@ export default function CreativeStudioModal({
           {/* View angles */}
           <div>
             <label style={labelStyle}>
-              View Angles{' '}
+              {colorImagesWithUrls.length > 0 ? 'Default View Angles' : 'View Angles'}{' '}
               <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-                (one image per selected angle — each costs a generation)
+                {colorImagesWithUrls.length > 0
+                  ? '(used as the starting selection for linked colour images)'
+                  : '(one image per selected angle — each costs a generation)'}
               </span>
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -540,6 +596,107 @@ export default function CreativeStudioModal({
                     }}
                   >
                     {a.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {colorImagesWithUrls.length > 0 && (
+            <div>
+              <label style={labelStyle}>
+                Colour Variant Angles{' '}
+                <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+                  ({plannedGenerationCount} generation{plannedGenerationCount !== 1 ? 's' : ''})
+                </span>
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {colorImagesWithUrls.map(image => {
+                  const selectedAngles = colorViewAngles[image.color] ?? viewAngles;
+                  return (
+                    <div
+                      key={`${image.color}-${image.imageUrl}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '44px minmax(80px, 1fr) 2fr',
+                        gap: 10,
+                        alignItems: 'center',
+                        padding: 8,
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--color-bg)',
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={image.imageUrl}
+                        alt={image.color}
+                        style={{ width: 44, height: 52, objectFit: 'cover', borderRadius: 'var(--radius-sm)', background: 'white', border: '1px solid var(--color-border-subtle)' }}
+                      />
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
+                        {image.color}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {VIEW_ANGLES.map(angle => {
+                          const active = selectedAngles.includes(angle.id);
+                          return (
+                            <button
+                              key={angle.id}
+                              type="button"
+                              onClick={() => !isLoading && toggleColorAngle(image.color, angle.id)}
+                              disabled={isLoading}
+                              style={{
+                                padding: '5px 9px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                                borderRadius: 'var(--radius-sm)',
+                                background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                                color: active ? 'var(--color-accent)' : 'var(--color-fg-2)',
+                                cursor: isLoading ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              {angle.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Generation mode */}
+          <div>
+            <label style={labelStyle}>Generation Mode</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {([
+                { id: 'standard', label: 'Standard', help: 'Faster and cheaper for normal posts.' },
+                { id: 'high_accuracy', label: 'High accuracy', help: 'Better for exact colour, stripes, hems, slits, and print placement.' },
+              ] as Array<{ id: CreativeGenerationQuality; label: string; help: string }>).map(option => {
+                const active = generationQuality === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => !isLoading && setGenerationQuality(option.id)}
+                    disabled={isLoading}
+                    style={{
+                      padding: '9px 10px',
+                      border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                      color: active ? 'var(--color-accent)' : 'var(--color-fg-2)',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 800 }}>{option.label}</div>
+                    <div style={{ fontSize: 10, lineHeight: 1.4, color: active ? 'var(--color-accent)' : 'var(--color-fg-3)', marginTop: 2 }}>
+                      {option.help}
+                    </div>
                   </button>
                 );
               })}
@@ -720,7 +877,9 @@ export default function CreativeStudioModal({
                       borderTop: '1px solid var(--color-border-subtle)',
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     }}>
-                      <span style={{ textTransform: 'capitalize' }}>{d.viewAngle ?? 'front'}</span>
+                      <span style={{ textTransform: 'capitalize' }}>
+                        {d.sourceColor ? `${d.sourceColor} · ` : ''}{d.viewAngle ?? 'front'}
+                      </span>
                       {d.saved && (
                         <span style={{ color: 'var(--color-accent)', fontSize: 10 }}>✓ Saved</span>
                       )}

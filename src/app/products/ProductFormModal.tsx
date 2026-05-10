@@ -81,8 +81,15 @@ interface ExistingVariant {
   inventory?: { availableQty: number; reorderThreshold?: number | null; criticalThreshold?: number | null } | null;
 }
 
+interface ExistingColorImage {
+  id: number;
+  color: string;
+  imageUrl: string;
+}
+
 interface ProductForEdit {
   id: number;
+  sku?: string | null;
   name: string;
   brand: string;
   style: string;
@@ -105,6 +112,7 @@ interface ProductForEdit {
   wornLengthNote?: string | null;
   aiFidelityNotes?: string | null;
   variants?: ExistingVariant[];
+  colorImages?: ExistingColorImage[];
 }
 
 export interface ProductFormModalProps {
@@ -220,6 +228,7 @@ interface FormState {
   wornLengthNote: string;
   aiFidelityNotes: string;
   variants: VariantRow[];
+  colorImages: Record<string, string>;
   error: string | null;
 }
 
@@ -230,6 +239,19 @@ function numberToInput(value?: number | null): string {
 function optionalNumberFromInput(value: string): number | null {
   const parsed = parseFloat(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function colorImageKey(color: string): string {
+  return color.trim().toLowerCase();
+}
+
+function colorImagesFromProduct(product?: ProductForEdit | null): Record<string, string> {
+  const images: Record<string, string> = {};
+  for (const image of product?.colorImages ?? []) {
+    const key = colorImageKey(image.color);
+    if (key && image.imageUrl) images[key] = image.imageUrl;
+  }
+  return images;
 }
 
 function buildInitialState(product?: ProductForEdit | null): FormState {
@@ -256,6 +278,7 @@ function buildInitialState(product?: ProductForEdit | null): FormState {
     wornLengthNote: product?.wornLengthNote ?? '',
     aiFidelityNotes: product?.aiFidelityNotes ?? '',
     variants: product ? rowsFromProduct(product) : [],
+    colorImages: colorImagesFromProduct(product),
     error: null,
   };
 }
@@ -268,6 +291,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
   const [form, setForm] = useState<FormState>(() => buildInitialState(product));
   const [imgError, setImgError] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingColor, setUploadingColor] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedSizes, setSelectedSizes] = useState<string[]>(() =>
     sortSizes(uniqueValues(product?.variants?.map((variant) => variant.size) ?? [])),
@@ -316,7 +340,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
     garmentLengthCm, sleeveLengthCm, sleeveType, fitType, neckline,
     closureDetails, hasSideSlit, sideSlitHeightCm, hemDetails,
     sleeveHemDetails, patternDetails, referenceModelHeightCm,
-    wornLengthNote, aiFidelityNotes, variants, error,
+    wornLengthNote, aiFidelityNotes, variants, colorImages, error,
   } = form;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -326,6 +350,42 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
 
   function patchVariant<K extends keyof VariantRow>(key: string, field: K, value: VariantRow[K]) {
     set('variants', variants.map((v) => (v._key === key ? { ...v, [field]: value } : v)));
+  }
+
+  function setColorImage(color: string, imageUrl: string) {
+    const key = colorImageKey(color);
+    set('colorImages', {
+      ...colorImages,
+      [key]: imageUrl,
+    });
+  }
+
+  function removeColorImage(color: string) {
+    const key = colorImageKey(color);
+    const next = { ...colorImages };
+    delete next[key];
+    set('colorImages', next);
+  }
+
+  async function handleColorImagePick(color: string, file?: File | null) {
+    if (!file) return;
+    setUploadError(null);
+    setUploadingColor(color);
+    try {
+      const resized = await resizeImageFile(file, { maxEdge: 2048, quality: 0.85 });
+      const formData = new FormData();
+      formData.append('file', resized);
+      const res = await uploadProductImage(formData);
+      if (res.success && res.url) {
+        setColorImage(color, res.url);
+      } else {
+        setUploadError(res.error ?? 'Upload failed.');
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setUploadingColor(null);
+    }
   }
 
   function syncVariantGrid(nextSizes: string[], nextColors: string[]) {
@@ -350,6 +410,11 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
 
     setSelectedSizes(cleanSizes);
     setSelectedColors(cleanColors);
+    set('colorImages', Object.fromEntries(
+      Object.entries(colorImages).filter(([key]) =>
+        cleanColors.some((color) => colorImageKey(color) === key),
+      ),
+    ));
     set('variants', nextVariants);
   }
 
@@ -436,6 +501,10 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
       referenceModelHeightCm: optionalNumberFromInput(referenceModelHeightCm),
       wornLengthNote: wornLengthNote.trim() || null,
       aiFidelityNotes: aiFidelityNotes.trim() || null,
+      colorImages: selectedColors.map((color) => ({
+        color,
+        imageUrl: colorImages[colorImageKey(color)] || null,
+      })),
       variants: variants.map((v) => ({
         id: v.id,
         size: v.size.trim(),
@@ -499,7 +568,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
             </div>
             {isEdit && product && (
               <code style={{ fontSize: 11, color: 'var(--color-fg-3)', fontFamily: 'var(--font-mono)' }}>
-                SKU-{product.id.toString().padStart(4, '0')}
+                {product.sku ?? `SKU-${product.id.toString().padStart(4, '0')}`}
               </code>
             )}
           </div>
@@ -928,6 +997,65 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
                   </div>
                 )}
               </div>
+
+              {selectedColors.length > 0 && (
+                <div>
+                  <label style={lbl}>Colour Images</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+                    {selectedColors.map((color) => {
+                      const imageUrlForColor = colorImages[colorImageKey(color)] ?? '';
+                      const inputId = `color-image-${colorImageKey(color).replace(/[^a-z0-9]+/g, '-') || color}`;
+                      const isColorUploading = uploadingColor === color;
+                      return (
+                        <div key={color} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 10, background: 'var(--color-bg)' }}>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                            <div style={{ width: 48, height: 58, borderRadius: 6, overflow: 'hidden', background: '#F2EFE9', border: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {imageUrlForColor ? (
+                                <img src={imageUrlForColor} alt={`${color} product`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <span style={{ fontSize: 10, color: 'var(--color-fg-3)' }}>No image</span>
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)', marginBottom: 6 }}>{color}</div>
+                              <input
+                                id={inputId}
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = '';
+                                  void handleColorImagePick(color, file);
+                                }}
+                                disabled={isPending || Boolean(uploadingColor)}
+                              />
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                                <label htmlFor={inputId} className="btn btn-secondary" style={{ fontSize: 10, padding: '4px 8px', height: 24, cursor: isPending || uploadingColor ? 'not-allowed' : 'pointer' }}>
+                                  {isColorUploading ? 'Uploading…' : imageUrlForColor ? 'Replace' : 'Upload'}
+                                </label>
+                                {imageUrlForColor && (
+                                  <button type="button" className="btn btn-secondary" style={{ fontSize: 10, padding: '4px 8px', height: 24 }} onClick={() => removeColorImage(color)} disabled={isPending || Boolean(uploadingColor)}>
+                                    Remove
+                                  </button>
+                                )}
+                              </div>
+                              <input
+                                style={{ ...inpSm, fontSize: 10 }}
+                                value={imageUrlForColor}
+                                onChange={(e) => setColorImage(color, e.target.value)}
+                                placeholder="Image URL"
+                                disabled={isPending || Boolean(uploadingColor)}
+                                aria-label={`${color} image URL`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {selectedSizes.length > 0 && selectedColors.length > 0 ? (
                 <div>
