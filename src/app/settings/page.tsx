@@ -15,7 +15,7 @@ import {
   type BrandChannelConfigView,
 } from '@/lib/brand-channel-config';
 import { PageHeader } from '@/components/PageHeader';
-import { saveMerchantSettingsAction } from './actions';
+import { addBrandSettingsAction, saveMerchantSettingsAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,6 +205,68 @@ function TokenField({
         autoComplete="off"
       />
     </label>
+  );
+}
+
+function AddBrandForm({ canManage }: { canManage: boolean }) {
+  if (!canManage) return null;
+
+  return (
+    <form action={addBrandSettingsAction} className="app-panel" style={{ padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+        <div>
+          <p className="app-section-label">Brand Setup</p>
+          <h2 style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: 'var(--color-fg-1)' }}>
+            Add store-specific settings
+          </h2>
+          <p className="app-muted" style={{ marginTop: 4 }}>
+            Create a brand section, then open it below to paste Page and Instagram tokens.
+          </p>
+        </div>
+        <button className="app-button-primary" type="submit">Add brand</button>
+      </div>
+
+      <div style={{ ...gridStyle, marginTop: 16 }}>
+        <TextField
+          label="Brand key"
+          name="newBrand"
+          value=""
+          disabled={false}
+          placeholder="e.g. Happyby, Cleopatra, DEEZ"
+        />
+        <TextField
+          label="Display name"
+          name="newDisplayName"
+          value=""
+          disabled={false}
+          placeholder="e.g. Happy Buy"
+        />
+        <TextField
+          label="Facebook Page ID"
+          name="newFacebookPageId"
+          value=""
+          disabled={false}
+          placeholder="Optional"
+        />
+        <TextField
+          label="Instagram Account ID"
+          name="newInstagramAccountId"
+          value=""
+          disabled={false}
+          placeholder="Optional"
+        />
+      </div>
+      <div style={{ ...gridStyle, marginTop: 12 }}>
+        <ToggleField label="Test/sandbox brand" name="newIsTestBrand" checked={false} disabled={false} />
+        <TextField
+          label="Notes"
+          name="newChannelNotes"
+          value=""
+          disabled={false}
+          placeholder="Optional"
+        />
+      </div>
+    </form>
   );
 }
 
@@ -415,6 +477,8 @@ export default async function SettingsPage() {
       />
 
       <div className="content" style={{ display: 'grid', gap: 18 }}>
+        <AddBrandForm canManage={canManage} />
+
         <SettingsForm
           settings={globalSettings}
           title="Global defaults"

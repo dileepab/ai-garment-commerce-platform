@@ -108,3 +108,50 @@ export async function saveMerchantSettingsAction(formData: FormData) {
 
   revalidatePath('/settings');
 }
+
+export async function addBrandSettingsAction(formData: FormData) {
+  const scope = await requireActionPermission('settings:write');
+  const brand = cleanOptionalText(readText(formData, 'newBrand'));
+
+  if (!brand) {
+    return;
+  }
+
+  assertBrandAccess(scope, brand, 'brand settings');
+
+  const displayName = cleanOptionalText(readText(formData, 'newDisplayName')) || brand;
+  const facebookPageId = cleanOptionalText(readText(formData, 'newFacebookPageId'));
+  const instagramAccountId = cleanOptionalText(readText(formData, 'newInstagramAccountId'));
+  const notes = cleanOptionalText(readText(formData, 'newChannelNotes'));
+  const isTestBrand = readBoolean(formData, 'newIsTestBrand');
+  const data = buildMerchantSettingsPersistenceInput({
+    brand,
+    displayName,
+  });
+  const { storeKey, ...updateData } = data;
+
+  await prisma.merchantSettings.upsert({
+    where: { storeKey },
+    create: data,
+    update: updateData,
+  });
+
+  await prisma.brandChannelConfig.upsert({
+    where: { brand },
+    create: {
+      brand,
+      facebookPageId,
+      instagramAccountId,
+      isTestBrand,
+      notes,
+    },
+    update: {
+      ...(facebookPageId ? { facebookPageId } : {}),
+      ...(instagramAccountId ? { instagramAccountId } : {}),
+      isTestBrand,
+      ...(notes ? { notes } : {}),
+    },
+  });
+
+  revalidatePath('/settings');
+}
