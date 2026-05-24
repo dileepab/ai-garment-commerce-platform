@@ -404,7 +404,7 @@ async function processFacebookCommentChange(params: {
     });
 
     const queueResult = IS_CHAT_TEST_MODE
-      ? ({ queued: true, skipped: false } as const)
+      ? ({ queued: true, skipped: false, reason: 'chat_test_mode' } as const)
       : await queueFacebookCommentReply(normalized, params.brand);
 
     if (queueResult.skipped) {
@@ -419,6 +419,11 @@ async function processFacebookCommentChange(params: {
 
     await markWebhookEventProcessed(eventId);
     params.stats.processed += 1;
+    logInfo('Meta Webhook', 'Queued Facebook comment auto-reply.', {
+      commentId: normalized.commentId,
+      brand: params.brand || 'unknown',
+      reason: queueResult.reason || 'standard_delay',
+    });
   } catch (error: unknown) {
     params.stats.failed += 1;
     logError('Meta Webhook', 'Facebook comment processing failed.', {

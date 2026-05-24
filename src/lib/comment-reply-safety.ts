@@ -57,6 +57,7 @@ const OPT_OUT_KEYWORDS = [
 export interface CommentSafetyDecision {
   shouldQueue: boolean;
   reason?: string;
+  scheduledAt?: Date;
 }
 
 export interface CommentReplyQueueResult {
@@ -107,6 +108,42 @@ function isBusinessHours(now = new Date()): boolean {
   const hour = Number.parseInt(hourText, 10);
 
   return hour >= 9 && hour < 21;
+}
+
+function getSriLankaDateParts(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const value = (type: string) => parts.find((part) => part.type === type)?.value || '0';
+
+  return {
+    year: Number.parseInt(value('year'), 10),
+    month: Number.parseInt(value('month'), 10),
+    day: Number.parseInt(value('day'), 10),
+    hour: Number.parseInt(value('hour'), 10),
+  };
+}
+
+function sriLankaWallClockToUtc(year: number, month: number, day: number, hour: number, minute: number): Date {
+  const sriLankaOffsetMs = 5.5 * 60 * 60 * 1000;
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0) - sriLankaOffsetMs);
+}
+
+function nextBusinessOpening(now = new Date()): Date {
+  const parts = getSriLankaDateParts(now);
+  const openingToday = sriLankaWallClockToUtc(parts.year, parts.month, parts.day, 9, 0);
+
+  if (parts.hour < 9) {
+    return openingToday;
+  }
+
+  const nextDay = new Date(openingToday.getTime() + 24 * 60 * 60 * 1000);
+  return nextDay;
 }
 
 function commentIsTooOld(createdTime?: string): boolean {
@@ -253,11 +290,18 @@ export async function evaluateCommentSafety(
   }
 
   if (await isOptedOut(comment)) return { shouldQueue: false, reason: 'commenter_blocklisted' };
-  if (!isBusinessHours()) return { shouldQueue: false, reason: 'outside_business_hours' };
   if (isNoisyComment(comment.message)) return { shouldQueue: false, reason: 'noisy_comment' };
   if (!containsAny(comment.message, TRIGGER_KEYWORDS)) return { shouldQueue: false, reason: 'no_trigger_keyword' };
   if (await hasRecentReplyForUserPost(comment)) return { shouldQueue: false, reason: 'user_post_cooldown' };
   if (await pageHourlyLimitReached(comment.pageOrAccountId)) return { shouldQueue: false, reason: 'page_hourly_limit' };
+
+  if (!isBusinessHours()) {
+    return {
+      shouldQueue: true,
+      reason: 'queued_for_next_business_hours',
+      scheduledAt: nextBusinessOpening(),
+    };
+  }
 
   return { shouldQueue: true };
 }
@@ -273,7 +317,7 @@ export async function queueFacebookCommentReply(
     return { queued: false, skipped: true, reason: decision.reason };
   }
 
-  const scheduledAt = new Date(Date.now() + randomReplyDelayMs());
+  const scheduledAt = decision.scheduledAt ?? new Date(Date.now() + randomReplyDelayMs());
 
   await prisma.commentReplyQueue.upsert({
     where: { commentId: comment.commentId },
@@ -298,7 +342,7 @@ export async function queueFacebookCommentReply(
 
   await recordCommentStatus(comment, 'queued', { brand });
 
-  return { queued: true, skipped: false };
+  return { queued: true, skipped: false, reason: decision.reason };
 }
 
 export async function processDueFacebookCommentReplies(now = new Date(), limit = 10): Promise<CommentReplyProcessingResult> {
