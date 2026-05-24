@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/comment-replies",
-      "schedule": "* * * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
