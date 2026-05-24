@@ -132,7 +132,7 @@ function productDisplayImage(product: ProductSearchResult | null): string | null
 }
 
 interface CreatePostWizardModalProps {
-  availableBrands: string[] | null;
+  availableBrands: string[];
   onClose: () => void;
   onComplete: () => void;
 }
@@ -146,14 +146,14 @@ export default function CreatePostWizardModal({
   onClose,
   onComplete,
 }: CreatePostWizardModalProps) {
-  const defaultBrands = availableBrands ?? ['Happyby', 'Cleopatra', 'Modabella'];
+  const defaultBrands = availableBrands;
 
   const [step, setStep] = useState<Step>(1);
 
   // Step 1 — Setup
-  const [brand, setBrand] = useState(defaultBrands[0]);
+  const [brand, setBrand] = useState(defaultBrands[0] ?? '');
   const [personaId, setPersonaId] = useState<PersonaId>(
-    PERSONAS_BY_BRAND[defaultBrands[0]]?.[0]?.id ?? 'none',
+    PERSONAS_BY_BRAND[defaultBrands[0] ?? '']?.[0]?.id ?? 'none',
   );
   const [productSearch, setProductSearch] = useState('');
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
@@ -989,9 +989,13 @@ function Step1Setup(props: Step1Props) {
           className="app-input"
           value={props.brand}
           onChange={(e) => props.setBrand(e.target.value)}
-          disabled={props.isLoading}
+          disabled={props.isLoading || props.defaultBrands.length === 0}
         >
-          {props.defaultBrands.map((b) => <option key={b} value={b}>{b}</option>)}
+          {props.defaultBrands.length === 0 ? (
+            <option value="">Add a brand in Settings first</option>
+          ) : (
+            props.defaultBrands.map((b) => <option key={b} value={b}>{b}</option>)
+          )}
         </select>
       </div>
 

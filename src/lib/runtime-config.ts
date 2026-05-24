@@ -617,31 +617,31 @@ export function getRuntimeWarnings(): RuntimeWarning[] {
     });
   }
 
-  if (!isChatTestMode && !hasConfiguredValue(process.env.META_PAGE_ACCESS_TOKEN)) {
+  if (!isChatTestMode && hasConfiguredValue(process.env.META_PAGE_ACCESS_TOKEN)) {
     warnings.push({
       key: 'META_PAGE_ACCESS_TOKEN',
-      level: 'warning',
-      message: 'META_PAGE_ACCESS_TOKEN is missing or still set to a placeholder. The app can receive messages, but it cannot send Meta replies.',
+      level: 'info',
+      message: 'META_PAGE_ACCESS_TOKEN is configured as a legacy fallback. Prefer storing per-brand Page tokens in Settings > Meta Channels.',
     });
   }
 
-  if (!hasConfiguredValue(process.env.HAPPYBY_PAGE_ID)) {
+  if (hasConfiguredValue(process.env.HAPPYBY_PAGE_ID)) {
     warnings.push({
       key: 'HAPPYBY_PAGE_ID',
-      level: 'warning',
-      message: 'HAPPYBY_PAGE_ID is missing or still set to a placeholder. Brand routing for Happyby Messenger traffic will be incomplete.',
+      level: 'info',
+      message: 'HAPPYBY_PAGE_ID is configured as a legacy fallback. Prefer storing Page IDs in Settings > Meta Channels.',
     });
   }
 
   if (
-    !hasConfiguredValue(process.env.HAPPYBY_INSTAGRAM_ID) &&
-    !hasConfiguredValue(process.env.CLEOPATRA_INSTAGRAM_ID) &&
-    !hasConfiguredValue(process.env.MODABELLA_INSTAGRAM_ID)
+    hasConfiguredValue(process.env.HAPPYBY_INSTAGRAM_ID) ||
+    hasConfiguredValue(process.env.CLEOPATRA_INSTAGRAM_ID) ||
+    hasConfiguredValue(process.env.MODABELLA_INSTAGRAM_ID)
   ) {
     warnings.push({
       key: 'INSTAGRAM_ACCOUNT_IDS',
       level: 'info',
-      message: 'No Instagram Business Account IDs are configured. Instagram webhook traffic will be accepted but brand routing will be unknown.',
+      message: 'Instagram account IDs are configured as legacy fallbacks. Prefer storing Instagram IDs in Settings > Meta Channels.',
     });
   }
 

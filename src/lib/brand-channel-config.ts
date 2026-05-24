@@ -70,14 +70,26 @@ export async function getBrandChannelConfigView(brand: string): Promise<BrandCha
     },
   });
 
+  if (record) {
+    return {
+      brand,
+      facebookPageId: record.facebookPageId ?? null,
+      hasFacebookPageAccessToken: Boolean(record.facebookPageAccessToken),
+      instagramAccountId: record.instagramAccountId ?? null,
+      hasInstagramAccessToken: Boolean(record.instagramAccessToken),
+      isTestBrand: record.isTestBrand,
+      notes: record.notes ?? null,
+    };
+  }
+
   return {
     brand,
-    facebookPageId: record?.facebookPageId ?? legacyFacebookPageIdForBrand(brand) ?? null,
-    hasFacebookPageAccessToken: Boolean(record?.facebookPageAccessToken || resolveEnv(brand, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN)),
-    instagramAccountId: record?.instagramAccountId ?? legacyInstagramAccountIdForBrand(brand) ?? null,
-    hasInstagramAccessToken: Boolean(record?.instagramAccessToken || resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN)),
-    isTestBrand: record?.isTestBrand ?? false,
-    notes: record?.notes ?? null,
+    facebookPageId: legacyFacebookPageIdForBrand(brand) ?? null,
+    hasFacebookPageAccessToken: Boolean(resolveEnv(brand, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN)),
+    instagramAccountId: legacyInstagramAccountIdForBrand(brand) ?? null,
+    hasInstagramAccessToken: Boolean(resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN)),
+    isTestBrand: false,
+    notes: null,
   };
 }
 
@@ -86,8 +98,17 @@ export async function resolveFacebookConfigForBrand(brand: string): Promise<Reso
     where: { brand },
     select: { facebookPageId: true, facebookPageAccessToken: true },
   });
-  const pageId = cleanOptionalText(record?.facebookPageId) ?? legacyFacebookPageIdForBrand(brand) ?? resolveEnv(brand, 'META_FB_PAGE_ID');
-  const pageAccessToken = cleanOptionalText(record?.facebookPageAccessToken) ?? resolveEnv(brand, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
+
+  if (record) {
+    const pageId = cleanOptionalText(record.facebookPageId);
+    const pageAccessToken = cleanOptionalText(record.facebookPageAccessToken);
+
+    if (!pageId || !pageAccessToken) return null;
+    return { brand, pageId, pageAccessToken };
+  }
+
+  const pageId = legacyFacebookPageIdForBrand(brand) ?? resolveEnv(brand, 'META_FB_PAGE_ID');
+  const pageAccessToken = resolveEnv(brand, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
 
   if (!pageId || !pageAccessToken) return null;
   return { brand, pageId, pageAccessToken };
@@ -98,8 +119,17 @@ export async function resolveInstagramConfigForBrand(brand: string): Promise<Res
     where: { brand },
     select: { instagramAccountId: true, instagramAccessToken: true },
   });
-  const accountId = cleanOptionalText(record?.instagramAccountId) ?? legacyInstagramAccountIdForBrand(brand) ?? resolveEnv(brand, 'META_IG_ACCOUNT_ID');
-  const accessToken = cleanOptionalText(record?.instagramAccessToken) ?? resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
+
+  if (record) {
+    const accountId = cleanOptionalText(record.instagramAccountId);
+    const accessToken = cleanOptionalText(record.instagramAccessToken);
+
+    if (!accountId || !accessToken) return null;
+    return { brand, accountId, accessToken };
+  }
+
+  const accountId = legacyInstagramAccountIdForBrand(brand) ?? resolveEnv(brand, 'META_IG_ACCOUNT_ID');
+  const accessToken = resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
 
   if (!accountId || !accessToken) return null;
   return { brand, accountId, accessToken };

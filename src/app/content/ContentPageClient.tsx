@@ -206,7 +206,7 @@ function StatusPill({ status, publishStatus }: { status: string; publishStatus?:
 
 interface PostFormProps {
   post: PostRecord | null;
-  availableBrands: string[] | null;
+  availableBrands: string[];
   availableCreatives: CreativeRecord[];
   onClose: () => void;
   onSuccess: () => void;
@@ -218,10 +218,10 @@ interface PostCreativeFormState {
 }
 
 function PostFormModal({ post, availableBrands, availableCreatives, onClose, onSuccess }: PostFormProps) {
-  const defaultBrands = availableBrands ?? ['Happyby', 'Cleopatra', 'Modabella'];
-  const [brand, setBrand] = useState(post?.brand ?? defaultBrands[0]);
+  const defaultBrands = availableBrands;
+  const [brand, setBrand] = useState(post?.brand ?? defaultBrands[0] ?? '');
   const [channels, setChannels] = useState<string[]>(
-    post ? parseChannels(post.channels) : ['facebook', 'instagram'],
+    post ? parseChannels(post.channels) : ['facebook'],
   );
   const [productContext, setProductContext] = useState(post?.productContext ?? '');
   const [caption, setCaption] = useState(post?.caption ?? '');
@@ -342,6 +342,10 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
     if (!brand.trim()) { setFormError('Brand is required.'); return; }
     if (channels.length === 0) { setFormError('Select at least one channel.'); return; }
     if (!caption.trim()) { setFormError('Caption cannot be empty.'); return; }
+    if (channels.includes('instagram') && postCreatives.every((pc) => pc.creativeId <= 0)) {
+      setFormError('Instagram posts require at least one image. Attach a creative or publish this as Facebook-only.');
+      return;
+    }
 
     const input = {
       brand: brand.trim(),
@@ -413,7 +417,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
               {post ? 'Edit Draft' : 'New Content Draft'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--color-fg-3)', marginTop: 2 }}>
-              Generate AI captions and save your social post draft
+              Write a text post, attach creatives if needed, and save your social draft
             </div>
           </div>
           <button
@@ -443,29 +447,20 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 6 }}>
                 Brand
               </label>
-              {availableBrands ? (
-                <select
-                  className="app-input"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  disabled={isLoading}
-                >
-                  {defaultBrands.map((b) => (
+              <select
+                className="app-input"
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                disabled={isLoading || defaultBrands.length === 0}
+              >
+                {defaultBrands.length === 0 ? (
+                  <option value="">Add a brand in Settings first</option>
+                ) : (
+                  defaultBrands.map((b) => (
                     <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  className="app-input"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  disabled={isLoading}
-                >
-                  {defaultBrands.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              )}
+                  ))
+                )}
+              </select>
             </div>
 
             {/* Status */}
@@ -528,7 +523,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
           {/* Campaign Images (Creatives) */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 8 }}>
-              Campaign Images <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(Select creatives to attach)</span>
+              Campaign Images <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>(optional; required for Instagram)</span>
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {postCreatives.map((pc, index) => {
@@ -754,7 +749,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
           <button
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={isLoading || !caption.trim()}
+            disabled={isLoading || !caption.trim() || !brand.trim()}
           >
             {isSaving ? 'Saving…' : post ? 'Update Draft' : 'Save Draft'}
           </button>
@@ -789,7 +784,7 @@ export default function ContentPageClient({
   initialCreatives: CreativeRecord[];
   stats: Stats;
   canWrite: boolean;
-  availableBrands: string[] | null;
+  availableBrands: string[];
 }) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>('posts');
@@ -898,7 +893,7 @@ export default function ContentPageClient({
                 </button>
               ) : (
                 <button className="btn btn-secondary" onClick={openNew}>
-                  {Ic.plus} New Draft
+                  {Ic.plus} Text Post
                 </button>
               )}
             </div>
@@ -1011,7 +1006,7 @@ export default function ContentPageClient({
                       {Ic.sparkle} Create &amp; Post
                     </button>
                     <button className="btn btn-secondary" onClick={openNew}>
-                      {Ic.plus} New Draft
+                      {Ic.plus} Text Post
                     </button>
                   </div>
                 )}

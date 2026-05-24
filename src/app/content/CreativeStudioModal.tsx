@@ -104,7 +104,7 @@ const Ic = {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface CreativeStudioModalProps {
-  availableBrands: string[] | null;
+  availableBrands: string[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -116,9 +116,9 @@ export default function CreativeStudioModal({
   onClose,
   onSaved,
 }: CreativeStudioModalProps) {
-  const defaultBrands = availableBrands ?? ['Happyby', 'Cleopatra', 'Modabella'];
-  const [brand, setBrand] = useState(defaultBrands[0]);
-  const [personaId, setPersonaId] = useState<PersonaId>(PERSONAS_BY_BRAND[defaultBrands[0]]?.[0]?.id ?? 'none');
+  const defaultBrands = availableBrands;
+  const [brand, setBrand] = useState(defaultBrands[0] ?? '');
+  const [personaId, setPersonaId] = useState<PersonaId>(PERSONAS_BY_BRAND[defaultBrands[0] ?? '']?.[0]?.id ?? 'none');
   const [productSearch, setProductSearch] = useState('');
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [, startSearching] = useTransition();
@@ -411,8 +411,12 @@ export default function CreativeStudioModal({
                 const newBrand = e.target.value;
                 setBrand(newBrand);
                 setPersonaId(PERSONAS_BY_BRAND[newBrand]?.[0]?.id ?? 'none');
-              }} disabled={isLoading}>
-                {defaultBrands.map((b) => <option key={b} value={b}>{b}</option>)}
+              }} disabled={isLoading || defaultBrands.length === 0}>
+                {defaultBrands.length === 0 ? (
+                  <option value="">Add a brand in Settings first</option>
+                ) : (
+                  defaultBrands.map((b) => <option key={b} value={b}>{b}</option>)
+                )}
               </select>
             </div>
             <div style={{ position: 'relative' }}>

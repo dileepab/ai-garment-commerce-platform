@@ -1,16 +1,30 @@
 import prisma from '@/lib/prisma';
-import { canScope, getBrandScopedWhere } from '@/lib/access-control';
+import { canAccessBrand, canScope, getBrandScopedWhere } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import ContentPageClient from './ContentPageClient';
 
 export const dynamic = 'force-dynamic';
+
+function uniqueBrands(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))),
+  ).sort((a, b) => a.localeCompare(b));
+}
 
 export default async function ContentPage() {
   const scope = await requirePagePermission('content:view');
 
   const brandWhere = getBrandScopedWhere(scope);
 
-  const [posts, creatives] = await Promise.all([
+  const [
+    posts,
+    creatives,
+    settingsBrands,
+    channelBrands,
+    productBrands,
+    postBrands,
+    creativeBrands,
+  ] = await Promise.all([
     prisma.socialPost.findMany({
       where: brandWhere,
       orderBy: { createdAt: 'desc' },
@@ -56,13 +70,26 @@ export default async function ContentPage() {
         createdAt: true,
       },
     }),
+    prisma.merchantSettings.findMany({ select: { brand: true } }),
+    prisma.brandChannelConfig.findMany({ select: { brand: true } }),
+    prisma.product.findMany({ distinct: ['brand'], select: { brand: true } }),
+    prisma.socialPost.findMany({ distinct: ['brand'], select: { brand: true } }),
+    prisma.generatedCreative.findMany({ distinct: ['brand'], select: { brand: true } }),
   ]);
 
   const totalDrafts = posts.filter((p) => p.status === 'draft').length;
   const totalReady = posts.filter((p) => p.status === 'ready').length;
 
   const availableBrands =
-    scope.brandAccess === 'limited' ? scope.brands : null;
+    scope.brandAccess === 'limited'
+      ? scope.brands
+      : uniqueBrands([
+        ...settingsBrands.map((row) => row.brand),
+        ...channelBrands.map((row) => row.brand),
+        ...productBrands.map((row) => row.brand),
+        ...postBrands.map((row) => row.brand),
+        ...creativeBrands.map((row) => row.brand),
+      ]).filter((brand) => canAccessBrand(scope, brand));
 
   return (
     <ContentPageClient

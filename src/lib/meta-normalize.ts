@@ -325,6 +325,8 @@ export interface NormalizedComment {
   channel: 'facebook' | 'instagram';
   pageOrAccountId: string;
   postId?: string;
+  createdTime?: string;
+  hideComment?: boolean;
 }
 
 interface FacebookCommentChange {
@@ -334,6 +336,8 @@ interface FacebookCommentChange {
   from?: { id: string };
   message?: string;
   post_id?: string;
+  created_time?: string;
+  hide_comment?: boolean;
 }
 
 /**
@@ -359,6 +363,8 @@ export function normalizeFacebookComment(
     channel: 'facebook',
     pageOrAccountId: pageId,
     postId: changeValue.post_id,
+    createdTime: changeValue.created_time,
+    hideComment: changeValue.hide_comment,
   };
 }
 

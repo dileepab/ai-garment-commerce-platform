@@ -6,7 +6,6 @@ import {
   sendMessengerMessage,
   type MetaSendResult,
 } from '@/lib/meta';
-import { sendFacebookCommentReply, sendFacebookPrivateReply } from '@/lib/meta-comments';
 import { getErrorMessage } from '@/lib/error-message';
 import { routeCustomerMessage } from '@/lib/chat-orchestrator';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
@@ -20,7 +19,7 @@ import {
   resolveBrandForFacebookPageId,
   resolveFacebookConfigForPageId,
 } from '@/lib/brand-channel-config';
-import { getAiCommentReply } from '@/lib/ai';
+import { queueFacebookCommentReply } from '@/lib/comment-reply-safety';
 import {
   buildHumanSupportReply,
   buildSupportConversationSummary,
@@ -398,47 +397,24 @@ async function processFacebookCommentChange(params: {
       return;
     }
 
-    logInfo('Meta Webhook', 'Processing Facebook comment.', {
+    logInfo('Meta Webhook', 'Evaluating Facebook comment for safe auto-reply.', {
       commentId: normalized.commentId,
       brand: params.brand || 'unknown',
       messagePreview: truncateForLog(normalized.message),
     });
 
-    const replyText = await getAiCommentReply(normalized.message, params.brand || undefined);
-    const publicResult = IS_CHAT_TEST_MODE
-      ? ({ ok: true } satisfies MetaSendResult)
-      : await sendFacebookCommentReply(normalized.commentId, replyText, {
-        pageAccessToken: params.pageAccessToken,
-      });
-    const privateResult = IS_CHAT_TEST_MODE
-      ? ({ ok: true } satisfies MetaSendResult)
-      : await sendFacebookPrivateReply(normalized.commentId, replyText, {
-        pageAccessToken: params.pageAccessToken,
-      });
+    const queueResult = IS_CHAT_TEST_MODE
+      ? ({ queued: true, skipped: false } as const)
+      : await queueFacebookCommentReply(normalized, params.brand);
 
-    if (publicResult.ok) {
-      await prisma.commentLog.create({
-        data: {
-          id: normalized.commentId,
-          channel: 'facebook',
-          brand: params.brand || null,
-        },
-      });
-    }
-
-    if (!publicResult.ok) {
-      params.stats.deliveryFailures += 1;
-      throw new Error(
-        `Facebook public comment delivery failed: ${describeMetaResult(publicResult)}`
-      );
-    }
-
-    if (!privateResult.ok) {
-      params.stats.deliveryFailures += 1;
-      logWarn('Meta Webhook', 'Facebook private comment reply failed after public reply succeeded.', {
+    if (queueResult.skipped) {
+      params.stats.skipped += 1;
+      await markWebhookEventProcessed(eventId, 'skipped');
+      logInfo('Meta Webhook', 'Skipped Facebook comment auto-reply by safety policy.', {
         commentId: normalized.commentId,
-        error: describeMetaResult(privateResult),
+        reason: queueResult.reason,
       });
+      return;
     }
 
     await markWebhookEventProcessed(eventId);

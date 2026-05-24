@@ -258,10 +258,55 @@ model SupportEscalation {
 }
 
 model CommentLog {
-  id        String   @id // The Meta comment ID
-  channel   String   @default("facebook") // facebook or instagram
-  brand     String?
-  repliedAt DateTime @default(now())
+  id              String   @id // The Meta comment ID
+  channel         String   @default("facebook") // facebook or instagram
+  brand           String?
+  senderId        String?
+  pageOrAccountId String?
+  postId          String?
+  message         String?
+  replyText       String?
+  status          String   @default("replied") // queued | replied | skipped | failed
+  skipReason      String?
+  repliedAt       DateTime @default(now())
+
+  @@index([channel, senderId, postId, repliedAt])
+  @@index([channel, pageOrAccountId, status, repliedAt])
+}
+
+model CommentOptOut {
+  id              Int      @id @default(autoincrement())
+  channel         String
+  senderId        String
+  pageOrAccountId String
+  brand           String?
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  @@unique([channel, senderId, pageOrAccountId])
+  @@index([brand, createdAt])
+}
+
+model CommentReplyQueue {
+  id              Int       @id @default(autoincrement())
+  commentId       String    @unique
+  channel         String    @default("facebook")
+  pageOrAccountId String
+  senderId        String
+  postId          String?
+  brand           String?
+  message         String
+  replyText       String?
+  status          String    @default("pending") // pending | processing | sent | skipped | failed
+  scheduledAt     DateTime
+  attempts        Int       @default(0)
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  sentAt          DateTime?
+
+  @@index([status, scheduledAt])
+  @@index([pageOrAccountId, status, scheduledAt])
 }
 
 model WebhookEventLog {
