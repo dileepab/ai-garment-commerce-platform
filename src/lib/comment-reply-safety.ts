@@ -365,6 +365,13 @@ export async function queueFacebookCommentReply(
   });
 
   await recordCommentStatus(comment, 'queued', { brand });
+  logInfo('Comment Reply Safety', 'Queued Facebook comment reply.', {
+    commentId: comment.commentId,
+    brand: brand || null,
+    pageId: comment.pageOrAccountId,
+    scheduledAt: scheduledAt.toISOString(),
+    reason: decision.reason || 'standard_delay',
+  });
 
   return { queued: true, skipped: false, reason: decision.reason };
 }
