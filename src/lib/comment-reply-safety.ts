@@ -146,11 +146,35 @@ function nextBusinessOpening(now = new Date()): Date {
   return nextDay;
 }
 
-function commentIsTooOld(createdTime?: string): boolean {
-  if (!createdTime) return false;
+function parseMetaCommentCreatedTime(createdTime?: string | number): Date | null {
+  if (!createdTime) return null;
 
-  const createdAt = new Date(createdTime);
-  if (Number.isNaN(createdAt.getTime())) return false;
+  if (typeof createdTime === 'number') {
+    const timestampMs = createdTime < 10_000_000_000 ? createdTime * 1000 : createdTime;
+    const date = new Date(timestampMs);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const trimmed = createdTime.trim();
+
+  if (/^\d+$/.test(trimmed)) {
+    const numeric = Number.parseInt(trimmed, 10);
+    const timestampMs = numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+    const date = new Date(timestampMs);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function commentIsTooOld(createdTime?: string | number): boolean {
+  const createdAt = parseMetaCommentCreatedTime(createdTime);
+
+  if (!createdAt) return false;
+
+  // Guard against provider quirks or malformed timestamps being interpreted as epoch-era dates.
+  if (createdAt.getUTCFullYear() < 2020) return false;
 
   return createdAt.getTime() < Date.now() - MAX_COMMENT_AGE_DAYS * 24 * 60 * 60 * 1000;
 }
