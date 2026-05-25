@@ -38,6 +38,7 @@ yarn-error.log*
 prisma/*.db
 prisma/*.db-*
 scratch.js
+tokens.json
 user_a_order_id.txt
 
 # vercel
