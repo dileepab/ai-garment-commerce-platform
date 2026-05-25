@@ -76,6 +76,42 @@ function truncateForLog(value: string | null, maxLength = 80): string | null {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
+function getFacebookObjectPrefix(id?: string | null): string | null {
+  const prefix = id?.split('_')[0]?.trim();
+  return prefix && /^\d+$/.test(prefix) ? prefix : null;
+}
+
+async function resolveFacebookCommentPageContext(params: {
+  commentId: string;
+  postId?: string;
+  webhookPageId: string;
+  webhookBrand: string | null;
+}) {
+  const candidatePageIds = Array.from(new Set([
+    getFacebookObjectPrefix(params.postId),
+    getFacebookObjectPrefix(params.commentId),
+    params.webhookPageId,
+  ].filter(Boolean) as string[]));
+
+  for (const candidatePageId of candidatePageIds) {
+    const config = await resolveFacebookConfigForPageId(candidatePageId);
+
+    if (config) {
+      return {
+        pageId: config.pageId,
+        brand: config.brand,
+        resolvedFrom: candidatePageId === params.webhookPageId ? 'webhook_page' : 'comment_object',
+      };
+    }
+  }
+
+  return {
+    pageId: params.webhookPageId,
+    brand: params.webhookBrand,
+    resolvedFrom: 'webhook_page',
+  };
+}
+
 function summarizeMessagingEvent(webhookEvent: Record<string, unknown>, pageId: string) {
   const message =
     typeof webhookEvent.message === 'object' && webhookEvent.message !== null
@@ -366,14 +402,25 @@ async function processFacebookCommentChange(params: {
   }
 
   params.stats.normalized += 1;
-  const eventId = `facebook:${params.pageId}:comment:${normalized.commentId}`;
+  const pageContext = await resolveFacebookCommentPageContext({
+    commentId: normalized.commentId,
+    postId: normalized.postId,
+    webhookPageId: params.pageId,
+    webhookBrand: params.brand,
+  });
+  const effectiveComment = {
+    ...normalized,
+    pageOrAccountId: pageContext.pageId,
+  };
+  const effectiveBrand = pageContext.brand;
+  const eventId = `facebook:${pageContext.pageId}:comment:${normalized.commentId}`;
   const claim = await claimWebhookEvent({
     eventId,
     channel: 'facebook',
     eventType: 'comment',
-    senderId: normalized.senderId,
-    pageOrAccountId: normalized.pageOrAccountId,
-    brand: params.brand,
+    senderId: effectiveComment.senderId,
+    pageOrAccountId: effectiveComment.pageOrAccountId,
+    brand: effectiveBrand,
   });
 
   if (claim.duplicate) {
@@ -399,13 +446,17 @@ async function processFacebookCommentChange(params: {
 
     logInfo('Meta Webhook', 'Evaluating Facebook comment for safe auto-reply.', {
       commentId: normalized.commentId,
-      brand: params.brand || 'unknown',
+      brand: effectiveBrand || 'unknown',
+      webhookPageId: params.pageId,
+      effectivePageId: pageContext.pageId,
+      resolvedFrom: pageContext.resolvedFrom,
+      postId: normalized.postId || null,
       messagePreview: truncateForLog(normalized.message),
     });
 
     const queueResult = IS_CHAT_TEST_MODE
       ? ({ queued: true, skipped: false, reason: 'chat_test_mode' } as const)
-      : await queueFacebookCommentReply(normalized, params.brand);
+      : await queueFacebookCommentReply(effectiveComment, effectiveBrand);
 
     if (queueResult.skipped) {
       params.stats.skipped += 1;
@@ -421,7 +472,9 @@ async function processFacebookCommentChange(params: {
     params.stats.processed += 1;
     logInfo('Meta Webhook', 'Queued Facebook comment auto-reply.', {
       commentId: normalized.commentId,
-      brand: params.brand || 'unknown',
+      brand: effectiveBrand || 'unknown',
+      pageId: pageContext.pageId,
+      resolvedFrom: pageContext.resolvedFrom,
       reason: queueResult.reason || 'standard_delay',
     });
   } catch (error: unknown) {
