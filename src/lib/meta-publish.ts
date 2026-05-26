@@ -41,6 +41,65 @@ function getMetaErrorMessage(data: MetaErrorPayload, fallback: string): string {
   return data.error?.message ?? fallback;
 }
 
+async function postMetaJson(url: string, payload: Record<string, unknown>): Promise<{ response: Response; data: MetaIdResponse }> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json() as MetaIdResponse;
+  return { response, data };
+}
+
+async function postMetaForm(url: string, params: Record<string, string>): Promise<{ response: Response; data: MetaIdResponse }> {
+  const response = await fetch(url, {
+    method: 'POST',
+    body: new URLSearchParams(params),
+  });
+  const data = await response.json() as MetaIdResponse;
+  return { response, data };
+}
+
+async function postInstagramGraph(
+  path: string,
+  accessToken: string,
+  payload: Record<string, unknown>,
+): Promise<{ response: Response; data: MetaIdResponse; host: string }> {
+  const instagramUrl = `https://graph.instagram.com/${META_GRAPH_VERSION}/${path}`;
+  const facebookUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${path}`;
+  const instagramPayload = Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => [key, String(value)]),
+  );
+  const instagramResult = await postMetaForm(instagramUrl, {
+    ...instagramPayload,
+    access_token: accessToken,
+  });
+
+  if (instagramResult.response.ok) {
+    return { ...instagramResult, host: 'graph.instagram.com' };
+  }
+
+  const fallbackResult = await postMetaJson(facebookUrl, {
+    ...payload,
+    access_token: accessToken,
+  });
+
+  if (!fallbackResult.response.ok) {
+    logError('MetaPublish', 'Instagram Graph and Facebook Graph publish calls both failed.', {
+      instagram: {
+        status: instagramResult.response.status,
+        data: instagramResult.data,
+      },
+      facebook: {
+        status: fallbackResult.response.status,
+        data: fallbackResult.data,
+      },
+    });
+  }
+
+  return { ...fallbackResult, host: 'graph.facebook.com' };
+}
+
 // ── Facebook Page post ───────────────────────────────────────────────────────
 
 export async function publishToFacebook(
@@ -157,25 +216,15 @@ export async function publishToInstagram(
     };
   }
 
-  // Step 1 — create media container
-  const containerUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${config.accountId}/media`;
-
   try {
     let creationId: string | undefined;
 
     if (imageUrls.length === 1) {
       // Single image container
-      const containerRes = await fetch(containerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image_url: imageUrls[0],
-          caption,
-          access_token: config.accessToken,
-        }),
+      const { response: containerRes, data: containerData } = await postInstagramGraph(`${config.accountId}/media`, config.accessToken, {
+        image_url: imageUrls[0],
+        caption,
       });
-
-      const containerData = await containerRes.json() as MetaIdResponse;
       if (!containerRes.ok) {
         return {
           ok: false,
@@ -188,16 +237,10 @@ export async function publishToInstagram(
       // Carousel items
       const itemIds: string[] = [];
       for (const url of imageUrls) {
-        const itemRes = await fetch(containerUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image_url: url,
-            is_carousel_item: true,
-            access_token: config.accessToken,
-          }),
+        const { response: itemRes, data: itemData } = await postInstagramGraph(`${config.accountId}/media`, config.accessToken, {
+          image_url: url,
+          is_carousel_item: true,
         });
-        const itemData = await itemRes.json() as MetaIdResponse;
         if (itemRes.ok && itemData.id) {
           itemIds.push(itemData.id);
         } else {
@@ -210,17 +253,11 @@ export async function publishToInstagram(
       }
 
       // Carousel container
-      const carouselRes = await fetch(containerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          media_type: 'CAROUSEL',
-          children: itemIds,
-          caption,
-          access_token: config.accessToken,
-        }),
+      const { response: carouselRes, data: carouselData } = await postInstagramGraph(`${config.accountId}/media`, config.accessToken, {
+        media_type: 'CAROUSEL',
+        children: itemIds.join(','),
+        caption,
       });
-      const carouselData = await carouselRes.json() as MetaIdResponse;
       if (!carouselRes.ok) {
         return {
           ok: false,
@@ -236,15 +273,9 @@ export async function publishToInstagram(
     }
 
     // Step 2 — publish container
-    const publishUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${config.accountId}/media_publish`;
-
-    const publishRes = await fetch(publishUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creation_id: creationId, access_token: config.accessToken }),
+    const { response: publishRes, data: publishData, host: publishHost } = await postInstagramGraph(`${config.accountId}/media_publish`, config.accessToken, {
+      creation_id: creationId,
     });
-
-    const publishData = await publishRes.json() as Record<string, unknown>;
 
     if (!publishRes.ok) {
       const code = getMetaErrorCode(publishData, publishRes.status);
@@ -254,7 +285,7 @@ export async function publishToInstagram(
     }
 
     const postId = typeof publishData.id === 'string' ? publishData.id : undefined;
-    logDebug('MetaPublish', `Instagram post published for brand "${brand}".`, { postId });
+    logDebug('MetaPublish', `Instagram post published for brand "${brand}".`, { postId, host: publishHost });
     return { ok: true, externalPostId: postId };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Network error contacting Meta Graph API.';
