@@ -15,6 +15,7 @@ import {
   type NormalizedMessage,
 } from '@/lib/meta-normalize';
 import {
+  getConfiguredInstagramAccountIds,
   resolveBrandForInstagramAccountId,
   resolveInstagramConfigForAccountId,
 } from '@/lib/brand-channel-config';
@@ -130,6 +131,19 @@ function getInstagramEventSkipReason(webhookEvent: Record<string, unknown>, acco
   if (summary.hasPostback && summary.postbackKeys.length === 0) return 'empty_postback';
 
   return 'unsupported_event_shape';
+}
+
+function getWebhookSenderId(webhookEvent: Record<string, unknown>): string | null {
+  if (
+    typeof webhookEvent.sender === 'object' &&
+    webhookEvent.sender !== null &&
+    'id' in webhookEvent.sender &&
+    typeof webhookEvent.sender.id === 'string'
+  ) {
+    return webhookEvent.sender.id;
+  }
+
+  return null;
 }
 
 async function deliverCustomerResult(
@@ -476,6 +490,7 @@ export async function POST(request: Request) {
   }
 
   const entries = Array.isArray(body.entry) ? body.entry : [];
+  const configuredInstagramAccountIds = await getConfiguredInstagramAccountIds();
 
   logInfo('Instagram Webhook', 'Received Instagram webhook batch.', {
     object: body.object,
@@ -507,6 +522,19 @@ export async function POST(request: Request) {
     for (const webhookEvent of messagingEvents) {
       if (!isRecord(webhookEvent)) {
         stats.skipped += 1;
+        continue;
+      }
+
+      const senderId = getWebhookSenderId(webhookEvent);
+      if (senderId && configuredInstagramAccountIds.has(senderId)) {
+        stats.skipped += 1;
+        logInfo('Instagram Webhook', 'Skipped Instagram event from managed business account.', {
+          accountId,
+          brand: brand || 'unknown',
+          senderId,
+          senderBrand: await resolveBrandForInstagramAccountId(senderId) || 'unknown',
+          summary: summarizeMessagingEvent(webhookEvent, accountId),
+        });
         continue;
       }
 

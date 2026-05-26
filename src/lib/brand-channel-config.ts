@@ -163,6 +163,31 @@ export async function resolveBrandForInstagramAccountId(accountId: string): Prom
   return null;
 }
 
+export async function getConfiguredInstagramAccountIds(): Promise<Set<string>> {
+  const accountIds = new Set<string>();
+  const records = await prisma.brandChannelConfig.findMany({
+    where: { instagramAccountId: { not: null } },
+    select: { instagramAccountId: true },
+  });
+
+  for (const record of records) {
+    const accountId = cleanOptionalText(record.instagramAccountId);
+    if (accountId) accountIds.add(accountId);
+  }
+
+  for (const accountId of [
+    process.env.HAPPYBY_INSTAGRAM_ID,
+    process.env.CLEOPATRA_INSTAGRAM_ID,
+    process.env.MODABELLA_INSTAGRAM_ID,
+    process.env.META_IG_ACCOUNT_ID,
+  ]) {
+    const cleaned = cleanOptionalText(accountId);
+    if (cleaned) accountIds.add(cleaned);
+  }
+
+  return accountIds;
+}
+
 export async function resolveFacebookConfigForPageId(pageId: string): Promise<ResolvedFacebookConfig | null> {
   const record = await prisma.brandChannelConfig.findFirst({
     where: { facebookPageId: pageId },
