@@ -37,6 +37,7 @@ interface MetaMessagingEvent {
     mid?: string;
     text?: string;
     is_echo?: boolean;
+    is_self?: boolean;
     attachments?: MetaAttachment[];
     quick_reply?: {
       payload?: string;
@@ -238,14 +239,16 @@ export function normalizeInstagramEvent(
   webhookEvent: MetaMessagingEvent,
   accountId: string
 ): NormalizedMessage | null {
-  // Skip echo events
-  if (webhookEvent.message?.is_echo) {
-    return null;
-  }
-
   const senderId = webhookEvent.sender?.id;
 
   if (!senderId) {
+    return null;
+  }
+
+  // Skip events created by the Instagram business account itself. Depending on
+  // the Instagram API setup, Meta can mark these as either echoes, self messages,
+  // or simply send them with the business account as the sender.
+  if (webhookEvent.message?.is_echo || webhookEvent.message?.is_self || senderId === accountId) {
     return null;
   }
 
