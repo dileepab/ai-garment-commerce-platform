@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
-  sendMessengerCarousel,
-  sendMessengerImage,
   sendMessengerMessage,
+  sendInstagramMessage,
   type MetaSendResult,
 } from '@/lib/meta';
 import { sendInstagramCommentReply, sendInstagramPrivateReply } from '@/lib/meta-comments';
@@ -137,6 +136,7 @@ async function deliverCustomerResult(
   senderId: string,
   result: CustomerMessageResult,
   stats: WebhookStats,
+  accountId: string,
   pageAccessToken?: string
 ) {
   if (IS_CHAT_TEST_MODE || !result.reply) {
@@ -145,36 +145,18 @@ async function deliverCustomerResult(
 
   const failures: string[] = [];
   const metaOptions = { pageAccessToken, language: result.language };
-  const messageResult = await sendMessengerMessage(senderId, result.reply, metaOptions);
+  const messageResult = await sendInstagramMessage(senderId, accountId, result.reply, metaOptions);
 
   if (!messageResult.ok) {
     failures.push(`text: ${describeMetaResult(messageResult)}`);
   }
 
-  if (result.carouselProducts && result.carouselProducts.length > 0) {
-    const carouselResult = await sendMessengerCarousel(senderId, result.carouselProducts, metaOptions);
-
-    if (!carouselResult.ok) {
-      logWarn('Instagram Webhook', 'Instagram rejected carousel delivery; continuing with text reply.', {
-        senderId,
-        error: describeMetaResult(carouselResult),
-      });
-      stats.deliveryFailures += 1;
-    }
-  } else if (result.imagePaths?.length) {
-    for (const imagePath of result.imagePaths) {
-      const imageResult = await sendMessengerImage(senderId, imagePath, metaOptions);
-
-      if (!imageResult.ok) {
-        failures.push(`image ${imagePath}: ${describeMetaResult(imageResult)}`);
-      }
-    }
-  } else if (result.imagePath) {
-    const imageResult = await sendMessengerImage(senderId, result.imagePath, metaOptions);
-
-    if (!imageResult.ok) {
-      failures.push(`image ${result.imagePath}: ${describeMetaResult(imageResult)}`);
-    }
+  if (result.carouselProducts?.length || result.imagePaths?.length || result.imagePath) {
+    logWarn('Instagram Webhook', 'Skipped Instagram rich media delivery; text reply was attempted.', {
+      senderId,
+      hasCarousel: Boolean(result.carouselProducts?.length),
+      imageCount: result.imagePaths?.length || (result.imagePath ? 1 : 0),
+    });
   }
 
   if (failures.length > 0) {
@@ -188,6 +170,7 @@ async function escalateRepeatedFailure(params: {
   brand?: string;
   error: unknown;
   stats: WebhookStats;
+  accountId: string;
   pageAccessToken?: string;
 }) {
   const failureCount = await countRecentWebhookFailures({
@@ -200,9 +183,12 @@ async function escalateRepeatedFailure(params: {
     if (!IS_CHAT_TEST_MODE) {
       const settings = await getMerchantSettings(params.brand);
       const fallbackReply = settings.support.processingErrorMessage;
-      const delivery = await sendMessengerMessage(params.normalized.senderId, fallbackReply, {
-        pageAccessToken: params.pageAccessToken,
-      });
+      const delivery = await sendInstagramMessage(
+        params.normalized.senderId,
+        params.accountId,
+        fallbackReply,
+        { pageAccessToken: params.pageAccessToken },
+      );
 
       if (!delivery.ok) {
         params.stats.deliveryFailures += 1;
@@ -238,8 +224,9 @@ async function escalateRepeatedFailure(params: {
 
   if (!IS_CHAT_TEST_MODE) {
     const settings = await getMerchantSettings(params.brand);
-    const delivery = await sendMessengerMessage(
+    const delivery = await sendInstagramMessage(
       params.normalized.senderId,
+      params.accountId,
       buildHumanSupportReply({
         reason: 'unclear_request',
         supportConfig: settings.support,
@@ -321,7 +308,7 @@ async function processInstagramEvent(params: {
       imageUrl: normalized.imageUrl,
     });
 
-    await deliverCustomerResult(normalized.senderId, result, params.stats, params.pageAccessToken);
+    await deliverCustomerResult(normalized.senderId, result, params.stats, params.accountId, params.pageAccessToken);
     await markWebhookEventProcessed(normalized.eventId);
     params.stats.processed += 1;
   } catch (error: unknown) {
@@ -339,6 +326,7 @@ async function processInstagramEvent(params: {
       brand: params.brand || undefined,
       error,
       stats: params.stats,
+      accountId: params.accountId,
       pageAccessToken: params.pageAccessToken,
     }).catch((escalationError) => {
       logError('Instagram Webhook', 'Could not escalate repeated Instagram failure.', escalationError);

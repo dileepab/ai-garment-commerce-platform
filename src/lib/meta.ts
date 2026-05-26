@@ -147,6 +147,87 @@ export async function sendMessengerMessage(
   );
 }
 
+export async function sendInstagramMessage(
+  senderId: string,
+  instagramAccountId: string,
+  messageText: string,
+  options?: MetaPageTokenOptions,
+) {
+  const ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
+
+  if (!ACCESS_TOKEN) {
+    logError('Meta', 'Missing Instagram access token for Instagram message send.');
+    return {
+      ok: false,
+      error: 'Instagram access token is missing.',
+    } satisfies MetaSendResult;
+  }
+
+  const payload = {
+    recipient: { id: senderId },
+    message: { text: messageText },
+  };
+  const instagramEndpoints = [
+    `https://graph.instagram.com/${META_GRAPH_VERSION}/${instagramAccountId}/messages`,
+    `https://graph.instagram.com/${META_GRAPH_VERSION}/me/messages`,
+  ];
+  let lastFailure: MetaSendResult | null = null;
+
+  for (const endpoint of instagramEndpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await readGraphResponseBody(response);
+
+      if (response.ok) {
+        logDebug('Meta', 'Instagram text message sent successfully.', {
+          senderId,
+          instagramAccountId,
+          status: response.status,
+        });
+        return { ok: true, status: response.status, data } satisfies MetaSendResult;
+      }
+
+      lastFailure = {
+        ok: false,
+        status: response.status,
+        error: getPayloadError(data) || `Meta Graph returned ${response.status}.`,
+        data,
+      };
+      logError('Meta', 'Instagram text send failed.', {
+        senderId,
+        instagramAccountId,
+        endpointHost: new URL(endpoint).host,
+        status: response.status,
+        data,
+      });
+    } catch (error) {
+      lastFailure = {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Unknown Instagram send error.',
+      };
+      logError('Meta', 'Error sending Instagram text message.', {
+        senderId,
+        instagramAccountId,
+        error,
+      });
+    }
+  }
+
+  const fallbackResult = await sendMessengerPayload(senderId, payload, {
+    payloadType: 'instagram_text_facebook_graph_fallback',
+    pageAccessToken: ACCESS_TOKEN,
+  });
+
+  return fallbackResult.ok ? fallbackResult : (lastFailure || fallbackResult);
+}
+
 interface CarouselProduct {
   id: number;
   name: string;
