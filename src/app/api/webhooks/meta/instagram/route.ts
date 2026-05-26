@@ -100,15 +100,37 @@ function summarizeMessagingEvent(webhookEvent: Record<string, unknown>, accountI
     message && typeof message.text === 'string'
       ? truncateForLog(message.text)
       : null;
+  const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
 
   return {
     senderId,
     senderMatchesAccount: senderId === accountId,
     hasMessage: Boolean(message),
     hasPostback: Boolean(postback),
+    hasRead: typeof webhookEvent.read === 'object' && webhookEvent.read !== null,
+    hasDelivery: typeof webhookEvent.delivery === 'object' && webhookEvent.delivery !== null,
     messageText,
+    isEcho: message?.is_echo === true,
+    attachmentCount: attachments.length,
+    messageKeys: message ? Object.keys(message) : [],
+    postbackKeys: postback ? Object.keys(postback) : [],
     keys: Object.keys(webhookEvent),
   };
+}
+
+function getInstagramEventSkipReason(webhookEvent: Record<string, unknown>, accountId: string): string {
+  const summary = summarizeMessagingEvent(webhookEvent, accountId);
+
+  if (summary.isEcho) return 'echo_message';
+  if (!summary.senderId) return 'missing_sender';
+  if (summary.senderMatchesAccount) return 'sender_is_business_account';
+  if (summary.hasRead) return 'read_receipt';
+  if (summary.hasDelivery) return 'delivery_receipt';
+  if (!summary.hasMessage && !summary.hasPostback) return 'missing_message_or_postback';
+  if (summary.hasMessage && !summary.messageText && summary.attachmentCount === 0) return 'empty_message';
+  if (summary.hasPostback && summary.postbackKeys.length === 0) return 'empty_postback';
+
+  return 'unsupported_event_shape';
 }
 
 async function deliverCustomerResult(
@@ -254,11 +276,12 @@ async function processInstagramEvent(params: {
 
   if (!normalized) {
     params.stats.skipped += 1;
-    logDebug(
-      'Instagram Webhook',
-      `Skipped Instagram event for account ${params.brand || 'unknown'} because it did not normalize.`,
-      summarizeMessagingEvent(params.webhookEvent, params.accountId)
-    );
+    logInfo('Instagram Webhook', 'Skipped Instagram event because it did not normalize.', {
+      accountId: params.accountId,
+      brand: params.brand || 'unknown',
+      reason: getInstagramEventSkipReason(params.webhookEvent, params.accountId),
+      summary: summarizeMessagingEvent(params.webhookEvent, params.accountId),
+    });
     return;
   }
 
@@ -483,6 +506,15 @@ export async function POST(request: Request) {
     const pageAccessToken = accountConfig?.accessToken;
     const messagingEvents = Array.isArray(entry.messaging) ? entry.messaging : [];
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
+
+    logInfo('Instagram Webhook', 'Inspecting Instagram webhook entry.', {
+      accountId: accountId || null,
+      brand: brand || 'unknown',
+      hasConfiguredToken: Boolean(pageAccessToken),
+      messagingEventCount: messagingEvents.length,
+      changeCount: changes.length,
+      entryKeys: Object.keys(entry),
+    });
 
     for (const webhookEvent of messagingEvents) {
       if (!isRecord(webhookEvent)) {
