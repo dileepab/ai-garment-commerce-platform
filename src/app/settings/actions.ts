@@ -24,6 +24,11 @@ function cleanOptionalText(value: string | null): string | null {
   return cleaned ? cleaned : null;
 }
 
+function cleanAccessToken(value: string | null): string | null {
+  const cleaned = value?.replace(/\s+/g, '').trim();
+  return cleaned ? cleaned : null;
+}
+
 function readList(formData: FormData, key: string): string[] {
   return (readText(formData, key) || '')
     .split(/[\n,]/)
@@ -78,9 +83,9 @@ export async function saveMerchantSettingsAction(formData: FormData) {
 
   if (brand) {
     const facebookPageId = cleanOptionalText(readText(formData, 'facebookPageId'));
-    const facebookPageAccessToken = cleanOptionalText(readText(formData, 'facebookPageAccessToken'));
+    const facebookPageAccessToken = cleanAccessToken(readText(formData, 'facebookPageAccessToken'));
     const instagramAccountId = cleanOptionalText(readText(formData, 'instagramAccountId'));
-    const instagramAccessToken = cleanOptionalText(readText(formData, 'instagramAccessToken'));
+    const instagramAccessToken = cleanAccessToken(readText(formData, 'instagramAccessToken'));
     const notes = cleanOptionalText(readText(formData, 'channelNotes'));
     const channelUpdateData = {
       facebookPageId,

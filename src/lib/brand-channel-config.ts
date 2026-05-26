@@ -27,6 +27,11 @@ function cleanOptionalText(value?: string | null): string | null {
   return cleaned ? cleaned : null;
 }
 
+function cleanAccessToken(value?: string | null): string | null {
+  const cleaned = value?.replace(/\s+/g, '').trim();
+  return cleaned ? cleaned : null;
+}
+
 function brandEnvKey(brand: string): string {
   return brand.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 }
@@ -101,14 +106,14 @@ export async function resolveFacebookConfigForBrand(brand: string): Promise<Reso
 
   if (record) {
     const pageId = cleanOptionalText(record.facebookPageId);
-    const pageAccessToken = cleanOptionalText(record.facebookPageAccessToken);
+    const pageAccessToken = cleanAccessToken(record.facebookPageAccessToken);
 
     if (!pageId || !pageAccessToken) return null;
     return { brand, pageId, pageAccessToken };
   }
 
   const pageId = legacyFacebookPageIdForBrand(brand) ?? resolveEnv(brand, 'META_FB_PAGE_ID');
-  const pageAccessToken = resolveEnv(brand, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
+  const pageAccessToken = cleanAccessToken(resolveEnv(brand, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN));
 
   if (!pageId || !pageAccessToken) return null;
   return { brand, pageId, pageAccessToken };
@@ -122,14 +127,14 @@ export async function resolveInstagramConfigForBrand(brand: string): Promise<Res
 
   if (record) {
     const accountId = cleanOptionalText(record.instagramAccountId);
-    const accessToken = cleanOptionalText(record.instagramAccessToken);
+    const accessToken = cleanAccessToken(record.instagramAccessToken);
 
     if (!accountId || !accessToken) return null;
     return { brand, accountId, accessToken };
   }
 
   const accountId = legacyInstagramAccountIdForBrand(brand) ?? resolveEnv(brand, 'META_IG_ACCOUNT_ID');
-  const accessToken = resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN);
+  const accessToken = cleanAccessToken(resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN));
 
   if (!accountId || !accessToken) return null;
   return { brand, accountId, accessToken };
@@ -194,11 +199,12 @@ export async function resolveFacebookConfigForPageId(pageId: string): Promise<Re
     select: { brand: true, facebookPageId: true, facebookPageAccessToken: true },
   });
 
-  if (record?.brand && record.facebookPageId && record.facebookPageAccessToken) {
+  const pageAccessToken = cleanAccessToken(record?.facebookPageAccessToken);
+  if (record?.brand && record.facebookPageId && pageAccessToken) {
     return {
       brand: record.brand,
       pageId: record.facebookPageId,
-      pageAccessToken: record.facebookPageAccessToken,
+      pageAccessToken,
     };
   }
 
@@ -212,11 +218,12 @@ export async function resolveInstagramConfigForAccountId(accountId: string): Pro
     select: { brand: true, instagramAccountId: true, instagramAccessToken: true },
   });
 
-  if (record?.brand && record.instagramAccountId && record.instagramAccessToken) {
+  const accessToken = cleanAccessToken(record?.instagramAccessToken);
+  if (record?.brand && record.instagramAccountId && accessToken) {
     return {
       brand: record.brand,
       accountId: record.instagramAccountId,
-      accessToken: record.instagramAccessToken,
+      accessToken,
     };
   }
 

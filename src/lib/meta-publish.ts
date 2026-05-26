@@ -65,6 +65,8 @@ async function postInstagramGraph(
   accessToken: string,
   payload: Record<string, unknown>,
 ): Promise<{ response: Response; data: MetaIdResponse; host: string }> {
+  const cleanedAccessToken = accessToken.replace(/\s+/g, '').trim();
+  const tokenLooksLikeInstagramLogin = cleanedAccessToken.startsWith('IG');
   const instagramUrl = `https://graph.instagram.com/${META_GRAPH_VERSION}/${path}`;
   const facebookUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${path}`;
   const instagramPayload = Object.fromEntries(
@@ -72,16 +74,27 @@ async function postInstagramGraph(
   );
   const instagramResult = await postMetaForm(instagramUrl, {
     ...instagramPayload,
-    access_token: accessToken,
+    access_token: cleanedAccessToken,
   });
 
-  if (instagramResult.response.ok) {
+  if (instagramResult.response.ok || tokenLooksLikeInstagramLogin) {
+    if (!instagramResult.response.ok) {
+      logError('MetaPublish', 'Instagram Graph publish call failed.', {
+        host: 'graph.instagram.com',
+        path,
+        status: instagramResult.response.status,
+        tokenPrefix: cleanedAccessToken.slice(0, 4),
+        tokenLength: cleanedAccessToken.length,
+        data: instagramResult.data,
+      });
+    }
+
     return { ...instagramResult, host: 'graph.instagram.com' };
   }
 
   const fallbackResult = await postMetaJson(facebookUrl, {
     ...payload,
-    access_token: accessToken,
+    access_token: cleanedAccessToken,
   });
 
   if (!fallbackResult.response.ok) {
