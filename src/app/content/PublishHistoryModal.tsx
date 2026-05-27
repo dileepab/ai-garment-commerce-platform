@@ -121,7 +121,7 @@ function ConfirmPublishPanel({ postId, channels, onOutcomes, onError }: ConfirmP
   function handlePublish() {
     startPublish(async () => {
       const baseUrl = window.location.origin;
-      const result = await publishSocialPost(postId, baseUrl);
+      const result = await publishSocialPost(postId, baseUrl, channels);
       if (result.outcomes && result.publishStatus) {
         onOutcomes(result.outcomes, result.publishStatus);
       } else {

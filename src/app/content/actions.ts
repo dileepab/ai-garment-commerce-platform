@@ -694,6 +694,7 @@ function appendItemDescriptions(caption: string, descriptions: string[]): string
 export async function publishSocialPost(
   postId: number,
   baseUrl?: string,
+  targetChannels?: string[],
 ): Promise<PublishSocialPostResult> {
   try {
     const scope = await requireActionPermission('content:write');
@@ -706,6 +707,18 @@ export async function publishSocialPost(
         channels: true,
         caption: true,
         status: true,
+        publishLogs: {
+          select: {
+            id: true,
+            channel: true,
+            status: true,
+            createdAt: true,
+          },
+          orderBy: [
+            { createdAt: 'asc' },
+            { id: 'asc' },
+          ],
+        },
         postCreatives: {
           select: {
             creativeId: true,
@@ -746,9 +759,21 @@ export async function publishSocialPost(
       };
     }
 
-    const channels = post.channels.split(',').map((c) => c.trim()).filter(Boolean);
-    if (channels.length === 0) {
+    const configuredChannels = post.channels.split(',').map((c) => c.trim()).filter(Boolean);
+    if (configuredChannels.length === 0) {
       return { success: false, error: 'Post has no channels configured.' };
+    }
+
+    const requestedChannels = targetChannels
+      ? Array.from(new Set(targetChannels.map((channel) => channel.trim()).filter(Boolean)))
+      : configuredChannels;
+    const channels = requestedChannels.filter((channel) => configuredChannels.includes(channel));
+
+    if (channels.length === 0) {
+      return {
+        success: false,
+        error: 'No valid channels selected for this publish attempt.',
+      };
     }
 
     const outcomes: ChannelPublishOutcome[] = [];
@@ -818,8 +843,18 @@ export async function publishSocialPost(
       })),
     });
 
-    const allOk = outcomes.every((o) => o.ok);
-    const anyOk = outcomes.some((o) => o.ok);
+    const latestStatusByChannel = new Map<string, string>();
+    for (const log of post.publishLogs) {
+      latestStatusByChannel.set(log.channel, log.status);
+    }
+    for (const outcome of outcomes) {
+      latestStatusByChannel.set(outcome.channel, outcome.ok ? 'published' : 'failed');
+    }
+
+    const allOk = configuredChannels.every((channel) => latestStatusByChannel.get(channel) === 'published');
+    const anyOk = configuredChannels.some((channel) => latestStatusByChannel.get(channel) === 'published');
+    const attemptAllOk = outcomes.every((o) => o.ok);
+    const attemptAnyOk = outcomes.some((o) => o.ok);
     const publishStatus = allOk ? 'published' : anyOk ? 'partial' : 'failed';
 
     await prisma.socialPost.update({
@@ -834,10 +869,10 @@ export async function publishSocialPost(
     revalidatePath('/content');
 
     return {
-      success: allOk || anyOk,
+      success: attemptAllOk || attemptAnyOk,
       outcomes,
       publishStatus,
-      error: allOk ? undefined : 'Some channels failed to publish. See details below.',
+      error: attemptAllOk ? undefined : 'Some channels failed to publish. See details below.',
     };
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error) as PublishSocialPostResult;
