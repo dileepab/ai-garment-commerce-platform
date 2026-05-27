@@ -662,7 +662,8 @@ function buildItemDescription(input: {
     : cleanDetailValue(parseProductContextValue(input.productContext, 'Price'));
 
   if (!itemName && !itemCode && !sizes && !colors && price === 'N/A') {
-    return cleanDetailValue(input.fallbackDescription);
+    const fallback = input.fallbackDescription?.trim();
+    return fallback && fallback.toUpperCase() !== 'N/A' ? fallback : '';
   }
 
   return [
@@ -681,7 +682,7 @@ function appendItemDescriptions(caption: string, descriptions: string[]): string
   }
 
   const uniqueDescriptions = Array.from(
-    new Set(descriptions.map((description) => description.trim()).filter(Boolean)),
+    new Set(descriptions.map((description) => description.trim()).filter((description) => Boolean(description) && description.toUpperCase() !== 'N/A')),
   );
 
   if (uniqueDescriptions.length === 0) {
