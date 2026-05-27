@@ -29,9 +29,18 @@ interface MetaIdResponse extends MetaErrorPayload {
   id?: string;
 }
 
+interface MetaMediaStatusResponse extends MetaErrorPayload {
+  id?: string;
+  status?: string;
+  status_code?: string;
+}
+
 interface FbAttachedMedia {
   media_fbid: string;
 }
+
+const INSTAGRAM_MEDIA_STATUS_ATTEMPTS = 6;
+const INSTAGRAM_MEDIA_STATUS_DELAY_MS = 1500;
 
 function getMetaErrorCode(data: MetaErrorPayload, fallback: string | number): string {
   return data.error?.code != null ? String(data.error.code) : String(fallback);
@@ -57,6 +66,12 @@ async function postMetaForm(url: string, params: Record<string, string>): Promis
     body: new URLSearchParams(params),
   });
   const data = await response.json() as MetaIdResponse;
+  return { response, data };
+}
+
+async function getMetaJson(url: string): Promise<{ response: Response; data: MetaMediaStatusResponse }> {
+  const response = await fetch(url, { method: 'GET' });
+  const data = await response.json() as MetaMediaStatusResponse;
   return { response, data };
 }
 
@@ -111,6 +126,97 @@ async function postInstagramGraph(
   }
 
   return { ...fallbackResult, host: 'graph.facebook.com' };
+}
+
+async function getInstagramGraph(
+  path: string,
+  accessToken: string,
+  params: Record<string, string>,
+): Promise<{ response: Response; data: MetaMediaStatusResponse; host: string }> {
+  const cleanedAccessToken = accessToken.replace(/\s+/g, '').trim();
+  const tokenLooksLikeInstagramLogin = cleanedAccessToken.startsWith('IG');
+
+  const buildUrl = (host: string) => {
+    const url = new URL(`https://${host}/${META_GRAPH_VERSION}/${path}`);
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+    url.searchParams.set('access_token', cleanedAccessToken);
+    return url.toString();
+  };
+
+  const instagramResult = await getMetaJson(buildUrl('graph.instagram.com'));
+  if (instagramResult.response.ok || tokenLooksLikeInstagramLogin) {
+    return { ...instagramResult, host: 'graph.instagram.com' };
+  }
+
+  const facebookResult = await getMetaJson(buildUrl('graph.facebook.com'));
+  return { ...facebookResult, host: 'graph.facebook.com' };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForInstagramMediaReady(
+  creationId: string,
+  accessToken: string,
+  label: string,
+): Promise<PublishResult> {
+  for (let attempt = 1; attempt <= INSTAGRAM_MEDIA_STATUS_ATTEMPTS; attempt += 1) {
+    const { response, data, host } = await getInstagramGraph(creationId, accessToken, {
+      fields: 'status_code,status',
+    });
+
+    if (!response.ok) {
+      const code = getMetaErrorCode(data, response.status);
+      const msg = getMetaErrorMessage(data, `Meta Graph returned ${response.status} checking Instagram media status.`);
+      logError('MetaPublish', 'Instagram media status check failed.', {
+        creationId,
+        label,
+        host,
+        status: response.status,
+        data,
+      });
+      return { ok: false, errorCode: code, errorMessage: msg };
+    }
+
+    const statusCode = data.status_code?.toUpperCase();
+    if (statusCode === 'FINISHED') {
+      logDebug('MetaPublish', 'Instagram media container is ready.', {
+        creationId,
+        label,
+        attempt,
+        host,
+      });
+      return { ok: true };
+    }
+
+    if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+      return {
+        ok: false,
+        errorCode: statusCode,
+        errorMessage: data.status || `Instagram could not process the ${label} media container.`,
+      };
+    }
+
+    logDebug('MetaPublish', 'Waiting for Instagram media container to finish processing.', {
+      creationId,
+      label,
+      attempt,
+      statusCode: statusCode ?? 'unknown',
+    });
+
+    if (attempt < INSTAGRAM_MEDIA_STATUS_ATTEMPTS) {
+      await sleep(INSTAGRAM_MEDIA_STATUS_DELAY_MS);
+    }
+  }
+
+  return {
+    ok: false,
+    errorCode: 'MEDIA_NOT_READY',
+    errorMessage: 'Instagram is still processing the image. Please wait a few seconds, then retry the failed Instagram channel.',
+  };
 }
 
 // ── Facebook Page post ───────────────────────────────────────────────────────
@@ -246,6 +352,10 @@ export async function publishToInstagram(
         };
       }
       creationId = containerData.id;
+      if (creationId) {
+        const ready = await waitForInstagramMediaReady(creationId, config.accessToken, 'single image');
+        if (!ready.ok) return ready;
+      }
     } else {
       // Carousel items
       const itemIds: string[] = [];
@@ -265,6 +375,12 @@ export async function publishToInstagram(
         }
       }
 
+      const itemReadiness = await Promise.all(
+        itemIds.map((itemId, index) => waitForInstagramMediaReady(itemId, config.accessToken, `carousel item ${index + 1}`)),
+      );
+      const failedItem = itemReadiness.find((result) => !result.ok);
+      if (failedItem) return failedItem;
+
       // Carousel container
       const { response: carouselRes, data: carouselData } = await postInstagramGraph(`${config.accountId}/media`, config.accessToken, {
         media_type: 'CAROUSEL',
@@ -279,6 +395,10 @@ export async function publishToInstagram(
         };
       }
       creationId = carouselData.id;
+      if (creationId) {
+        const ready = await waitForInstagramMediaReady(creationId, config.accessToken, 'carousel');
+        if (!ready.ok) return ready;
+      }
     }
 
     if (!creationId) {
