@@ -47,6 +47,7 @@ export interface MerchantAutomationSettings {
   reorderReminderDelayDays: number;
   reorderReminderWindowDays: number;
   purchaseNudgeCooldownDays: number;
+  commentAutoReplyEnabled: boolean;
 }
 
 export interface MerchantAutomationPolicy {
@@ -63,6 +64,7 @@ export interface MerchantAutomationPolicy {
   reorderReminderDelayMs: number;
   reorderReminderWindowMs: number;
   purchaseNudgeCooldownMs: number;
+  commentAutoReplyEnabled: boolean;
 }
 
 export interface MerchantSettings {
@@ -104,6 +106,7 @@ interface MerchantSettingsRecord {
   reorderReminderDelayDays: number;
   reorderReminderWindowDays: number;
   purchaseNudgeCooldownDays: number;
+  commentAutoReplyEnabled: boolean;
 }
 
 export interface MerchantSettingsFormInput {
@@ -134,6 +137,7 @@ export interface MerchantSettingsFormInput {
   reorderReminderDelayDays?: number | null;
   reorderReminderWindowDays?: number | null;
   purchaseNudgeCooldownDays?: number | null;
+  commentAutoReplyEnabled?: boolean;
 }
 
 function cleanOptionalText(value?: string | null): string | null {
@@ -208,6 +212,7 @@ export function getDefaultMerchantSettings(): MerchantSettings {
       reorderReminderDelayDays: 45,
       reorderReminderWindowDays: 120,
       purchaseNudgeCooldownDays: 14,
+      commentAutoReplyEnabled: false,
     },
   };
 }
@@ -316,6 +321,7 @@ function overlayMerchantSettings(
         record.purchaseNudgeCooldownDays,
         base.automation.purchaseNudgeCooldownDays
       ),
+      commentAutoReplyEnabled: record.commentAutoReplyEnabled,
     },
   };
 }
@@ -461,6 +467,7 @@ export function buildMerchantSettingsPersistenceInput(input: MerchantSettingsFor
       input.purchaseNudgeCooldownDays,
       defaults.automation.purchaseNudgeCooldownDays
     ),
+    commentAutoReplyEnabled: Boolean(input.commentAutoReplyEnabled),
   };
 }
 
@@ -481,6 +488,7 @@ export function getMerchantAutomationPolicy(
     reorderReminderDelayMs: settings.automation.reorderReminderDelayDays * ONE_DAY_MS,
     reorderReminderWindowMs: settings.automation.reorderReminderWindowDays * ONE_DAY_MS,
     purchaseNudgeCooldownMs: settings.automation.purchaseNudgeCooldownDays * ONE_DAY_MS,
+    commentAutoReplyEnabled: settings.automation.commentAutoReplyEnabled,
   };
 }
 

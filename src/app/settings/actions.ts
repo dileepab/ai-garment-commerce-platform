@@ -72,6 +72,7 @@ export async function saveMerchantSettingsAction(formData: FormData) {
     reorderReminderDelayDays: readNumber(formData, 'reorderReminderDelayDays'),
     reorderReminderWindowDays: readNumber(formData, 'reorderReminderWindowDays'),
     purchaseNudgeCooldownDays: readNumber(formData, 'purchaseNudgeCooldownDays'),
+    commentAutoReplyEnabled: readBoolean(formData, 'commentAutoReplyEnabled'),
   });
   const { storeKey, ...updateData } = data;
 

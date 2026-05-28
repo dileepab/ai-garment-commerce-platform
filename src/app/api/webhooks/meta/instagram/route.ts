@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import {
-  sendMessengerMessage,
   sendInstagramMessage,
   type MetaSendResult,
 } from '@/lib/meta';
@@ -32,6 +31,7 @@ import {
   markWebhookEventFailed,
   markWebhookEventProcessed,
 } from '@/lib/webhook-event-log';
+import { isMetaCommentAutoReplyEnabled } from '@/lib/meta-feature-flags';
 import prisma from '@/lib/prisma';
 
 const IS_CHAT_TEST_MODE = process.env.CHAT_TEST_MODE === '1';
@@ -392,6 +392,40 @@ async function processInstagramCommentChange(params: {
       params.stats.duplicates += 1;
       await markWebhookEventProcessed(eventId, 'skipped');
       logDebug('Instagram Webhook', `Already processed comment ${normalized.commentId}. Skipping.`);
+      return;
+    }
+
+    if (!await isMetaCommentAutoReplyEnabled(params.brand)) {
+      await prisma.commentLog.upsert({
+        where: { id: normalized.commentId },
+        create: {
+          id: normalized.commentId,
+          channel: 'instagram',
+          brand: params.brand || null,
+          senderId: normalized.senderId || null,
+          pageOrAccountId: normalized.pageOrAccountId || null,
+          postId: normalized.postId || null,
+          message: normalized.message || null,
+          status: 'skipped',
+          skipReason: 'feature_disabled',
+        },
+        update: {
+          brand: params.brand || null,
+          senderId: normalized.senderId || null,
+          pageOrAccountId: normalized.pageOrAccountId || null,
+          postId: normalized.postId || null,
+          message: normalized.message || null,
+          status: 'skipped',
+          skipReason: 'feature_disabled',
+          repliedAt: new Date(),
+        },
+      });
+      params.stats.skipped += 1;
+      await markWebhookEventProcessed(eventId, 'skipped');
+      logInfo('Instagram Webhook', 'Skipped Instagram comment auto-reply because it is disabled in Merchant Settings.', {
+        commentId: normalized.commentId,
+        brand: params.brand || 'unknown',
+      });
       return;
     }
 

@@ -32,6 +32,7 @@ import {
   markWebhookEventFailed,
   markWebhookEventProcessed,
 } from '@/lib/webhook-event-log';
+import { isMetaCommentAutoReplyEnabled } from '@/lib/meta-feature-flags';
 import prisma from '@/lib/prisma';
 
 const IS_CHAT_TEST_MODE = process.env.CHAT_TEST_MODE === '1';
@@ -441,6 +442,40 @@ async function processFacebookCommentChange(params: {
       params.stats.duplicates += 1;
       await markWebhookEventProcessed(eventId, 'skipped');
       logDebug('Meta Webhook', `Already processed comment ${normalized.commentId}. Skipping.`);
+      return;
+    }
+
+    if (!await isMetaCommentAutoReplyEnabled(effectiveBrand)) {
+      await prisma.commentLog.upsert({
+        where: { id: normalized.commentId },
+        create: {
+          id: normalized.commentId,
+          channel: 'facebook',
+          brand: effectiveBrand || null,
+          senderId: effectiveComment.senderId || null,
+          pageOrAccountId: effectiveComment.pageOrAccountId || null,
+          postId: effectiveComment.postId || null,
+          message: effectiveComment.message || null,
+          status: 'skipped',
+          skipReason: 'feature_disabled',
+        },
+        update: {
+          brand: effectiveBrand || null,
+          senderId: effectiveComment.senderId || null,
+          pageOrAccountId: effectiveComment.pageOrAccountId || null,
+          postId: effectiveComment.postId || null,
+          message: effectiveComment.message || null,
+          status: 'skipped',
+          skipReason: 'feature_disabled',
+          repliedAt: new Date(),
+        },
+      });
+      params.stats.skipped += 1;
+      await markWebhookEventProcessed(eventId, 'skipped');
+      logInfo('Meta Webhook', 'Skipped Facebook comment auto-reply because it is disabled in Merchant Settings.', {
+        commentId: normalized.commentId,
+        brand: effectiveBrand || 'unknown',
+      });
       return;
     }
 

@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 import {
   canAccessBrand,
@@ -383,6 +384,7 @@ function SettingsForm({
                 <NumberField label="Reorder delay" name="reorderReminderDelayDays" value={settings.automation.reorderReminderDelayDays} disabled={!canManage} suffix="days" />
                 <NumberField label="Reorder window" name="reorderReminderWindowDays" value={settings.automation.reorderReminderWindowDays} disabled={!canManage} suffix="days" />
                 <NumberField label="Purchase nudge cooldown" name="purchaseNudgeCooldownDays" value={settings.automation.purchaseNudgeCooldownDays} disabled={!canManage} suffix="days" />
+                <ToggleField label="Comment auto-reply" name="commentAutoReplyEnabled" checked={settings.automation.commentAutoReplyEnabled} disabled={!canManage} />
               </div>
             </CollapsibleSection>
 
@@ -473,7 +475,12 @@ export default async function SettingsPage() {
       <PageHeader
         title="Merchant Settings"
         subtitle="Operational defaults for support, delivery, payments, automation timing, and brand-specific customer replies"
-        actions={<span className="app-chip app-chip-neutral">{describeScope(scope)}</span>}
+        actions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Link className="btn btn-secondary" href="/settings/meta">Meta status</Link>
+            <span className="app-chip app-chip-neutral">{describeScope(scope)}</span>
+          </div>
+        }
       />
 
       <div className="content" style={{ display: 'grid', gap: 18 }}>

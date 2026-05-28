@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useMemo, useState, useTransition } from 'react';
 import { publishSocialPost, type ChannelPublishOutcome } from './actions';
 
 export interface PublishLogEntry {
@@ -111,17 +111,31 @@ function OutcomeBadge({ ok }: { ok: boolean }) {
 interface ConfirmPublishProps {
   postId: number;
   channels: string[];
+  selectedChannels: string[];
+  onToggleChannel: (channel: string) => void;
   onOutcomes: (outcomes: ChannelPublishOutcome[], publishStatus: string) => void;
   onError: (msg: string) => void;
 }
 
-function ConfirmPublishPanel({ postId, channels, onOutcomes, onError }: ConfirmPublishProps) {
+function ConfirmPublishPanel({
+  postId,
+  channels,
+  selectedChannels,
+  onToggleChannel,
+  onOutcomes,
+  onError,
+}: ConfirmPublishProps) {
   const [publishing, startPublish] = useTransition();
 
   function handlePublish() {
+    if (selectedChannels.length === 0) {
+      onError('Select at least one channel to publish.');
+      return;
+    }
+
     startPublish(async () => {
       const baseUrl = window.location.origin;
-      const result = await publishSocialPost(postId, baseUrl, channels);
+      const result = await publishSocialPost(postId, baseUrl, selectedChannels);
       if (result.outcomes && result.publishStatus) {
         onOutcomes(result.outcomes, result.publishStatus);
       } else {
@@ -142,9 +156,42 @@ function ConfirmPublishPanel({ postId, channels, onOutcomes, onError }: ConfirmP
         Confirm publish
       </div>
 
+      <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+        {channels.map((ch) => (
+          <label
+            key={ch}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-surface)',
+              padding: '8px 10px',
+              cursor: publishing ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700 }}>
+              <input
+                type="checkbox"
+                checked={selectedChannels.includes(ch)}
+                onChange={() => onToggleChannel(ch)}
+                disabled={publishing}
+              />
+              <ChannelIcon channel={ch} />
+              {ch === 'instagram' ? 'Instagram' : 'Facebook'}
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>
+              {selectedChannels.includes(ch) ? 'Will publish' : 'Skip this attempt'}
+            </span>
+          </label>
+        ))}
+      </div>
+
       <div style={{ fontSize: 12, color: 'var(--color-fg-2)', marginBottom: 16, lineHeight: 1.5 }}>
         This will post to:&nbsp;
-        {channels.map((ch) => (
+        {selectedChannels.map((ch) => (
           <span key={ch} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8 }}>
             <ChannelIcon channel={ch} />
             <span style={{ fontWeight: 600 }}>{ch === 'instagram' ? 'Instagram' : 'Facebook'}</span>
@@ -156,7 +203,7 @@ function ConfirmPublishPanel({ postId, channels, onOutcomes, onError }: ConfirmP
       <button
         className="btn btn-primary"
         onClick={handlePublish}
-        disabled={publishing}
+        disabled={publishing || selectedChannels.length === 0}
         style={{ width: '100%' }}
       >
         {publishing ? 'Publishing…' : 'Publish Now'}
@@ -181,13 +228,50 @@ export default function PublishHistoryModal({
   const [currentPublishStatus, setCurrentPublishStatus] = useState<string | null>(publishStatus);
   const [showConfirm, setShowConfirm] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+
+  const latestLogByChannel = useMemo(() => {
+    const sorted = [...logs].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const latest = new Map<string, PublishLogEntry>();
+    for (const log of sorted) {
+      if (!latest.has(log.channel)) latest.set(log.channel, log);
+    }
+    return latest;
+  }, [logs]);
 
   const failedChannels = channels.filter((ch) => {
     if (!currentPublishStatus) return true; // never published
     if (currentPublishStatus === 'published') return false;
-    const lastAttempt = [...logs].reverse().find((l) => l.channel === ch);
+    const lastAttempt = latestLogByChannel.get(ch);
     return !lastAttempt || lastAttempt.status === 'failed';
   });
+
+  const channelSummaries = channels.map((ch) => {
+    const latest = latestLogByChannel.get(ch);
+    return {
+      channel: ch,
+      status: latest?.status ?? 'not_published',
+      errorCode: latest?.errorCode ?? null,
+      errorMessage: latest?.errorMessage ?? null,
+      externalPostId: latest?.externalPostId ?? null,
+    };
+  });
+
+  function openConfirm(targetChannels: string[]) {
+    setSelectedChannels(targetChannels);
+    setPublishError(null);
+    setShowConfirm(true);
+  }
+
+  function toggleSelectedChannel(channel: string) {
+    setSelectedChannels((prev) =>
+      prev.includes(channel)
+        ? prev.filter((item) => item !== channel)
+        : [...prev, channel],
+    );
+  }
 
   function handleOutcomes(outcomes: ChannelPublishOutcome[], ps: string) {
     const now = new Date();
@@ -204,6 +288,7 @@ export default function PublishHistoryModal({
     setLogs((prev) => [...prev, ...newEntries]);
     setCurrentPublishStatus(ps);
     setShowConfirm(false);
+    setSelectedChannels([]);
     setPublishError(null);
     onRetried();
   }
@@ -288,7 +373,7 @@ export default function PublishHistoryModal({
             <div style={{ marginBottom: 16 }}>
               <button
                 className="btn btn-primary"
-                onClick={() => { setShowConfirm(true); setPublishError(null); }}
+                onClick={() => openConfirm(neverPublished ? channels : failedChannels)}
                 style={{ width: '100%' }}
               >
                 {Ic.retry}
@@ -301,8 +386,10 @@ export default function PublishHistoryModal({
             <ConfirmPublishPanel
               postId={postId}
               channels={neverPublished ? channels : failedChannels}
+              selectedChannels={selectedChannels}
+              onToggleChannel={toggleSelectedChannel}
               onOutcomes={handleOutcomes}
-              onError={(msg) => { setPublishError(msg); setShowConfirm(false); }}
+              onError={(msg) => { setPublishError(msg); }}
             />
           )}
 
@@ -318,6 +405,67 @@ export default function PublishHistoryModal({
               {publishError}
             </div>
           )}
+
+          {/* Channel status */}
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 8 }}>
+            Channel status
+          </div>
+
+          <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+            {channelSummaries.map((summary) => {
+              const ok = summary.status === 'published';
+              const failed = summary.status === 'failed';
+              return (
+                <div
+                  key={summary.channel}
+                  style={{
+                    display: 'grid',
+                    gap: 6,
+                    background: 'var(--color-bg)',
+                    border: `1px solid ${ok ? 'var(--color-success-muted)' : failed ? 'var(--color-error-muted)' : 'var(--color-border)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <ChannelIcon channel={summary.channel} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
+                        {summary.channel === 'instagram' ? 'Instagram' : 'Facebook'}
+                      </span>
+                    </div>
+                    {summary.status === 'not_published' ? (
+                      <span style={{
+                        display: 'inline-flex',
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: 'var(--color-surface-muted)',
+                        color: 'var(--color-fg-2)',
+                      }}>
+                        Not published
+                      </span>
+                    ) : (
+                      <OutcomeBadge ok={ok} />
+                    )}
+                  </div>
+                  {summary.externalPostId && (
+                    <div style={{ fontSize: 11, color: 'var(--color-fg-2)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {Ic.external}
+                      Post ID: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{summary.externalPostId}</code>
+                    </div>
+                  )}
+                  {summary.errorMessage && (
+                    <div style={{ fontSize: 11, color: 'var(--color-error)', lineHeight: 1.45 }}>
+                      {summary.errorCode && <strong>[{summary.errorCode}] </strong>}
+                      {summary.errorMessage}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
           {/* Publish log */}
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 8 }}>

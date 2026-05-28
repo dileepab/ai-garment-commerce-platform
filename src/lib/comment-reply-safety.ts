@@ -4,6 +4,7 @@ import { logError, logInfo, logWarn } from '@/lib/app-log';
 import { getErrorMessage } from '@/lib/error-message';
 import { sendFacebookCommentReply } from '@/lib/meta-comments';
 import { resolveFacebookConfigForPageId } from '@/lib/brand-channel-config';
+import { isMetaCommentAutoReplyEnabled } from '@/lib/meta-feature-flags';
 import type { NormalizedComment } from '@/lib/meta-normalize';
 
 const COMMENT_REPLY_CHANNEL = 'facebook';
@@ -334,6 +335,11 @@ export async function queueFacebookCommentReply(
   comment: NormalizedComment,
   brand?: string | null,
 ): Promise<CommentReplyQueueResult> {
+  if (!await isMetaCommentAutoReplyEnabled(brand)) {
+    await recordCommentStatus(comment, 'skipped', { brand, reason: 'feature_disabled' });
+    return { queued: false, skipped: true, reason: 'feature_disabled' };
+  }
+
   const decision = await evaluateCommentSafety(comment, brand);
 
   if (!decision.shouldQueue) {
@@ -384,6 +390,7 @@ export async function processDueFacebookCommentReplies(now = new Date(), limit =
     failed: 0,
     rescheduled: 0,
   };
+
   const dueItems = await prisma.commentReplyQueue.findMany({
     where: {
       status: 'pending',
@@ -395,6 +402,29 @@ export async function processDueFacebookCommentReplies(now = new Date(), limit =
 
   for (const item of dueItems) {
     result.checked += 1;
+
+    if (!await isMetaCommentAutoReplyEnabled(item.brand)) {
+      await prisma.commentReplyQueue.update({
+        where: { id: item.id },
+        data: {
+          status: 'skipped',
+          lastError: 'Comment auto-reply is disabled in Merchant Settings.',
+        },
+      });
+      await prisma.commentLog.update({
+        where: { id: item.commentId },
+        data: {
+          status: 'skipped',
+          skipReason: 'feature_disabled',
+          repliedAt: new Date(),
+        },
+      }).catch((logErrorValue) => {
+        logError('Comment Reply Safety', 'Could not mark disabled queued comment as skipped.', logErrorValue);
+      });
+      result.skipped += 1;
+      continue;
+    }
+
     const claim = await prisma.commentReplyQueue.updateMany({
       where: { id: item.id, status: 'pending' },
       data: { status: 'processing', attempts: { increment: 1 }, lastError: null },

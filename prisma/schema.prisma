@@ -379,6 +379,7 @@ model MerchantSettings {
   reorderReminderDelayDays       Int      @default(45)
   reorderReminderWindowDays      Int      @default(120)
   purchaseNudgeCooldownDays      Int      @default(14)
+  commentAutoReplyEnabled        Boolean  @default(false)
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
 
