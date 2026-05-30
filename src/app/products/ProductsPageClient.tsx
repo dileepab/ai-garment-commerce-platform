@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ProductThumb, ProductDrawer, type Product, type ProductVariantData } from '@/components/ProductComponents';
 import { PageHeader } from '@/components/PageHeader';
 import { displayProductSku } from '@/lib/product-sku';
+import type { ProductForecastSummary } from '@/lib/demand-forecasting';
 import { ProductFormModal } from './ProductFormModal';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
@@ -35,9 +36,9 @@ interface ProductsPageStats {
 }
 
 type ProductStatusFilter = (typeof STATUS_TABS)[number]['key'];
-type ProductWithVariants = Product & { variants?: ProductVariantData[]; forecast?: any };
+type ProductWithVariants = Product & { variants?: ProductVariantData[] };
 
-function renderForecastingBadge(forecast?: any) {
+function renderForecastingBadge(forecast?: ProductForecastSummary) {
   if (!forecast) {
     return <span style={{ color: 'var(--color-fg-3)', fontSize: 11 }}>—</span>;
   }
@@ -262,7 +263,7 @@ export default function ProductsPageClient({
                     </td>
                     <td style={{ textAlign: "right", fontWeight: 600 }}>₺{p.price.toLocaleString()}</td>
                     <td>
-                      {renderForecastingBadge((p as any).forecast)}
+                      {renderForecastingBadge(p.forecast)}
                     </td>
                     <td>
                       <span className={`pill pill-${p.status}`}>

@@ -49,7 +49,7 @@ async function main() {
 
   // 3. Simulate Koombiyo webhook: "pickup_complete" -> should transition order to "dispatched"
   logInfo('Courier Simulation', 'Simulating Koombiyo pickup webhook callback...');
-  let result = await processCourierWebhookUpdate({
+  await processCourierWebhookUpdate({
     orderId: order.id,
     provider: 'koombiyo',
     trackingNumber: 'KB-SIM-999',
@@ -65,7 +65,7 @@ async function main() {
 
   // 4. Simulate Koombiyo webhook: "delivered" -> should transition order to "delivered"
   logInfo('Courier Simulation', 'Simulating Koombiyo success delivery webhook callback...');
-  result = await processCourierWebhookUpdate({
+  await processCourierWebhookUpdate({
     orderId: order.id,
     provider: 'koombiyo',
     trackingNumber: 'KB-SIM-999',

@@ -11,10 +11,9 @@ interface LanguageResolution {
 
 const TEXT_MODEL_CHAIN = [
   process.env.GEMINI_TEXT_MODEL,
-  'gemini-3.1-flash-lite',
   'gemini-2.5-flash-lite',
   'gemini-2.5-flash',
-  'gemini-3.5-flash',
+  'gemini-3-flash-preview',
 ].filter((model, index, models): model is string => Boolean(model) && models.indexOf(model) === index);
 
 const SINHALA_SCRIPT_RE = /[\u0D80-\u0DFF]/;

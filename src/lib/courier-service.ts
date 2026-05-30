@@ -1,5 +1,9 @@
+import prisma from './prisma.ts';
 import { transitionFulfillment } from './fulfillment-service.ts';
-import { type FulfillmentStatus } from './fulfillment.ts';
+import {
+  normalizeFulfillmentStatus,
+  type FulfillmentStatus,
+} from './fulfillment.ts';
 import { logInfo, logWarn } from './app-log.ts';
 
 export interface CourierWebhookPayload {
@@ -80,6 +84,29 @@ export async function processCourierWebhookUpdate(payload: CourierWebhookPayload
     mappedStatus,
     trackingNumber: payload.trackingNumber,
   });
+
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: payload.orderId },
+    select: { orderStatus: true },
+  });
+
+  if (existingOrder && normalizeFulfillmentStatus(existingOrder.orderStatus) === mappedStatus) {
+    await prisma.order.update({
+      where: { id: payload.orderId },
+      data: {
+        trackingNumber: payload.trackingNumber.trim(),
+        courier: providerName,
+      },
+    });
+
+    return {
+      orderId: payload.orderId,
+      fromStatus: mappedStatus,
+      toStatus: mappedStatus,
+      customerNotified: false,
+      notificationDeduped: true,
+    };
+  }
 
   // 2. Execute fulfillment transition
   const result = await transitionFulfillment({

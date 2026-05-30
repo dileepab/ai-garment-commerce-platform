@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma';
 import { canScope, getBrandScopedWhere, getBrandScopeValues } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import { getBrandForecasts } from '@/lib/demand-forecasting';
+import type { Product } from '@/components/ProductComponents';
 import ProductsPageClient from './ProductsPageClient';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +27,7 @@ export default async function ProductsPage() {
   const forecasts = await getBrandForecasts(getBrandScopeValues(scope));
 
   // Map forecast data to products
-  const productsWithForecast = products.map(p => {
+  const productsWithForecast: Product[] = products.map(p => {
     const forecast = forecasts.find(f => f.productId === p.id);
     return {
       ...p,
@@ -39,7 +40,7 @@ export default async function ProductsPage() {
   const lowStock = productsWithForecast.filter(p => p.status === 'low-stock').length;
   const criticalStock = productsWithForecast.filter(p => p.status === 'critical').length;
   const inventoryValue = productsWithForecast.reduce((acc, p) => {
-    const variantTotal = p.variants.length > 0
+    const variantTotal = p.variants && p.variants.length > 0
       ? p.variants.reduce((s, v) => s + (v.inventory?.availableQty ?? 0), 0)
       : p.stock;
     return acc + variantTotal * p.price;
@@ -47,7 +48,7 @@ export default async function ProductsPage() {
 
   return (
     <ProductsPageClient
-      initialProducts={productsWithForecast as any}
+      initialProducts={productsWithForecast}
       stats={{
         totalProducts,
         lowStock,
@@ -58,4 +59,3 @@ export default async function ProductsPage() {
     />
   );
 }
-

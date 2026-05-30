@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import type { ProductForecastSummary, VariantForecastResult } from '@/lib/demand-forecasting';
 import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
 import { displayProductSku } from '@/lib/product-sku';
 
@@ -69,7 +70,7 @@ export interface Product {
   orders?: number;
   variants?: ProductVariantData[];
   colorImages?: ProductColorImageData[];
-  forecast?: any;
+  forecast?: ProductForecastSummary;
 }
 
 const DEFAULT_CRITICAL_THRESH = 3;
@@ -358,7 +359,7 @@ export function ProductDrawer({
                         VARIANT FORECAST & RESTOCK SIZES
                       </div>
                       <div style={{ display: 'grid', gap: 5 }}>
-                        {product.forecast.variants.map((v: any) => {
+                        {product.forecast.variants.map((v: VariantForecastResult) => {
                           const statusColor = v.stockStatus === 'out-of-stock' || v.stockStatus === 'critical' ? '#8B2020' : v.stockStatus === 'low' ? '#9B6B00' : 'var(--color-fg-2)';
                           return (
                             <div key={v.variantId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '2px 0' }}>
