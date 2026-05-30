@@ -13,8 +13,8 @@ import { logDebug, logError } from '@/lib/app-log';
 import { getMerchantSettings, logRuntimeWarnings } from '@/lib/runtime-config';
 
 const MODEL_CHAIN = [
-  'gemini-3.1-flash-lite-preview',
-  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash',
   'gemini-2.5-flash-lite',
   'gemini-2.5-flash',
 ];

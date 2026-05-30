@@ -37,10 +37,10 @@ function getPersona(brand: string, personaId: string): PersonaDef | undefined {
 // This enables the virtual try-on path (product photo → model wearing it).
 const IMAGE_EDIT_MODEL = 'gemini-2.5-flash-image';
 const HIGH_ACCURACY_IMAGE_MODEL =
-  process.env.GEMINI_HIGH_ACCURACY_IMAGE_MODEL || 'gemini-3-pro-image-preview';
+  process.env.GEMINI_HIGH_ACCURACY_IMAGE_MODEL || 'gemini-3-pro-image';
 
 // Text-to-image only — used when no source image is provided.
-const TEXT_TO_IMAGE_MODEL = 'imagen-4.0-generate-001';
+const TEXT_TO_IMAGE_MODEL = 'gemini-3.1-flash-image';
 
 // ── Interfaces ───────────────────────────────────────────────────────────────
 
