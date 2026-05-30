@@ -236,6 +236,32 @@ model ConversationState {
   @@unique([senderId, channel])
 }
 
+model BotMessageDiagnostic {
+  id                 Int      @id @default(autoincrement())
+  senderId           String
+  channel            String   @default("messenger")
+  brand              String?
+  messagePreview     String?
+  detectedLanguage   String?
+  replyLanguage      String?
+  aiAction           String?
+  effectiveAction    String?
+  aiConfidence       Float?
+  assistantReplyKind String?
+  supportMode        String?
+  pendingStep        String?
+  hasReply           Boolean  @default(false)
+  hasMedia           Boolean  @default(false)
+  orderId            Int?
+  issueFlags         String?
+  createdAt          DateTime @default(now())
+
+  @@index([channel, senderId, createdAt])
+  @@index([brand, createdAt])
+  @@index([effectiveAction, createdAt])
+  @@index([assistantReplyKind, createdAt])
+}
+
 model SupportEscalation {
   id                    Int       @id @default(autoincrement())
   senderId              String

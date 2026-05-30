@@ -202,11 +202,23 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
   const [mobileView, setMobileView] = useState<'list' | 'thread'>('list');
 
   useEffect(() => {
-    setEscalations(initialEscalations);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setEscalations(initialEscalations);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [initialEscalations]);
 
   useEffect(() => {
-    setLiveStats(stats);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setLiveStats(stats);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [stats]);
 
   const updateEscalation = useCallback((id: number, patch: Partial<SupportThread>) => {
@@ -301,14 +313,25 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
   }, [escalations, search, filter, channelFilter, brandFilter, sort]);
 
   useEffect(() => {
+    let nextSelectedId: number | null = selectedId;
+
     if (filtered.length === 0) {
-      setSelectedId(null);
-      return;
+      nextSelectedId = null;
+    } else if (!selectedId || !filtered.some((escalation) => escalation.id === selectedId)) {
+      nextSelectedId = filtered[0].id;
     }
 
-    if (!selectedId || !filtered.some((escalation) => escalation.id === selectedId)) {
-      setSelectedId(filtered[0].id);
+    if (nextSelectedId !== selectedId) {
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (!cancelled) setSelectedId(nextSelectedId);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
+
+    return undefined;
   }, [filtered, selectedId]);
 
   const activeConvo = useMemo(
@@ -338,6 +361,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
         }
         actions={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Link className="btn btn-secondary" href="/support/insights">Bot Insights</Link>
             <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
             <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>

@@ -38,6 +38,7 @@ import {
   buildSizeChartReply,
 } from '@/lib/chat/reply-builders';
 import {
+  detectCustomerLanguage,
   buildLanguagePreferenceAcknowledgement,
   isLanguagePreferenceOnlyMessage,
   localizeReplyWithGemini,
@@ -98,6 +99,11 @@ const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
 
 function isBotPausedForSupport(mode: SupportWorkflowMode): boolean {
   return mode === 'handoff_requested' || mode === 'human_active';
+}
+
+function truncateDiagnosticText(value: string, maxLength = 280): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
 }
 
 function shouldUseGreetingShortcut(message: string): boolean {
@@ -372,6 +378,13 @@ export async function routeCustomerMessage(
     activeSupportEscalation?.status === 'in_progress'
       ? 'human_active'
       : conversationSupportMode;
+  let diagnosticEffectiveAction: string | null = aiAction.action;
+  let diagnosticConfidence: number | null = aiAction.confidence;
+
+  function setDiagnosticEffectiveAction(action: string, confidence = diagnosticConfidence) {
+    diagnosticEffectiveAction = action;
+    diagnosticConfidence = confidence;
+  }
 
   function findProductByName(productName?: string | null) {
     if (!productName) {
@@ -520,6 +533,75 @@ export async function routeCustomerMessage(
 
     await saveConversationPair(input.senderId, input.channel, input.currentMessage, localizedReply);
 
+    const hasMedia = Boolean(
+      params.imagePath ||
+        params.imagePaths?.length ||
+        params.carouselProducts?.length
+    );
+    const issueFlags = new Set<string>();
+    const assistantDetectedLanguage = localizedReply
+      ? detectCustomerLanguage(localizedReply)
+      : null;
+
+    if (!localizedReply) {
+      issueFlags.add('no_automated_reply');
+    }
+    if (params.silentReason) {
+      issueFlags.add(params.silentReason);
+    }
+    if (assistantReplyKind === 'fallback') {
+      issueFlags.add('fallback_reply');
+    }
+    if (assistantReplyKind === 'support_handoff') {
+      issueFlags.add('support_handoff');
+    }
+    if (diagnosticConfidence !== null && diagnosticConfidence < LOW_CONFIDENCE_ACTION_THRESHOLD) {
+      issueFlags.add('low_confidence_route');
+    }
+    if (
+      languageResolution.detectedLanguage &&
+      assistantDetectedLanguage &&
+      languageResolution.detectedLanguage !== assistantDetectedLanguage
+    ) {
+      issueFlags.add('language_mismatch');
+    }
+    if (
+      localizedReply &&
+      latestAssistantText &&
+      truncateDiagnosticText(localizedReply, 180) === truncateDiagnosticText(latestAssistantText, 180)
+    ) {
+      issueFlags.add('repeated_reply');
+    }
+
+    try {
+      await prisma.botMessageDiagnostic.create({
+        data: {
+          senderId: input.senderId,
+          channel: input.channel,
+          brand: brandFilter || null,
+          messagePreview: truncateDiagnosticText(input.currentMessage),
+          detectedLanguage: languageResolution.detectedLanguage,
+          replyLanguage,
+          aiAction: aiAction.action,
+          effectiveAction: diagnosticEffectiveAction,
+          aiConfidence: diagnosticConfidence,
+          assistantReplyKind,
+          supportMode: nextState.supportMode,
+          pendingStep: nextState.pendingStep,
+          hasReply: Boolean(localizedReply),
+          hasMedia,
+          orderId: params.orderId ?? null,
+          issueFlags: issueFlags.size > 0 ? JSON.stringify(Array.from(issueFlags)) : null,
+        },
+      });
+    } catch (error) {
+      logWarn('Chat Orchestrator', 'Could not persist bot message diagnostic.', {
+        senderId: input.senderId,
+        channel: input.channel,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     if (nextState.orderDraft || mergedContact.name || mergedContact.phone) {
       await upsertCustomerContact({
         senderId: input.senderId,
@@ -539,7 +621,7 @@ export async function routeCustomerMessage(
       pendingStep: nextState.pendingStep,
       supportMode: nextState.supportMode,
       hasReply: Boolean(params.reply),
-      hasMedia: Boolean(params.imagePath || params.imagePaths?.length || params.carouselProducts?.length),
+      hasMedia,
       orderId: params.orderId ?? null,
       language: replyLanguage,
     });
@@ -585,6 +667,8 @@ export async function routeCustomerMessage(
         orderId: orderId || null,
       }),
     });
+
+    setDiagnosticEffectiveAction(`support_${reason}`);
 
     return finalizeReply({
       reply:
@@ -662,10 +746,12 @@ export async function routeCustomerMessage(
     const pausedSupportMode =
       currentSupportMode === 'human_active' ? 'human_active' : 'handoff_requested';
 
+    setDiagnosticEffectiveAction('support_silent_hold');
     return finalizeSupportSilentHold(pausedSupportMode);
   }
 
   if (shouldUseGreetingShortcut(input.currentMessage) && state.pendingStep === 'none') {
+    setDiagnosticEffectiveAction('greeting');
     return finalizeReply({
       reply: buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
       assistantReplyKind: 'greeting',
@@ -974,6 +1060,7 @@ export async function routeCustomerMessage(
     looksLikeStoreLocationQuestion(input.currentMessage) &&
     !messageReferencesExistingOrder(input.currentMessage)
   ) {
+    setDiagnosticEffectiveAction('store_location_question');
     return finalizeReply({
       reply: buildStoreLocationReply(settings.support),
       nextState: {
@@ -1027,6 +1114,8 @@ export async function routeCustomerMessage(
       paymentMethod: requestedPaymentMethod,
     };
   }
+
+  setDiagnosticEffectiveAction(effectiveAction, effectiveAiAction.confidence);
 
   const ctx: ChatContext = {
     input, state, customer, brandFilter, globalProducts, products,
