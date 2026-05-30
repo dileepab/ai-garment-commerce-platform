@@ -238,6 +238,19 @@ export function buildGreetingReply(name?: string | null, brand?: string): string
   return `Hello. How can I assist you with your ${brand || 'store'} order today?`;
 }
 
+export function buildStoreLocationReply(supportConfig?: SupportContactConfig): string {
+  const supportLine = supportConfig
+    ? buildSupportContactLineFromConfig(supportConfig)
+    : buildSupportContactLine();
+
+  return [
+    'At the moment this chat is set up for online orders.',
+    'I do not have a confirmed branch list saved here yet.',
+    'You can message us here for item details, delivery, COD, or orders.',
+    `For store location or branch details, ${supportLine.toLowerCase()}`,
+  ].join(' ');
+}
+
 export function buildClarificationReply(
   state: ConversationStateData,
   supportConfig?: SupportContactConfig

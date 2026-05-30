@@ -19,6 +19,7 @@ import {
   looksLikeOrderStatusRequest,
   looksLikePaymentQuestion,
   looksLikeSameItemMessage,
+  looksLikeStoreLocationQuestion,
   looksLikeSupportContactProblem,
   looksLikeTotalQuestion,
   mentionsRelativeOrderReference,
@@ -32,6 +33,7 @@ import {
   buildAcknowledgementReply,
   buildGreetingReply,
   buildMissingContactPrompt,
+  buildStoreLocationReply,
   buildSizeChartReply,
 } from '@/lib/chat/reply-builders';
 import {
@@ -839,15 +841,19 @@ export async function routeCustomerMessage(
   // Never bypass the escalation path when the customer is explicitly asking to
   // speak with a human agent, even if the AI labelled it as support_contact_request.
   const hasSupportContactProblem = looksLikeSupportContactProblem(input.currentMessage);
+  const detectedSupportIssueReason = inferSupportIssueReason(input.currentMessage);
+  const isSimpleSupportContactRequest =
+    aiAction.action === 'support_contact_request' &&
+    !looksLikeHumanEscalationRequest(input.currentMessage) &&
+    detectedSupportIssueReason === 'human_request' &&
+    !hasSupportContactProblem;
   const supportIssueReason =
-    hasSupportContactProblem
-      ? inferSupportIssueReason(input.currentMessage)
-      : (aiAction.action === 'support_contact_request' && !looksLikeHumanEscalationRequest(input.currentMessage)) ||
-          aiAction.action === 'thanks_acknowledgement' ||
-          (looksLikeOrderContactUpdateRequest(input.currentMessage) &&
-            !looksLikeHumanEscalationRequest(input.currentMessage))
-        ? null
-        : inferSupportIssueReason(input.currentMessage);
+    isSimpleSupportContactRequest ||
+    aiAction.action === 'thanks_acknowledgement' ||
+    (looksLikeOrderContactUpdateRequest(input.currentMessage) &&
+      !looksLikeHumanEscalationRequest(input.currentMessage))
+      ? null
+      : detectedSupportIssueReason;
   if (supportIssueReason) {
     const relatedOrderId =
       explicitOrderId ??
@@ -942,7 +948,24 @@ export async function routeCustomerMessage(
     }
   }
 
-  if (effectiveAction === 'fallback' && looksLikeCatalogQuestion(input.currentMessage)) {
+  if (
+    state.pendingStep === 'none' &&
+    looksLikeStoreLocationQuestion(input.currentMessage) &&
+    !messageReferencesExistingOrder(input.currentMessage)
+  ) {
+    return finalizeReply({
+      reply: buildStoreLocationReply(settings.support),
+      nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  if (
+    state.pendingStep === 'none' &&
+    ['fallback', 'support_contact_request', 'greeting'].includes(effectiveAction) &&
+    looksLikeCatalogQuestion(input.currentMessage)
+  ) {
     effectiveAction = 'catalog_list';
     effectiveAiAction = {
       ...effectiveAiAction,
@@ -951,7 +974,10 @@ export async function routeCustomerMessage(
     };
   }
 
-  if (effectiveAction === 'fallback' && looksLikeCasualWellbeingQuestion(input.currentMessage)) {
+  if (
+    ['fallback', 'support_contact_request'].includes(effectiveAction) &&
+    looksLikeCasualWellbeingQuestion(input.currentMessage)
+  ) {
     effectiveAction = 'greeting';
     effectiveAiAction = {
       ...effectiveAiAction,
@@ -960,7 +986,10 @@ export async function routeCustomerMessage(
     };
   }
 
-  if (effectiveAction === 'fallback' && looksLikePaymentQuestion(input.currentMessage)) {
+  if (
+    ['fallback', 'support_contact_request', 'greeting'].includes(effectiveAction) &&
+    looksLikePaymentQuestion(input.currentMessage)
+  ) {
     const normalizedPaymentMessage = input.currentMessage.toLowerCase();
     const requestedPaymentMethod =
       /\bcod\b|cash on delivery/i.test(normalizedPaymentMessage)

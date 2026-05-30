@@ -271,7 +271,13 @@ export function looksLikePaymentQuestion(message: string): boolean {
 }
 
 export function looksLikeExchangeQuestion(message: string): boolean {
-  return /\bexchange\b|\bwrong size\b|\bsize is wrong\b|\bchange the size\b/i.test(message);
+  const normalized = normalizeText(message);
+
+  return (
+    /\bexchange\b|\bwrong size\b|\bsize is wrong\b|\bchange the size\b|\bswap\b/i.test(normalized) ||
+    /(මාරු|හුවමාරු|ලොකු\s*size|වෙන\s*size|සයිස්.*මාරු|size.*මාරු)/i.test(message) ||
+    /(மாற்ற|எக்சேஞ்ச்|exchange|வேறு\s*size|பெரிய\s*size|சைஸ்.*மாற்ற)/i.test(message)
+  );
 }
 
 export function looksLikeHumanSupportRequest(message: string): boolean {
@@ -315,20 +321,43 @@ export function looksLikePaymentProblem(message: string): boolean {
 }
 
 export function looksLikeRefundOrDamageIssue(message: string): boolean {
-  return /\b(refund|damaged|broken|defective|wrong item|wrong product|return this|return my money)\b/i.test(
-    normalizeText(message)
+  const normalized = normalizeText(message);
+
+  return (
+    /\b(refund|damaged|damage|broken|defective|wrong item|wrong product|return my money|money back)\b/i.test(
+      normalized
+    ) ||
+    /(ඩැමේජ්|ඩැමේජ්|damage|damaged|කැඩිලා|හානි|පළුදු|වැරදි\s*(භාණ්ඩ|ඇඳුම|ඇදුම)|සල්ලි\s*ආපහු|මුදල්\s*ආපසු|රිෆන්ඩ්|refund)/i.test(
+      message
+    ) ||
+    /(சேதம்|சேதமடைந்த|கிழிந்த|பாதிப்பு|தவறான\s*பொருள்|பணம்\s*திரும்ப|ரீஃ?பண்ட்|refund|damaged)/i.test(
+      message
+    )
   );
 }
 
 export function looksLikeReturnRequest(message: string): boolean {
-  return /\b(want to return|would like to return|need to return|requesting a return|send it back|send back|return the order|return my order|return my item|return my parcel|return request)\b/i.test(
-    normalizeText(message)
+  const normalized = normalizeText(message);
+
+  return (
+    /\b(want to return|would like to return|need to return|requesting a return|send it back|send back|return the order|return my order|return my item|return my parcel|return request)\b/i.test(
+      normalized
+    ) ||
+    /(return|රිටර්න්|ආපහු\s*(දෙන්න|එවන්න)|නැවත\s*එවන්න|திருப்பி\s*(அனுப்ப|கொடுக்க)|ரிட்டர்ன்)/i.test(
+      message
+    )
   );
 }
 
 export function looksLikeExchangeRequest(message: string): boolean {
-  return /\b(want to exchange|would like to exchange|need to exchange|requesting an exchange|exchange the order|exchange my order|exchange my item|exchange request|swap for|swap it for)\b/i.test(
-    normalizeText(message)
+  const normalized = normalizeText(message);
+
+  return (
+    /\b(want to exchange|would like to exchange|need to exchange|requesting an exchange|exchange the order|exchange my order|exchange my item|exchange request|swap for|swap it for)\b/i.test(
+      normalized
+    ) ||
+    /(මාරු\s*කර|හුවමාරු|ලොකු\s*size|වෙන\s*size|සයිස්.*මාරු|size.*මාරු)/i.test(message) ||
+    /(மாற்றி|மாற்ற|எக்சேஞ்ச்|exchange|வேறு\s*size|பெரிய\s*size|சைஸ்.*மாற்ற)/i.test(message)
   );
 }
 
@@ -365,16 +394,16 @@ export function inferSupportIssueReason(message: string): SupportIssueReason | n
     return 'payment_issue';
   }
 
+  if (looksLikeRefundOrDamageIssue(message)) {
+    return 'refund_or_damage';
+  }
+
   if (looksLikeReturnRequest(message)) {
     return 'return_request';
   }
 
   if (looksLikeExchangeRequest(message)) {
     return 'exchange_request';
-  }
-
-  if (looksLikeRefundOrDamageIssue(message)) {
-    return 'refund_or_damage';
   }
 
   if (looksLikeDeliveryComplaint(message)) {
@@ -461,6 +490,26 @@ export function looksLikeCatalogQuestion(message: string): boolean {
     /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||
     /(මොනවද|මොනවාද|මොනාවද|මොනද).*(තියන|තියෙන|තියෙන්නේ|ඇදුම්|ඇඳුම්|බඩු)/.test(message) ||
     /(ඇදුම්|ඇඳුම්|බඩු).*(තියන|තියෙන|තියෙන්නේ|මොන)/.test(message)
+  );
+}
+
+export function looksLikeStoreLocationQuestion(message: string): boolean {
+  const normalized = normalizeText(message);
+
+  return (
+    /\b(where|location|located|address|shop|store|outlet|branch|branches|open|opening hours|close|closing time|outside colombo)\b.*\b(shop|store|outlet|branch|branches|located|location|address|open|close|hours)\b/i.test(
+      normalized
+    ) ||
+    /\b(shop|store|outlet|branch|branches|opening hours|outside colombo)\b/i.test(
+      normalized
+    ) ||
+    /(කඩේ|කඩය|ශාඛා|branch|shop|store|ලිපිනය|තැන|කොහෙද|කොහෙද තියෙන්නේ|විවෘත|වහන්නේ|කීයට|කොළඹින් පිට)/i.test(
+      message
+    ) ||
+    (
+      /(கடை|ஸ்டோர்|கிளை|கிளைகள்|முகவரி|location|branch|கொழும்புக்கு வெளியே)/i.test(message) &&
+      /(எங்கே|எங்கு|இருக்கிறது|உள்ளதா|திறந்திருக்கும்|மணிவரை|வெளியே|கிளைகள்)/i.test(message)
+    )
   );
 }
 

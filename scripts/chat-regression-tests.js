@@ -414,6 +414,7 @@ async function main() {
           'monawada thiyana adum',
           'mata monawath penne nane',
           'මොනවද තියන ඇදුම්',
+          'මොනාවද තියන ඇදුම්',
         ],
         verify: async ({ transcript }) => {
           for (const [index, entry] of transcript.entries()) {
@@ -421,6 +422,27 @@ async function main() {
               'Oversized Casual Top',
               'Breezy Summer Dress',
             ], `Sinhala catalog reply ${index + 1}`);
+          }
+        },
+      },
+      {
+        name: 'Store location and branch questions do not collapse to hotline-only replies',
+        senderId: buildSender(runId, 'store-location'),
+        messages: [
+          'உங்களது கடை எங்கே இருக்கிறது? எத்தனை மணிவரை திறந்திருக்கும்?',
+          'கொழும்புக்கு வெளியே கிளைகள் உள்ளதா?',
+        ],
+        verify: async ({ transcript }) => {
+          for (const [index, entry] of transcript.entries()) {
+            assert(
+              entry.bot.includes('online orders') || entry.bot.includes('online'),
+              `Expected location reply ${index + 1} to mention online order context.\n\nActual reply:\n${entry.bot}`
+            );
+            assert(
+              !entry.bot.startsWith('எங்கள் ஆதரவுக் குழுவை நீங்கள் நேரடியாகத் தொடர்பு கொள்ளலாம்') &&
+                !entry.bot.startsWith('You can reach our support team directly.'),
+              `Location reply ${index + 1} should not be the generic support-contact block.\n\nActual reply:\n${entry.bot}`
+            );
           }
         },
       },
@@ -963,6 +985,33 @@ async function main() {
           });
 
           assert(!escalation, 'Did not expect a support escalation for a simple support contact request.');
+        },
+      },
+      {
+        name: 'Sinhala damaged item and refund requests escalate instead of exchange policy',
+        senderId: buildSender(runId, 'sinhala-damage-refund'),
+        messages: [
+          'ආපු ඇඳුම ඩැමේජ්. සල්ලි ආපහු ගන්න ඕනේ.',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[0].bot, [
+            'I have also flagged this conversation for a team follow-up.',
+          ], 'Sinhala damaged refund handoff reply');
+          assert(
+            !transcript[0].bot.includes('exchange') && !transcript[0].bot.includes('හුවමාරු'),
+            `Damaged refund reply should not use the exchange policy.\n\nActual reply:\n${transcript[0].bot}`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(escalation, 'Expected support escalation for Sinhala damaged refund request.');
+          assert(
+            escalation.reason === 'refund_or_damage',
+            `Expected reason refund_or_damage, received ${String(escalation.reason)}.`
+          );
         },
       },
       {
