@@ -13,9 +13,10 @@ import { logDebug, logError } from '@/lib/app-log';
 import { getMerchantSettings, logRuntimeWarnings } from '@/lib/runtime-config';
 
 const MODEL_CHAIN = [
-  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite',
   'gemini-2.5-flash-lite',
   'gemini-2.5-flash',
+  'gemini-3.5-flash',
 ];
 
 const MAX_HISTORY = 20;
@@ -342,7 +343,7 @@ IMPORTANT:
     if (isHighRisk(customerMessage)) {
       logDebug('AI Reviewer', `Risk detected in message: "${customerMessage.slice(0, 60)}". Running parallel reviewers.`);
       try {
-        const reviewModel = 'gemini-2.5-flash-lite';
+        const reviewModel = 'gemini-3.1-flash-lite';
         const [salesReview, opsReview, toneReview] = await Promise.all([
           ai.models.generateContent({
             model: reviewModel,
