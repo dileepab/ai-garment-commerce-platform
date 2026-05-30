@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       reply: result.reply ?? '',
+      silentReason: result.silentReason ?? null,
       imageUrl: result.imagePath ?? null,
       imageUrls: result.imagePaths ?? null,
       carouselProducts: result.carouselProducts ?? null,

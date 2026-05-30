@@ -12,6 +12,7 @@ export interface CustomerMessageInput {
 
 export interface CustomerMessageResult {
   reply: string | null;
+  silentReason?: 'support_handoff' | 'human_active';
   imagePath?: string;
   imagePaths?: string[];
   carouselProducts?: Array<{

@@ -430,6 +430,22 @@ async function main() {
         },
       },
       {
+        name: 'Greeting plus catalog question shows catalog instead of greeting only',
+        senderId: buildSender(runId, 'greeting-catalog'),
+        messages: ['Hi, what are the available items?'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'We currently have the following items available:',
+            'Oversized Casual Top',
+            'Relaxed Linen Pants',
+          ], 'Greeting catalog reply');
+          assert(
+            !transcript[0].bot.startsWith('Hello. How can I assist you'),
+            `Greeting catalog request should not stop at the greeting shortcut.\n\nActual reply:\n${transcript[0].bot}`
+          );
+        },
+      },
+      {
         name: 'Empty catalog replies keep customers engaged in each language',
         senderId: buildSender(runId, 'empty-catalog-friendly'),
         before: async () => {

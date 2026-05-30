@@ -22,6 +22,7 @@ interface SimulatorMessage {
 interface SimulatorResponse {
   success: boolean;
   reply?: string;
+  silentReason?: 'support_handoff' | 'human_active' | null;
   error?: string;
   imageUrl?: string | null;
   imageUrls?: string[] | null;
@@ -89,6 +90,23 @@ export function ChatSimulatorClient({ brands }: { brands: string[] }) {
             id: `system-${Date.now()}`,
             role: 'system',
             text: payload.error || 'Simulator request failed.',
+          },
+        ]);
+        return;
+      }
+
+      if (!payload.reply && payload.silentReason) {
+        const text =
+          payload.silentReason === 'human_active'
+            ? 'No automated reply was sent because a support agent is active in this thread.'
+            : 'No automated reply was sent because this sender is waiting for support handoff. Start a new test thread to test normal bot replies again.';
+
+        setMessages((current) => [
+          ...current,
+          {
+            id: `system-${Date.now()}`,
+            role: 'system',
+            text,
           },
         ]);
         return;

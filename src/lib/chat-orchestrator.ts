@@ -11,6 +11,7 @@ import {
   isUnambiguousCancellationMessage,
   looksLikeCatalogQuestion,
   looksLikeCasualWellbeingQuestion,
+  looksLikeDeliveryQuestion,
   looksLikeGiftRequest,
   looksLikeHumanEscalationRequest,
   looksLikeMissingOrderFollowUp,
@@ -97,6 +98,23 @@ const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
 
 function isBotPausedForSupport(mode: SupportWorkflowMode): boolean {
   return mode === 'handoff_requested' || mode === 'human_active';
+}
+
+function shouldUseGreetingShortcut(message: string): boolean {
+  if (!isGreetingMessage(message)) {
+    return false;
+  }
+
+  return !(
+    looksLikeCatalogQuestion(message) ||
+    looksLikeStoreLocationQuestion(message) ||
+    looksLikePaymentQuestion(message) ||
+    looksLikeDeliveryQuestion(message) ||
+    looksLikeHumanEscalationRequest(message) ||
+    looksLikeOrderStatusRequest(message) ||
+    looksLikeOrderDetailsRequest(message) ||
+    looksLikeSupportContactProblem(message)
+  );
 }
 
 async function saveConversationPair(
@@ -478,6 +496,7 @@ export async function routeCustomerMessage(
     }>;
     orderId?: number | null;
     assistantReplyKind?: AssistantReplyKind;
+    silentReason?: CustomerMessageResult['silentReason'];
   }): Promise<CustomerMessageResult> {
     const assistantReplyKind = params.assistantReplyKind || 'generic';
     const localizedReply = await localizeReplyWithGemini(params.reply, replyLanguage);
@@ -532,6 +551,7 @@ export async function routeCustomerMessage(
       carouselProducts: params.carouselProducts,
       orderId: params.orderId ?? null,
       language: replyLanguage,
+      silentReason: params.silentReason,
     };
   }
 
@@ -628,6 +648,7 @@ export async function routeCustomerMessage(
       reply: null,
       orderId: targetOrderId,
       assistantReplyKind: 'support_waiting',
+      silentReason: mode === 'human_active' ? 'human_active' : 'support_handoff',
       nextState: {
         ...clearPendingConversationState(state),
         supportMode: mode,
@@ -644,7 +665,7 @@ export async function routeCustomerMessage(
     return finalizeSupportSilentHold(pausedSupportMode);
   }
 
-  if (isGreetingMessage(input.currentMessage) && state.pendingStep === 'none') {
+  if (shouldUseGreetingShortcut(input.currentMessage) && state.pendingStep === 'none') {
     return finalizeReply({
       reply: buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
       assistantReplyKind: 'greeting',
