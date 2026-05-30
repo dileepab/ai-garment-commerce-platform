@@ -70,7 +70,10 @@ function decodeMetaValue(value?: string): string | null {
 function getStructuredPostbackMessage(payload?: string): string | null {
   const trimmedPayload = getTrimmedValue(payload);
 
-  if (!trimmedPayload?.startsWith('ORDER_NOW|')) {
+  if (
+    !trimmedPayload?.startsWith('ORDER_NOW|') &&
+    !trimmedPayload?.startsWith('PRODUCT_DETAILS|')
+  ) {
     return null;
   }
 
@@ -90,6 +93,10 @@ function getStructuredPostbackMessage(payload?: string): string | null {
     }, {});
 
   const productName = decodeMetaValue(attributes.productName);
+
+  if (trimmedPayload.startsWith('PRODUCT_DETAILS|')) {
+    return productName ? `Please send details for ${productName}` : 'Please send item details';
+  }
 
   return productName ? `I want to order ${productName}` : 'Order Now';
 }

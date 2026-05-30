@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Thread } from '@/components/SupportComponents';
 import { PageHeader } from '@/components/PageHeader';
@@ -336,9 +337,13 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
           </div>
         }
         actions={
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>
-            <Icon d={ic.zap} size={12} color="var(--color-accent)" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{liveStats.open > 0 ? `${liveStats.open} Case Lock${liveStats.open === 1 ? "" : "s"}` : "AI Live"}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
+            <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>
+              <Icon d={ic.zap} size={12} color="var(--color-accent)" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{liveStats.open > 0 ? `${liveStats.open} Case Lock${liveStats.open === 1 ? "" : "s"}` : "AI Live"}</span>
+            </div>
           </div>
         }
       />

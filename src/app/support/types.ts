@@ -5,6 +5,28 @@ export interface SupportThreadCustomer {
 
 export interface SupportThreadOrder {
   id: number;
+  orderStatus: string;
+  totalAmount: number;
+  paymentMethod: string | null;
+  deliveryAddress: string | null;
+  trackingNumber: string | null;
+  courier: string | null;
+  brand: string | null;
+  createdAt: string;
+  items: Array<{
+    id: number;
+    productName: string;
+    style: string | null;
+    size: string | null;
+    color: string | null;
+    quantity: number;
+  }>;
+  returnRequests: Array<{
+    id: number;
+    type: string;
+    status: string;
+    reason: string;
+  }>;
 }
 
 export interface SupportThreadMessage {
@@ -23,6 +45,7 @@ export interface SupportThread {
   customer: SupportThreadCustomer | null;
   orderId: number | null;
   order: SupportThreadOrder | null;
+  recentOrders: SupportThreadOrder[];
   brand: string | null;
   reason: string;
   status: string;

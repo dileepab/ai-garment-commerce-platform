@@ -13,6 +13,8 @@ import {
   type MetaSendResult,
 } from '@/lib/meta';
 import { logInfo, logWarn } from '@/lib/app-log';
+import { logAdminAudit } from '@/lib/admin-audit';
+import { createReturnRequest, ReturnRequestError } from '@/lib/returns-service';
 import {
   assertBrandAccess,
   isAuthorizationError,
@@ -136,6 +138,21 @@ export async function updateEscalationWorkflowAction(formData: FormData) {
     },
   });
 
+  await logAdminAudit({
+    action: 'support_status_updated',
+    entityType: 'support_escalation',
+    entityId: escalationId,
+    brand: escalation.brand,
+    actorEmail: scope.email ?? null,
+    summary: `Support case #${escalationId} moved to ${nextStatus}.`,
+    metadata: {
+      previousStatus: escalation.status,
+      nextStatus,
+      senderId: escalation.senderId,
+      channel: escalation.channel,
+    },
+  });
+
   await setConversationSupportMode({
     senderId: escalation.senderId,
     channel: escalation.channel,
@@ -191,6 +208,20 @@ export async function sendSupportReplyAction(formData: FormData) {
       channel: escalation.channel,
       role: 'operator',
       message: reply,
+    },
+  });
+
+  await logAdminAudit({
+    action: 'support_reply_saved',
+    entityType: 'support_escalation',
+    entityId: escalationId,
+    brand: escalation.brand,
+    actorEmail: scope.email ?? null,
+    summary: `Support reply saved for case #${escalationId}.`,
+    metadata: {
+      channel: escalation.channel,
+      senderId: escalation.senderId,
+      replyLength: reply.length,
     },
   });
 
@@ -293,5 +324,144 @@ export async function addSupportNoteAction(formData: FormData) {
     },
   });
 
+  await logAdminAudit({
+    action: 'support_note_added',
+    entityType: 'support_escalation',
+    entityId: escalationId,
+    brand: escalation.brand,
+    actorEmail: scope.email ?? null,
+    summary: `Added internal note to support case #${escalationId}.`,
+    metadata: {
+      noteLength: note.length,
+    },
+  });
+
   revalidatePath('/support');
+}
+
+export async function startRefundDamageWorkflowAction(formData: FormData) {
+  let scope: UserScope;
+  try {
+    scope = await requireActionPermission('support:reply');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  const escalationId = Number.parseInt(String(formData.get('escalationId') || ''), 10);
+  const orderId = Number.parseInt(String(formData.get('orderId') || ''), 10);
+  const workflowType = String(formData.get('workflowType') || 'return') === 'exchange'
+    ? 'exchange'
+    : 'return';
+  const reason = String(formData.get('reason') || '').trim() || 'Customer reported damaged item or refund request.';
+
+  if (!Number.isInteger(escalationId) || !Number.isInteger(orderId)) {
+    return;
+  }
+
+  const escalation = await prisma.supportEscalation.findUnique({
+    where: { id: escalationId },
+  });
+
+  if (!escalation) {
+    return;
+  }
+
+  try {
+    assertBrandAccess(scope, escalation.brand, 'support case');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, brand: true, customerId: true },
+  });
+
+  if (!order) {
+    return;
+  }
+
+  try {
+    assertBrandAccess(scope, order.brand, 'order');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  if (escalation.customerId && order.customerId !== escalation.customerId) {
+    await prisma.chatMessage.create({
+      data: {
+        senderId: escalation.senderId,
+        channel: escalation.channel,
+        role: 'support_note',
+        message: `Could not start ${workflowType} workflow: order #${orderId} is not linked to this customer.`,
+      },
+    });
+    revalidatePath('/support');
+    return;
+  }
+
+  let workflowNote = '';
+  try {
+    const created = await createReturnRequest({
+      orderId,
+      type: workflowType,
+      reason,
+      requestedBy: 'customer',
+      adminNote: `Started from support case #${escalationId}.`,
+    });
+
+    workflowNote = `${workflowType === 'exchange' ? 'Exchange' : 'Return/refund'} workflow started for order #${orderId}. Return request #${created.id} is now in requested status. Ask the customer for photos, package condition, and whether they prefer refund or replacement.`;
+
+    await logAdminAudit({
+      action: 'support_return_workflow_started',
+      entityType: 'return_request',
+      entityId: created.id,
+      brand: order.brand,
+      actorEmail: scope.email ?? null,
+      summary: `Started ${workflowType} workflow from support case #${escalationId} for order #${orderId}.`,
+      metadata: {
+        escalationId,
+        orderId,
+        type: workflowType,
+      },
+    });
+  } catch (error) {
+    workflowNote =
+      error instanceof ReturnRequestError
+        ? `Could not create ${workflowType} workflow for order #${orderId}: ${error.message}`
+        : `Could not create ${workflowType} workflow for order #${orderId}. Please retry from Returns.`;
+  }
+
+  await prisma.$transaction([
+    prisma.supportEscalation.update({
+      where: { id: escalationId },
+      data: {
+        status: 'in_progress',
+        reason: workflowType === 'exchange' ? 'exchange_request' : 'refund_or_damage',
+        orderId,
+      },
+    }),
+    prisma.chatMessage.create({
+      data: {
+        senderId: escalation.senderId,
+        channel: escalation.channel,
+        role: 'support_note',
+        message: workflowNote,
+      },
+    }),
+  ]);
+
+  await setConversationSupportMode({
+    senderId: escalation.senderId,
+    channel: escalation.channel,
+    orderId,
+    supportMode: 'human_active',
+  });
+
+  revalidatePath('/support');
+  revalidatePath('/orders');
+  revalidatePath('/returns');
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { createProductionBatchFromForecastAction } from '@/app/products/actions';
 import type { ProductForecastSummary, VariantForecastResult } from '@/lib/demand-forecasting';
 import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
 import { displayProductSku } from '@/lib/product-sku';
@@ -180,6 +181,12 @@ export function ProductDrawer({
 }) {
   const open = !!product;
   const threshold = product?.threshold || 50;
+  const [isCreatingBatch, startCreatingBatch] = React.useTransition();
+  const [batchNotice, setBatchNotice] = React.useState<{
+    productId: number;
+    message?: string;
+    error?: string;
+  } | null>(null);
 
   // Derive total stock from variant inventory when available
   const derivedStock = product?.variants && product.variants.length > 0
@@ -194,6 +201,28 @@ export function ProductDrawer({
   const hasVariants = (product?.variants?.length ?? 0) > 0;
   const garmentSpecLines = product ? buildGarmentSpecsForCustomer(product).split('\n').filter(Boolean) : [];
   const displayImageUrl = getProductDisplayImage(product);
+  const suggestedProductionQty = product?.forecast?.totalSuggestedRestock ?? 0;
+  const activeBatchNotice =
+    product && batchNotice?.productId === product.id ? batchNotice : null;
+
+  const createForecastBatch = () => {
+    if (!product || suggestedProductionQty <= 0) return;
+    setBatchNotice(null);
+    startCreatingBatch(async () => {
+      const result = await createProductionBatchFromForecastAction(product.id, suggestedProductionQty);
+      if (!result.success) {
+        setBatchNotice({
+          productId: product.id,
+          error: result.error || 'Failed to create production batch.',
+        });
+        return;
+      }
+      setBatchNotice({
+        productId: product.id,
+        message: `Production batch #${result.batchId} planned for ${suggestedProductionQty} units.`,
+      });
+    });
+  };
 
   return (
     <>
@@ -429,13 +458,37 @@ export function ProductDrawer({
                 </div>
               ) : null;
             })()}
+            {activeBatchNotice && (
+              <div style={{
+                margin: '0 0 10px',
+                padding: '10px 14px',
+                background: activeBatchNotice.error ? 'var(--color-error-muted)' : 'var(--color-success-muted)',
+                border: `1px solid ${activeBatchNotice.error ? 'var(--color-error)' : 'var(--color-success)'}`,
+                borderRadius: 8,
+                fontSize: 12,
+                color: activeBatchNotice.error ? 'var(--color-error)' : 'var(--color-success)',
+                lineHeight: 1.5,
+              }}>
+                {activeBatchNotice.error || activeBatchNotice.message}
+              </div>
+            )}
             <div className="drawer-actions">
               {canManage ? (
                 <>
                   <button className="btn btn-primary" style={{ justifyContent: "center" }} onClick={onEdit}>
                     <Icon d={ic.edit} size={13} />Edit Product
                   </button>
-                  {(product.status === "critical" || product.status === "low-stock") && (
+                  {suggestedProductionQty > 0 ? (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ justifyContent: "center" }}
+                      onClick={createForecastBatch}
+                      disabled={isCreatingBatch}
+                    >
+                      <Icon d={ic.refresh} size={13} />
+                      {isCreatingBatch ? 'Planning...' : `Plan ${suggestedProductionQty} units`}
+                    </button>
+                  ) : (product.status === "critical" || product.status === "low-stock") && (
                     <button className="btn btn-secondary" style={{ justifyContent: "center" }}>
                       <Icon d={ic.refresh} size={13} />Reorder Stock
                     </button>

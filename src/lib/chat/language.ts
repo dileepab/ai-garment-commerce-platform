@@ -144,6 +144,18 @@ export function getCarouselButtonTitle(language: CustomerLanguage): string {
   return 'Order Now';
 }
 
+export function getCarouselDetailsButtonTitle(language: CustomerLanguage): string {
+  if (language === 'sinhala') {
+    return 'විස්තර';
+  }
+
+  if (language === 'tamil') {
+    return 'விபரம்';
+  }
+
+  return 'Details';
+}
+
 export function formatCarouselSubtitle(
   product: { sizes: string; colors: string },
   language: CustomerLanguage

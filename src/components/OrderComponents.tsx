@@ -149,6 +149,18 @@ export interface OrderFulfillmentEventLike {
   createdAt: string;
 }
 
+export interface OrderCourierWebhookEventLike {
+  id: number;
+  provider: string;
+  trackingNumber: string | null;
+  courierStatus: string;
+  mappedStatus: string | null;
+  status: string;
+  error: string | null;
+  receivedAt: string;
+  processedAt: string | null;
+}
+
 export interface OrderReturnRequestLike {
   id: number;
   type: string;
@@ -182,6 +194,7 @@ export interface OrderDrawerOrder {
     updatedAt: string;
   }[];
   fulfillmentEvents?: OrderFulfillmentEventLike[];
+  courierWebhookEvents?: OrderCourierWebhookEventLike[];
   returnRequests?: OrderReturnRequestLike[];
 }
 
@@ -227,13 +240,20 @@ export function OrderDrawer({
   const [showCreateReturn, setShowCreateReturn] = useState(false);
 
   React.useEffect(() => {
-    setTrackingDraft(order?.trackingNumber ?? '');
-    setCourierDraft(order?.courier ?? '');
-    setReasonDraft('');
-    setNoteDraft('');
-    setPendingActionForm(initialAction);
-    setShowCreateReturn(false);
-    setError(null);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setTrackingDraft(order?.trackingNumber ?? '');
+      setCourierDraft(order?.courier ?? '');
+      setReasonDraft('');
+      setNoteDraft('');
+      setPendingActionForm(initialAction);
+      setShowCreateReturn(false);
+      setError(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [order?.id, order?.trackingNumber, order?.courier, initialAction]);
 
   const actions = canUpdate && order ? getActionsForStatus(status) : [];
@@ -292,6 +312,11 @@ export function OrderDrawer({
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [order?.fulfillmentEvents]);
+  const courierEvents = useMemo(() => {
+    return [...(order?.courierWebhookEvents ?? [])].sort(
+      (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
+    );
+  }, [order?.courierWebhookEvents]);
 
   return (
     <>
@@ -559,6 +584,43 @@ export function OrderDrawer({
                         </div>
                         {event.note && (
                           <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-fg-2)' }}>{event.note}</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {courierEvents.length > 0 && (
+                <div>
+                  <div className="drawer-section-label">Courier Webhook Timeline</div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {courierEvents.map((event) => (
+                      <li
+                        key={event.id}
+                        style={{
+                          background: 'var(--color-bg)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '8px 12px',
+                          fontSize: 12,
+                          color: 'var(--color-fg-2)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                          <strong style={{ color: 'var(--color-fg-1)' }}>
+                            {event.provider} · {event.courierStatus}
+                          </strong>
+                          <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }} suppressHydrationWarning>
+                            {new Date(event.receivedAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {event.mappedStatus ? <span>Mapped: {getFulfillmentLabel(event.mappedStatus)}</span> : null}
+                          {event.trackingNumber ? <span>Tracking: {event.trackingNumber}</span> : null}
+                          <span>Status: {event.status}</span>
+                        </div>
+                        {event.error && (
+                          <div style={{ marginTop: 4, color: '#8B2020' }}>{event.error}</div>
                         )}
                       </li>
                     ))}

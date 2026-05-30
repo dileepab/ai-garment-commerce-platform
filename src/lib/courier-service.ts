@@ -4,7 +4,7 @@ import {
   normalizeFulfillmentStatus,
   type FulfillmentStatus,
 } from './fulfillment.ts';
-import { logInfo, logWarn } from './app-log.ts';
+import { logInfo } from './app-log.ts';
 
 export interface CourierWebhookPayload {
   orderId: number;
@@ -61,6 +61,13 @@ function mapPromptStatus(status: string): FulfillmentStatus {
   }
 }
 
+export function mapCourierStatus(
+  provider: CourierWebhookPayload['provider'],
+  status: string,
+): FulfillmentStatus {
+  return provider === 'koombiyo' ? mapKoombiyoStatus(status) : mapPromptStatus(status);
+}
+
 /**
  * Normalizes and processes incoming courier tracking webhook updates.
  */
@@ -68,15 +75,7 @@ export async function processCourierWebhookUpdate(payload: CourierWebhookPayload
   const providerName = payload.provider === 'koombiyo' ? 'Koombiyo Delivery' : 'Prompt Express';
   
   // 1. Resolve normalized status
-  let mappedStatus: FulfillmentStatus = 'dispatched';
-  if (payload.provider === 'koombiyo') {
-    mappedStatus = mapKoombiyoStatus(payload.status);
-  } else if (payload.provider === 'prompt') {
-    mappedStatus = mapPromptStatus(payload.status);
-  } else {
-    logWarn('Courier Service', `Unsupported courier provider: ${payload.provider}`);
-    throw new Error(`Unsupported courier provider: ${payload.provider}`);
-  }
+  const mappedStatus = mapCourierStatus(payload.provider, payload.status);
 
   logInfo('Courier Service', `Processing automated courier status update for Order #${payload.orderId}.`, {
     provider: payload.provider,

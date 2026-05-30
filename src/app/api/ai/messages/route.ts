@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       reply: result.reply ?? '',
       imageUrl: result.imagePath ?? null,
       imageUrls: result.imagePaths ?? null,
+      carouselProducts: result.carouselProducts ?? null,
       orderId: result.orderId ?? null,
       language: result.language ?? null,
     });

@@ -5,6 +5,7 @@ import SupportPageClient from './SupportPageClient';
 import {
   formatSupportDate,
   formatSupportTime,
+  serializeSupportOrder,
   serializeSupportMessage,
   SUPPORT_THREAD_MESSAGE_LIMIT,
 } from './format';
@@ -25,18 +26,49 @@ export default async function SupportPage() {
 
   const messagesByConvo = new Map<string, SupportThreadMessage[]>();
   const hasOlderMessagesByConvo = new Map<string, boolean>();
+  const ordersByEscalationId = new Map<number, SupportThread['recentOrders']>();
 
   await Promise.all(
     escalations.map(async (escalation) => {
       const key = `${escalation.channel}:${escalation.senderId}`;
-      const latestMessages = await prisma.chatMessage.findMany({
-        where: {
-          senderId: escalation.senderId,
-          channel: escalation.channel,
-        },
-        orderBy: { id: 'desc' },
-        take: SUPPORT_THREAD_MESSAGE_LIMIT + 1,
-      });
+      const [latestMessages, recentOrders] = await Promise.all([
+        prisma.chatMessage.findMany({
+          where: {
+            senderId: escalation.senderId,
+            channel: escalation.channel,
+          },
+          orderBy: { id: 'desc' },
+          take: SUPPORT_THREAD_MESSAGE_LIMIT + 1,
+        }),
+        prisma.order.findMany({
+          where: {
+            ...getBrandScopedWhere(scope),
+            ...(escalation.customerId
+              ? { customerId: escalation.customerId }
+              : escalation.orderId
+                ? { id: escalation.orderId }
+                : { id: -1 }),
+          },
+          include: {
+            orderItems: {
+              include: {
+                product: true,
+              },
+            },
+            returnRequests: {
+              select: {
+                id: true,
+                type: true,
+                status: true,
+                reason: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+        }),
+      ]);
 
       const visibleMessages = latestMessages
         .slice(0, SUPPORT_THREAD_MESSAGE_LIMIT)
@@ -45,6 +77,7 @@ export default async function SupportPage() {
 
       messagesByConvo.set(key, visibleMessages);
       hasOlderMessagesByConvo.set(key, latestMessages.length > SUPPORT_THREAD_MESSAGE_LIMIT);
+      ordersByEscalationId.set(escalation.id, recentOrders.map(serializeSupportOrder));
     })
   );
 
@@ -60,11 +93,8 @@ export default async function SupportPage() {
         }
       : null,
     orderId: e.orderId,
-    order: e.order
-      ? {
-          id: e.order.id,
-        }
-      : null,
+    order: ordersByEscalationId.get(e.id)?.find((order) => order.id === e.orderId) ?? null,
+    recentOrders: ordersByEscalationId.get(e.id) ?? [],
     brand: e.brand,
     reason: e.reason,
     status: e.status,

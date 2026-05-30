@@ -174,11 +174,21 @@ export function buildHumanSupportReply(params: {
   const contactLine = params.supportConfig
     ? buildSupportContactLineFromConfig(params.supportConfig, { orderId: params.orderId })
     : buildSupportContactLine({ orderId: params.orderId });
+  const defaultLead = `I want to make sure you get the right help for this ${getSupportReasonLabel(
+    params.reason
+  )}.`;
+  const reasonLead: Partial<Record<SupportIssueReason, string>> = {
+    refund_or_damage:
+      'I want to make sure you get the right help for this order issue. Please send your order number and clear photos of the item and package so our team can review the refund or replacement options.',
+    return_request:
+      'We can help with the return request. Please send your order number and the reason for returning the item so our team can review it.',
+    exchange_request:
+      'We can check the exchange options for you. Please send your order number and the size, color, or item you want instead, subject to stock availability.',
+  };
   const handoffLead =
     params.supportConfig?.handoffMessage?.trim() ||
-    `I want to make sure you get the right help for this ${getSupportReasonLabel(
-      params.reason
-    )}.`;
+    reasonLead[params.reason] ||
+    defaultLead;
 
   return `${handoffLead} ${contactLine} I have also flagged this conversation for a team follow-up.`;
 }

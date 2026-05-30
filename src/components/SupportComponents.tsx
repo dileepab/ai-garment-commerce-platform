@@ -3,7 +3,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { SupportThread, SupportThreadMessage } from '@/app/support/types';
 import { SUPPORT_THREAD_POLL_MS } from '@/app/support/format';
-import { updateEscalationWorkflowAction, sendSupportReplyAction } from '@/app/support/actions';
+import {
+  sendSupportReplyAction,
+  startRefundDamageWorkflowAction,
+  updateEscalationWorkflowAction,
+} from '@/app/support/actions';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -18,6 +22,8 @@ const ic = {
   clock: ["M12 22a10 10 0 100-20 10 10 0 000 20", "M12 6v6l4 2"],
   check: "M20 6L9 17l-5-5",
   moreH: ["M12 13a1 1 0 100-2 1 1 0 000 2", "M19 13a1 1 0 100-2 1 1 0 000 2", "M5 13a1 1 0 100-2 1 1 0 000 2"],
+  package: ["M21 8l-9 4-9-4 9-4 9 4z", "M3 8v8l9 4 9-4V8", "M12 12v8"],
+  arrowLeft: ["M19 12H5", "M12 19l-7-7 7-7"],
 };
 
 const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A", whatsapp: "#128C7E" };
@@ -105,6 +111,101 @@ function getEscalationPatch(data: SupportMessagesPayload): Partial<SupportThread
     updatedAtLabel: data.escalation.updatedAtLabel,
     resolvedAt: data.escalation.resolvedAt,
   };
+}
+
+function OrderContextPanel({ convo, canReply }: { convo: SupportThread; canReply: boolean }) {
+  const orders = convo.recentOrders ?? [];
+
+  return (
+    <div
+      style={{
+        borderBottom: '1px solid var(--color-border-subtle)',
+        padding: '10px 14px',
+        background: 'var(--color-bg)',
+        display: 'grid',
+        gap: 8,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: 'var(--color-fg-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <Icon d={ic.package} size={12} color="var(--color-fg-3)" />
+          Order Context
+        </div>
+        {orders.length > 0 && (
+          <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>
+            {orders.length} recent order{orders.length === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+
+      {orders.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--color-fg-3)' }}>
+          No linked order yet. Ask for order ID or phone number before starting a refund or exchange.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 7 }}>
+          {orders.map((order) => (
+            <div
+              key={order.id}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr auto',
+                gap: 10,
+                alignItems: 'center',
+                padding: '8px 10px',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-surface)',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700 }}>ORD-{order.id}</code>
+                  <span className={`pill pill-${order.orderStatus}`}>{order.orderStatus.replace(/_/g, ' ')}</span>
+                  <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>Rs {order.totalAmount.toLocaleString()}</span>
+                  {order.trackingNumber && (
+                    <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>{order.courier || 'Courier'}: {order.trackingNumber}</span>
+                  )}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-fg-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {order.items.length > 0
+                    ? order.items.map((item) => `${item.productName}${item.size ? ` · ${item.size}` : ''}${item.color ? ` · ${item.color}` : ''} ×${item.quantity}`).join(' / ')
+                    : 'No item lines recorded'}
+                </div>
+                {order.returnRequests.length > 0 && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#9B6B00' }}>
+                    Active return/exchange history: {order.returnRequests.map((request) => `#${request.id} ${request.type} ${request.status}`).join(', ')}
+                  </div>
+                )}
+              </div>
+              {canReply && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <form action={startRefundDamageWorkflowAction}>
+                    <input type="hidden" name="escalationId" value={convo.id} />
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="workflowType" value="return" />
+                    <input type="hidden" name="reason" value="Customer reported damaged item or refund request." />
+                    <button type="submit" className="btn btn-secondary" style={{ fontSize: 11, padding: '5px 9px' }}>
+                      <Icon d={ic.arrowLeft} size={11} />Refund flow
+                    </button>
+                  </form>
+                  <form action={startRefundDamageWorkflowAction}>
+                    <input type="hidden" name="escalationId" value={convo.id} />
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="workflowType" value="exchange" />
+                    <input type="hidden" name="reason" value="Customer requested size or item exchange." />
+                    <button type="submit" className="btn btn-ghost" style={{ fontSize: 11, padding: '5px 9px' }}>
+                      Exchange
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Thread({
@@ -327,6 +428,8 @@ export function Thread({
           </button>
         </div>
       </div>
+
+      <OrderContextPanel convo={convo} canReply={canReply} />
 
       <div className="thread-messages" ref={messagesRef} onScroll={handleMessagesScroll}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>

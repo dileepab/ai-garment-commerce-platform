@@ -16,7 +16,11 @@ import {
   type BrandChannelConfigView,
 } from '@/lib/brand-channel-config';
 import { PageHeader } from '@/components/PageHeader';
-import { addBrandSettingsAction, saveMerchantSettingsAction } from './actions';
+import {
+  addBrandSettingsAction,
+  saveMerchantSettingsAction,
+  testCourierWebhookSettingsAction,
+} from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +48,42 @@ const sectionSummaryStyle = {
   justifyContent: 'space-between',
   gap: 12,
 } satisfies CSSProperties;
+
+interface CourierWebhookHealth {
+  configured: boolean;
+  secretSource: 'vercel_env' | 'settings' | 'missing';
+  counts30d: {
+    total: number;
+    processed: number;
+    failed: number;
+    skipped: number;
+  };
+  lastEvent: {
+    status: string;
+    provider: string;
+    courierStatus: string;
+    mappedStatus: string | null;
+    orderId: number | null;
+    error: string | null;
+    receivedAt: string;
+  } | null;
+  lastTest: {
+    summary: string;
+    actorEmail: string | null;
+    createdAt: string;
+  } | null;
+  recentEvents: Array<{
+    id: number;
+    status: string;
+    provider: string;
+    courierStatus: string;
+    mappedStatus: string | null;
+    orderId: number | null;
+    trackingNumber: string | null;
+    error: string | null;
+    receivedAt: string;
+  }>;
+}
 
 function ExpandGlyph() {
   return (
@@ -92,6 +132,12 @@ function uniqueBrands(values: Array<string | null | undefined>): string[] {
   return Array.from(
     new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))
   ).sort((a, b) => a.localeCompare(b));
+}
+
+function getThirtyDaysAgo(): Date {
+  const date = new Date();
+  date.setDate(date.getDate() - 30);
+  return date;
 }
 
 function NumberField({
@@ -209,6 +255,111 @@ function TokenField({
   );
 }
 
+function CourierWebhookHealthPanel({
+  health,
+  canManage,
+}: {
+  health: CourierWebhookHealth;
+  canManage: boolean;
+}) {
+  const sourceLabel =
+    health.secretSource === 'vercel_env'
+      ? 'Vercel env'
+      : health.secretSource === 'settings'
+        ? 'Settings'
+        : 'Missing';
+  const healthColor = !health.configured
+    ? '#8B2020'
+    : health.counts30d.failed > 0
+      ? '#9B6B00'
+      : '#1E6B45';
+
+  return (
+    <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+        <div className="app-subpanel">
+          <p className="app-section-label">Configuration</p>
+          <div style={{ marginTop: 6, fontSize: 18, fontWeight: 800, color: healthColor }}>
+            {health.configured ? 'Ready' : 'Needs secret'}
+          </div>
+          <p className="app-muted" style={{ marginTop: 4 }}>Source: {sourceLabel}</p>
+        </div>
+        <div className="app-subpanel">
+          <p className="app-section-label">30d Events</p>
+          <div style={{ marginTop: 6, fontSize: 18, fontWeight: 800, color: 'var(--color-fg-1)' }}>{health.counts30d.total}</div>
+          <p className="app-muted" style={{ marginTop: 4 }}>
+            {health.counts30d.processed} processed · {health.counts30d.skipped} skipped
+          </p>
+        </div>
+        <div className="app-subpanel">
+          <p className="app-section-label">Failures</p>
+          <div style={{ marginTop: 6, fontSize: 18, fontWeight: 800, color: health.counts30d.failed > 0 ? '#8B2020' : '#1E6B45' }}>
+            {health.counts30d.failed}
+          </div>
+          <p className="app-muted" style={{ marginTop: 4 }}>
+            {health.lastEvent ? `Last event ${new Date(health.lastEvent.receivedAt).toLocaleString()}` : 'No webhook events yet'}
+          </p>
+        </div>
+      </div>
+
+      <div className="app-subpanel">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+          <div>
+            <p className="app-section-label">Webhook Check</p>
+            <p className="app-muted" style={{ marginTop: 4 }}>
+              {health.lastTest
+                ? `${health.lastTest.summary} (${new Date(health.lastTest.createdAt).toLocaleString()})`
+                : 'Run a configuration check after changing the secret.'}
+            </p>
+          </div>
+          {canManage && (
+            <form action={testCourierWebhookSettingsAction}>
+              <button className="btn btn-secondary" type="submit">Test config</button>
+            </form>
+          )}
+        </div>
+      </div>
+
+      <div className="app-subpanel" style={{ overflowX: 'auto' }}>
+        <p className="app-section-label">Recent Courier Events</p>
+        {health.recentEvents.length === 0 ? (
+          <p className="app-muted" style={{ marginTop: 8 }}>No courier webhook callbacks have been received yet.</p>
+        ) : (
+          <table className="data-table" style={{ marginTop: 8, minWidth: 640 }}>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Order</th>
+                <th>Courier</th>
+                <th>Status</th>
+                <th>Mapped</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {health.recentEvents.map((event) => (
+                <tr key={event.id}>
+                  <td style={{ whiteSpace: 'nowrap' }}>{new Date(event.receivedAt).toLocaleString()}</td>
+                  <td>{event.orderId ? `ORD-${event.orderId}` : 'Unlinked'}</td>
+                  <td>{event.provider}</td>
+                  <td>{event.courierStatus}</td>
+                  <td>{event.mappedStatus || '—'}</td>
+                  <td>
+                    <span className={`app-chip ${event.status === 'failed' ? 'app-chip-danger' : event.status === 'skipped' ? 'app-chip-warning' : 'app-chip-neutral'}`}>
+                      {event.status}
+                    </span>
+                    {event.error && <div className="app-muted" style={{ marginTop: 3 }}>{event.error}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AddBrandForm({ canManage }: { canManage: boolean }) {
   if (!canManage) return null;
 
@@ -275,6 +426,7 @@ function SettingsForm({
   settings,
   channelConfig,
   courierWebhookSecretSaved = false,
+  courierWebhookHealth,
   title,
   subtitle,
   canManage,
@@ -283,6 +435,7 @@ function SettingsForm({
   settings: MerchantSettings;
   channelConfig?: BrandChannelConfigView;
   courierWebhookSecretSaved?: boolean;
+  courierWebhookHealth?: CourierWebhookHealth;
   title: string;
   subtitle: string;
   canManage: boolean;
@@ -411,6 +564,12 @@ function SettingsForm({
                     />
                   </label>
                 </div>
+                {courierWebhookHealth && (
+                  <CourierWebhookHealthPanel
+                    health={courierWebhookHealth}
+                    canManage={canManage}
+                  />
+                )}
               </CollapsibleSection>
             )}
 
@@ -474,12 +633,38 @@ function SettingsForm({
 export default async function SettingsPage() {
   const scope = await requirePagePermission('settings:view');
   const canManage = canScope(scope, 'settings:write');
-  const [settingsRows, channelRows, productBrands, orderBrands, supportBrands] = await Promise.all([
+  const courierSince = getThirtyDaysAgo();
+  const [settingsRows, channelRows, productBrands, orderBrands, supportBrands, courierEvents, courierCounts, lastCourierTest] = await Promise.all([
     prisma.merchantSettings.findMany({ select: { brand: true, storeKey: true, courierWebhookSecret: true } }),
     prisma.brandChannelConfig.findMany({ select: { brand: true } }),
     prisma.product.findMany({ distinct: ['brand'], select: { brand: true } }),
     prisma.order.findMany({ distinct: ['brand'], select: { brand: true } }),
     prisma.supportEscalation.findMany({ distinct: ['brand'], select: { brand: true } }),
+    prisma.courierWebhookEventLog.findMany({
+      orderBy: { receivedAt: 'desc' },
+      take: 8,
+      select: {
+        id: true,
+        status: true,
+        provider: true,
+        courierStatus: true,
+        mappedStatus: true,
+        orderId: true,
+        trackingNumber: true,
+        error: true,
+        receivedAt: true,
+      },
+    }),
+    prisma.courierWebhookEventLog.groupBy({
+      by: ['status'],
+      where: { receivedAt: { gte: courierSince } },
+      _count: { _all: true },
+    }),
+    prisma.adminAuditLog.findFirst({
+      where: { action: 'courier_webhook_test' },
+      orderBy: { createdAt: 'desc' },
+      select: { summary: true, actorEmail: true, createdAt: true },
+    }),
   ]);
   const brandNames = uniqueBrands([
     ...settingsRows.map((row) => row.brand),
@@ -490,6 +675,50 @@ export default async function SettingsPage() {
   ]).filter((brand) => canAccessBrand(scope, brand));
   const globalSettings = await getMerchantSettings();
   const globalSettingsRow = settingsRows.find((row) => row.storeKey === 'default');
+  const courierCountByStatus = new Map(courierCounts.map((row) => [row.status, row._count._all]));
+  const courierWebhookHealth: CourierWebhookHealth = {
+    configured: Boolean(process.env.COURIER_WEBHOOK_SECRET || globalSettingsRow?.courierWebhookSecret),
+    secretSource: process.env.COURIER_WEBHOOK_SECRET
+      ? 'vercel_env'
+      : globalSettingsRow?.courierWebhookSecret
+        ? 'settings'
+        : 'missing',
+    counts30d: {
+      total: courierCounts.reduce((sum, row) => sum + row._count._all, 0),
+      processed: courierCountByStatus.get('processed') ?? 0,
+      failed: courierCountByStatus.get('failed') ?? 0,
+      skipped: courierCountByStatus.get('skipped') ?? 0,
+    },
+    lastEvent: courierEvents[0]
+      ? {
+          status: courierEvents[0].status,
+          provider: courierEvents[0].provider,
+          courierStatus: courierEvents[0].courierStatus,
+          mappedStatus: courierEvents[0].mappedStatus,
+          orderId: courierEvents[0].orderId,
+          error: courierEvents[0].error,
+          receivedAt: courierEvents[0].receivedAt.toISOString(),
+        }
+      : null,
+    lastTest: lastCourierTest
+      ? {
+          summary: lastCourierTest.summary,
+          actorEmail: lastCourierTest.actorEmail,
+          createdAt: lastCourierTest.createdAt.toISOString(),
+        }
+      : null,
+    recentEvents: courierEvents.map((event) => ({
+      id: event.id,
+      status: event.status,
+      provider: event.provider,
+      courierStatus: event.courierStatus,
+      mappedStatus: event.mappedStatus,
+      orderId: event.orderId,
+      trackingNumber: event.trackingNumber,
+      error: event.error,
+      receivedAt: event.receivedAt.toISOString(),
+    })),
+  };
   const scopedSettings = await Promise.all(
     brandNames.map(async (brand) => ({
       settings: await getMerchantSettings(brand),
@@ -505,6 +734,7 @@ export default async function SettingsPage() {
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Link className="btn btn-secondary" href="/settings/meta">Meta status</Link>
+            <Link className="btn btn-secondary" href="/settings/audit">Audit log</Link>
             <span className="app-chip app-chip-neutral">{describeScope(scope)}</span>
           </div>
         }
@@ -516,6 +746,7 @@ export default async function SettingsPage() {
         <SettingsForm
           settings={globalSettings}
           courierWebhookSecretSaved={Boolean(globalSettingsRow?.courierWebhookSecret)}
+          courierWebhookHealth={courierWebhookHealth}
           title="Global defaults"
           subtitle="Used when a brand-specific setting has not been saved."
           canManage={canManage}

@@ -1,7 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CustomerLanguage } from '@/lib/chat/language';
-import { formatCarouselSubtitle, getCarouselButtonTitle } from '@/lib/chat/language';
+import {
+  formatCarouselSubtitle,
+  getCarouselButtonTitle,
+  getCarouselDetailsButtonTitle,
+} from '@/lib/chat/language';
 import { logDebug, logError } from '@/lib/app-log';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 
@@ -242,6 +246,11 @@ function buildOrderNowPayload(product: CarouselProduct): string {
   return `ORDER_NOW|productId=${product.id}|productName=${encodedName}`;
 }
 
+function buildProductDetailsPayload(product: CarouselProduct): string {
+  const encodedName = encodeURIComponent(product.name);
+  return `PRODUCT_DETAILS|productId=${product.id}|productName=${encodedName}`;
+}
+
 export async function sendMessengerCarousel(
   senderId: string,
   products: CarouselProduct[],
@@ -260,6 +269,11 @@ export async function sendMessengerCarousel(
       : 'https://placehold.co/600x400/png',
     subtitle: formatCarouselSubtitle(product, language),
     buttons: [
+      {
+        type: 'postback',
+        title: getCarouselDetailsButtonTitle(language),
+        payload: buildProductDetailsPayload(product),
+      },
       {
         type: 'postback',
         title: getCarouselButtonTitle(language),

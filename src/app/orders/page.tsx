@@ -29,6 +29,10 @@ export default async function OrdersPage() {
       fulfillmentEvents: {
         orderBy: { createdAt: 'asc' },
       },
+      courierWebhookEvents: {
+        orderBy: { receivedAt: 'desc' },
+        take: 6,
+      },
       returnRequests: {
         select: {
           id: true,
@@ -122,6 +126,17 @@ export default async function OrdersPage() {
       actorName: event.actorName,
       customerNotified: event.customerNotified,
       createdAt: event.createdAt.toISOString(),
+    })),
+    courierWebhookEvents: o.courierWebhookEvents.map((event) => ({
+      id: event.id,
+      provider: event.provider,
+      trackingNumber: event.trackingNumber,
+      courierStatus: event.courierStatus,
+      mappedStatus: event.mappedStatus,
+      status: event.status,
+      error: event.error,
+      receivedAt: event.receivedAt.toISOString(),
+      processedAt: event.processedAt?.toISOString() ?? null,
     })),
   }));
 

@@ -66,6 +66,17 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
     customerNotified: boolean;
     createdAt: string;
   }[];
+  courierWebhookEvents: {
+    id: number;
+    provider: string;
+    trackingNumber: string | null;
+    courierStatus: string;
+    mappedStatus: string | null;
+    status: string;
+    error: string | null;
+    receivedAt: string;
+    processedAt: string | null;
+  }[];
   returnRequests: {
     id: number;
     type: string;

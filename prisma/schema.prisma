@@ -111,26 +111,27 @@ model Customer {
 }
 
 model Order {
-  id                 Int                     @id @default(autoincrement())
-  customerId         Int
-  customer           Customer                @relation(fields: [customerId], references: [id])
-  brand              String?
-  orderStatus        String                  @default("pending")
-  totalAmount        Float
-  paymentMethod      String?
-  deliveryAddress    String?
-  giftWrap           Boolean                 @default(false)
-  giftNote           String?
-  trackingNumber     String?
-  courier            String?
-  failureReason      String?
-  returnReason       String?
-  createdAt          DateTime                @default(now())
-  orderItems         OrderItem[]
-  supportEscalations SupportEscalation[]
-  fulfillmentEvents  OrderFulfillmentEvent[]
-  returnRequests     ReturnRequest[]         @relation("OriginalOrder")
-  replacedByRequests ReturnRequest[]         @relation("ReplacementOrder")
+  id                   Int                      @id @default(autoincrement())
+  customerId           Int
+  customer             Customer                 @relation(fields: [customerId], references: [id])
+  brand                String?
+  orderStatus          String                   @default("pending")
+  totalAmount          Float
+  paymentMethod        String?
+  deliveryAddress      String?
+  giftWrap             Boolean                  @default(false)
+  giftNote             String?
+  trackingNumber       String?
+  courier              String?
+  failureReason        String?
+  returnReason         String?
+  createdAt            DateTime                 @default(now())
+  orderItems           OrderItem[]
+  supportEscalations   SupportEscalation[]
+  fulfillmentEvents    OrderFulfillmentEvent[]
+  courierWebhookEvents CourierWebhookEventLog[]
+  returnRequests       ReturnRequest[]          @relation("OriginalOrder")
+  replacedByRequests   ReturnRequest[]          @relation("ReplacementOrder")
 }
 
 model OrderFulfillmentEvent {
@@ -324,6 +325,40 @@ model WebhookEventLog {
 
   @@index([channel, senderId, receivedAt])
   @@index([status, updatedAt])
+}
+
+model CourierWebhookEventLog {
+  id             Int       @id @default(autoincrement())
+  orderId        Int?
+  order          Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  provider       String
+  trackingNumber String?
+  courierStatus  String
+  mappedStatus   String?
+  status         String    @default("received") // received | processed | skipped | failed
+  error          String?
+  payload        String?
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([orderId, receivedAt])
+  @@index([provider, status, receivedAt])
+}
+
+model AdminAuditLog {
+  id         Int      @id @default(autoincrement())
+  action     String
+  entityType String?
+  entityId   String?
+  brand      String?
+  actorEmail String?
+  summary    String
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([brand, createdAt])
 }
 
 model AutomationActionLog {

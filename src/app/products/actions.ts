@@ -9,6 +9,7 @@ import {
   requireActionPermission,
 } from '@/lib/authz';
 import { nextProductSku } from '@/lib/product-sku';
+import { logAdminAudit } from '@/lib/admin-audit';
 
 export interface VariantInput {
   id?: number;
@@ -392,5 +393,60 @@ export async function uploadProductImage(formData: FormData): Promise<UploadProd
     console.error('[uploadProductImage] failed:', error);
     const msg = error instanceof Error ? error.message : 'Upload failed.';
     return { success: false, error: msg };
+  }
+}
+
+export async function createProductionBatchFromForecastAction(
+  productId: number,
+  plannedQty: number,
+): Promise<ProductActionResult & { batchId?: number }> {
+  try {
+    const scope = await requireActionPermission('production:write');
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        name: true,
+        brand: true,
+        style: true,
+      },
+    });
+
+    if (!product) {
+      return { success: false, error: 'Product not found.' };
+    }
+
+    assertBrandAccess(scope, product.brand, 'product');
+
+    const qty = Math.max(1, Math.min(10000, Math.round(Number(plannedQty) || 0)));
+    const batch = await prisma.productionBatch.create({
+      data: {
+        brand: product.brand,
+        style: product.style,
+        plannedQty: qty,
+        status: 'planned',
+      },
+    });
+
+    await logAdminAudit({
+      action: 'forecast_production_batch_created',
+      entityType: 'production_batch',
+      entityId: batch.id,
+      brand: product.brand,
+      actorEmail: scope.email ?? null,
+      summary: `Created production batch #${batch.id} from forecast for ${product.name}.`,
+      metadata: {
+        productId: product.id,
+        productName: product.name,
+        plannedQty: qty,
+      },
+    });
+
+    revalidatePath('/products');
+    revalidatePath('/production');
+    return { success: true, productId, batchId: batch.id };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    return { success: false, error: 'Failed to create production batch. Please retry.' };
   }
 }

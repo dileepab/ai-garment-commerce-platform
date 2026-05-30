@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { assertBrandAccess, requireActionPermission } from '@/lib/authz';
 import { buildMerchantSettingsPersistenceInput } from '@/lib/runtime-config';
+import { getCourierWebhookSecret } from '@/lib/courier-webhook-secret';
+import { logAdminAudit } from '@/lib/admin-audit';
 
 function readText(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -87,6 +89,21 @@ export async function saveMerchantSettingsAction(formData: FormData) {
     update: updateData,
   });
 
+  await logAdminAudit({
+    action: 'settings_saved',
+    entityType: brand ? 'brand_settings' : 'merchant_settings',
+    entityId: storeKey,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: brand
+      ? `Saved settings for ${brand}.`
+      : 'Saved global merchant settings.',
+    metadata: {
+      updatedCourierWebhookSecret: Boolean(courierWebhookSecret),
+      commentAutoReplyEnabled: data.commentAutoReplyEnabled,
+    },
+  });
+
   if (brand) {
     const facebookPageId = cleanOptionalText(readText(formData, 'facebookPageId'));
     const facebookPageAccessToken = cleanAccessToken(readText(formData, 'facebookPageAccessToken'));
@@ -161,6 +178,46 @@ export async function addBrandSettingsAction(formData: FormData) {
       ...(instagramAccountId ? { instagramAccountId } : {}),
       isTestBrand,
       ...(notes ? { notes } : {}),
+    },
+  });
+
+  await logAdminAudit({
+    action: 'brand_settings_created',
+    entityType: 'brand_settings',
+    entityId: brand,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Created settings shell for ${brand}.`,
+    metadata: {
+      hasFacebookPageId: Boolean(facebookPageId),
+      hasInstagramAccountId: Boolean(instagramAccountId),
+      isTestBrand,
+    },
+  });
+
+  revalidatePath('/settings');
+}
+
+export async function testCourierWebhookSettingsAction() {
+  const scope = await requireActionPermission('settings:write');
+  const configuredSecret = await getCourierWebhookSecret();
+  const source = process.env.COURIER_WEBHOOK_SECRET
+    ? 'vercel_env'
+    : configuredSecret
+      ? 'settings'
+      : 'missing';
+
+  await logAdminAudit({
+    action: 'courier_webhook_test',
+    entityType: 'courier_webhook',
+    entityId: 'default',
+    actorEmail: scope.email ?? null,
+    summary: configuredSecret
+      ? `Courier webhook configuration check passed using ${source === 'vercel_env' ? 'Vercel env' : 'Settings'} secret.`
+      : 'Courier webhook configuration check failed because no secret is configured.',
+    metadata: {
+      configured: Boolean(configuredSecret),
+      source,
     },
   });
 
