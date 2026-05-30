@@ -207,9 +207,63 @@ const EMPTY_CATALOG_REPLY_SINHALA =
 const EMPTY_CATALOG_REPLY_TAMIL =
   'எங்களது புதிய ஆடைகள் விரைவில் வரவிருக்கின்றன! புதிய வரவுகளை அறிய எங்களது பக்கத்தோடு இணைந்திருங்கள். உங்களுக்கு ஏதேனும் குறிப்பிட்ட ஆடை தேவைப்பட்டால் மெசேஜ் செய்யவும்.';
 
+function localizeBusinessDayEstimate(estimate: string, language: CustomerLanguage): string {
+  if (language === 'sinhala') {
+    return estimate
+      .replace('1-2 business days', 'දින 1-2 ක්')
+      .replace('2-3 business days', 'දින 2-3 ක්');
+  }
+
+  if (language === 'tamil') {
+    return estimate
+      .replace('1-2 business days', '1-2 வேலை நாட்கள்')
+      .replace('2-3 business days', '2-3 வேலை நாட்கள்');
+  }
+
+  return estimate;
+}
+
+function localizeDeliveryReply(reply: string, language: CustomerLanguage): string | null {
+  const preOrderMatch = reply.match(
+    /^Delivery to (.+?) usually takes (.+?), excluding weekends and Sri Lankan public holidays\. If the order is confirmed on (.+?), the expected delivery window is (.+?) to (.+?)\.$/
+  );
+
+  if (preOrderMatch) {
+    const [, address, estimate, referenceDate, earliestDate, latestDate] = preOrderMatch;
+    const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
+
+    if (language === 'sinhala') {
+      return `${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. ${referenceDate} දින ඇණවුම තහවුරු කළහොත්, අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
+    }
+
+    if (language === 'tamil') {
+      return `${address}க்கு டெலிவரி பொதுவாக ${localizedEstimate} ஆகும், வார இறுதி நாட்கள் மற்றும் இலங்கை பொது விடுமுறை நாட்களை தவிர்த்து. ${referenceDate} அன்று order confirm செய்தால், எதிர்பார்க்கப்படும் delivery window ${earliestDate} முதல் ${latestDate} வரை இருக்கும்.`;
+    }
+  }
+
+  const windowMatch = reply.match(
+    /^Delivery to (.+?) usually takes (.+?), excluding weekends and Sri Lankan public holidays\. The expected delivery window is (.+?) to (.+?)\.$/
+  );
+
+  if (windowMatch) {
+    const [, address, estimate, earliestDate, latestDate] = windowMatch;
+    const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
+
+    if (language === 'sinhala') {
+      return `${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
+    }
+
+    if (language === 'tamil') {
+      return `${address}க்கு டெலிவரி பொதுவாக ${localizedEstimate} ஆகும், வார இறுதி நாட்கள் மற்றும் இலங்கை பொது விடுமுறை நாட்களை தவிர்த்து. எதிர்பார்க்கப்படும் delivery window ${earliestDate} முதல் ${latestDate} வரை இருக்கும்.`;
+    }
+  }
+
+  return null;
+}
+
 function localizeKnownReply(reply: string, language: CustomerLanguage): string | null {
   if (reply !== EMPTY_CATALOG_REPLY) {
-    return null;
+    return localizeDeliveryReply(reply, language);
   }
 
   if (language === 'sinhala') {

@@ -21,7 +21,7 @@ import {
   getSizeChartDefinition,
 } from '@/lib/size-charts';
 import {
-  addSriLankaWorkingDays,
+  calculateSriLankaDeliveryWindow,
   formatSriLankaDisplayDate,
   getSriLankaDateOnly,
   getSriLankaToday,
@@ -345,8 +345,10 @@ export async function tryHandleShoppingSupport(
         : latestActiveOrder?.deliveryAddress || contacts.address;
     const estimate = getDeliveryEstimateForAddress(address, settings.delivery);
     const businessDays = getBusinessDayRangeFromEstimate(estimate);
-    const earliestDate = addSriLankaWorkingDays(referenceDate, businessDays[0]);
-    const latestDate = addSriLankaWorkingDays(referenceDate, businessDays[1]);
+    const { earliestDate, latestDate } = calculateSriLankaDeliveryWindow(
+      referenceDate,
+      businessDays
+    );
     const requestedDate = resolveRequestedDeliveryDate(
       params.currentMessage,
       conversationMessages,

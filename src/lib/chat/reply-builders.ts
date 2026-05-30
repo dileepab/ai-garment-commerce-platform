@@ -1,7 +1,7 @@
 import { getMissingContactFields, type ContactField } from '@/lib/contact-profile';
 import type { ConversationStateData } from '@/lib/conversation-state';
 import {
-  addSriLankaWorkingDays,
+  calculateSriLankaDeliveryWindow,
   formatSriLankaDisplayDate,
 } from '@/lib/delivery-calendar';
 import {
@@ -188,8 +188,10 @@ export function buildDeliveryReply(params: {
 
   const estimate = params.getDeliveryEstimateForAddress(address);
   const businessDays = getBusinessDayRangeFromEstimate(estimate);
-  const earliestDate = addSriLankaWorkingDays(params.referenceDate, businessDays[0]);
-  const latestDate = addSriLankaWorkingDays(params.referenceDate, businessDays[1]);
+  const { earliestDate, latestDate } = calculateSriLankaDeliveryWindow(
+    params.referenceDate,
+    businessDays
+  );
   const intro = params.existingOrderStatus
     ? `Order is currently at the ${getOrderStageLabel(
         params.existingOrderStatus

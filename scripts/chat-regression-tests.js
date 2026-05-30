@@ -532,6 +532,24 @@ async function main() {
         },
       },
       {
+        name: 'Sinhala delivery timing question is recognized without AI routing',
+        senderId: buildSender(runId, 'sinhala-delivery-timing'),
+        messages: ['කුරුණෑගලට එවන්න දවස් කීයක් යයිද?'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, ['කුරුණෑගල'], 'Sinhala delivery timing reply');
+          assert(
+            transcript[0].bot.includes('expected delivery window') ||
+              transcript[0].bot.includes('අපේක්ෂිත භාරදීමේ කාලය'),
+            `Sinhala delivery timing reply should include the delivery window.\n\nActual reply:\n${transcript[0].bot}`
+          );
+          assert(
+            !transcript[0].bot.includes('did not quite catch') &&
+              !transcript[0].bot.includes('පැහැදිලිව තේරුණේ නැහැ'),
+            `Sinhala delivery timing should not fall back to clarification.\n\nActual reply:\n${transcript[0].bot}`
+          );
+        },
+      },
+      {
         name: 'Casual wellbeing question gets a natural reply',
         senderId: buildSender(runId, 'wellbeing'),
         messages: ['How are you'],

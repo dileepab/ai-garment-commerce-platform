@@ -166,6 +166,8 @@ export function extractDeliveryLocationHint(message: string): string | null {
     /\b(?:delivery(?:\s+\w+){0,3}\s+to|deliver(?:y)?\s+to)\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
     /\bhow long does delivery take to\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
     /\bdelivery time to\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
+    /([\u0D80-\u0DFF\s]{2,}?)(?:ට|වෙත)\s*(?:එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i,
+    /([\u0B80-\u0BFF\s]{2,}?)(?:க்கு|இற்கு)\s*(?:அனுப்ப|அனுப்புவதற்கு|டெலிவரி|delivery)/i,
   ];
 
   for (const pattern of patterns) {
@@ -463,8 +465,20 @@ export function extractGiftNoteFromText(message: string): string | null {
 }
 
 export function looksLikeDeliveryQuestion(message: string): boolean {
-  return /\bhow long\b|\bdelivery\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/i.test(
-    message
+  return (
+    /\bhow long\b|\bdelivery\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/i.test(
+      message
+    ) ||
+    /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|කීයක්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(
+      message
+    ) ||
+    /(දවස්|කීයක්|යයිද|කොච්චර|කල්).*(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i.test(
+      message
+    ) ||
+    /(அனுப்ப|டெலிவரி|delivery).*(எத்தனை|நாட்கள்|நேரம்|எப்போது|வரும்|கிடைக்கும்)/i.test(
+      message
+    ) ||
+    /(எத்தனை|நாட்கள்|நேரம்|எப்போது).*(அனுப்ப|டெலிவரி|delivery)/i.test(message)
   );
 }
 

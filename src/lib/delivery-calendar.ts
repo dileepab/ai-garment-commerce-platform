@@ -87,6 +87,16 @@ export function isSriLankaNonWorkingDay(date: Date): boolean {
   return SRI_LANKA_PUBLIC_HOLIDAYS.has(formatSriLankaDateKey(date));
 }
 
+export function getNextSriLankaWorkingDay(date: Date): Date {
+  let result = new Date(date);
+
+  while (isSriLankaNonWorkingDay(result)) {
+    result = addUtcDays(result, 1);
+  }
+
+  return result;
+}
+
 export function addSriLankaWorkingDays(startDate: Date, workingDays: number): Date {
   let result = new Date(startDate);
   let remaining = workingDays;
@@ -100,4 +110,17 @@ export function addSriLankaWorkingDays(startDate: Date, workingDays: number): Da
   }
 
   return result;
+}
+
+export function calculateSriLankaDeliveryWindow(
+  referenceDate: Date,
+  businessDays: [number, number]
+): { startDate: Date; earliestDate: Date; latestDate: Date } {
+  const startDate = getNextSriLankaWorkingDay(referenceDate);
+
+  return {
+    startDate,
+    earliestDate: addSriLankaWorkingDays(startDate, businessDays[0]),
+    latestDate: addSriLankaWorkingDays(startDate, businessDays[1]),
+  };
 }
