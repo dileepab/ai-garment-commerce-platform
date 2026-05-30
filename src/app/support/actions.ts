@@ -2,8 +2,16 @@
 
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
+import {
+  resolveFacebookConfigForBrand,
+  resolveInstagramConfigForBrand,
+} from '@/lib/brand-channel-config';
 import { loadConversationState, saveConversationState } from '@/lib/conversation-state';
-import { sendMessengerMessage } from '@/lib/meta';
+import {
+  sendInstagramMessage,
+  sendMessengerMessage,
+  type MetaSendResult,
+} from '@/lib/meta';
 import { logInfo, logWarn } from '@/lib/app-log';
 import {
   assertBrandAccess,
@@ -11,6 +19,64 @@ import {
   requireActionPermission,
 } from '@/lib/authz';
 import type { UserScope } from '@/lib/access-control';
+
+function supportDeliveryFailureNote(channel: string, error: string): string {
+  const channelLabel =
+    channel === 'instagram'
+      ? 'Instagram'
+      : channel === 'messenger'
+        ? 'Messenger'
+        : channel.charAt(0).toUpperCase() + channel.slice(1);
+
+  return [
+    `${channelLabel} delivery failed: ${error}`,
+    'The reply was saved in Support, but Meta did not deliver it to the customer. Update/test the brand token in Settings > Meta Channels, then resend the message.',
+  ].join('\n');
+}
+
+async function deliverSupportReply(params: {
+  senderId: string;
+  channel: string;
+  brand?: string | null;
+  reply: string;
+}): Promise<MetaSendResult> {
+  if (params.channel === 'messenger') {
+    const config = params.brand ? await resolveFacebookConfigForBrand(params.brand) : null;
+
+    if (params.brand && !config) {
+      return {
+        ok: false,
+        error: `Missing Facebook Page ID or Page access token for ${params.brand}.`,
+      };
+    }
+
+    return sendMessengerMessage(params.senderId, params.reply, {
+      pageAccessToken: config?.pageAccessToken,
+    });
+  }
+
+  if (params.channel === 'instagram') {
+    const config = params.brand ? await resolveInstagramConfigForBrand(params.brand) : null;
+
+    if (!config) {
+      return {
+        ok: false,
+        error: params.brand
+          ? `Missing Instagram account ID or access token for ${params.brand}.`
+          : 'Missing Instagram account ID or access token for this support case.',
+      };
+    }
+
+    return sendInstagramMessage(params.senderId, config.accountId, params.reply, {
+      pageAccessToken: config.accessToken,
+    });
+  }
+
+  return {
+    ok: false,
+    error: `Outbound support replies are not configured for ${params.channel}.`,
+  };
+}
 
 async function setConversationSupportMode(params: {
   senderId: string;
@@ -145,20 +211,38 @@ export async function sendSupportReplyAction(formData: FormData) {
   });
 
   if (process.env.CHAT_TEST_MODE !== '1') {
-    const delivery = await sendMessengerMessage(escalation.senderId, reply);
+    const delivery = await deliverSupportReply({
+      senderId: escalation.senderId,
+      channel: escalation.channel,
+      brand: escalation.brand,
+      reply,
+    });
 
     if (!delivery.ok) {
+      const error = delivery.error || String(delivery.status || 'unknown');
+
       logWarn('Support Actions', 'Support reply was saved, but outbound Meta delivery failed.', {
         escalationId,
         senderId: escalation.senderId,
         channel: escalation.channel,
-        error: delivery.error || delivery.status || 'unknown',
+        brand: escalation.brand || null,
+        error,
+      });
+
+      await prisma.chatMessage.create({
+        data: {
+          senderId: escalation.senderId,
+          channel: escalation.channel,
+          role: 'support_note',
+          message: supportDeliveryFailureNote(escalation.channel, error),
+        },
       });
     } else {
       logInfo('Support Actions', 'Delivered support reply to customer.', {
         escalationId,
         senderId: escalation.senderId,
         channel: escalation.channel,
+        brand: escalation.brand || null,
       });
     }
   }

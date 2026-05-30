@@ -28,7 +28,7 @@ function cleanOptionalText(value?: string | null): string | null {
 }
 
 function cleanAccessToken(value?: string | null): string | null {
-  const cleaned = value?.replace(/\s+/g, '').trim();
+  const cleaned = value?.replace(/\s+/g, '').trim().replace(/^["'`]+|["'`]+$/g, '');
   return cleaned ? cleaned : null;
 }
 

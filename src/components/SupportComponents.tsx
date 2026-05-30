@@ -59,10 +59,11 @@ function formatWaitingFrom(iso: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-function getMessageRole(role: string): 'customer' | 'ai' | 'agent' {
+function getMessageRole(role: string): 'customer' | 'ai' | 'agent' | 'note' {
   const r = role.toLowerCase();
   if (r === 'customer' || r === 'user') return 'customer';
   if (r === 'ai' || r === 'assistant') return 'ai';
+  if (r === 'support_note' || r === 'note' || r === 'system') return 'note';
   return 'agent';
 }
 
@@ -342,6 +343,7 @@ export function Thread({
           const isCustomer = messageRole === "customer";
           const isAI = messageRole === "ai";
           const isAgent = messageRole === "agent";
+          const isNote = messageRole === "note";
           const showLabel = i === 0 || getMessageRole(convo.messages[i - 1].role) !== messageRole;
 
           return (
@@ -357,6 +359,7 @@ export function Thread({
               <div className="msg-col">
                 {showLabel && isAI && <div className="msg-label" style={{ color: "var(--color-accent)" }}>AI Assistant</div>}
                 {showLabel && isAgent && <div className="msg-label" style={{ color: "var(--color-navy)" }}>Sara Altan · Agent</div>}
+                {showLabel && isNote && <div className="msg-label" style={{ color: "var(--danger)" }}>Internal note</div>}
                 <div className="msg-bubble">{getMessageText(msg)}</div>
                 <span className="msg-time" suppressHydrationWarning>{msg.createdAtLabel}</span>
               </div>
