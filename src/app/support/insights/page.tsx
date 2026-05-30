@@ -221,12 +221,26 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
         }
       />
 
-      <div className="content" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingBottom: 0 }}>
+      <div
+        aria-label="Bot insight date range"
+        style={{
+          flex: '0 0 auto',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          padding: '14px 28px 0',
+        }}
+      >
         {RANGE_PRESETS.map((preset) => (
           <Link
             key={preset}
             href={`/support/insights?range=${preset}`}
             className={preset === windowDays ? 'btn btn-primary' : 'btn btn-secondary'}
+            style={{
+              minHeight: 28,
+              padding: '5px 10px',
+              lineHeight: 1,
+            }}
           >
             {preset}d
           </Link>
