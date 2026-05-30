@@ -14,6 +14,7 @@ const TEXT_MODEL_CHAIN = [
   'gemini-3.1-flash-lite',
   'gemini-2.5-flash-lite',
   'gemini-2.5-flash',
+  'gemini-3.5-flash',
 ].filter((model, index, models): model is string => Boolean(model) && models.indexOf(model) === index);
 
 const SINHALA_SCRIPT_RE = /[\u0D80-\u0DFF]/;

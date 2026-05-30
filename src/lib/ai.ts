@@ -14,9 +14,9 @@ import { getMerchantSettings, logRuntimeWarnings } from '@/lib/runtime-config';
 
 const MODEL_CHAIN = [
   'gemini-3.1-flash-lite',
-  'gemini-3.5-flash',
   'gemini-2.5-flash-lite',
   'gemini-2.5-flash',
+  'gemini-3.5-flash',
 ];
 
 const MAX_HISTORY = 20;
