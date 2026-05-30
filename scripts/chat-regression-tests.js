@@ -193,7 +193,29 @@ function buildSender(runId, slug) {
 }
 
 async function resetInventoryToSeedValues() {
-  const { variantStocks } = require('../prisma/catalog-data');
+  const { testCatalog, variantStocks } = require('../prisma/catalog-data');
+
+  for (const productSeed of testCatalog) {
+    const product = await prisma.product.findFirst({
+      where: { name: productSeed.name, brand: productSeed.brand },
+    });
+    if (!product) continue;
+
+    await prisma.product.update({
+      where: { id: product.id },
+      data: {
+        stock: productSeed.stock,
+        status: productSeed.status || 'active',
+      },
+    });
+    await prisma.inventory.updateMany({
+      where: { productId: product.id },
+      data: {
+        availableQty: productSeed.stock,
+        reservedQty: 0,
+      },
+    });
+  }
 
   for (const [key, sizeMap] of Object.entries(variantStocks)) {
     const [brand, name] = key.split(':');
@@ -408,6 +430,49 @@ async function main() {
         },
       },
       {
+        name: 'Empty catalog replies keep customers engaged in each language',
+        senderId: buildSender(runId, 'empty-catalog-friendly'),
+        before: async () => {
+          const products = await prisma.product.findMany({
+            where: { brand: 'Happyby' },
+            select: { id: true },
+          });
+          const productIds = products.map((product) => product.id);
+
+          await prisma.product.updateMany({
+            where: { id: { in: productIds } },
+            data: { stock: 0 },
+          });
+          await prisma.inventory.updateMany({
+            where: { productId: { in: productIds } },
+            data: { availableQty: 0, reservedQty: 0 },
+          });
+          await prisma.variantInventory.updateMany({
+            where: { variant: { productId: { in: productIds } } },
+            data: { availableQty: 0, reservedQty: 0 },
+          });
+        },
+        messages: [
+          'What are the available items?',
+          'මොනාවද තියන ඇදුම්',
+          'என்ன ஆடைகள் இருக்கிறது?',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'Our latest collection is dropping very soon!',
+            'If you have a specific item in mind',
+          ], 'English empty catalog reply');
+          assertIncludes(transcript[1].bot, [
+            'අපගේ අලුත්ම ඇඳුම් එකතුව',
+            'පණිවිඩයක් එවන්න',
+          ], 'Sinhala empty catalog reply');
+          assertIncludes(transcript[2].bot, [
+            'எங்களது புதிய ஆடைகள் விரைவில் வரவிருக்கின்றன',
+            'மெசேஜ் செய்யவும்',
+          ], 'Tamil empty catalog reply');
+        },
+      },
+      {
         name: 'Sinhala and Roman Sinhala catalog requests show available stock',
         senderId: buildSender(runId, 'sinhala-catalog'),
         messages: [
@@ -431,6 +496,7 @@ async function main() {
         messages: [
           'உங்களது கடை எங்கே இருக்கிறது? எத்தனை மணிவரை திறந்திருக்கும்?',
           'கொழும்புக்கு வெளியே கிளைகள் உள்ளதா?',
+          'Where is your shop located?',
         ],
         verify: async ({ transcript }) => {
           for (const [index, entry] of transcript.entries()) {
@@ -444,6 +510,15 @@ async function main() {
               `Location reply ${index + 1} should not be the generic support-contact block.\n\nActual reply:\n${entry.bot}`
             );
           }
+
+          assertIncludes(transcript[2].bot, [
+            'At the moment this chat is set up for online orders.',
+            'I do not have a confirmed branch list saved here yet.',
+          ], 'English location reply after Tamil context');
+          assert(
+            !transcript[2].bot.includes('தற்போது') && !transcript[2].bot.includes('கிளை'),
+            `English location reply should not inherit Tamil language.\n\nActual reply:\n${transcript[2].bot}`
+          );
         },
       },
       {

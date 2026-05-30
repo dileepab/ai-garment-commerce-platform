@@ -19,11 +19,11 @@ const TEXT_MODEL_CHAIN = [
 const SINHALA_SCRIPT_RE = /[\u0D80-\u0DFF]/;
 const TAMIL_SCRIPT_RE = /[\u0B80-\u0BFF]/;
 const SINHALA_ROMAN_RE =
-  /\b(sinhala|sinhalese|sinhalen|singhala|singhalen|kohomada|kohoma|karanne|karanna|ganna|ganne|puluwanda|puluwan|mata|mama|oyala|oyage|denna|danna|kiyanna|ona|one|thiyenawada|tiyenawada|keeyada|ganan|milada)\b/i;
+  /\b(sinhala|sinhalese|sinhalen|singhala|singhalen|kohomada|kohoma|karanne|karanna|ganna|ganne|puluwanda|puluwan|mata|mama|ape|oyala|oyage|denna|danna|kiyanna|ona|one|mona|monawa|monawada|monawath|thiyana|thiyena|tiyana|tiyena|thiyenne|thiyenawada|tiyenawada|thiyanawada|adum|edum|anduma|koheda|keeyada|ganan|milada|mokakda|mokadda|mokada|penne|nane)\b/i;
 const TAMIL_ROMAN_RE =
   /\b(tamil|thamizh|thamil|tamilil|eppadi|epdi|irukka|irukkaa|venum|vendaum|vangurathu|vaanga|order panna|vilai|evlo|evvalavu|size enna|color enna)\b/i;
 const ENGLISH_HINT_RE =
-  /\b(english|price|size|color|order|buy|available|delivery|payment|cancel|change|address|phone|thanks|hello|hi)\b/i;
+  /\b(english|where|what|when|how|who|price|size|color|order|buy|available|delivery|payment|cancel|change|address|phone|thanks|hello|hi|shop|store|outlet|location|located|branch|branches|open|opening|close|closing|hours|item|items|product|products|details|interested|support|contact|chat)\b/i;
 
 const SINHALA_PREFERENCE_RE =
   /\b(sinhala|sinhalese|sinhalen|singhala|singhalen)\b/i;
@@ -198,12 +198,42 @@ function localizeFallback(reply: string, language: CustomerLanguage): string {
     .replaceAll("Sorry, I didn't quite catch that.", 'மன்னிக்கவும், அது தெளிவாக புரியவில்லை.');
 }
 
+const EMPTY_CATALOG_REPLY =
+  'Our latest collection is dropping very soon! Stay tuned to our page for updates. If you have a specific item in mind, feel free to drop the details here.';
+
+const EMPTY_CATALOG_REPLY_SINHALA =
+  'අපගේ අලුත්ම ඇඳුම් එකතුව (New Collection) ළඟදීම බලාපොරොත්තු වන්න! පිටුවට සම්බන්ධ වී සිටින්න. ඔබට අවශ්‍ය විශේෂ ඇඳුමක් ඇත්නම්, කරුණාකර අපට පණිවිඩයක් එවන්න.';
+
+const EMPTY_CATALOG_REPLY_TAMIL =
+  'எங்களது புதிய ஆடைகள் விரைவில் வரவிருக்கின்றன! புதிய வரவுகளை அறிய எங்களது பக்கத்தோடு இணைந்திருங்கள். உங்களுக்கு ஏதேனும் குறிப்பிட்ட ஆடை தேவைப்பட்டால் மெசேஜ் செய்யவும்.';
+
+function localizeKnownReply(reply: string, language: CustomerLanguage): string | null {
+  if (reply !== EMPTY_CATALOG_REPLY) {
+    return null;
+  }
+
+  if (language === 'sinhala') {
+    return EMPTY_CATALOG_REPLY_SINHALA;
+  }
+
+  if (language === 'tamil') {
+    return EMPTY_CATALOG_REPLY_TAMIL;
+  }
+
+  return reply;
+}
+
 export async function localizeReplyWithGemini(
   reply: string | null,
   language: CustomerLanguage
 ): Promise<string | null> {
   if (!reply || language === 'english') {
     return reply;
+  }
+
+  const knownReply = localizeKnownReply(reply, language);
+  if (knownReply) {
+    return knownReply;
   }
 
   const apiKey = process.env.GEMINI_API_KEY;

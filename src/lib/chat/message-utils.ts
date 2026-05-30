@@ -489,7 +489,11 @@ export function looksLikeCatalogQuestion(message: string): boolean {
     ) ||
     /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||
     /(මොනවද|මොනවාද|මොනාවද|මොනද).*(තියන|තියෙන|තියෙන්නේ|ඇදුම්|ඇඳුම්|බඩු)/.test(message) ||
-    /(ඇදුම්|ඇඳුම්|බඩු).*(තියන|තියෙන|තියෙන්නේ|මොන)/.test(message)
+    /(ඇදුම්|ඇඳුම්|බඩු).*(තියන|තියෙන|තියෙන්නේ|මොන)/.test(message) ||
+    /(என்ன|எவை|எந்த).*(ஆடை|ஆடைகள்|பொருட்கள்|items?|products?|இருக்கு|இருக்கிறது|உள்ளது)/i.test(
+      message
+    ) ||
+    /(ஆடை|ஆடைகள்|பொருட்கள்).*(என்ன|எவை|எந்த|இருக்கு|இருக்கிறது|உள்ளது)/i.test(message)
   );
 }
 

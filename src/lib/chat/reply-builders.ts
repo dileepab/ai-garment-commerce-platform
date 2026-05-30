@@ -19,6 +19,9 @@ import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
 import { splitCsv, firstNameOf } from '@/lib/chat/message-utils';
 import { buildGarmentSpecsForCustomer, type ProductGarmentSpecSource } from '@/lib/product-garment-specs';
 
+export const EMPTY_CATALOG_REPLY =
+  'Our latest collection is dropping very soon! Stay tuned to our page for updates. If you have a specific item in mind, feel free to drop the details here.';
+
 export function buildMissingFieldLabels(missingFields: ContactField[]): string {
   return missingFields
     .map((field) => {
@@ -96,7 +99,7 @@ export function formatCatalogListReply(
   }>
 ): string {
   if (products.length === 0) {
-    return 'I do not see any in-stock items listed for this store right now. Please message us again a little later, or ask support to check the latest stock.';
+    return EMPTY_CATALOG_REPLY;
   }
 
   const lines = products.map(
