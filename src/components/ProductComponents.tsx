@@ -69,6 +69,7 @@ export interface Product {
   orders?: number;
   variants?: ProductVariantData[];
   colorImages?: ProductColorImageData[];
+  forecast?: any;
 }
 
 const DEFAULT_CRITICAL_THRESH = 3;
@@ -311,6 +312,88 @@ export function ProductDrawer({
                   <div className="stock-bar-wrap">
                     <div className="stock-bar-fill" style={{ width: `${stockPct}%`, background: stockColor }} />
                   </div>
+                </div>
+              )}
+
+              {product.forecast && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(196, 98, 45, 0.03) 0%, rgba(196, 98, 45, 0.07) 100%)',
+                  border: '1px solid rgba(196, 98, 45, 0.15)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#C4622D', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block' }}>
+                      <path d="m21 16-4 4-4-4"/>
+                      <path d="M17 20V4"/>
+                      <path d="m3 8 4-4 4 4"/>
+                      <path d="M7 4v16"/>
+                    </svg>
+                    AI Smart Factory Projections
+                  </div>
+
+                  <div style={{ fontSize: 12, lineHeight: 1.4, color: 'var(--color-fg-1)' }}>
+                    {product.forecast.minDaysRemaining >= 0 ? (
+                      <div>
+                        Stock depletion starting in <strong style={{ color: product.forecast.mostUrgentStatus === 'critical' || product.forecast.mostUrgentStatus === 'out-of-stock' ? '#8B2020' : '#C4622D' }}>
+                          {product.forecast.minDaysRemaining === 0 ? '0' : Math.ceil(product.forecast.minDaysRemaining)} days
+                        </strong>
+                        {product.forecast.predictedSelloutDate && (
+                          <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>
+                            {' '}(Est. {new Date(product.forecast.predictedSelloutDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ color: 'var(--color-fg-2)' }}>No active sales velocity registered to calculate depletion timelines.</div>
+                    )}
+                  </div>
+
+                  {product.forecast.variants && product.forecast.variants.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-fg-3)', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: 4 }}>
+                        VARIANT FORECAST & RESTOCK SIZES
+                      </div>
+                      <div style={{ display: 'grid', gap: 5 }}>
+                        {product.forecast.variants.map((v: any) => {
+                          const statusColor = v.stockStatus === 'out-of-stock' || v.stockStatus === 'critical' ? '#8B2020' : v.stockStatus === 'low' ? '#9B6B00' : 'var(--color-fg-2)';
+                          return (
+                            <div key={v.variantId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '2px 0' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontWeight: 600 }}>{v.size} / {v.color}</span>
+                                <span style={{ fontSize: 10, color: statusColor, fontWeight: 600 }}>
+                                  ({v.stockStatus.replace('-', ' ')})
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ color: 'var(--color-fg-3)', fontSize: 11 }}>
+                                  {v.weightedVelocity > 0 ? `~${(v.weightedVelocity).toFixed(2)}/day` : '0 sold'}
+                                </span>
+                                {v.suggestedRestockQty > 0 ? (
+                                  <span style={{ 
+                                    fontSize: 10, 
+                                    fontWeight: 700, 
+                                    background: '#FDF2EB', 
+                                    color: '#C4622D', 
+                                    padding: '2px 6px', 
+                                    borderRadius: 4,
+                                    border: '1px solid rgba(196, 98, 45, 0.2)' 
+                                  }}>
+                                    Cut +{v.suggestedRestockQty}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 10, color: '#1E6B45', fontWeight: 600 }}>Healthy</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

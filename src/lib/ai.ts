@@ -328,10 +328,51 @@ IMPORTANT:
 - If the customer asks to cancel, delete, replace, or re-order and you do not have a system confirmation yet, explain the next step, but do not say the action is already completed.
 - If the customer explicitly asks for a human, says the reply is unclear, or has a serious complaint, it is acceptable to direct them to real support using this contact line: ${supportContactLine}`;
 
+    // 3.5 Run AI Multi-Persona Quality Reviewers for High-Risk queries
+    let reviewerAdvice = '';
+    const isHighRisk = (msg: string) => {
+      const s = msg.toLowerCase();
+      const riskKeywords = [
+        'refund', 'complaint', 'cheated', 'dispute', 'charge', 'extra fee',
+        'wrong item', 'defective', 'damage', 'bad quality', 'useless',
+        'custom size', 'tailor', 'customize', 'custom design', 'custom fit'
+      ];
+      return riskKeywords.some(keyword => s.includes(keyword));
+    };
+
+    if (isHighRisk(customerMessage)) {
+      logDebug('AI Reviewer', `Risk detected in message: "${customerMessage.slice(0, 60)}". Running parallel reviewers.`);
+      try {
+        const reviewModel = 'gemini-3.1-flash-lite';
+        const [salesReview, opsReview, toneReview] = await Promise.all([
+          ai.models.generateContent({
+            model: reviewModel,
+            contents: `Analyze this customer message: "${customerMessage}". Provide 1 sentence of advice for a sales representative on how to respond warmly, secure the sale, and maintain brand tone.`
+          }),
+          ai.models.generateContent({
+            model: reviewModel,
+            contents: `Analyze this customer message: "${customerMessage}". Check if they ask for a refund, return, custom size, or custom stitching. Advise in 1 sentence. Emphasize that custom size adjustments and refunds are strictly NOT automated and require immediate human support handoff.`
+          }),
+          ai.models.generateContent({
+            model: reviewModel,
+            contents: `Analyze this customer message: "${customerMessage}". Identify the customer's language (English, Sinhala script, or Tamil script). Advise in 1 sentence on how to mirror their exact script and style naturally.`
+          })
+        ]);
+
+        reviewerAdvice = `\n\nINTERNAL AI REVIEWER EVALUATION (Use this to guide your reply safely):\n` +
+          `- Sales & Conversions: ${salesReview.text?.trim() || 'Be helpful and warm.'}\n` +
+          `- Operations & Safety: ${opsReview.text?.trim() || 'Follow policies strictly.'}\n` +
+          `- Language & Script: ${toneReview.text?.trim() || 'Mirror the customer style.'}\n` +
+          `\nCRITICAL DIRECTIVE: If the Operations evaluator notes that a refund, product defect, or custom sizing is requested, or if the customer is angry, politely apologize and explain that a human support team member is taking over, using this contact line: ${supportContactLine}`;
+      } catch (err) {
+        logError('AI Reviewer', 'Parallel reviewer chain failed, bypassing review step.', err);
+      }
+    }
+
     const requestParams = {
       contents: customerMessage,
       config: {
-        systemInstruction: systemPrompt,
+        systemInstruction: systemPrompt + reviewerAdvice,
       }
     };
 

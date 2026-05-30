@@ -35,8 +35,70 @@ interface ProductsPageStats {
 }
 
 type ProductStatusFilter = (typeof STATUS_TABS)[number]['key'];
+type ProductWithVariants = Product & { variants?: ProductVariantData[]; forecast?: any };
 
-type ProductWithVariants = Product & { variants?: ProductVariantData[] };
+function renderForecastingBadge(forecast?: any) {
+  if (!forecast) {
+    return <span style={{ color: 'var(--color-fg-3)', fontSize: 11 }}>—</span>;
+  }
+
+  const { mostUrgentStatus, minDaysRemaining, totalSuggestedRestock } = forecast;
+
+  let badgeBg = 'rgba(30, 107, 69, 0.08)';
+  let badgeColor = '#1E6B45';
+  let badgeText = 'Healthy';
+
+  if (mostUrgentStatus === 'out-of-stock') {
+    badgeBg = 'rgba(139, 32, 32, 0.08)';
+    badgeColor = '#8B2020';
+    badgeText = 'Out of Stock';
+  } else if (mostUrgentStatus === 'critical') {
+    badgeBg = 'rgba(139, 32, 32, 0.08)';
+    badgeColor = '#8B2020';
+    badgeText = minDaysRemaining <= 3 ? `Crit: <${Math.ceil(minDaysRemaining)}d left` : 'Critical';
+  } else if (mostUrgentStatus === 'low') {
+    badgeBg = 'rgba(155, 107, 0, 0.08)';
+    badgeColor = '#9B6B00';
+    badgeText = `Low: ~${Math.ceil(minDaysRemaining)}d left`;
+  } else if (mostUrgentStatus === 'overstocked') {
+    badgeBg = 'rgba(0, 100, 180, 0.08)';
+    badgeColor = '#005CA0';
+    badgeText = 'Overstocked';
+  } else if (minDaysRemaining > 0 && minDaysRemaining !== 9999) {
+    badgeText = `~${Math.ceil(minDaysRemaining)} days left`;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+      <span style={{ 
+        fontSize: 10, 
+        fontWeight: 700, 
+        padding: '2px 6px', 
+        borderRadius: 4, 
+        background: badgeBg, 
+        color: badgeColor,
+        display: 'inline-block'
+      }}>
+        {badgeText}
+      </span>
+      {totalSuggestedRestock > 0 && (
+        <span style={{ 
+          fontSize: 9, 
+          fontWeight: 800, 
+          padding: '1px 5px', 
+          borderRadius: 4, 
+          background: 'rgba(196, 98, 45, 0.09)', // Terracotta accent background
+          color: '#C4622D',
+          letterSpacing: '0.02em',
+          textTransform: 'uppercase',
+          border: '1px solid rgba(196, 98, 45, 0.15)'
+        }}>
+          Cut +{totalSuggestedRestock}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function ProductsPageClient({
   initialProducts,
@@ -169,6 +231,7 @@ export default function ProductsPageClient({
                   <th>Sizes</th>
                   <th style={{ textAlign: "right" }}>Stock</th>
                   <th style={{ textAlign: "right" }}>Price</th>
+                  <th>AI Forecast</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -199,6 +262,9 @@ export default function ProductsPageClient({
                     </td>
                     <td style={{ textAlign: "right", fontWeight: 600 }}>₺{p.price.toLocaleString()}</td>
                     <td>
+                      {renderForecastingBadge((p as any).forecast)}
+                    </td>
+                    <td>
                       <span className={`pill pill-${p.status}`}>
                         {p.status.replace('-', ' ')}
                       </span>
@@ -207,7 +273,7 @@ export default function ProductsPageClient({
                 ))}
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-fg-3)" }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-fg-3)" }}>
                       No products match your filters.
                     </td>
                   </tr>
