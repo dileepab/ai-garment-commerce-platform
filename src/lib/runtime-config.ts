@@ -141,7 +141,7 @@ export interface MerchantSettingsFormInput {
 }
 
 function cleanOptionalText(value?: string | null): string | null {
-  const cleaned = value?.trim();
+  const cleaned = value?.trim().replace(/^["'`]+|["'`]+$/g, '');
   return cleaned ? cleaned : null;
 }
 

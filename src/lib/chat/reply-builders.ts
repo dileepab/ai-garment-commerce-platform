@@ -95,10 +95,11 @@ export function formatCatalogListReply(
     inventory?: { availableQty: number } | null;
   }>
 ): string {
-  const availableProducts = products.filter(
-    (product) => (product.inventory?.availableQty ?? 0) > 0
-  );
-  const lines = (availableProducts.length > 0 ? availableProducts : products).map(
+  if (products.length === 0) {
+    return 'I do not see any in-stock items listed for this store right now. Please message us again a little later, or ask support to check the latest stock.';
+  }
+
+  const lines = products.map(
     (product) =>
       `${product.name}: Rs ${product.price} (Sizes ${product.sizes || '-'} / Colors: ${
         product.colors || '-'

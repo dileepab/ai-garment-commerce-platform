@@ -40,7 +40,7 @@ const SUPPORT_REASON_LABELS: Record<SupportIssueReason, string> = {
 };
 
 function cleanSupportContactValue(value?: string | null): string | null {
-  const cleaned = value?.trim();
+  const cleaned = value?.trim().replace(/^["'`]+|["'`]+$/g, '');
   return cleaned ? cleaned : null;
 }
 

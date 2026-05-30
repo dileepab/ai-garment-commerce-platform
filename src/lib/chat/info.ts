@@ -2,6 +2,7 @@ import {
   assistantOfferedGiftOptions,
   extractDeliveryLocationHint,
   extractGiftNoteFromText,
+  looksLikeCasualWellbeingQuestion,
   mentionsCurrentOrderReference,
   mentionsLatestOrderReference,
   mentionsOwnedOrderReference,
@@ -35,11 +36,21 @@ import { updateOrderGiftInstructions } from './shared-actions';
 import type { ChatContext } from './types';
 
 export async function handle_greeting(ctx: ChatContext) {
-  const { brandFilter, customer, mergedContact } = ctx;
+  const { customer, input, mergedContact, settings } = ctx;
   const { finalizeReply } = ctx.helpers;
 
+  if (looksLikeCasualWellbeingQuestion(input.currentMessage)) {
+    return finalizeReply({
+      reply: 'I am doing well, thank you. I can help with available items, sizes, COD, delivery, or an order.',
+      assistantReplyKind: 'greeting',
+      nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
   return finalizeReply({
-    reply: buildGreetingReply(mergedContact.name || customer?.name, brandFilter),
+    reply: buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
     assistantReplyKind: 'greeting',
     nextState: {
       lastMissingOrderId: null,
@@ -261,7 +272,7 @@ export async function handle_payment_question(ctx: ChatContext) {
   const { aiAction, input, settings, state } = ctx;
   const { finalizeReply } = ctx.helpers;
   const paymentMethod = resolvePaymentMethod(
-    aiAction.paymentMethod || settings.payment.onlineTransferLabel,
+    aiAction.paymentMethod,
     input.currentMessage,
     settings
   );

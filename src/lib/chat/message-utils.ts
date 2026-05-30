@@ -183,6 +183,13 @@ export function isGreetingMessage(message: string): boolean {
   return /^(hi|hello|hey|good morning|good afternoon|good evening)\b/i.test(message.trim());
 }
 
+export function looksLikeCasualWellbeingQuestion(message: string): boolean {
+  const normalized = normalizeText(message);
+  return /^(how are you|how r you|how are u|kohomada|kohomadha|kohomada oyata|oyata kohomada)\b/.test(
+    normalized
+  );
+}
+
 export function isNeutralAcknowledgement(message: string): boolean {
   return /^(ok|okay|alright|fine|noted|got it|understood)\b[!. ]*$/i.test(message.trim());
 }
@@ -256,7 +263,11 @@ export function looksLikeOrderContactUpdateRequest(message: string): boolean {
 }
 
 export function looksLikePaymentQuestion(message: string): boolean {
-  return /\bonline transfer\b|\bbank transfer\b|\bpayment method\b|\bpay\b/i.test(message);
+  const normalized = normalizeText(message);
+
+  return /\bonline transfer\b|\bbank transfer\b|\bpayment method\b|\bpay\b|\bcod\b|\bcash on delivery\b|\bpay on delivery\b|\bthiyanawada\b.*\bcod\b|\bcod\b.*\bthiyanawada\b/i.test(
+    normalized
+  );
 }
 
 export function looksLikeExchangeQuestion(message: string): boolean {
@@ -327,7 +338,25 @@ export function looksLikeClarificationBreakdown(message: string): boolean {
   );
 }
 
+export function looksLikeSupportContactProblem(message: string): boolean {
+  const normalized = normalizeText(message);
+
+  return (
+    /\b(can t|cant|cannot|couldn t|couldnt|unable to)\b.*\b(contact|call|reach|whatsapp|message|connect|get through)\b/.test(
+      normalized
+    ) ||
+    /\b(number|phone|whatsapp|line)\b.*\b(not working|not answering|not reachable|busy|off)\b/.test(
+      normalized
+    ) ||
+    /\b(no answer|nobody answered|no one answered|not responding)\b/.test(normalized)
+  );
+}
+
 export function inferSupportIssueReason(message: string): SupportIssueReason | null {
+  if (looksLikeSupportContactProblem(message)) {
+    return 'human_request';
+  }
+
   if (looksLikeHumanSupportRequest(message)) {
     return 'human_request';
   }
@@ -417,7 +446,22 @@ export function looksLikeTotalQuestion(message: string): boolean {
 }
 
 export function looksLikeCatalogQuestion(message: string): boolean {
-  return /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you have\b.*\b(dress|dresses|top|tops|pant|pants|skirt|skirts)\b|\bdon['’]?t you have\b.*\b(dress|dresses|top|tops|pant|pants|skirt|skirts)\b/i.test(message);
+  const normalized = normalizeText(message);
+
+  return (
+    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you have\b.*\b(dress|dresses|top|tops|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|pant|pants|skirt|skirts)\b/i.test(
+      normalized
+    ) ||
+    /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(
+      normalized
+    ) ||
+    /\b(?:adum|edum|items?|products?)\b.*\b(?:monawada|monavada|mona|monawa|thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne)\b/i.test(
+      normalized
+    ) ||
+    /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||
+    /(මොනවද|මොනවාද|මොනාවද|මොනද).*(තියන|තියෙන|තියෙන්නේ|ඇදුම්|ඇඳුම්|බඩු)/.test(message) ||
+    /(ඇදුම්|ඇඳුම්|බඩු).*(තියන|තියෙන|තියෙන්නේ|මොන)/.test(message)
+  );
 }
 
 export function looksLikeSizeChartQuestion(message: string): boolean {

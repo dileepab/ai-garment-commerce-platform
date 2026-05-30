@@ -207,6 +207,8 @@ export function buildHeuristicAction(
   const size = extractSizeFromMessage(message, product);
   const color = extractColorFromMessage(message, product);
   const giftNote = /happy birthday/i.test(message) ? 'Happy Birthday' : null;
+  const isCodPaymentQuestion = /\bcod\b|\bcash on delivery\b/.test(normalized);
+  const isOnlinePaymentQuestion = /\bonline transfer\b|\bbank transfer\b|\btransfer the money\b/.test(normalized);
 
   const base: AiRoutedAction = {
     action: 'fallback',
@@ -218,9 +220,11 @@ export function buildHeuristicAction(
     quantity,
     size,
     color,
-    paymentMethod: /\bonline transfer\b|\bbank transfer\b/.test(normalized)
-      ? 'Online Transfer'
-      : null,
+    paymentMethod: isCodPaymentQuestion
+      ? 'COD'
+      : isOnlinePaymentQuestion
+        ? 'Online Transfer'
+        : null,
     giftWrap: /\bgift wrap\b|\bpack .* as a gift\b|\bsend .* as a gift\b|\bgift\b/.test(normalized)
       ? true
       : null,
@@ -329,7 +333,14 @@ export function buildHeuristicAction(
     };
   }
 
-  if (/\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable pants\b|\bavailable skirts?\b/.test(normalized)) {
+  if (
+    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable pants\b|\bavailable skirts?\b/.test(normalized) ||
+    /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(normalized) ||
+    /\b(?:adum|edum|items?|products?)\b.*\b(?:monawada|monavada|mona|monawa|thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne)\b/i.test(normalized) ||
+    /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||
+    /(මොනවද|මොනවාද|මොනාවද|මොනද).*(තියන|තියෙන|තියෙන්නේ|ඇදුම්|ඇඳුම්|බඩු)/.test(message) ||
+    /(ඇදුම්|ඇඳුම්|බඩු).*(තියන|තියෙන|තියෙන්නේ|මොන)/.test(message)
+  ) {
     return {
       ...base,
       action: 'catalog_list',
@@ -366,7 +377,7 @@ export function buildHeuristicAction(
     };
   }
 
-  if (/\bonline transfer\b|\bbank transfer\b|\bpayment method\b|\bpay\b/.test(normalized)) {
+  if (/\bonline transfer\b|\bbank transfer\b|\bpayment method\b|\bpay\b|\bcod\b|\bcash on delivery\b|\bpay on delivery\b/.test(normalized)) {
     return {
       ...base,
       action: 'payment_question',
@@ -404,7 +415,7 @@ export function buildHeuristicAction(
     };
   }
 
-  if (/^(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(normalized)) {
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening|how are you|how r you|how are u|kohomada|kohomadha)\b/.test(normalized)) {
     return {
       ...base,
       action: 'greeting',

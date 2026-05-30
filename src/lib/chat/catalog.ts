@@ -107,15 +107,35 @@ function toCarouselProducts(products: Array<{ id: number; name: string; price: n
   }));
 }
 
+function getAvailableQty(product: {
+  stock?: number | null;
+  inventory?: { availableQty: number } | null;
+  variants?: Array<{ status?: string | null; inventory?: { availableQty: number } | null }>;
+}): number {
+  if (product.variants && product.variants.length > 0) {
+    return product.variants
+      .filter((variant) => !variant.status || variant.status === 'active')
+      .reduce((sum, variant) => sum + (variant.inventory?.availableQty ?? 0), 0);
+  }
+
+  return product.inventory?.availableQty ?? product.stock ?? 0;
+}
+
+function hasAvailableStock(product: {
+  stock?: number | null;
+  inventory?: { availableQty: number } | null;
+  variants?: Array<{ status?: string | null; inventory?: { availableQty: number } | null }>;
+}): boolean {
+  return getAvailableQty(product) > 0;
+}
+
 function formatCatalogLines(products: Array<{
   name: string;
   price: number;
   sizes: string;
   colors: string;
-  inventory?: { availableQty: number } | null;
 }>): string {
   return products
-    .filter((product) => (product.inventory?.availableQty ?? 0) > 0)
     .map(
       (product) =>
         `${product.name}: Rs ${product.price} (Sizes ${product.sizes || '-'} / Colors: ${
@@ -137,11 +157,11 @@ export async function handle_catalog_list(ctx: ChatContext) {
         })
       : products;
   const availableFilteredProducts = filteredProducts.filter(
-    (product) => (product.inventory?.availableQty ?? 0) > 0
+    (product) => hasAvailableStock(product)
   );
 
   if (requestedProductTypes.length === 1 && availableFilteredProducts.length === 0) {
-    const availableProducts = products.filter((product) => (product.inventory?.availableQty ?? 0) > 0);
+    const availableProducts = products.filter((product) => hasAvailableStock(product));
     const category = requestedProductTypes[0];
     const categoryLabel = getSizeChartDefinition(category).label.toLowerCase();
 
@@ -154,7 +174,7 @@ export async function handle_catalog_list(ctx: ChatContext) {
       (product) =>
         product.brand !== brandFilter &&
         getSizeChartCategoryFromStyle(product.style) === category &&
-        (product.inventory?.availableQty ?? 0) > 0
+        hasAvailableStock(product)
     );
 
     if (crossBrandProducts.length > 0) {
@@ -180,7 +200,10 @@ export async function handle_catalog_list(ctx: ChatContext) {
 
   return finalizeReply({
     reply: formatCatalogListReply(availableFilteredProducts),
-    carouselProducts: toCarouselProducts(requestedProductTypes.length > 0 ? filteredProducts : products),
+    carouselProducts:
+      availableFilteredProducts.length > 0
+        ? toCarouselProducts(availableFilteredProducts)
+        : undefined,
     nextState: {
       lastMissingOrderId: null,
     },
@@ -202,7 +225,7 @@ export async function handle_product_question(ctx: ChatContext) {
         (product) => getSizeChartCategoryFromStyle(product.style) === category
       );
       const availableFilteredProducts = filteredProducts.filter(
-        (product) => (product.inventory?.availableQty ?? 0) > 0
+        (product) => hasAvailableStock(product)
       );
 
       let unavailableReply = buildProductTypeUnavailableReply(category);
@@ -211,7 +234,7 @@ export async function handle_product_question(ctx: ChatContext) {
         (product) =>
           product.brand !== brandFilter &&
           getSizeChartCategoryFromStyle(product.style) === category &&
-          (product.inventory?.availableQty ?? 0) > 0
+          hasAvailableStock(product)
       );
 
       if (crossBrandProducts.length > 0) {
@@ -227,7 +250,10 @@ export async function handle_product_question(ctx: ChatContext) {
           availableFilteredProducts.length === 0
             ? unavailableReply
             : "Here is what we have available:",
-        carouselProducts: availableFilteredProducts.length === 0 ? undefined : toCarouselProducts(filteredProducts),
+        carouselProducts:
+          availableFilteredProducts.length === 0
+            ? undefined
+            : toCarouselProducts(availableFilteredProducts),
         nextState: {
           lastMissingOrderId: null,
         },

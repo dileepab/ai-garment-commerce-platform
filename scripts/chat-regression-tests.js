@@ -408,6 +408,48 @@ async function main() {
         },
       },
       {
+        name: 'Sinhala and Roman Sinhala catalog requests show available stock',
+        senderId: buildSender(runId, 'sinhala-catalog'),
+        messages: [
+          'monawada thiyana adum',
+          'mata monawath penne nane',
+          'මොනවද තියන ඇදුම්',
+        ],
+        verify: async ({ transcript }) => {
+          for (const [index, entry] of transcript.entries()) {
+            assertIncludes(entry.bot, [
+              'Oversized Casual Top',
+              'Breezy Summer Dress',
+            ], `Sinhala catalog reply ${index + 1}`);
+          }
+        },
+      },
+      {
+        name: 'COD payment question is recognized directly',
+        senderId: buildSender(runId, 'cod-question'),
+        messages: ['COD available?'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'Yes, COD works for us.',
+          ], 'COD availability reply');
+        },
+      },
+      {
+        name: 'Casual wellbeing question gets a natural reply',
+        senderId: buildSender(runId, 'wellbeing'),
+        messages: ['How are you'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'I am doing well, thank you.',
+            'available items',
+          ], 'Casual wellbeing reply');
+          assert(
+            !transcript[0].bot.includes('How can I assist you with your'),
+            `Casual wellbeing reply should not restart the order greeting.\n\nActual reply:\n${transcript[0].bot}`
+          );
+        },
+      },
+      {
         name: 'Order flow collects contact details and confirms order',
         senderId: buildSender(runId, 'happy-path'),
         messages: [
@@ -921,6 +963,34 @@ async function main() {
           });
 
           assert(!escalation, 'Did not expect a support escalation for a simple support contact request.');
+        },
+      },
+      {
+        name: 'Cannot reach support after contact details creates a handoff',
+        senderId: buildSender(runId, 'support-contact-problem'),
+        messages: [
+          'I want support center contact number',
+          'I cant contact them',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[0].bot, [
+            'You can reach our support team directly.',
+          ], 'Initial support contact reply');
+          assertIncludes(transcript[1].bot, [
+            'I want to make sure you get the right help for this support request.',
+            'I have also flagged this conversation for a team follow-up.',
+          ], 'Support contact failure handoff reply');
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(escalation, 'Expected a support escalation when the support number cannot be reached.');
+          assert(
+            escalation.reason === 'human_request',
+            `Expected reason human_request, received ${String(escalation.reason)}.`
+          );
         },
       },
       {

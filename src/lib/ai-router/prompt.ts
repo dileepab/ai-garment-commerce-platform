@@ -58,7 +58,7 @@ Choose exactly one action from this list:
 - update_order_contact: asking to change delivery address or phone/contact number for an existing order
 - update_order_quantity: asking to increase/reduce/change quantity of an existing confirmed order
 - delivery_question: asking delivery time, deadline, or delivery to a location
-- payment_question: asking about online transfer / payment method
+- payment_question: asking about COD, cash on delivery, online transfer, or payment method
 - exchange_question: asking about exchange or wrong size policy
 - gift_request: asking for gift wrap or gift note
 - support_contact_request: asking for store contact number or support contact
@@ -78,6 +78,8 @@ Routing rules:
 - If the customer asks for a size chart and the product type is obvious from the message or recent context, set productType.
 - If the customer asks for a size chart without a clear item type, use size_chart and leave productType null so the app can ask which type they want.
 - If the customer asks for available dresses, tops, pants, or skirts, use catalog_list.
+- If the customer asks "monawada thiyana adum", "මොනවද තියන ඇදුම්", "මොනාවද තියන ඇදුම්", or says they cannot see any items after a catalog reply, use catalog_list.
+- If the customer asks "COD available?", "COD thiyanawada", or "cash on delivery", use payment_question and return paymentMethod "COD".
 - For vague product questions ("anything nice?", "what's good?", "show me something"), prefer catalog_list so the customer sees the current selection.
 - For multi-intent messages ("price and sizes of X", "delivery time and total"), pick the single action that unblocks the customer first: ordering > order changes > status/details > product info > delivery/payment/exchange/gift > catalog. Capture other extractable fields (productName, size, etc.) so the handler can answer in one reply.
 - Do not invent product names, order IDs, dates, or contact values. Return null for anything unclear.

@@ -9,13 +9,17 @@ import {
   isLowerQuantityPrompt,
   isNeutralAcknowledgement,
   isUnambiguousCancellationMessage,
+  looksLikeCatalogQuestion,
+  looksLikeCasualWellbeingQuestion,
   looksLikeGiftRequest,
   looksLikeHumanEscalationRequest,
   looksLikeMissingOrderFollowUp,
   looksLikeOrderContactUpdateRequest,
   looksLikeOrderDetailsRequest,
   looksLikeOrderStatusRequest,
+  looksLikePaymentQuestion,
   looksLikeSameItemMessage,
+  looksLikeSupportContactProblem,
   looksLikeTotalQuestion,
   mentionsRelativeOrderReference,
   messageReferencesExistingOrder,
@@ -640,7 +644,7 @@ export async function routeCustomerMessage(
 
   if (isGreetingMessage(input.currentMessage) && state.pendingStep === 'none') {
     return finalizeReply({
-      reply: buildGreetingReply(mergedContact.name || customer?.name, brandFilter),
+      reply: buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
       assistantReplyKind: 'greeting',
       nextState: {
         lastMissingOrderId: null,
@@ -834,13 +838,16 @@ export async function routeCustomerMessage(
 
   // Never bypass the escalation path when the customer is explicitly asking to
   // speak with a human agent, even if the AI labelled it as support_contact_request.
+  const hasSupportContactProblem = looksLikeSupportContactProblem(input.currentMessage);
   const supportIssueReason =
-    (aiAction.action === 'support_contact_request' && !looksLikeHumanEscalationRequest(input.currentMessage)) ||
-    aiAction.action === 'thanks_acknowledgement' ||
-    (looksLikeOrderContactUpdateRequest(input.currentMessage) &&
-      !looksLikeHumanEscalationRequest(input.currentMessage))
-      ? null
-      : inferSupportIssueReason(input.currentMessage);
+    hasSupportContactProblem
+      ? inferSupportIssueReason(input.currentMessage)
+      : (aiAction.action === 'support_contact_request' && !looksLikeHumanEscalationRequest(input.currentMessage)) ||
+          aiAction.action === 'thanks_acknowledgement' ||
+          (looksLikeOrderContactUpdateRequest(input.currentMessage) &&
+            !looksLikeHumanEscalationRequest(input.currentMessage))
+        ? null
+        : inferSupportIssueReason(input.currentMessage);
   if (supportIssueReason) {
     const relatedOrderId =
       explicitOrderId ??
@@ -933,6 +940,42 @@ export async function routeCustomerMessage(
     ) {
       effectiveAction = 'order_status';
     }
+  }
+
+  if (effectiveAction === 'fallback' && looksLikeCatalogQuestion(input.currentMessage)) {
+    effectiveAction = 'catalog_list';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'catalog_list',
+      confidence: Math.max(effectiveAiAction.confidence, 0.9),
+    };
+  }
+
+  if (effectiveAction === 'fallback' && looksLikeCasualWellbeingQuestion(input.currentMessage)) {
+    effectiveAction = 'greeting';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'greeting',
+      confidence: Math.max(effectiveAiAction.confidence, 0.9),
+    };
+  }
+
+  if (effectiveAction === 'fallback' && looksLikePaymentQuestion(input.currentMessage)) {
+    const normalizedPaymentMessage = input.currentMessage.toLowerCase();
+    const requestedPaymentMethod =
+      /\bcod\b|cash on delivery/i.test(normalizedPaymentMessage)
+        ? 'COD'
+        : /\bonline transfer\b|\bbank transfer\b|\btransfer\b/i.test(normalizedPaymentMessage)
+          ? 'Online Transfer'
+          : effectiveAiAction.paymentMethod;
+
+    effectiveAction = 'payment_question';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'payment_question',
+      confidence: Math.max(effectiveAiAction.confidence, 0.9),
+      paymentMethod: requestedPaymentMethod,
+    };
   }
 
   const ctx: ChatContext = {
