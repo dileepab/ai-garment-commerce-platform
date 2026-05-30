@@ -274,6 +274,7 @@ function AddBrandForm({ canManage }: { canManage: boolean }) {
 function SettingsForm({
   settings,
   channelConfig,
+  courierWebhookSecretSaved = false,
   title,
   subtitle,
   canManage,
@@ -281,6 +282,7 @@ function SettingsForm({
 }: {
   settings: MerchantSettings;
   channelConfig?: BrandChannelConfigView;
+  courierWebhookSecretSaved?: boolean;
   title: string;
   subtitle: string;
   canManage: boolean;
@@ -388,6 +390,30 @@ function SettingsForm({
               </div>
             </CollapsibleSection>
 
+            {!settings.brand && (
+              <CollapsibleSection title="Courier Webhook">
+                <p className="app-muted" style={{ marginBottom: 12 }}>
+                  Used to verify courier callbacks sent to <code>/api/webhooks/courier</code>. Leave blank to keep the saved secret. If a Vercel env secret is set, it still takes priority.
+                </p>
+                <div style={gridStyle}>
+                  <TokenField
+                    label="Courier webhook secret"
+                    name="courierWebhookSecret"
+                    hasValue={courierWebhookSecretSaved || Boolean(process.env.COURIER_WEBHOOK_SECRET)}
+                    disabled={!canManage}
+                  />
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>Webhook URL</span>
+                    <input
+                      className="app-input"
+                      value="https://app.deez.lk/api/webhooks/courier"
+                      readOnly
+                    />
+                  </label>
+                </div>
+              </CollapsibleSection>
+            )}
+
             {settings.brand && channelConfig && (
               <CollapsibleSection title="Meta Channels">
                 <p className="app-muted" style={{ marginBottom: 12 }}>
@@ -449,7 +475,7 @@ export default async function SettingsPage() {
   const scope = await requirePagePermission('settings:view');
   const canManage = canScope(scope, 'settings:write');
   const [settingsRows, channelRows, productBrands, orderBrands, supportBrands] = await Promise.all([
-    prisma.merchantSettings.findMany({ select: { brand: true } }),
+    prisma.merchantSettings.findMany({ select: { brand: true, storeKey: true, courierWebhookSecret: true } }),
     prisma.brandChannelConfig.findMany({ select: { brand: true } }),
     prisma.product.findMany({ distinct: ['brand'], select: { brand: true } }),
     prisma.order.findMany({ distinct: ['brand'], select: { brand: true } }),
@@ -463,6 +489,7 @@ export default async function SettingsPage() {
     ...supportBrands.map((row) => row.brand),
   ]).filter((brand) => canAccessBrand(scope, brand));
   const globalSettings = await getMerchantSettings();
+  const globalSettingsRow = settingsRows.find((row) => row.storeKey === 'default');
   const scopedSettings = await Promise.all(
     brandNames.map(async (brand) => ({
       settings: await getMerchantSettings(brand),
@@ -488,6 +515,7 @@ export default async function SettingsPage() {
 
         <SettingsForm
           settings={globalSettings}
+          courierWebhookSecretSaved={Boolean(globalSettingsRow?.courierWebhookSecret)}
           title="Global defaults"
           subtitle="Used when a brand-specific setting has not been saved."
           canManage={canManage}

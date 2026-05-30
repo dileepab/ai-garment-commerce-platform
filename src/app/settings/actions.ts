@@ -74,11 +74,16 @@ export async function saveMerchantSettingsAction(formData: FormData) {
     purchaseNudgeCooldownDays: readNumber(formData, 'purchaseNudgeCooldownDays'),
     commentAutoReplyEnabled: readBoolean(formData, 'commentAutoReplyEnabled'),
   });
-  const { storeKey, ...updateData } = data;
+  const courierWebhookSecret = brand ? null : cleanAccessToken(readText(formData, 'courierWebhookSecret'));
+  const dataWithSecrets = {
+    ...data,
+    ...(courierWebhookSecret ? { courierWebhookSecret } : {}),
+  };
+  const { storeKey, ...updateData } = dataWithSecrets;
 
   await prisma.merchantSettings.upsert({
     where: { storeKey },
-    create: data,
+    create: dataWithSecrets,
     update: updateData,
   });
 

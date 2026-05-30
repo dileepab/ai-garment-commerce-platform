@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { processCourierWebhookUpdate, type CourierWebhookPayload } from '@/lib/courier-service';
+import { getCourierWebhookSecret } from '@/lib/courier-webhook-secret';
 import { logError, logWarn } from '@/lib/app-log';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -18,12 +19,12 @@ function getErrorStatus(error: unknown): number {
   return 500;
 }
 
-function validateCourierWebhookSecret(request: Request): NextResponse | null {
-  const configuredSecret = process.env.COURIER_WEBHOOK_SECRET?.trim();
+async function validateCourierWebhookSecret(request: Request): Promise<NextResponse | null> {
+  const configuredSecret = await getCourierWebhookSecret();
 
   if (!configuredSecret) {
     if (process.env.NODE_ENV === 'production') {
-      logWarn('Courier Webhook API', 'COURIER_WEBHOOK_SECRET is not configured; rejecting courier webhook.');
+      logWarn('Courier Webhook API', 'Courier webhook secret is not configured; rejecting courier webhook.');
       return NextResponse.json(
         { error: 'Courier webhook is not configured.' },
         { status: 503 },
@@ -78,7 +79,7 @@ function parseCourierWebhookPayload(value: unknown): CourierWebhookPayload | nul
 
 export async function POST(request: Request) {
   try {
-    const authError = validateCourierWebhookSecret(request);
+    const authError = await validateCourierWebhookSecret(request);
     if (authError) {
       return authError;
     }
