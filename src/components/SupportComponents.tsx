@@ -2,7 +2,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { SupportThread, SupportThreadMessage } from '@/app/support/types';
-import { SUPPORT_THREAD_POLL_MS } from '@/app/support/format';
+import {
+  formatSupportFullTimestamp,
+  formatSupportMessageDateSeparator,
+  getSupportDateKeyFromIso,
+  SUPPORT_THREAD_POLL_MS,
+} from '@/app/support/format';
 import {
   sendSupportReplyAction,
   startRefundDamageWorkflowAction,
@@ -448,25 +453,36 @@ export function Thread({
           const isAgent = messageRole === "agent";
           const isNote = messageRole === "note";
           const showLabel = i === 0 || getMessageRole(convo.messages[i - 1].role) !== messageRole;
+          const previousMessage = convo.messages[i - 1];
+          const previousDateKey = previousMessage ? getSupportDateKeyFromIso(previousMessage.createdAt) : null;
+          const currentDateKey = getSupportDateKeyFromIso(msg.createdAt);
+          const showDateSeparator = !previousMessage || previousDateKey !== currentDateKey;
 
           return (
-            <div key={msg.id || i} className={`msg-row ${messageRole}`}>
-              {isCustomer && (
-                <div className="msg-avatar" style={{ background: 'var(--color-accent)' }}>{initials}</div>
-              )}
-              {(isAI || isAgent) && (
-                <div className="msg-avatar" style={{ background: isAI ? "var(--color-accent)" : "var(--color-navy)" }}>
-                  {isAI ? <Icon d={ic.zap} size={11} color="white" strokeWidth={2.5} /> : "SA"}
+            <React.Fragment key={msg.id || i}>
+              {showDateSeparator && (
+                <div className="thread-date-separator" suppressHydrationWarning>
+                  <span>{formatSupportMessageDateSeparator(msg.createdAt)}</span>
                 </div>
               )}
-              <div className="msg-col">
-                {showLabel && isAI && <div className="msg-label" style={{ color: "var(--color-accent)" }}>AI Assistant</div>}
-                {showLabel && isAgent && <div className="msg-label" style={{ color: "var(--color-navy)" }}>Sara Altan · Agent</div>}
-                {showLabel && isNote && <div className="msg-label" style={{ color: "var(--danger)" }}>Internal note</div>}
-                <div className="msg-bubble">{getMessageText(msg)}</div>
-                <span className="msg-time" suppressHydrationWarning>{msg.createdAtLabel}</span>
+              <div className={`msg-row ${messageRole}`}>
+                {isCustomer && (
+                  <div className="msg-avatar" style={{ background: 'var(--color-accent)' }}>{initials}</div>
+                )}
+                {(isAI || isAgent) && (
+                  <div className="msg-avatar" style={{ background: isAI ? "var(--color-accent)" : "var(--color-navy)" }}>
+                    {isAI ? <Icon d={ic.zap} size={11} color="white" strokeWidth={2.5} /> : "SA"}
+                  </div>
+                )}
+                <div className="msg-col">
+                  {showLabel && isAI && <div className="msg-label" style={{ color: "var(--color-accent)" }}>AI Assistant</div>}
+                  {showLabel && isAgent && <div className="msg-label" style={{ color: "var(--color-navy)" }}>Sara Altan · Agent</div>}
+                  {showLabel && isNote && <div className="msg-label" style={{ color: "var(--danger)" }}>Internal note</div>}
+                  <div className="msg-bubble">{getMessageText(msg)}</div>
+                  <span className="msg-time" title={formatSupportFullTimestamp(msg.createdAt)} suppressHydrationWarning>{msg.createdAtLabel}</span>
+                </div>
               </div>
-            </div>
+            </React.Fragment>
           );
         })}
         <div ref={bottomRef} />

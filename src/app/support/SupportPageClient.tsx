@@ -5,7 +5,11 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Thread } from '@/components/SupportComponents';
 import { PageHeader } from '@/components/PageHeader';
 import type { SupportStats, SupportThread } from './types';
-import { SUPPORT_THREAD_POLL_MS } from './format';
+import {
+  formatSupportConversationListTimestamp,
+  formatSupportFullTimestamp,
+  SUPPORT_THREAD_POLL_MS,
+} from './format';
 import { updateEscalationWorkflowAction } from './actions';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
@@ -479,7 +483,13 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
                 >
                   <div className="convo-item-top">
                     <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
-                    <span className="convo-item-time" suppressHydrationWarning>{e.updatedAtLabel}</span>
+                    <span
+                      className="convo-item-time"
+                      title={formatSupportFullTimestamp(e.updatedAt)}
+                      suppressHydrationWarning
+                    >
+                      {formatSupportConversationListTimestamp(e.updatedAt)}
+                    </span>
                   </div>
                   <div className="convo-item-mid">
                     <span className={`badge-ch ${CHANNEL_CLASS[e.channel] || ''}`}>
