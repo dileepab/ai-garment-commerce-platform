@@ -93,6 +93,7 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
         brand: true,
         reason: true,
         status: true,
+        contactName: true,
         latestCustomerMessage: true,
         createdAt: true,
         updatedAt: true,

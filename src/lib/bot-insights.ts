@@ -16,6 +16,7 @@ export interface BotInsightEscalation {
   brand: string | null;
   reason: string;
   status: string;
+  contactName: string | null;
   latestCustomerMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -433,6 +434,12 @@ function addBrand(conversation: ConversationAccumulator, brand?: string | null) 
   }
 }
 
+function addCustomerName(conversation: ConversationAccumulator, name?: string | null) {
+  if (!conversation.customerName && name) {
+    conversation.customerName = name;
+  }
+}
+
 export function buildBotInsightsReport(input: {
   messages: BotInsightChatMessage[];
   escalations: BotInsightEscalation[];
@@ -456,7 +463,7 @@ export function buildBotInsightsReport(input: {
     conversation.messages.push(message);
     const customer = customerByExternalId.get(message.senderId);
     if (customer) {
-      conversation.customerName = customer.name;
+      addCustomerName(conversation, customer.name);
       addBrand(conversation, customer.preferredBrand);
     }
   }
@@ -464,6 +471,7 @@ export function buildBotInsightsReport(input: {
   for (const escalation of input.escalations) {
     const conversation = ensureConversation(conversations, escalation.channel, escalation.senderId);
     conversation.escalations.push(escalation);
+    addCustomerName(conversation, escalation.contactName);
     addBrand(conversation, escalation.brand);
   }
 

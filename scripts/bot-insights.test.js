@@ -90,6 +90,7 @@ const report = buildBotInsightsReport({
       brand: 'Cleopatra',
       reason: 'order_issue',
       status: 'open',
+      contactName: 'Test Customer',
       latestCustomerMessage: 'I received a damaged item. I want a refund.',
       createdAt: minutes(1.1),
       updatedAt: minutes(2),
