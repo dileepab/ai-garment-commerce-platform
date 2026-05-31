@@ -98,6 +98,7 @@ function InsightsShell({
             <Link className="btn btn-secondary" href="/support/training">Training</Link>
             <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
             <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
+            <Link className="btn btn-secondary" href="/settings/readiness">Launch readiness</Link>
           </>
         }
       />

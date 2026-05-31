@@ -107,7 +107,10 @@ export async function updateEscalationWorkflowAction(formData: FormData) {
   const escalationId = Number.parseInt(String(formData.get('escalationId') || ''), 10);
   const nextStatus = String(formData.get('nextStatus') || '');
 
-  if (!Number.isInteger(escalationId) || !['open', 'in_progress', 'resolved'].includes(nextStatus)) {
+  if (
+    !Number.isInteger(escalationId) ||
+    !['open', 'in_progress', 'waiting_customer', 'waiting_team', 'resolved'].includes(nextStatus)
+  ) {
     return;
   }
 
@@ -162,7 +165,9 @@ export async function updateEscalationWorkflowAction(formData: FormData) {
         ? 'resolved'
         : nextStatus === 'in_progress'
           ? 'human_active'
-          : 'handoff_requested',
+          : nextStatus === 'waiting_customer'
+            ? 'human_active'
+            : 'handoff_requested',
   });
 
   revalidatePath('/support');

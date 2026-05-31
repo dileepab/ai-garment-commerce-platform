@@ -876,6 +876,16 @@ a {
   color: var(--color-navy);
 }
 
+.pill-waiting_customer {
+  background: var(--color-accent-muted);
+  color: #7A3A18;
+}
+
+.pill-waiting_team {
+  background: #E8E0F5;
+  color: #4A2D7A;
+}
+
 .pill-delayed {
   background: var(--color-error-muted);
   color: #701919;

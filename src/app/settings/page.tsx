@@ -733,6 +733,7 @@ export default async function SettingsPage() {
         subtitle="Operational defaults for support, delivery, payments, automation timing, and brand-specific customer replies"
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Link className="btn btn-secondary" href="/settings/readiness">Launch readiness</Link>
             <Link className="btn btn-secondary" href="/settings/meta">Meta status</Link>
             <Link className="btn btn-secondary" href="/settings/audit">Audit log</Link>
             <span className="app-chip app-chip-neutral">{describeScope(scope)}</span>

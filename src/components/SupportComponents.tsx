@@ -38,6 +38,8 @@ const STATUS_CLASS: Record<string, string> = {
   open: "pill-open",
   pending: "pill-pending",
   in_progress: "pill-in_progress",
+  waiting_customer: "pill-waiting_customer",
+  waiting_team: "pill-waiting_team",
   resolved: "pill-resolved",
 };
 const STATUS_LABEL: Record<string, string> = {
@@ -45,6 +47,8 @@ const STATUS_LABEL: Record<string, string> = {
   open: "Open",
   pending: "Pending Reply",
   in_progress: "In Progress",
+  waiting_customer: "Waiting Customer",
+  waiting_team: "Waiting Team",
   resolved: "Resolved",
 };
 
@@ -462,13 +466,29 @@ export function Thread({
             </form>
           )}
           {canReply && !isResolved && (
-            <form action={updateEscalationWorkflowAction}>
-              <input type="hidden" name="escalationId" value={convo.id} />
-              <input type="hidden" name="nextStatus" value="resolved" />
-              <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
-                <Icon d={ic.check} size={12} />Mark Resolved
-              </button>
-            </form>
+            <>
+              <form action={updateEscalationWorkflowAction}>
+                <input type="hidden" name="escalationId" value={convo.id} />
+                <input type="hidden" name="nextStatus" value="waiting_customer" />
+                <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
+                  Waiting Customer
+                </button>
+              </form>
+              <form action={updateEscalationWorkflowAction}>
+                <input type="hidden" name="escalationId" value={convo.id} />
+                <input type="hidden" name="nextStatus" value="waiting_team" />
+                <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
+                  Waiting Team
+                </button>
+              </form>
+              <form action={updateEscalationWorkflowAction}>
+                <input type="hidden" name="escalationId" value={convo.id} />
+                <input type="hidden" name="nextStatus" value="resolved" />
+                <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
+                  <Icon d={ic.check} size={12} />Mark Resolved
+                </button>
+              </form>
+            </>
           )}
           {canReply && isResolved && (
             <form action={updateEscalationWorkflowAction}>

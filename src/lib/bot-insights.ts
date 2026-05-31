@@ -106,12 +106,17 @@ export interface BotInsightConversation {
   lastCustomerMessage: string | null;
   lastAssistantMessage: string | null;
   diagnosticSummary: {
+    detectedLanguage: string | null;
+    replyLanguage: string | null;
     aiAction: string | null;
     effectiveAction: string | null;
     confidence: number | null;
     replyKind: string | null;
     supportMode: string | null;
     pendingStep: string | null;
+    hasReply: boolean;
+    hasMedia: boolean;
+    orderId: number | null;
     issueFlags: string[];
   } | null;
   messages: BotInsightTranscriptMessage[];
@@ -679,12 +684,17 @@ export function buildBotInsightsReport(input: {
         lastAssistantMessage: lastAssistantMessage?.message ?? null,
         diagnosticSummary: latestDiagnostic
           ? {
+              detectedLanguage: latestDiagnostic.detectedLanguage,
+              replyLanguage: latestDiagnostic.replyLanguage,
               aiAction: latestDiagnostic.aiAction,
               effectiveAction: latestDiagnostic.effectiveAction,
               confidence: latestDiagnostic.aiConfidence,
               replyKind: latestDiagnostic.assistantReplyKind,
               supportMode: latestDiagnostic.supportMode,
               pendingStep: latestDiagnostic.pendingStep,
+              hasReply: latestDiagnostic.hasReply,
+              hasMedia: latestDiagnostic.hasMedia,
+              orderId: latestDiagnostic.orderId,
               issueFlags: parseIssueFlags(latestDiagnostic.issueFlags),
             }
           : null,

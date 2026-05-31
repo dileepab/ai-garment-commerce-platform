@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import type { BotInsightConversation, BotInsightsReport } from '@/lib/bot-insights';
+import { saveBotRegressionDraftAction } from './actions';
 
 const toneStyle: Record<string, { background: string; color: string; border: string }> = {
   good: { background: '#E8F5EE', color: '#1E6B45', border: '#B8DDC8' },
@@ -224,9 +225,21 @@ function ConversationReplay({ conversation }: { conversation: BotInsightConversa
             {conversation.channel} {conversation.brand ? `· ${conversation.brand}` : ''} · {conversation.latestAtLabel}
           </p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={copyRegression}>
-          {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy test case'}
-        </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+          <form action={saveBotRegressionDraftAction}>
+            <input type="hidden" name="senderId" value={conversation.senderId} />
+            <input type="hidden" name="channel" value={conversation.channel} />
+            <input type="hidden" name="brand" value={conversation.brand || ''} />
+            <input type="hidden" name="customerName" value={conversation.customerName || ''} />
+            <input type="hidden" name="issueLabels" value={conversation.issueLabels.join(',')} />
+            <input type="hidden" name="recommendation" value={conversation.recommendation} />
+            <input type="hidden" name="snippet" value={conversation.regressionSnippet} />
+            <button type="submit" className="btn btn-primary">Save regression draft</button>
+          </form>
+          <button type="button" className="btn btn-secondary" onClick={copyRegression}>
+            {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy test case'}
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: 16, borderBottom: '1px solid var(--color-border-subtle)', display: 'grid', gap: 10 }}>
@@ -239,13 +252,20 @@ function ConversationReplay({ conversation }: { conversation: BotInsightConversa
           {conversation.recommendation}
         </div>
         {conversation.diagnosticSummary && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: 8 }}>
+            <div className="app-chip app-chip-neutral">Detected: {conversation.diagnosticSummary.detectedLanguage || 'unknown'}</div>
+            <div className="app-chip app-chip-neutral">Reply lang: {conversation.diagnosticSummary.replyLanguage || 'unknown'}</div>
             <div className="app-chip app-chip-neutral">AI: {conversation.diagnosticSummary.aiAction || 'unknown'}</div>
             <div className="app-chip app-chip-neutral">Effective: {conversation.diagnosticSummary.effectiveAction || 'unknown'}</div>
             <div className="app-chip app-chip-neutral">
               Confidence: {conversation.diagnosticSummary.confidence === null ? 'unknown' : Math.round(conversation.diagnosticSummary.confidence * 100)}
             </div>
             <div className="app-chip app-chip-neutral">Mode: {conversation.diagnosticSummary.supportMode || 'unknown'}</div>
+            <div className={conversation.diagnosticSummary.hasReply ? 'app-chip app-chip-success' : 'app-chip app-chip-warning'}>
+              Reply: {conversation.diagnosticSummary.hasReply ? 'yes' : 'no'}
+            </div>
+            <div className="app-chip app-chip-neutral">Media: {conversation.diagnosticSummary.hasMedia ? 'yes' : 'no'}</div>
+            <div className="app-chip app-chip-neutral">Order: {conversation.diagnosticSummary.orderId ? `ORD-${conversation.diagnosticSummary.orderId}` : 'none'}</div>
           </div>
         )}
       </div>

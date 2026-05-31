@@ -38,6 +38,8 @@ const SUPPORT_STATUS_LABELS: Record<string, string> = {
   open: "Open",
   pending: "Pending",
   in_progress: "In progress",
+  waiting_customer: "Waiting customer",
+  waiting_team: "Waiting team",
   resolved: "Resolved",
 };
 const SUPPORT_STATUS_CLASSES: Record<string, string> = {
@@ -45,6 +47,8 @@ const SUPPORT_STATUS_CLASSES: Record<string, string> = {
   open: "pill-open",
   pending: "pill-pending",
   in_progress: "pill-in_progress",
+  waiting_customer: "pill-waiting_customer",
+  waiting_team: "pill-waiting_team",
   resolved: "pill-resolved",
 };
 
@@ -95,7 +99,7 @@ function mergeEscalationList(
 }
 
 function isActiveStatus(status: string): boolean {
-  return ["escalated", "open", "pending", "in_progress"].includes(status);
+  return ["escalated", "open", "pending", "in_progress", "waiting_customer", "waiting_team"].includes(status);
 }
 
 function formatWaitingFrom(iso: string): string {
@@ -154,7 +158,7 @@ function SupportStatusAction({
   variant = "default",
 }: {
   escalationId: number;
-  nextStatus: "open" | "in_progress" | "resolved";
+  nextStatus: "open" | "in_progress" | "waiting_customer" | "waiting_team" | "resolved";
   label: string;
   variant?: "default" | "strong";
 }) {
@@ -185,6 +189,12 @@ function SupportQuickActions({ escalation, canReply }: { escalation: SupportThre
     <div className="convo-quick-actions" onClick={(event) => event.stopPropagation()}>
       {canTake && (
         <SupportStatusAction escalationId={escalation.id} nextStatus="in_progress" label="Take" />
+      )}
+      {active && escalation.status !== "waiting_customer" && (
+        <SupportStatusAction escalationId={escalation.id} nextStatus="waiting_customer" label="Wait customer" />
+      )}
+      {active && escalation.status !== "waiting_team" && (
+        <SupportStatusAction escalationId={escalation.id} nextStatus="waiting_team" label="Wait team" />
       )}
       {active ? (
         <SupportStatusAction escalationId={escalation.id} nextStatus="resolved" label="Resolve" variant="strong" />
