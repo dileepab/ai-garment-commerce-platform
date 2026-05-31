@@ -1,13 +1,16 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import {
   describeScope,
   getBrandScopedWhere,
   getBrandScopeValues,
+  type UserScope,
 } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import {
   buildBotInsightsReport,
+  type BotInsightsReport,
   type BotInsightChatMessage,
   type BotInsightDiagnostic,
   type BotInsightEscalation,
@@ -45,6 +48,64 @@ function buildBrandOrSenderWhere(brandScope: string[] | null, scopedSenderIds: s
   };
 }
 
+function RangeControls({ windowDays }: { windowDays: number }) {
+  return (
+    <div
+      aria-label="Bot insight date range"
+      style={{
+        flex: '0 0 auto',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 6,
+        padding: '14px 28px 0',
+      }}
+    >
+      {RANGE_PRESETS.map((preset) => (
+        <Link
+          key={preset}
+          href={`/support/insights?range=${preset}`}
+          className={preset === windowDays ? 'btn btn-primary' : 'btn btn-secondary'}
+          style={{
+            minHeight: 28,
+            padding: '5px 10px',
+            lineHeight: 1,
+          }}
+        >
+          {preset}d
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function InsightsShell({
+  scope,
+  windowDays,
+  children,
+}: {
+  scope: UserScope;
+  windowDays: number;
+  children: ReactNode;
+}) {
+  return (
+    <main className="main">
+      <PageHeader
+        title="Bot Insights"
+        subtitle={`Conversation intelligence for ${describeScope(scope)} · last ${windowDays} days`}
+        actions={
+          <>
+            <Link className="btn btn-secondary" href="/support">Inbox</Link>
+            <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
+            <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
+          </>
+        }
+      />
+      <RangeControls windowDays={windowDays} />
+      {children}
+    </main>
+  );
+}
+
 export default async function BotInsightsPage({ searchParams }: { searchParams: SearchParams }) {
   const scope = await requirePagePermission('support:view');
   const { range } = await searchParams;
@@ -52,31 +113,27 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
   const now = new Date();
   const since = new Date(now.getTime() - windowDays * 86400000);
   const brandScope = getBrandScopeValues(scope);
-  const scopedSenderIds = await getScopedConversationSenderIds(scope);
-  const scopedSenderWhere = buildScopedSenderWhere(scopedSenderIds);
-  const brandWhere = getBrandScopedWhere(scope);
-  const brandOrSenderWhere = buildBrandOrSenderWhere(brandScope, scopedSenderIds);
   const dateWhere = {
     gte: since,
     lte: now,
   };
+  let report: BotInsightsReport | null = null;
 
-  const [
-    messages,
-    escalations,
-    webhookFailures,
-    orders,
-    diagnostics,
-  ] = await Promise.all([
-    prisma.chatMessage.findMany({
+  try {
+    const scopedSenderIds = await getScopedConversationSenderIds(scope);
+    const scopedSenderWhere = buildScopedSenderWhere(scopedSenderIds);
+    const brandWhere = getBrandScopedWhere(scope);
+    const brandOrSenderWhere = buildBrandOrSenderWhere(brandScope, scopedSenderIds);
+
+    const messages = await prisma.chatMessage.findMany({
       where: {
         createdAt: dateWhere,
         ...scopedSenderWhere,
       },
       orderBy: { id: 'asc' },
       take: 5000,
-    }),
-    prisma.supportEscalation.findMany({
+    });
+    const escalations = await prisma.supportEscalation.findMany({
       where: {
         ...brandWhere,
         OR: [
@@ -99,8 +156,8 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
         updatedAt: true,
         resolvedAt: true,
       },
-    }),
-    prisma.webhookEventLog.findMany({
+    });
+    const webhookFailures = await prisma.webhookEventLog.findMany({
       where: {
         status: 'failed',
         receivedAt: dateWhere,
@@ -117,8 +174,8 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
         error: true,
         receivedAt: true,
       },
-    }),
-    prisma.order.findMany({
+    });
+    const orders = await prisma.order.findMany({
       where: {
         ...brandWhere,
         createdAt: dateWhere,
@@ -137,8 +194,8 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
           },
         },
       },
-    }),
-    prisma.botMessageDiagnostic.findMany({
+    });
+    const diagnostics = await prisma.botMessageDiagnostic.findMany({
       where: {
         createdAt: dateWhere,
         ...brandOrSenderWhere,
@@ -164,92 +221,71 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
         issueFlags: true,
         createdAt: true,
       },
-    }),
-  ]);
+    });
 
-  const senderIds = Array.from(new Set([
-    ...messages.map((message) => message.senderId),
-    ...escalations.map((escalation) => escalation.senderId),
-    ...webhookFailures.map((failure) => failure.senderId).filter((senderId): senderId is string => Boolean(senderId)),
-    ...orders.map((order) => order.customer.externalId).filter((senderId): senderId is string => Boolean(senderId)),
-    ...diagnostics.map((diagnostic) => diagnostic.senderId),
-  ]));
+    const senderIds = Array.from(new Set([
+      ...messages.map((message) => message.senderId),
+      ...escalations.map((escalation) => escalation.senderId),
+      ...webhookFailures.map((failure) => failure.senderId).filter((senderId): senderId is string => Boolean(senderId)),
+      ...orders.map((order) => order.customer.externalId).filter((senderId): senderId is string => Boolean(senderId)),
+      ...diagnostics.map((diagnostic) => diagnostic.senderId),
+    ]));
 
-  const customers = senderIds.length > 0
-    ? await prisma.customer.findMany({
-        where: {
-          externalId: { in: senderIds },
-          ...(brandScope
-            ? {
-                OR: [
-                  { preferredBrand: { in: brandScope } },
-                  { orders: { some: { brand: { in: brandScope } } } },
-                  { supportEscalations: { some: { brand: { in: brandScope } } } },
-                ],
-              }
-            : {}),
-        },
-        select: {
-          externalId: true,
-          name: true,
-          channel: true,
-          preferredBrand: true,
-        },
-      })
-    : [];
+    const customers = senderIds.length > 0
+      ? await prisma.customer.findMany({
+          where: {
+            externalId: { in: senderIds },
+            ...(brandScope
+              ? {
+                  OR: [
+                    { preferredBrand: { in: brandScope } },
+                    { orders: { some: { brand: { in: brandScope } } } },
+                    { supportEscalations: { some: { brand: { in: brandScope } } } },
+                  ],
+                }
+              : {}),
+          },
+          select: {
+            externalId: true,
+            name: true,
+            channel: true,
+            preferredBrand: true,
+          },
+        })
+      : [];
 
-  const report = buildBotInsightsReport({
-    messages: messages as BotInsightChatMessage[],
-    escalations: escalations as BotInsightEscalation[],
-    webhookFailures: webhookFailures as BotInsightWebhookFailure[],
-    orders: orders as BotInsightOrder[],
-    customers,
-    diagnostics: diagnostics as BotInsightDiagnostic[],
-    windowDays,
-    now,
-  });
+    report = buildBotInsightsReport({
+      messages: messages as BotInsightChatMessage[],
+      escalations: escalations as BotInsightEscalation[],
+      webhookFailures: webhookFailures as BotInsightWebhookFailure[],
+      orders: orders as BotInsightOrder[],
+      customers,
+      diagnostics: diagnostics as BotInsightDiagnostic[],
+      windowDays,
+      now,
+    });
+  } catch (error) {
+    console.error('[Bot Insights] Could not load report.', error);
+  }
 
   return (
-    <main className="main">
-      <PageHeader
-        title="Bot Insights"
-        subtitle={`Conversation intelligence for ${describeScope(scope)} · last ${windowDays} days`}
-        actions={
-          <>
-            <Link className="btn btn-secondary" href="/support">Inbox</Link>
-            <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
-            <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
-          </>
-        }
-      />
-
-      <div
-        aria-label="Bot insight date range"
-        style={{
-          flex: '0 0 auto',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 6,
-          padding: '14px 28px 0',
-        }}
-      >
-        {RANGE_PRESETS.map((preset) => (
-          <Link
-            key={preset}
-            href={`/support/insights?range=${preset}`}
-            className={preset === windowDays ? 'btn btn-primary' : 'btn btn-secondary'}
-            style={{
-              minHeight: 28,
-              padding: '5px 10px',
-              lineHeight: 1,
-            }}
-          >
-            {preset}d
-          </Link>
-        ))}
-      </div>
-
-      <BotInsightsClient report={report} />
-    </main>
+    <InsightsShell scope={scope} windowDays={windowDays}>
+      {report ? (
+        <BotInsightsClient report={report} />
+      ) : (
+        <div className="content">
+          <section className="app-panel" style={{ padding: 24, display: 'grid', gap: 10 }}>
+            <p className="app-section-label">Insights unavailable</p>
+            <h2 style={{ margin: 0, fontSize: 20, color: 'var(--color-fg-1)' }}>
+              Database is busy
+            </h2>
+            <p style={{ margin: 0, color: 'var(--color-fg-2)', lineHeight: 1.5, maxWidth: 680 }}>
+              Bot Insights could not load because the database connection pool is temporarily full.
+              Please refresh in a minute. The bot and support inbox data are not changed.
+            </p>
+          </section>
+        </div>
+      )}
+    </InsightsShell>
   );
 }

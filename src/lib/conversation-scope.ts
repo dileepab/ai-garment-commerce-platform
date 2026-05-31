@@ -5,23 +5,21 @@ export async function getScopedConversationSenderIds(scope: UserScope): Promise<
   const brands = getBrandScopeValues(scope);
   if (!brands) return null;
 
-  const [supportSenders, customers] = await Promise.all([
-    prisma.supportEscalation.findMany({
-      where: { brand: { in: brands } },
-      select: { senderId: true },
-    }),
-    prisma.customer.findMany({
-      where: {
-        externalId: { not: null },
-        OR: [
-          { preferredBrand: { in: brands } },
-          { orders: { some: { brand: { in: brands } } } },
-          { supportEscalations: { some: { brand: { in: brands } } } },
-        ],
-      },
-      select: { externalId: true },
-    }),
-  ]);
+  const supportSenders = await prisma.supportEscalation.findMany({
+    where: { brand: { in: brands } },
+    select: { senderId: true },
+  });
+  const customers = await prisma.customer.findMany({
+    where: {
+      externalId: { not: null },
+      OR: [
+        { preferredBrand: { in: brands } },
+        { orders: { some: { brand: { in: brands } } } },
+        { supportEscalations: { some: { brand: { in: brands } } } },
+      ],
+    },
+    select: { externalId: true },
+  });
 
   return Array.from(new Set([
     ...supportSenders.map((sender) => sender.senderId),
