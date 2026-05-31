@@ -1874,7 +1874,7 @@ select.filter-select-sm {
   display: flex;
   justify-content: center;
   position: sticky;
-  top: 8px;
+  top: -20px;
   z-index: 4;
   height: 0;
   pointer-events: none;
@@ -1902,6 +1902,7 @@ select.filter-select-sm {
   line-height: 1.2;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
+    height: 24px;
 }
 
 .thread-date-separator span {
