@@ -51,9 +51,10 @@ interface SupportPageClientProps {
 }
 
 type SupportFilter = "all" | "active" | "resolved";
-type SupportSort = "waiting" | "newest" | "updated";
+type SupportSort = "priority" | "waiting" | "newest" | "updated";
 
 const SORT_OPTIONS: { value: SupportSort; label: string }[] = [
+  { value: "priority", label: "Active first" },
   { value: "waiting", label: "Waiting longest" },
   { value: "updated", label: "Recently updated" },
   { value: "newest", label: "Newest" },
@@ -137,6 +138,11 @@ function getSupportStatusClass(status: string): string {
   return SUPPORT_STATUS_CLASSES[status] || "pill-pending";
 }
 
+function getTimeValue(iso: string): number {
+  const time = new Date(iso).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 function SupportStatusAction({
   escalationId,
   nextStatus,
@@ -192,7 +198,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
   const [filter, setFilter] = useState<SupportFilter>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [sort, setSort] = useState<SupportSort>("waiting");
+  const [sort, setSort] = useState<SupportSort>("priority");
   const [selectedId, setSelectedId] = useState<number | null>(
     initialEscalations.find((escalation) => escalation.status !== "resolved")?.id ||
       initialEscalations[0]?.id ||
@@ -297,15 +303,22 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
     sorted.sort((a, b) => {
       switch (sort) {
         case "newest":
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return getTimeValue(b.createdAt) - getTimeValue(a.createdAt);
         case "updated":
-          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        case "waiting":
+          return getTimeValue(b.updatedAt) - getTimeValue(a.updatedAt);
+        case "waiting": {
+          const aActive = isActiveStatus(a.status);
+          const bActive = isActiveStatus(b.status);
+          if (aActive !== bActive) return aActive ? -1 : 1;
+          if (aActive && bActive) return getTimeValue(a.createdAt) - getTimeValue(b.createdAt);
+          return getTimeValue(b.updatedAt) - getTimeValue(a.updatedAt);
+        }
+        case "priority":
         default: {
           const aActive = isActiveStatus(a.status);
           const bActive = isActiveStatus(b.status);
           if (aActive !== bActive) return aActive ? -1 : 1;
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          return getTimeValue(b.updatedAt) - getTimeValue(a.updatedAt);
         }
       }
     });
@@ -340,13 +353,13 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
   );
 
   const averageWaitLabel = useMemo(() => getAverageWaitLabel(escalations), [escalations]);
-  const hasActiveInboxFilters = filter !== "all" || channelFilter !== "all" || brandFilter !== "all" || sort !== "waiting" || !!search.trim();
+  const hasActiveInboxFilters = filter !== "all" || channelFilter !== "all" || brandFilter !== "all" || sort !== "priority" || !!search.trim();
   const clearInboxFilters = () => {
     setSearch("");
     setFilter("all");
     setChannelFilter("all");
     setBrandFilter("all");
-    setSort("waiting");
+    setSort("priority");
   };
 
   return (
