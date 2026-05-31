@@ -96,6 +96,7 @@ export default async function BotInsightsPage({ searchParams }: { searchParams: 
         latestCustomerMessage: true,
         createdAt: true,
         updatedAt: true,
+        resolvedAt: true,
       },
     }),
     prisma.webhookEventLog.findMany({

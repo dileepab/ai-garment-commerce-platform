@@ -543,7 +543,7 @@ export async function routeCustomerMessage(
       ? detectCustomerLanguage(localizedReply)
       : null;
 
-    if (!localizedReply) {
+    if (!localizedReply && assistantReplyKind !== 'support_waiting') {
       issueFlags.add('no_automated_reply');
     }
     if (params.silentReason) {

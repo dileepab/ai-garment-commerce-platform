@@ -19,6 +19,7 @@ export interface BotInsightEscalation {
   latestCustomerMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
+  resolvedAt: Date | null;
 }
 
 export interface BotInsightWebhookFailure {
@@ -92,6 +93,7 @@ export interface BotInsightConversation {
   fallbackCount: number;
   handoffCount: number;
   noReplyCount: number;
+  supportWaitingCount: number;
   languageMismatchCount: number;
   repeatedReplyCount: number;
   webhookFailureCount: number;
@@ -275,6 +277,54 @@ function hasLanguageMismatch(userText: string, assistantText: string | null): bo
   return Boolean(userLanguage && assistantLanguage && userLanguage !== assistantLanguage);
 }
 
+function isSupportWaitingDiagnostic(diagnostic: BotInsightDiagnostic): boolean {
+  const flags = new Set(parseIssueFlags(diagnostic.issueFlags));
+  const replyKind = diagnostic.assistantReplyKind || '';
+  const supportMode = diagnostic.supportMode || '';
+
+  return (
+    replyKind === 'support_waiting' ||
+    flags.has('support_handoff') ||
+    flags.has('human_active') ||
+    supportMode === 'handoff_requested' ||
+    supportMode === 'human_active'
+  );
+}
+
+function hasSupportEscalationAt(
+  message: BotInsightChatMessage,
+  escalations: BotInsightEscalation[]
+): boolean {
+  return escalations.some((escalation) => {
+    if (escalation.createdAt > message.createdAt) return false;
+    return !escalation.resolvedAt || escalation.resolvedAt > message.createdAt;
+  });
+}
+
+function hasSupportWaitingDiagnosticAt(
+  message: BotInsightChatMessage,
+  diagnostics: BotInsightDiagnostic[]
+): boolean {
+  const messageTime = message.createdAt.getTime();
+
+  return diagnostics.some((diagnostic) => {
+    if (!isSupportWaitingDiagnostic(diagnostic)) return false;
+    const diagnosticTime = diagnostic.createdAt.getTime();
+
+    return diagnosticTime >= messageTime - 30000 && diagnosticTime <= messageTime + 5 * 60000;
+  });
+}
+
+function isSupportWaitingMessage(
+  message: BotInsightChatMessage,
+  conversation: ConversationAccumulator
+): boolean {
+  return (
+    hasSupportWaitingDiagnosticAt(message, conversation.diagnostics) ||
+    hasSupportEscalationAt(message, conversation.escalations)
+  );
+}
+
 function summarizeRepeatedReplies(messages: BotInsightChatMessage[]): number {
   let repeated = 0;
   let previousAssistant = '';
@@ -303,6 +353,9 @@ function getLatestMessage(messages: BotInsightChatMessage[], role: string): BotI
 function deriveRecommendation(labels: string[]): string {
   if (labels.includes('Meta delivery failed')) {
     return 'Check Meta token health and resend from Support after the token is fixed.';
+  }
+  if (labels.includes('Support waiting')) {
+    return 'Bot silence is intentional because support owns this conversation. Reply or resolve the case from the support inbox.';
   }
   if (labels.includes('No bot reply')) {
     return 'Review support handoff state. Resolve/reopen the case or start a clean test sender before judging bot copy.';
@@ -449,6 +502,7 @@ export function buildBotInsightsReport(input: {
   let assistantMessages = 0;
   let fallbackCount = 0;
   let noReplyCount = 0;
+  let supportWaitingCount = 0;
   let languageMismatchCount = 0;
   let catalogConversations = 0;
   let orderStartedConversations = 0;
@@ -501,6 +555,7 @@ export function buildBotInsightsReport(input: {
 
     let conversationFallbacks = 0;
     let conversationNoReplies = 0;
+    let conversationSupportWaiting = 0;
     let conversationMismatches = 0;
 
     for (let index = 0; index < conversation.messages.length; index += 1) {
@@ -515,10 +570,17 @@ export function buildBotInsightsReport(input: {
       const next = conversation.messages[index + 1];
       const assistantReply = next?.role === 'assistant' ? next.message : null;
       const replyKind = assistantReply ? inferAssistantReplyKind(assistantReply) : 'no_reply';
-      replyKinds.add(replyKind);
 
       if (!assistantReply) {
-        conversationNoReplies += 1;
+        if (isSupportWaitingMessage(message, conversation)) {
+          conversationSupportWaiting += 1;
+          replyKinds.add('support_waiting');
+        } else {
+          conversationNoReplies += 1;
+          replyKinds.add(replyKind);
+        }
+      } else {
+        replyKinds.add(replyKind);
       }
       if (replyKind === 'fallback') {
         conversationFallbacks += 1;
@@ -532,14 +594,24 @@ export function buildBotInsightsReport(input: {
     const diagnosticFlags = new Set(
       conversation.diagnostics.flatMap((diagnostic) => parseIssueFlags(diagnostic.issueFlags))
     );
+    const hasSupportWaitingDiagnostics = conversation.diagnostics.some(isSupportWaitingDiagnostic);
     const webhookFailureCount = conversation.webhookFailures.length;
 
     fallbackCount += conversationFallbacks;
     noReplyCount += conversationNoReplies;
+    supportWaitingCount += conversationSupportWaiting;
     languageMismatchCount += conversationMismatches;
 
     if (conversationFallbacks > 0 || diagnosticFlags.has('fallback_reply')) labels.add('Fallback');
-    if (conversationNoReplies > 0 || diagnosticFlags.has('no_automated_reply')) labels.add('No bot reply');
+    if (conversationSupportWaiting > 0 || replyKinds.has('support_waiting') || hasSupportWaitingDiagnostics) {
+      labels.add('Support waiting');
+    }
+    if (
+      conversationNoReplies > 0 ||
+      (diagnosticFlags.has('no_automated_reply') && !replyKinds.has('support_waiting') && !hasSupportWaitingDiagnostics)
+    ) {
+      labels.add('No bot reply');
+    }
     if (conversationMismatches > 0 || diagnosticFlags.has('language_mismatch')) labels.add('Language mismatch');
     if (conversationRepeatedReplies > 0 || diagnosticFlags.has('repeated_reply')) labels.add('Repeated reply');
     if (conversation.escalations.length > 0 || diagnosticFlags.has('support_handoff')) labels.add('Support handoff');
@@ -586,6 +658,7 @@ export function buildBotInsightsReport(input: {
         fallbackCount: conversationFallbacks,
         handoffCount: conversation.escalations.length,
         noReplyCount: conversationNoReplies,
+        supportWaitingCount: conversationSupportWaiting,
         languageMismatchCount: conversationMismatches,
         repeatedReplyCount: conversationRepeatedReplies,
         webhookFailureCount,
@@ -622,7 +695,8 @@ export function buildBotInsightsReport(input: {
   }
 
   const conversationCount = conversations.size;
-  const responseRate = userMessages > 0 ? assistantMessages / userMessages : 0;
+  const handledMessages = assistantMessages + supportWaitingCount;
+  const responseRate = userMessages > 0 ? handledMessages / userMessages : 0;
   const fallbackRate = userMessages > 0 ? fallbackCount / userMessages : 0;
   const noReplyRate = userMessages > 0 ? noReplyCount / userMessages : 0;
   const handoffRate = conversationCount > 0 ? handoffConversations / conversationCount : 0;
@@ -656,9 +730,12 @@ export function buildBotInsightsReport(input: {
         tone: healthScore >= 85 ? 'good' : healthScore >= 70 ? 'warn' : 'bad',
       },
       {
-        label: 'Response rate',
+        label: 'Handled rate',
         value: formatPct(Math.min(1, responseRate)),
-        note: `${assistantMessages} assistant replies for ${userMessages} customer messages.`,
+        note:
+          supportWaitingCount > 0
+            ? `${assistantMessages} replies + ${supportWaitingCount} support holds for ${userMessages} customer messages.`
+            : `${assistantMessages} assistant replies for ${userMessages} customer messages.`,
         tone: responseRate >= 0.9 ? 'good' : responseRate >= 0.75 ? 'warn' : 'bad',
       },
       {
