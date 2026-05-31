@@ -262,6 +262,28 @@ model BotMessageDiagnostic {
   @@index([assistantReplyKind, createdAt])
 }
 
+model BotTrainingRule {
+  id            Int       @id @default(autoincrement())
+  brand         String?
+  intent        String
+  language      String?
+  matchType     String    @default("contains") // contains | exact | keywords
+  pattern       String
+  response      String
+  priority      Int       @default(50)
+  enabled       Boolean   @default(true)
+  hitCount      Int       @default(0)
+  lastMatchedAt DateTime?
+  notes         String?
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([enabled, brand, language, priority])
+  @@index([intent, enabled])
+  @@index([lastMatchedAt])
+}
+
 model SupportEscalation {
   id                    Int       @id @default(autoincrement())
   senderId              String

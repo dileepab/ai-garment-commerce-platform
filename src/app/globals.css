@@ -406,6 +406,12 @@ a {
     color: var(--foreground-soft);
   }
 
+  .app-chip-success {
+    border-color: transparent;
+    background: var(--success-soft);
+    color: var(--success);
+  }
+
   /* accent chip now terracotta */
   .app-chip-accent {
     border-color: transparent;
@@ -469,6 +475,14 @@ a {
   }
 
   /* Form inputs */
+  .app-field {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--foreground-soft);
+  }
+
   .app-input,
   .app-textarea {
     @apply w-full bg-white text-sm outline-none transition;

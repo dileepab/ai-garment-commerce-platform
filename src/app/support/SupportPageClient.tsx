@@ -362,6 +362,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
         actions={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Link className="btn btn-secondary" href="/support/insights">Bot Insights</Link>
+            <Link className="btn btn-secondary" href="/support/training">Training</Link>
             <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
             <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>

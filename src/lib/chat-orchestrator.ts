@@ -75,6 +75,10 @@ import {
 } from '@/lib/customer-support';
 import { isActiveOrderStatus } from '@/lib/order-status-display';
 import { getMerchantSettings, resolvePaymentMethod } from '@/lib/runtime-config';
+import {
+  findMatchingBotTrainingRule,
+  recordBotTrainingRuleMatch,
+} from '@/lib/bot-training';
 import type { ChatContext } from './chat/types';
 import type {
   CustomerMessageInput,
@@ -510,9 +514,12 @@ export async function routeCustomerMessage(
     orderId?: number | null;
     assistantReplyKind?: AssistantReplyKind;
     silentReason?: CustomerMessageResult['silentReason'];
+    skipLocalization?: boolean;
   }): Promise<CustomerMessageResult> {
     const assistantReplyKind = params.assistantReplyKind || 'generic';
-    const localizedReply = await localizeReplyWithGemini(params.reply, replyLanguage);
+    const localizedReply = params.skipLocalization
+      ? params.reply
+      : await localizeReplyWithGemini(params.reply, replyLanguage);
     const shouldPersistState =
       Boolean(params.nextState) ||
       Boolean(params.assistantReplyKind) ||
@@ -748,6 +755,35 @@ export async function routeCustomerMessage(
 
     setDiagnosticEffectiveAction('support_silent_hold');
     return finalizeSupportSilentHold(pausedSupportMode);
+  }
+
+  if (state.pendingStep === 'none') {
+    const trainingRule = await findMatchingBotTrainingRule({
+      brand: brandFilter,
+      language: replyLanguage,
+      message: input.currentMessage,
+    });
+
+    if (trainingRule) {
+      try {
+        await recordBotTrainingRuleMatch(trainingRule.id);
+      } catch (error) {
+        logWarn('Chat Orchestrator', 'Could not record bot training rule hit.', {
+          ruleId: trainingRule.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      setDiagnosticEffectiveAction(`trained_reply:${trainingRule.intent}`, 1);
+
+      return finalizeReply({
+        reply: trainingRule.response,
+        assistantReplyKind: 'trained_reply',
+        skipLocalization: trainingRule.language === replyLanguage,
+        nextState: {
+          lastMissingOrderId: null,
+        },
+      });
+    }
   }
 
   if (shouldUseGreetingShortcut(input.currentMessage) && state.pendingStep === 'none') {

@@ -31,6 +31,7 @@ export type AssistantReplyKind =
   | 'order_details'
   | 'quantity_prompt'
   | 'quantity_update_summary'
+  | 'trained_reply'
   | 'fallback';
 
 export interface PendingQuantityUpdate {
@@ -93,6 +94,7 @@ const VALID_ASSISTANT_REPLY_KINDS = new Set<AssistantReplyKind>([
   'order_details',
   'quantity_prompt',
   'quantity_update_summary',
+  'trained_reply',
   'fallback',
 ]);
 

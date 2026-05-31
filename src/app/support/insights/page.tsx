@@ -95,6 +95,7 @@ function InsightsShell({
         actions={
           <>
             <Link className="btn btn-secondary" href="/support">Inbox</Link>
+            <Link className="btn btn-secondary" href="/support/training">Training</Link>
             <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
             <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
           </>

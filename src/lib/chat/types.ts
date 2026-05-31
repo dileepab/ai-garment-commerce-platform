@@ -65,6 +65,7 @@ export interface FinalizeReplyParams {
   }>;
   orderId?: number | null;
   assistantReplyKind?: AssistantReplyKind;
+  skipLocalization?: boolean;
 }
 
 export interface ChatHelpers {
