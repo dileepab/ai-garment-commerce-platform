@@ -1869,17 +1869,26 @@ select.filter-select-sm {
   font-weight: 700;
 }
 
-.thread-date-separator {
+.thread-floating-date {
   width: 100%;
   display: flex;
   justify-content: center;
   position: sticky;
   top: 8px;
-  z-index: 2;
+  z-index: 4;
+  height: 0;
   pointer-events: none;
-  margin: 2px 0;
 }
 
+.thread-date-separator {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  margin: 4px 0 0;
+}
+
+.thread-floating-date span,
 .thread-date-separator span {
   padding: 4px 10px;
   border: 1px solid var(--color-border-subtle);
@@ -1893,6 +1902,10 @@ select.filter-select-sm {
   line-height: 1.2;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
+}
+
+.thread-date-separator span {
+  box-shadow: none;
 }
 
 .msg-row {

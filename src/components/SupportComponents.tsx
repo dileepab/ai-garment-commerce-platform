@@ -224,21 +224,65 @@ export function Thread({
 }) {
   const [reply, setReply] = useState("");
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [floatingDateLabel, setFloatingDateLabel] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const convoRef = useRef(convo);
+  const floatingDateLabelRef = useRef("");
 
   const selectedConvoId = convo?.id;
   const selectedConvoStatus = convo?.status;
+
+  const updateFloatingDateLabel = useCallback(() => {
+    const container = messagesRef.current;
+    if (!container) return;
+
+    const messageRows = Array.from(container.querySelectorAll<HTMLElement>('[data-message-created-at]'));
+    if (messageRows.length === 0 || container.scrollTop <= 8) {
+      if (floatingDateLabelRef.current) {
+        floatingDateLabelRef.current = "";
+        setFloatingDateLabel("");
+      }
+      return;
+    }
+
+    const containerTop = container.getBoundingClientRect().top;
+    const activeLine = containerTop + 44;
+    let activeCreatedAt = messageRows[0].dataset.messageCreatedAt || "";
+
+    for (const row of messageRows) {
+      if (row.getBoundingClientRect().top <= activeLine) {
+        activeCreatedAt = row.dataset.messageCreatedAt || activeCreatedAt;
+      } else {
+        break;
+      }
+    }
+
+    const nextLabel = activeCreatedAt ? formatSupportMessageDateSeparator(activeCreatedAt) : "";
+    if (nextLabel !== floatingDateLabelRef.current) {
+      floatingDateLabelRef.current = nextLabel;
+      setFloatingDateLabel(nextLabel);
+    }
+  }, []);
 
   useEffect(() => {
     convoRef.current = convo;
   }, [convo]);
 
   useEffect(() => {
+    let cancelled = false;
     shouldStickToBottomRef.current = true;
+    floatingDateLabelRef.current = "";
+
+    queueMicrotask(() => {
+      if (!cancelled) setFloatingDateLabel("");
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedConvoId]);
 
   useEffect(() => {
@@ -246,6 +290,11 @@ export function Thread({
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [selectedConvoId, convo?.messages?.length]);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(updateFloatingDateLabel);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedConvoId, convo?.messages?.length, updateFloatingDateLabel]);
 
   const loadOlderMessages = useCallback(async () => {
     const currentConvo = convoRef.current;
@@ -272,6 +321,7 @@ export function Thread({
         setTimeout(() => {
           if (messagesRef.current) {
             messagesRef.current.scrollTop = messagesRef.current.scrollHeight - prevScrollHeight;
+            updateFloatingDateLabel();
           }
         }, 0);
       }
@@ -280,13 +330,14 @@ export function Thread({
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [isLoadingOlder, onConvoUpdate]);
+  }, [isLoadingOlder, onConvoUpdate, updateFloatingDateLabel]);
 
   const handleMessagesScroll = () => {
     if (!messagesRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
     shouldStickToBottomRef.current = isAtBottom;
+    updateFloatingDateLabel();
 
     if (scrollTop === 0 && convo?.hasOlderMessages && !isLoadingOlder) {
       void loadOlderMessages();
@@ -437,6 +488,11 @@ export function Thread({
       <OrderContextPanel convo={convo} canReply={canReply} />
 
       <div className="thread-messages" ref={messagesRef} onScroll={handleMessagesScroll}>
+        {floatingDateLabel && (
+          <div className="thread-floating-date" suppressHydrationWarning>
+            <span>{floatingDateLabel}</span>
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>
           <div style={{ flex: 1, height: 1, background: "var(--color-border-subtle)" }} />
           <span style={{ fontSize: 10, color: "var(--color-fg-3)", fontWeight: 600, whiteSpace: "nowrap" }}>Conversation Thread</span>
@@ -465,7 +521,7 @@ export function Thread({
                   <span>{formatSupportMessageDateSeparator(msg.createdAt)}</span>
                 </div>
               )}
-              <div className={`msg-row ${messageRole}`}>
+              <div className={`msg-row ${messageRole}`} data-message-created-at={msg.createdAt}>
                 {isCustomer && (
                   <div className="msg-avatar" style={{ background: 'var(--color-accent)' }}>{initials}</div>
                 )}
