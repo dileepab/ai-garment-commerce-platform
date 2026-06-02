@@ -46,7 +46,7 @@ ${input.currentMessage}${imageInstruction}
 
 Choose exactly one action from this list:
 - greeting: simple hello / thanks / casual greeting
-- catalog_list: asking available items/products/dresses/tops in store
+- catalog_list: asking available items/products/dresses/tops/T-shirts in store
 - product_question: asking colors, sizes, price, availability, garment length, sleeve length, fit, neckline, slit, hem, fabric construction, or product details of a specific product
 - size_chart: asking for size chart / measurement chart
 - place_order: starting a new order OR changing product/size/color/quantity/contact details for a pending new order
@@ -77,7 +77,7 @@ Routing rules:
 - If the customer asks for available colors/sizes/price/fit/length/sleeves/side slit/hem/neckline of a named product, use product_question and set questionType.
 - If the customer asks for a size chart and the product type is obvious from the message or recent context, set productType.
 - If the customer asks for a size chart without a clear item type, use size_chart and leave productType null so the app can ask which type they want.
-- If the customer asks for available dresses, tops, pants, or skirts, use catalog_list.
+- If the customer asks for available dresses, tops, T-shirts, pants, or skirts, use catalog_list.
 - If the customer asks "monawada thiyana adum", "මොනවද තියන ඇදුම්", "මොනාවද තියන ඇදුම්", or says they cannot see any items after a catalog reply, use catalog_list.
 - If the customer asks "COD available?", "COD thiyanawada", or "cash on delivery", use payment_question and return paymentMethod "COD".
 - For vague product questions ("anything nice?", "what's good?", "show me something"), prefer catalog_list so the customer sees the current selection.

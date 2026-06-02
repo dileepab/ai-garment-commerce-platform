@@ -1,6 +1,7 @@
 import {
   getSizeChartCategoryFromStyle,
   getSizeChartCategoryFromText,
+  getDefaultSizeChartCategories,
   getSizeChartDefinition,
   type SizeChartCategory,
 } from '@/lib/size-charts';
@@ -278,7 +279,7 @@ export async function handle_product_question(ctx: ChatContext) {
 }
 
 export async function handle_size_chart(ctx: ChatContext) {
-  const { aiAction, input, products, requestedProductTypes } = ctx;
+  const { aiAction, brandFilter, input, products, requestedProductTypes } = ctx;
   const { findProductByName, finalizeReply } = ctx.helpers;
 
   const selectedProduct = findProductByName(aiAction.productName);
@@ -306,7 +307,7 @@ export async function handle_size_chart(ctx: ChatContext) {
 
   if (categoriesToSend.length === 0) {
     if (availableCategories.length === 1) {
-      const payload = buildSizeChartReply(availableCategories);
+      const payload = buildSizeChartReply(availableCategories, null, brandFilter);
       return finalizeReply({
         reply: payload.reply,
         imagePaths: payload.imagePaths,
@@ -322,7 +323,7 @@ export async function handle_size_chart(ctx: ChatContext) {
       reply: buildSizeChartSelectionReply(
         availableCategories.length > 0
           ? availableCategories
-          : ['tops', 'dresses', 'pants', 'skirts']
+          : getDefaultSizeChartCategories()
       ),
       nextState: {
         pendingStep: 'size_chart_selection',
@@ -331,7 +332,11 @@ export async function handle_size_chart(ctx: ChatContext) {
     });
   }
 
-  const payload = buildSizeChartReply(categoriesToSend, selectedProduct?.name || null);
+  const payload = buildSizeChartReply(
+    categoriesToSend,
+    selectedProduct?.name || null,
+    selectedProduct?.brand || brandFilter
+  );
   return finalizeReply({
     reply: payload.reply,
     imagePaths: payload.imagePaths,

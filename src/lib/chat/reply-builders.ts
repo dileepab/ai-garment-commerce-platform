@@ -12,7 +12,9 @@ import {
 } from '@/lib/customer-support';
 import { getOrderStageLabel } from '@/lib/order-status-display';
 import {
+  getDefaultSizeChartCategories,
   getSizeChartDefinition,
+  getSizeChartImagePath,
   type SizeChartCategory,
 } from '@/lib/size-charts';
 import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
@@ -265,7 +267,7 @@ export function buildClarificationReply(
     : buildSupportContactLine();
 
   if (state.pendingStep === 'size_chart_selection') {
-    return 'Could you tell me which size chart you need — Tops, Dresses, Pants, or Skirts?';
+    return 'Could you tell me which size chart you need — Oversized Tops, T-Shirts, Dresses, or Pants?';
   }
 
   if (state.pendingStep === 'contact_collection' && state.orderDraft) {
@@ -359,21 +361,23 @@ export function buildProductTypeUnavailableReply(category: SizeChartCategory): s
 }
 
 export function buildSizeChartSelectionReply(categories: SizeChartCategory[]): string {
-  const labels = categories.map((category) => getSizeChartDefinition(category).label).join(', ');
+  const categoriesToShow = categories.length > 0 ? categories : getDefaultSizeChartCategories();
+  const labels = categoriesToShow.map((category) => getSizeChartDefinition(category).label).join(', ');
   return `Sure. Which item type would you like the size chart for? Available types: ${labels}.`;
 }
 
 export function buildSizeChartReply(
   categories: SizeChartCategory[],
-  specificProductName?: string | null
+  specificProductName?: string | null,
+  brand?: string | null
 ): {
   reply: string;
   imagePaths: string[];
 } {
   const uniqueCategories = [...new Set(categories)];
-  const imagePaths = uniqueCategories.map(
-    (category) => getSizeChartDefinition(category).imagePath
-  );
+  const imagePaths = uniqueCategories
+    .map((category) => getSizeChartImagePath(category, brand))
+    .filter((imagePath): imagePath is string => Boolean(imagePath));
 
   if (specificProductName && uniqueCategories.length === 1) {
     return {

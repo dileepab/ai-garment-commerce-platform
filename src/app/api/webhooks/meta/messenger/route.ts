@@ -186,7 +186,8 @@ async function deliverCustomerResult(
   const messageResult = await sendMessengerMessage(senderId, result.reply, metaOptions);
 
   if (!messageResult.ok) {
-    failures.push(`text: ${describeMetaResult(messageResult)}`);
+    stats.deliveryFailures += 1;
+    throw new Error(`Messenger text delivery failed (${describeMetaResult(messageResult)})`);
   }
 
   if (result.carouselProducts && result.carouselProducts.length > 0) {
@@ -213,7 +214,10 @@ async function deliverCustomerResult(
 
   if (failures.length > 0) {
     stats.deliveryFailures += failures.length;
-    throw new Error(`Messenger delivery failed (${failures.join('; ')})`);
+    logWarn('Meta Webhook', 'Messenger rich media delivery failed after text reply was sent.', {
+      senderId,
+      failures,
+    });
   }
 }
 

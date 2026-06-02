@@ -1161,10 +1161,25 @@ async function main() {
         verify: async ({ transcript }) => {
           assertIncludes(transcript[1].bot, [
             'Here are our',
-            'Tops',
+            'Oversized Tops',
             'Dresses',
             'size charts',
           ], 'Multi size chart reply');
+        },
+      },
+      {
+        name: 'T-shirt size chart follow-up uses the T-shirt chart type',
+        senderId: buildSender(runId, 'tshirt-size-chart'),
+        messages: [
+          'Do you have a size chart?',
+          'T-shirts',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[1].bot, [
+            'Here is our',
+            'T-Shirts',
+            'size chart',
+          ], 'T-shirt size chart reply');
         },
       },
       {

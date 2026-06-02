@@ -1,5 +1,10 @@
 import { CatalogProduct } from './types';
-import { SizeChartCategory, getSizeChartCategoryFromStyle, getSizeChartDefinition } from '@/lib/size-charts';
+import {
+  SizeChartCategory,
+  getDefaultSizeChartCategories,
+  getSizeChartCategoryFromStyle,
+  getSizeChartDefinition,
+} from '@/lib/size-charts';
 import { ContactField, collectContactDetailsFromMessages } from '@/lib/contact-profile';
 import { splitCsv } from './text-matching';
 import { formatSriLankaDisplayDate } from '@/lib/delivery-calendar';
@@ -29,12 +34,11 @@ export function buildVariantPrompt(productName: string, size?: string, color?: s
 }
 
 export function buildSizeChartSelectionReply(products: CatalogProduct[]): string {
-  const allCategories: SizeChartCategory[] = ['tops', 'dresses', 'pants', 'skirts'];
   const mappedCategories = products
     .map((product) => getSizeChartCategoryFromStyle(product.style))
     .filter((category): category is SizeChartCategory => Boolean(category));
   const uniqueCategories = [...new Set(mappedCategories)];
-  const categoriesToShow = uniqueCategories.length > 0 ? uniqueCategories : allCategories;
+  const categoriesToShow = uniqueCategories.length > 0 ? uniqueCategories : getDefaultSizeChartCategories();
   const categoryLabels = categoriesToShow
     .map((category) => getSizeChartDefinition(category).label)
     .join(', ');

@@ -492,7 +492,7 @@ export function looksLikeCatalogQuestion(message: string): boolean {
   const normalized = normalizeText(message);
 
   return (
-    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you have\b.*\b(dress|dresses|top|tops|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|pant|pants|skirt|skirts)\b/i.test(
+    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/i.test(
       normalized
     ) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(
@@ -587,8 +587,16 @@ export function isLowerQuantityPrompt(message: string): boolean {
 export function extractRequestedProductTypes(message: string): SizeChartCategory[] {
   const normalized = normalizeText(message);
   const result: SizeChartCategory[] = [];
+  const mentionsTshirts = /\bt\s*shirts?\b|\btee\s*shirts?\b|\btees?\b/.test(normalized);
 
-  if (/\btop\b|\btops\b|\bshirt\b|\bshirts\b|\bblouse\b|\bblouses\b|\bcrop top\b/.test(normalized)) {
+  if (mentionsTshirts) {
+    result.push('tshirts');
+  }
+
+  if (
+    /\btop\b|\btops\b|\bblouse\b|\bblouses\b|\bcrop top\b/.test(normalized) ||
+    (!mentionsTshirts && /\bshirt\b|\bshirts\b/.test(normalized))
+  ) {
     result.push('tops');
   }
 

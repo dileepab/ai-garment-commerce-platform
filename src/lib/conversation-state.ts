@@ -76,6 +76,7 @@ const VALID_PENDING_STEPS = new Set<PendingConversationStep>([
 
 const VALID_SIZE_CHART_CATEGORIES = new Set<SizeChartCategory>([
   'tops',
+  'tshirts',
   'dresses',
   'pants',
   'skirts',

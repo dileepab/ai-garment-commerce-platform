@@ -19,6 +19,7 @@ import {
   getSizeChartCategoryFromStyle,
   getSizeChartCategoryFromText,
   getSizeChartDefinition,
+  getSizeChartImagePath,
 } from '@/lib/size-charts';
 import {
   calculateSriLankaDeliveryWindow,
@@ -252,7 +253,10 @@ export async function tryHandleShoppingSupport(
         reply = `Sure. Here is our ${chart.label} size chart.`;
       }
 
-      imagePath = chart.imagePath;
+      imagePath = getSizeChartImagePath(
+        chartCategory,
+        params.brand || customer?.preferredBrand || null
+      ) || undefined;
     } else {
       reply = buildSizeChartSelectionReply(products);
     }

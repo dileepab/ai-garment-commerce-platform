@@ -177,6 +177,10 @@ export function extractQuantityFromMessage(message: string): number | null {
 export function inferProductType(message: string): SizeChartCategory | null {
   const normalized = normalizeText(message);
 
+  if (/\bt\s*shirts?\b|\btee\s*shirts?\b|\btees?\b/.test(normalized)) {
+    return 'tshirts';
+  }
+
   if (/\btop\b|\btops\b|\bshirt\b|\bshirts\b|\bblouse\b|\bcrop top\b/.test(normalized)) {
     return 'tops';
   }
@@ -334,7 +338,7 @@ export function buildHeuristicAction(
   }
 
   if (
-    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable pants\b|\bavailable skirts?\b/.test(normalized) ||
+    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b/.test(normalized) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(normalized) ||
     /\b(?:adum|edum|items?|products?)\b.*\b(?:monawada|monavada|mona|monawa|thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne)\b/i.test(normalized) ||
     /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||

@@ -861,7 +861,7 @@ export async function routeCustomerMessage(
   }
 
   if (state.pendingStep === 'size_chart_selection' && requestedProductTypes.length > 0) {
-    const payload = buildSizeChartReply(requestedProductTypes);
+    const payload = buildSizeChartReply(requestedProductTypes, null, brandFilter);
     return finalizeReply({
       reply: payload.reply,
       imagePaths: payload.imagePaths,
