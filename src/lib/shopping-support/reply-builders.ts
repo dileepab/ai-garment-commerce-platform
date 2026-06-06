@@ -62,7 +62,7 @@ export function buildMissingFieldLabels(missingFields: ContactField[]): string {
         return 'Name:';
       }
       if (field === 'address') {
-        return 'Address:';
+        return 'Address (include city/town):';
       }
       return 'Phone Number:';
     })

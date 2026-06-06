@@ -426,10 +426,19 @@ model CourierShipment {
   waybillId          String
   providerOrderId    String?
   orderReference     String?
+  receiverName       String?
+  receiverStreet     String?
+  receiverDistrictId String?
+  receiverCityId     String?
+  receiverPhone      String?
+  description        String?
+  specialNote        String?
+  codAmount          Int?
   courierStatus      String    @default("created")
   mappedStatus       String?
   rawResponse        String?
   lastSyncedAt       DateTime?
+  submittedAt        DateTime?
   createdByEmail     String?
   createdByName      String?
   createdAt          DateTime  @default(now())
@@ -438,6 +447,23 @@ model CourierShipment {
   @@unique([provider, waybillId])
   @@index([orderId, provider])
   @@index([provider, courierStatus, updatedAt])
+}
+
+model CourierLocation {
+  id           Int      @id @default(autoincrement())
+  brand        String
+  provider     String   @default("koombiyo")
+  districtId   String
+  districtName String
+  cityId       String
+  cityName     String
+  normalized   String
+  rawPayload   String?
+  syncedAt     DateTime @default(now())
+
+  @@unique([brand, provider, districtId, cityId])
+  @@index([brand, provider, normalized])
+  @@index([provider, syncedAt])
 }
 
 model AdminAuditLog {

@@ -5,6 +5,7 @@ import type { FulfillmentStatus } from '@/lib/fulfillment';
 
 const KOOMBIYO_PROVIDER = 'koombiyo';
 const KOOMBIYO_COURIER_NAME = 'Koombiyo Delivery';
+const LOCATION_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const KOOMBIYO_BASE_URL =
   process.env.KOOMBIYO_BASE_URL?.trim().replace(/\/+$/, '') ||
   'https://application.koombiyodelivery.lk';
@@ -34,14 +35,38 @@ export interface KoombiyoSettingsView {
   lastTestMessage: string | null;
 }
 
-export interface CreateKoombiyoDeliveryInput {
+export interface AssignKoombiyoWaybillInput {
   orderId: number;
-  receiverDistrictId: string;
-  receiverCityId: string;
+  receiverDistrictId?: string | null;
+  receiverCityId?: string | null;
   description?: string | null;
   specialNote?: string | null;
   force?: boolean;
   actor?: { email?: string | null; name?: string | null } | null;
+}
+
+export interface SubmitKoombiyoDeliveryInput {
+  orderId: number;
+  force?: boolean;
+}
+
+interface KoombiyoDistrict {
+  id: string;
+  name: string;
+  raw: KoombiyoResponseValue;
+}
+
+interface KoombiyoCity {
+  id: string;
+  name: string;
+  raw: KoombiyoResponseValue;
+}
+
+interface ResolvedKoombiyoLocation {
+  districtId: string;
+  districtName: string;
+  cityId: string;
+  cityName: string;
 }
 
 export interface RefreshKoombiyoStatusInput {
@@ -74,6 +99,16 @@ function compactPayload(value: unknown): string {
   } catch {
     return String(value).slice(0, 8000);
   }
+}
+
+function normalizeLocationText(value?: string | null): string {
+  return (value || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\b(?:no|road|rd|street|st|lane|ln|mawatha|mw|place|pl|avenue|ave|district|city|town)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function parseKoombiyoResponse(text: string): KoombiyoResponseValue {
@@ -194,6 +229,79 @@ function extractProviderOrderId(value: KoombiyoResponseValue): string | null {
   });
 }
 
+function getRecordString(record: Record<string, KoombiyoResponseValue>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' || typeof value === 'number') {
+      const text = String(value).trim();
+      if (text) return text;
+    }
+  }
+
+  for (const [key, value] of Object.entries(record)) {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!keys.map((candidate) => candidate.toLowerCase().replace(/[^a-z0-9]/g, '')).includes(normalizedKey)) {
+      continue;
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+      const text = String(value).trim();
+      if (text) return text;
+    }
+  }
+
+  return null;
+}
+
+function collectRecords(value: KoombiyoResponseValue): Array<Record<string, KoombiyoResponseValue>> {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectRecords(item));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  const record = value as Record<string, KoombiyoResponseValue>;
+  const nestedRecords = Object.values(record).flatMap((item) => collectRecords(item));
+  const primitiveFieldCount = Object.values(record).filter(
+    (item) => typeof item === 'string' || typeof item === 'number'
+  ).length;
+
+  return primitiveFieldCount > 0 ? [record, ...nestedRecords] : nestedRecords;
+}
+
+function parseDistricts(response: KoombiyoResponseValue): KoombiyoDistrict[] {
+  const seen = new Set<string>();
+  const districts: KoombiyoDistrict[] = [];
+
+  for (const record of collectRecords(response)) {
+    const id = getRecordString(record, ['district_id', 'districtId', 'districtid', 'id']);
+    const name = getRecordString(record, ['district_name', 'districtName', 'district', 'name']);
+
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    districts.push({ id, name, raw: record });
+  }
+
+  return districts;
+}
+
+function parseCities(response: KoombiyoResponseValue): KoombiyoCity[] {
+  const seen = new Set<string>();
+  const cities: KoombiyoCity[] = [];
+
+  for (const record of collectRecords(response)) {
+    const id = getRecordString(record, ['city_id', 'cityId', 'cityid', 'id']);
+    const name = getRecordString(record, ['city_name', 'cityName', 'city', 'name']);
+
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    cities.push({ id, name, raw: record });
+  }
+
+  return cities;
+}
+
 async function postKoombiyoForm(path: string, fields: Record<string, string>): Promise<KoombiyoResponseValue> {
   const response = await fetch(`${KOOMBIYO_BASE_URL}${path}`, {
     method: 'POST',
@@ -268,6 +376,133 @@ export async function testKoombiyoConnectionForBrand(brand: string) {
   };
 }
 
+async function fetchKoombiyoDistricts(apiKey: string): Promise<KoombiyoDistrict[]> {
+  const response = await postKoombiyoForm('/api/Districts/users', { apikey: apiKey });
+  const districts = parseDistricts(response);
+
+  if (districts.length === 0) {
+    throw new OrderRequestError(
+      `Koombiyo returned an unexpected district response: ${stringifyKoombiyoMessage(response)}`,
+      502,
+    );
+  }
+
+  return districts;
+}
+
+async function fetchKoombiyoCities(apiKey: string, districtId: string): Promise<KoombiyoCity[]> {
+  const response = await postKoombiyoForm('/api/Cities/users', {
+    apikey: apiKey,
+    district_id: districtId,
+  });
+
+  return parseCities(response);
+}
+
+export async function syncKoombiyoLocationsForBrand(brand: string): Promise<number> {
+  const apiKey = await resolveKoombiyoApiKey(brand);
+  const districts = await fetchKoombiyoDistricts(apiKey);
+  let synced = 0;
+
+  for (const district of districts) {
+    const cities = await fetchKoombiyoCities(apiKey, district.id);
+
+    for (const city of cities) {
+      await prisma.courierLocation.upsert({
+        where: {
+          brand_provider_districtId_cityId: {
+            brand,
+            provider: KOOMBIYO_PROVIDER,
+            districtId: district.id,
+            cityId: city.id,
+          },
+        },
+        create: {
+          brand,
+          provider: KOOMBIYO_PROVIDER,
+          districtId: district.id,
+          districtName: district.name,
+          cityId: city.id,
+          cityName: city.name,
+          normalized: normalizeLocationText(`${city.name} ${district.name}`),
+          rawPayload: compactPayload({ district: district.raw, city: city.raw }),
+          syncedAt: new Date(),
+        },
+        update: {
+          districtName: district.name,
+          cityName: city.name,
+          normalized: normalizeLocationText(`${city.name} ${district.name}`),
+          rawPayload: compactPayload({ district: district.raw, city: city.raw }),
+          syncedAt: new Date(),
+        },
+      });
+      synced += 1;
+    }
+  }
+
+  return synced;
+}
+
+async function ensureKoombiyoLocations(brand: string): Promise<void> {
+  const latest = await prisma.courierLocation.findFirst({
+    where: { brand, provider: KOOMBIYO_PROVIDER },
+    orderBy: { syncedAt: 'desc' },
+    select: { syncedAt: true },
+  });
+
+  if (!latest || Date.now() - latest.syncedAt.getTime() > LOCATION_CACHE_TTL_MS) {
+    await syncKoombiyoLocationsForBrand(brand);
+  }
+}
+
+async function resolveKoombiyoLocationFromAddress(
+  brand: string,
+  address: string,
+): Promise<ResolvedKoombiyoLocation | null> {
+  await ensureKoombiyoLocations(brand);
+
+  const normalizedAddress = normalizeLocationText(address);
+  if (!normalizedAddress) return null;
+
+  const locations = await prisma.courierLocation.findMany({
+    where: { brand, provider: KOOMBIYO_PROVIDER },
+    select: {
+      districtId: true,
+      districtName: true,
+      cityId: true,
+      cityName: true,
+      normalized: true,
+    },
+  });
+
+  const scored = locations
+    .map((location) => {
+      const city = normalizeLocationText(location.cityName);
+      const district = normalizeLocationText(location.districtName);
+      let score = 0;
+
+      if (city && normalizedAddress.includes(city)) score += city.length + 20;
+      if (district && normalizedAddress.includes(district)) score += district.length + 10;
+      if (location.normalized && normalizedAddress.includes(location.normalized)) score += 50;
+
+      return { location, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  if (!best) return null;
+
+  const tied = scored.filter((entry) => entry.score === best.score);
+  if (tied.length > 1) {
+    const bestCity = normalizeLocationText(best.location.cityName);
+    const exactCityMatches = tied.filter((entry) => normalizeLocationText(entry.location.cityName) === bestCity);
+    if (exactCityMatches.length !== 1) return null;
+  }
+
+  return best.location;
+}
+
 async function fetchAllocatedWaybill(apiKey: string): Promise<{ waybillId: string; rawResponse: string }> {
   const response = await postKoombiyoForm('/api/Waybils/users', {
     apikey: apiKey,
@@ -302,13 +537,13 @@ function buildOrderDescription(order: {
   return (lines.join(', ') || 'Garment order').slice(0, 240);
 }
 
-function resolveCodAmount(order: { totalAmount: number; paymentMethod: string | null }): string {
+function resolveCodAmount(order: { totalAmount: number; paymentMethod: string | null }): number {
   return /\b(cod|cash on delivery)\b/i.test(order.paymentMethod || '')
-    ? String(Math.round(order.totalAmount))
-    : '0';
+    ? Math.round(order.totalAmount)
+    : 0;
 }
 
-export async function createKoombiyoDelivery(input: CreateKoombiyoDeliveryInput) {
+export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
   const order = await prisma.order.findUnique({
     where: { id: input.orderId },
     include: {
@@ -347,13 +582,6 @@ export async function createKoombiyoDelivery(input: CreateKoombiyoDeliveryInput)
     );
   }
 
-  const receiverDistrictId = cleanOptionalText(input.receiverDistrictId) || settings.defaultReceiverDistrictId;
-  const receiverCityId = cleanOptionalText(input.receiverCityId) || settings.defaultReceiverCityId;
-
-  if (!receiverDistrictId || !receiverCityId) {
-    throw new OrderRequestError('Koombiyo district ID and city ID are required to create a delivery.', 400);
-  }
-
   if (!order.customer.phone?.trim()) {
     throw new OrderRequestError('Customer phone is required to create a Koombiyo delivery.', 400);
   }
@@ -362,30 +590,39 @@ export async function createKoombiyoDelivery(input: CreateKoombiyoDeliveryInput)
     throw new OrderRequestError('Delivery address is required to create a Koombiyo delivery.', 400);
   }
 
+  const overrideDistrictId = cleanOptionalText(input.receiverDistrictId);
+  const overrideCityId = cleanOptionalText(input.receiverCityId);
+  const resolvedLocation =
+    overrideDistrictId && overrideCityId
+      ? null
+      : await resolveKoombiyoLocationFromAddress(brand, order.deliveryAddress);
+  const receiverDistrictId =
+    overrideDistrictId ||
+    resolvedLocation?.districtId ||
+    settings.defaultReceiverDistrictId ||
+    null;
+  const receiverCityId =
+    overrideCityId ||
+    resolvedLocation?.cityId ||
+    settings.defaultReceiverCityId ||
+    null;
+
+  if (!receiverDistrictId || !receiverCityId) {
+    throw new OrderRequestError(
+      `Could not automatically match "${order.deliveryAddress}" to a Koombiyo city. Update the address with a clear city/town or enter Koombiyo district/city IDs as an override.`,
+      409,
+    );
+  }
+
   const apiKey = await resolveKoombiyoApiKey(brand);
   const waybill = await fetchAllocatedWaybill(apiKey);
   const orderReference = `ORD-${order.id}`;
   const description = cleanOptionalText(input.description) || buildOrderDescription(order);
   const specialNote = cleanOptionalText(input.specialNote) || `Brand: ${brand}`;
-  const addOrderResponse = await postKoombiyoForm('/api/Addorders/users', {
-    apikey: apiKey,
-    orderWaybillid: waybill.waybillId,
-    orderNo: orderReference,
-    receiverName: order.customer.name,
-    receiverStreet: order.deliveryAddress,
-    receiverDistrict: receiverDistrictId,
-    receiverCity: receiverCityId,
-    receiverPhone: order.customer.phone,
-    description,
-    spclNote: specialNote,
-    getCod: resolveCodAmount(order),
-  });
+  const codAmount = resolveCodAmount(order);
   const rawResponse = compactPayload({
     waybill: parseKoombiyoResponse(waybill.rawResponse),
-    addOrder: addOrderResponse,
   });
-  const courierStatus = extractStatus(addOrderResponse) || 'created';
-  const mappedStatus: FulfillmentStatus = mapCourierStatus(KOOMBIYO_PROVIDER, courierStatus);
 
   const shipment = await prisma.$transaction(async (tx) => {
     const created = await tx.courierShipment.create({
@@ -394,12 +631,17 @@ export async function createKoombiyoDelivery(input: CreateKoombiyoDeliveryInput)
         brand,
         provider: KOOMBIYO_PROVIDER,
         waybillId: waybill.waybillId,
-        providerOrderId: extractProviderOrderId(addOrderResponse),
         orderReference,
-        courierStatus,
-        mappedStatus,
+        receiverName: order.customer.name,
+        receiverStreet: order.deliveryAddress,
+        receiverDistrictId,
+        receiverCityId,
+        receiverPhone: order.customer.phone,
+        description,
+        specialNote,
+        codAmount,
+        courierStatus: 'waybill_assigned',
         rawResponse,
-        lastSyncedAt: new Date(),
         createdByEmail: input.actor?.email ?? null,
         createdByName: input.actor?.name ?? null,
       },
@@ -418,7 +660,7 @@ export async function createKoombiyoDelivery(input: CreateKoombiyoDeliveryInput)
         orderId: order.id,
         fromStatus: order.orderStatus,
         toStatus: order.orderStatus,
-        note: `Koombiyo delivery created with waybill ${waybill.waybillId}.`,
+        note: `Koombiyo waybill ${waybill.waybillId} assigned for packing label.`,
         trackingNumber: waybill.waybillId,
         courier: KOOMBIYO_COURIER_NAME,
         actorEmail: input.actor?.email ?? null,
@@ -432,6 +674,78 @@ export async function createKoombiyoDelivery(input: CreateKoombiyoDeliveryInput)
   return shipment;
 }
 
+export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput) {
+  const shipment = await prisma.courierShipment.findFirst({
+    where: { orderId: input.orderId, provider: KOOMBIYO_PROVIDER },
+    orderBy: { createdAt: 'desc' },
+    include: { order: { select: { brand: true, orderStatus: true } } },
+  });
+
+  if (!shipment) {
+    throw new OrderRequestError(`Order #${input.orderId} does not have an assigned Koombiyo waybill yet.`, 404);
+  }
+
+  if (shipment.submittedAt && !input.force) {
+    throw new OrderRequestError(
+      `Order #${input.orderId} was already sent to Koombiyo with waybill ${shipment.waybillId}.`,
+      409,
+    );
+  }
+
+  const brand = cleanOptionalText(shipment.brand || shipment.order.brand);
+  if (!brand) {
+    throw new OrderRequestError('This shipment does not have a brand, so the Koombiyo account cannot be selected.', 409);
+  }
+
+  const requiredFields = {
+    receiverName: shipment.receiverName,
+    receiverStreet: shipment.receiverStreet,
+    receiverDistrictId: shipment.receiverDistrictId,
+    receiverCityId: shipment.receiverCityId,
+    receiverPhone: shipment.receiverPhone,
+    description: shipment.description,
+  };
+  const missing = Object.entries(requiredFields)
+    .filter(([, value]) => !cleanOptionalText(value))
+    .map(([key]) => key);
+
+  if (missing.length > 0) {
+    throw new OrderRequestError(
+      `The Koombiyo label snapshot is missing ${missing.join(', ')}. Assign a fresh waybill before sending.`,
+      409,
+    );
+  }
+
+  const apiKey = await resolveKoombiyoApiKey(brand);
+  const addOrderResponse = await postKoombiyoForm('/api/Addorders/users', {
+    apikey: apiKey,
+    orderWaybillid: shipment.waybillId,
+    orderNo: shipment.orderReference || `ORD-${input.orderId}`,
+    receiverName: shipment.receiverName!,
+    receiverStreet: shipment.receiverStreet!,
+    receiverDistrict: shipment.receiverDistrictId!,
+    receiverCity: shipment.receiverCityId!,
+    receiverPhone: shipment.receiverPhone!,
+    description: shipment.description!,
+    spclNote: shipment.specialNote || `Brand: ${brand}`,
+    getCod: String(shipment.codAmount ?? 0),
+  });
+  const courierStatus = extractStatus(addOrderResponse) || 'submitted';
+  const mappedStatus: FulfillmentStatus = mapCourierStatus(KOOMBIYO_PROVIDER, courierStatus);
+
+  return prisma.courierShipment.update({
+    where: { id: shipment.id },
+    data: {
+      providerOrderId: extractProviderOrderId(addOrderResponse),
+      courierStatus,
+      mappedStatus,
+      rawResponse: compactPayload(addOrderResponse),
+      submittedAt: new Date(),
+      lastSyncedAt: new Date(),
+    },
+  });
+}
+
 export async function refreshKoombiyoShipmentStatus(input: RefreshKoombiyoStatusInput) {
   const shipment = await prisma.courierShipment.findFirst({
     where: { orderId: input.orderId, provider: KOOMBIYO_PROVIDER },
@@ -441,6 +755,10 @@ export async function refreshKoombiyoShipmentStatus(input: RefreshKoombiyoStatus
 
   if (!shipment) {
     throw new OrderRequestError(`Order #${input.orderId} does not have a Koombiyo delivery yet.`, 404);
+  }
+
+  if (!shipment.submittedAt) {
+    throw new OrderRequestError(`Order #${input.orderId} has a Koombiyo waybill but has not been sent to Koombiyo yet.`, 409);
   }
 
   const brand = cleanOptionalText(shipment.brand || shipment.order.brand);

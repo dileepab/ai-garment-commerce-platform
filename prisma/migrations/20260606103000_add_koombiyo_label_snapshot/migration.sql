@@ -1,0 +1,9 @@
+ALTER TABLE "CourierShipment" ADD COLUMN "receiverName" TEXT;
+ALTER TABLE "CourierShipment" ADD COLUMN "receiverStreet" TEXT;
+ALTER TABLE "CourierShipment" ADD COLUMN "receiverDistrictId" TEXT;
+ALTER TABLE "CourierShipment" ADD COLUMN "receiverCityId" TEXT;
+ALTER TABLE "CourierShipment" ADD COLUMN "receiverPhone" TEXT;
+ALTER TABLE "CourierShipment" ADD COLUMN "description" TEXT;
+ALTER TABLE "CourierShipment" ADD COLUMN "specialNote" TEXT;
+ALTER TABLE "CourierShipment" ADD COLUMN "codAmount" INTEGER;
+ALTER TABLE "CourierShipment" ADD COLUMN "submittedAt" TIMESTAMP(3);

@@ -14,8 +14,9 @@ import {
 import type { UserScope } from '@/lib/access-control';
 import { transitionFulfillment } from '@/lib/fulfillment-service';
 import {
-  createKoombiyoDelivery,
+  assignKoombiyoWaybill,
   refreshKoombiyoShipmentStatus,
+  submitKoombiyoDelivery,
 } from '@/lib/koombiyo-courier';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
 
@@ -40,9 +41,9 @@ export interface ReturnOrderInput {
   note?: string;
 }
 
-export interface CreateKoombiyoDeliveryActionInput {
-  receiverDistrictId: string;
-  receiverCityId: string;
+export interface AssignKoombiyoWaybillActionInput {
+  receiverDistrictId?: string;
+  receiverCityId?: string;
   description?: string;
   specialNote?: string;
   force?: boolean;
@@ -311,14 +312,14 @@ export async function cancelOrder(orderId: number): Promise<OrderActionResult> {
   }
 }
 
-export async function createKoombiyoDeliveryAction(
+export async function assignKoombiyoWaybillAction(
   orderId: number,
-  input: CreateKoombiyoDeliveryActionInput,
+  input: AssignKoombiyoWaybillActionInput,
 ): Promise<OrderActionResult> {
   try {
     const scope = await requireActionPermission('orders:update');
     await assertOrderAccess(scope, orderId);
-    await createKoombiyoDelivery({
+    await assignKoombiyoWaybill({
       orderId,
       receiverDistrictId: input.receiverDistrictId,
       receiverCityId: input.receiverCityId,
@@ -327,6 +328,39 @@ export async function createKoombiyoDeliveryAction(
       force: input.force,
       actor: actorFromScope(scope),
     });
+    revalidatePath('/orders');
+    return { success: true };
+  } catch (error) {
+    return toResult(error);
+  }
+}
+
+export async function sendKoombiyoDeliveryAction(orderId: number): Promise<OrderActionResult> {
+  try {
+    const scope = await requireActionPermission('orders:update');
+    const order = await assertOrderAccess(scope, orderId);
+    const currentStatus = normalizeFulfillmentStatus(order.orderStatus);
+
+    if (currentStatus !== 'packed' && currentStatus !== 'dispatched') {
+      return {
+        success: false,
+        error: 'Pack the order before sending it to Koombiyo.',
+      };
+    }
+
+    const shipment = await submitKoombiyoDelivery({ orderId });
+
+    if (currentStatus === 'packed') {
+      await transitionFulfillment({
+        orderId,
+        toStatus: 'dispatched',
+        trackingNumber: shipment.waybillId,
+        courier: 'Koombiyo Delivery',
+        note: `Sent packed order to Koombiyo with waybill ${shipment.waybillId}.`,
+        actor: actorFromScope(scope),
+      });
+    }
+
     revalidatePath('/orders');
     return { success: true };
   } catch (error) {

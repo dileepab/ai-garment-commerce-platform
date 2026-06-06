@@ -6,7 +6,10 @@ import { assertBrandAccess, requireActionPermission } from '@/lib/authz';
 import { buildMerchantSettingsPersistenceInput } from '@/lib/runtime-config';
 import { getCourierWebhookSecret } from '@/lib/courier-webhook-secret';
 import { logAdminAudit } from '@/lib/admin-audit';
-import { testKoombiyoConnectionForBrand } from '@/lib/koombiyo-courier';
+import {
+  syncKoombiyoLocationsForBrand,
+  testKoombiyoConnectionForBrand,
+} from '@/lib/koombiyo-courier';
 
 function readText(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -327,6 +330,63 @@ export async function testKoombiyoCourierSettingsAction(formData: FormData) {
     metadata: {
       provider: 'koombiyo',
       status,
+      message,
+    },
+  });
+
+  revalidatePath('/settings');
+}
+
+export async function syncKoombiyoLocationsAction(formData: FormData) {
+  const scope = await requireActionPermission('settings:write');
+  const brand = cleanOptionalText(readText(formData, 'brand'));
+
+  if (!brand) {
+    return;
+  }
+
+  assertBrandAccess(scope, brand, 'courier settings');
+
+  let status = 'failed';
+  let message = '';
+  let count = 0;
+
+  try {
+    count = await syncKoombiyoLocationsForBrand(brand);
+    status = 'success';
+    message = `Synced ${count} Koombiyo city mappings for ${brand}.`;
+  } catch (error) {
+    message = getErrorMessage(error);
+  }
+
+  await prisma.courierIntegrationSetting.upsert({
+    where: { brand_provider: { brand, provider: 'koombiyo' } },
+    create: {
+      brand,
+      provider: 'koombiyo',
+      isActive: false,
+      lastTestAt: new Date(),
+      lastTestStatus: status,
+      lastTestMessage: message,
+    },
+    update: {
+      lastTestAt: new Date(),
+      lastTestStatus: status,
+      lastTestMessage: message,
+    },
+  });
+
+  await logAdminAudit({
+    action: 'courier_locations_synced',
+    entityType: 'courier_settings',
+    entityId: `${brand}:koombiyo`,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Koombiyo location sync ${status} for ${brand}.`,
+    metadata: {
+      provider: 'koombiyo',
+      status,
+      count,
       message,
     },
   });

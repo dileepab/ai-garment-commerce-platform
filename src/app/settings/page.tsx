@@ -20,6 +20,7 @@ import {
   addBrandSettingsAction,
   saveKoombiyoCourierSettingsAction,
   saveMerchantSettingsAction,
+  syncKoombiyoLocationsAction,
   testCourierWebhookSettingsAction,
   testKoombiyoCourierSettingsAction,
 } from './actions';
@@ -369,9 +370,11 @@ function CourierWebhookHealthPanel({
 
 function KoombiyoCourierSettingsPanel({
   settings,
+  locationCount,
   canManage,
 }: {
   settings: KoombiyoSettingsView;
+  locationCount: number;
   canManage: boolean;
 }) {
   const apiSourceLabel =
@@ -390,7 +393,7 @@ function KoombiyoCourierSettingsPanel({
   return (
     <CollapsibleSection title="Courier Provider: Koombiyo">
       <p className="app-muted" style={{ marginBottom: 12 }}>
-        Configure the Koombiyo account used by this brand. Leave the API key blank to keep the saved value.
+        Configure the Koombiyo account used by this brand. Leave the API key blank to keep the saved value. City IDs are matched automatically from the order address after syncing locations.
       </p>
       <div style={gridStyle}>
         <label style={fieldStyle}>
@@ -443,14 +446,14 @@ function KoombiyoCourierSettingsPanel({
           name="koombiyoDefaultReceiverDistrictId"
           value={settings.defaultReceiverDistrictId}
           disabled={!canManage}
-          placeholder="Optional Koombiyo district ID"
+          placeholder="Optional fallback override"
         />
         <TextField
           label="Default receiver city ID"
           name="koombiyoDefaultReceiverCityId"
           value={settings.defaultReceiverCityId}
           disabled={!canManage}
-          placeholder="Optional Koombiyo city ID"
+          placeholder="Optional fallback override"
         />
         <TextField
           label="Notes"
@@ -471,6 +474,8 @@ function KoombiyoCourierSettingsPanel({
         }}
       >
         <p className="app-muted">
+          Cached locations: {locationCount.toLocaleString()} city mapping{locationCount === 1 ? '' : 's'}.
+          {' '}
           {settings.lastTestAt ? (
             <>
               Last test:{' '}
@@ -486,6 +491,13 @@ function KoombiyoCourierSettingsPanel({
         </p>
         {canManage && (
           <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-secondary"
+              type="submit"
+              formAction={syncKoombiyoLocationsAction}
+            >
+              Sync cities
+            </button>
             <button
               className="btn btn-secondary"
               type="submit"
@@ -573,6 +585,7 @@ function SettingsForm({
   settings,
   channelConfig,
   koombiyoSettings,
+  koombiyoLocationCount = 0,
   courierWebhookSecretSaved = false,
   courierWebhookHealth,
   title,
@@ -583,6 +596,7 @@ function SettingsForm({
   settings: MerchantSettings;
   channelConfig?: BrandChannelConfigView;
   koombiyoSettings?: KoombiyoSettingsView;
+  koombiyoLocationCount?: number;
   courierWebhookSecretSaved?: boolean;
   courierWebhookHealth?: CourierWebhookHealth;
   title: string;
@@ -776,6 +790,7 @@ function SettingsForm({
             {settings.brand && koombiyoSettings && (
               <KoombiyoCourierSettingsPanel
                 settings={koombiyoSettings}
+                locationCount={koombiyoLocationCount}
                 canManage={canManage}
               />
             )}
@@ -790,7 +805,7 @@ export default async function SettingsPage() {
   const scope = await requirePagePermission('settings:view');
   const canManage = canScope(scope, 'settings:write');
   const courierSince = getThirtyDaysAgo();
-  const [settingsRows, channelRows, productBrands, orderBrands, supportBrands, courierEvents, courierCounts, lastCourierTest] = await Promise.all([
+  const [settingsRows, channelRows, productBrands, orderBrands, supportBrands, courierEvents, courierCounts, lastCourierTest, locationCounts] = await Promise.all([
     prisma.merchantSettings.findMany({ select: { brand: true, storeKey: true, courierWebhookSecret: true } }),
     prisma.brandChannelConfig.findMany({ select: { brand: true } }),
     prisma.product.findMany({ distinct: ['brand'], select: { brand: true } }),
@@ -820,6 +835,11 @@ export default async function SettingsPage() {
       where: { action: 'courier_webhook_test' },
       orderBy: { createdAt: 'desc' },
       select: { summary: true, actorEmail: true, createdAt: true },
+    }),
+    prisma.courierLocation.groupBy({
+      by: ['brand'],
+      where: { provider: 'koombiyo' },
+      _count: { _all: true },
     }),
   ]);
   const brandNames = uniqueBrands([
@@ -881,6 +901,7 @@ export default async function SettingsPage() {
       settings: await getMerchantSettings(brand),
       channelConfig: await getBrandChannelConfigView(brand),
       koombiyoSettings: await getKoombiyoSettingsView(brand),
+      koombiyoLocationCount: locationCounts.find((row) => row.brand === brand)?._count._all ?? 0,
     }))
   );
 
@@ -919,12 +940,13 @@ export default async function SettingsPage() {
                 Store-specific settings
               </h2>
             </div>
-            {scopedSettings.map(({ settings, channelConfig, koombiyoSettings }) => (
+            {scopedSettings.map(({ settings, channelConfig, koombiyoSettings, koombiyoLocationCount }) => (
               <SettingsForm
                 key={settings.storeKey}
                 settings={settings}
                 channelConfig={channelConfig}
                 koombiyoSettings={koombiyoSettings}
+                koombiyoLocationCount={koombiyoLocationCount}
                 title={settings.displayName}
                 subtitle={`Overrides customer-facing behavior for ${settings.brand}.`}
                 canManage={canManage}

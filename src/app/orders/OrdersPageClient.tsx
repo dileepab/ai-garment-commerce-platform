@@ -83,9 +83,18 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
     waybillId: string;
     providerOrderId: string | null;
     orderReference: string | null;
+    receiverName: string | null;
+    receiverStreet: string | null;
+    receiverDistrictId: string | null;
+    receiverCityId: string | null;
+    receiverPhone: string | null;
+    description: string | null;
+    specialNote: string | null;
+    codAmount: number | null;
     courierStatus: string;
     mappedStatus: string | null;
     lastSyncedAt: string | null;
+    submittedAt: string | null;
     createdAt: string;
     updatedAt: string;
   }[];
@@ -509,7 +518,9 @@ export default function OrdersPageClient({
                     <td>
                       {latestKoombiyoShipment ? (
                         <div className="order-items-cell">
-                          <span className="order-item-summary">{latestKoombiyoShipment.courierStatus}</span>
+                          <span className="order-item-summary">
+                            {latestKoombiyoShipment.submittedAt ? latestKoombiyoShipment.courierStatus : 'Waybill assigned'}
+                          </span>
                           <span className="order-item-meta">{latestKoombiyoShipment.waybillId}</span>
                         </div>
                       ) : o.trackingNumber || o.courier ? (
