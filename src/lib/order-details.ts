@@ -28,6 +28,9 @@ interface OrderLike {
   totalAmount: number;
   paymentMethod?: string | null;
   deliveryAddress?: string | null;
+  deliveryStreetAddress?: string | null;
+  deliveryCity?: string | null;
+  deliveryDistrict?: string | null;
   trackingNumber?: string | null;
   courier?: string | null;
   giftWrap: boolean;
@@ -174,7 +177,9 @@ export function buildOrderPlacedReply(
     `Total: Rs ${draft.total}`,
     `Payment Method: ${draft.paymentMethod}`,
     `Name: ${draft.name}`,
-    `Address: ${draft.address}`,
+    `Street Address: ${draft.streetAddress || 'Not provided'}`,
+    `City/Town: ${draft.city || 'Not provided'}`,
+    `District: ${draft.district || 'Not provided'}`,
     `Phone Number: ${draft.phone}`,
     `Current Stage: ${getOrderStageLabel('confirmed')}`,
     ...specialInstructions,
@@ -291,7 +296,9 @@ export function buildOrderDetailsReply(
     `Total: Rs ${total}`,
     `Payment Method: ${order.paymentMethod || 'COD'}`,
     `Name: ${order.customer.name}`,
-    `Address: ${order.deliveryAddress || 'Not provided'}`,
+    `Street Address: ${order.deliveryStreetAddress || order.deliveryAddress || 'Not provided'}`,
+    `City/Town: ${order.deliveryCity || 'Not provided'}`,
+    `District: ${order.deliveryDistrict || 'Not provided'}`,
     `Phone Number: ${order.customer.phone || ''}`,
     trackingLine,
     ...specialInstructions,

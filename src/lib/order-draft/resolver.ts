@@ -112,6 +112,9 @@ export async function resolveDraftFromConversation(
     name: customer?.name ?? undefined,
     phone: customer?.phone ?? undefined,
     address: latestRelevantOrder?.deliveryAddress ?? latestOrder?.deliveryAddress ?? undefined,
+    streetAddress: latestRelevantOrder?.deliveryStreetAddress ?? latestOrder?.deliveryStreetAddress ?? undefined,
+    city: latestRelevantOrder?.deliveryCity ?? latestOrder?.deliveryCity ?? undefined,
+    district: latestRelevantOrder?.deliveryDistrict ?? latestOrder?.deliveryDistrict ?? undefined,
   });
   const activeOrderMessages = getActiveOrderWindowMessages(conversationMessages);
 
@@ -151,6 +154,9 @@ export async function resolveDraftFromConversation(
         deliveryEstimate,
         name: contacts.name || '',
         address: contacts.address || '',
+        streetAddress: contacts.streetAddress || '',
+        city: contacts.city || '',
+        district: contacts.district || '',
         phone: contacts.phone || '',
       },
       context: {
@@ -189,6 +195,9 @@ export async function resolveDraftFromConversation(
       deliveryEstimate,
       name: contacts.name || '',
       address: contacts.address || '',
+      streetAddress: contacts.streetAddress || '',
+      city: contacts.city || '',
+      district: contacts.district || '',
       phone: contacts.phone || '',
     },
     context: {

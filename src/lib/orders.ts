@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { formatDeliveryAddress } from '@/lib/contact-profile';
 
 export interface CreateOrderItemInput {
   productId: number;
@@ -12,6 +13,9 @@ export interface CreateOrderInput {
   customerId: number;
   brand?: string;
   deliveryAddress?: string;
+  deliveryStreetAddress?: string;
+  deliveryCity?: string;
+  deliveryDistrict?: string;
   paymentMethod?: string;
   giftWrap?: boolean;
   giftNote?: string;
@@ -220,6 +224,16 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
 
     const resolvedBrand = [...brandSet][0] || '';
     const requestedBrand = input.brand?.trim() || '';
+    const deliveryStreetAddress = input.deliveryStreetAddress?.trim() || null;
+    const deliveryCity = input.deliveryCity?.trim() || null;
+    const deliveryDistrict = input.deliveryDistrict?.trim() || null;
+    const deliveryAddress =
+      formatDeliveryAddress({
+        address: input.deliveryAddress,
+        streetAddress: deliveryStreetAddress,
+        city: deliveryCity,
+        district: deliveryDistrict,
+      }) || null;
 
     if (requestedBrand && resolvedBrand && requestedBrand !== resolvedBrand) {
       throw new OrderRequestError(
@@ -231,7 +245,10 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
       data: {
         customerId: input.customerId,
         brand: requestedBrand || resolvedBrand || null,
-        deliveryAddress: input.deliveryAddress?.trim() || null,
+        deliveryAddress,
+        deliveryStreetAddress,
+        deliveryCity,
+        deliveryDistrict,
         paymentMethod: input.paymentMethod?.trim() || null,
         giftWrap: Boolean(input.giftWrap),
         giftNote: input.giftNote?.trim() || null,

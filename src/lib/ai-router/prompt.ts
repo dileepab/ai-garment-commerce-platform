@@ -30,6 +30,9 @@ Pending step: ${input.pendingStep}
 Known contact:
 - Name: ${input.knownContact.name || '-'}
 - Address: ${input.knownContact.address || '-'}
+- Street Address: ${input.knownContact.streetAddress || '-'}
+- City/Town: ${input.knownContact.city || '-'}
+- District: ${input.knownContact.district || '-'}
 - Phone: ${input.knownContact.phone || '-'}
 - Last referenced order ID: ${input.lastReferencedOrderId ?? '-'}
 - Latest order ID: ${input.latestOrderId ?? '-'}
@@ -68,7 +71,7 @@ Choose exactly one action from this list:
 Routing rules:
 - If Pending step is contact_confirmation, order_confirmation, or quantity_update_confirmation and the customer says yes/correct/confirm/proceed/no changes needed, use confirm_pending.
 - Do not treat "ok", "okay", "thanks", "thank you", or a fresh greeting as confirmation.
-- If the customer changes address, name, phone, size, color, or quantity for a pending new order, use place_order and return only the changed fields you can confidently extract. When only one field is updated (for example "change my address to ..."), return only that field and leave the others null so the app preserves what was already confirmed.
+- If the customer changes street address, city/town, district, name, phone, size, color, or quantity for a pending new order, use place_order and return only the changed fields you can confidently extract. When only one field is updated (for example "change my address to ..."), return only that field and leave the others null so the app preserves what was already confirmed.
 - If the customer asks for order details, summary, or details of #12, use order_details instead of order_status.
 - If the customer says "check order #11", "check again", "status of last order", or similar status wording, use order_status.
 - If the customer asks to change the delivery address or phone/contact number of an existing order, use update_order_contact and return only the new address/phone values you can confidently extract. Do not use this for a pending new-order draft.
@@ -92,7 +95,7 @@ Routing rules:
 
 Language awareness:
 - Customers may write in Sinhala (සිංහල), Tamil (தமிழ்), or English, and may mix scripts within one message.
-- Extract product names, sizes, colors, and contact details regardless of the language used.
+- Extract product names, sizes, colors, and contact details regardless of the language used. If the customer provides Street Address, City/Town, and District labels, combine them into contact.address in the same order.
 - For Sinhala messages, recognize common patterns like "මට ඕනේ" (I want), "ඇණවුම" (order), "ප්‍රමාණය" (size), "මිල" (price), "ස්තූතියි" (thanks).
 - For Tamil messages, recognize common patterns like "எனக்கு வேண்டும்" (I want), "ஆர்டர்" (order), "அளவு" (size), "விலை" (price), "நன்றி" (thanks).
 - Map Sinhala/Tamil product references back to the English catalog names listed above.

@@ -205,6 +205,9 @@ export interface OrderDrawerOrder {
   createdAt: Date | string;
   customer: { name: string; phone?: string | null; channel?: string | null };
   deliveryAddress?: string | null;
+  deliveryStreetAddress?: string | null;
+  deliveryCity?: string | null;
+  deliveryDistrict?: string | null;
   brand?: string | null;
   channel?: string;
   paymentMethod?: string | null;
@@ -263,7 +266,7 @@ function formatCourierStatus(shipment: OrderCourierShipmentLike): string {
 
 function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipmentLike) {
   const customerName = shipment.receiverName || order.customer.name || 'Customer';
-  const address = shipment.receiverStreet || order.deliveryAddress || 'No address provided';
+  const address = shipment.receiverStreet || order.deliveryStreetAddress || order.deliveryAddress || 'No address provided';
   const phone = shipment.receiverPhone || order.customer.phone || 'No phone';
   const description = shipment.description || order.orderItems?.map((item) => {
     const product = item.product?.name || item.product?.style || 'Garment';
@@ -595,8 +598,13 @@ export function OrderDrawer({
                 <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{order.customer.name}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--color-fg-3)" }}>
                   <Icon d={ic.mapPin} size={12} color="var(--color-fg-3)" />
-                  {order.deliveryAddress || 'No address provided'}
+                  {order.deliveryStreetAddress || order.deliveryAddress || 'No address provided'}
                 </div>
+                {(order.deliveryCity || order.deliveryDistrict) && (
+                  <div style={{ fontSize: 12, color: "var(--color-fg-3)", marginTop: 4 }}>
+                    {[order.deliveryCity, order.deliveryDistrict].filter(Boolean).join(', ')}
+                  </div>
+                )}
                 {order.customer.phone && (
                   <div style={{ fontSize: 12, color: "var(--color-fg-3)", marginTop: 4 }}>{order.customer.phone}</div>
                 )}

@@ -26,6 +26,9 @@ export interface ResolvedOrderDraft {
   deliveryEstimate: string;
   name: string;
   address: string;
+  streetAddress: string;
+  city: string;
+  district: string;
   phone: string;
 }
 

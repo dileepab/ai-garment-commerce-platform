@@ -290,6 +290,21 @@ export async function routeCustomerMessage(
         latestActiveOrder?.deliveryAddress ||
         latestOrder?.deliveryAddress ||
         '',
+      streetAddress:
+        state.orderDraft?.streetAddress ||
+        latestActiveOrder?.deliveryStreetAddress ||
+        latestOrder?.deliveryStreetAddress ||
+        '',
+      city:
+        state.orderDraft?.city ||
+        latestActiveOrder?.deliveryCity ||
+        latestOrder?.deliveryCity ||
+        '',
+      district:
+        state.orderDraft?.district ||
+        latestActiveOrder?.deliveryDistrict ||
+        latestOrder?.deliveryDistrict ||
+        '',
       phone: state.orderDraft?.phone || customer?.phone || '',
     },
     {}
@@ -352,6 +367,9 @@ export async function routeCustomerMessage(
       ? getMissingContactFields({
           name: state.orderDraft.name,
           address: state.orderDraft.address,
+          streetAddress: state.orderDraft.streetAddress,
+          city: state.orderDraft.city,
+          district: state.orderDraft.district,
           phone: state.orderDraft.phone,
         })[0]
       : undefined;
@@ -454,9 +472,18 @@ export async function routeCustomerMessage(
     previousDraft?: ResolvedOrderDraft | null
   ): ResolvedOrderDraft {
     const sizes = splitCsv(product.sizes).map((size) => size.toUpperCase());
-    const colors = splitCsv(product.colors);
+    const availableVariants = (product.variants ?? []).filter(
+      (variant) => (variant.inventory?.availableQty ?? 0) > 0
+    );
+    const colors =
+      availableVariants.length > 0
+        ? Array.from(new Set(availableVariants.map((variant) => variant.color)))
+        : splitCsv(product.colors);
     const size = normalizeSize(aiAction.size, sizes) || previousDraft?.size;
-    const color = normalizeColor(aiAction.color, colors) || previousDraft?.color;
+    const color =
+      normalizeColor(aiAction.color, colors) ||
+      previousDraft?.color ||
+      (colors.length === 1 ? colors[0] : undefined);
     const quantity = aiAction.quantity || previousDraft?.quantity || 1;
     const paymentMethod =
       aiAction.paymentMethod ||
@@ -468,6 +495,9 @@ export async function routeCustomerMessage(
       aiAction.giftNote ||
       previousDraft?.giftNote ||
       (/happy birthday/i.test(input.currentMessage) ? 'Happy Birthday' : undefined);
+    const streetAddress = mergedContact.streetAddress || previousDraft?.streetAddress || '';
+    const city = mergedContact.city || previousDraft?.city || '';
+    const district = mergedContact.district || previousDraft?.district || '';
     const address = mergedContact.address || previousDraft?.address || '';
     const deliveryCharge = getDeliveryChargeForAddress(address, settings.delivery);
 
@@ -494,6 +524,9 @@ export async function routeCustomerMessage(
       deliveryEstimate: getDeliveryEstimateForAddress(address, settings.delivery),
       name: mergedContact.name || previousDraft?.name || '',
       address,
+      streetAddress,
+      city,
+      district,
       phone: mergedContact.phone || previousDraft?.phone || '',
     };
   }
@@ -848,7 +881,8 @@ export async function routeCustomerMessage(
         reply: buildContactConfirmationReply(
           state.orderDraft.name,
           state.orderDraft.address,
-          state.orderDraft.phone
+          state.orderDraft.phone,
+          state.orderDraft
         ),
       });
     }
@@ -876,13 +910,23 @@ export async function routeCustomerMessage(
   if (
     state.orderDraft &&
     ['contact_collection', 'contact_confirmation', 'order_confirmation'].includes(state.pendingStep) &&
-    Boolean(extractedContact.name || extractedContact.address || extractedContact.phone) &&
+    Boolean(
+      extractedContact.name ||
+      extractedContact.address ||
+      extractedContact.streetAddress ||
+      extractedContact.city ||
+      extractedContact.district ||
+      extractedContact.phone
+    ) &&
     !isUnambiguousCancellationMessage(input.currentMessage)
   ) {
     const nextDraft: ResolvedOrderDraft = {
       ...state.orderDraft,
       name: mergedContact.name || state.orderDraft.name,
       address: mergedContact.address || state.orderDraft.address,
+      streetAddress: mergedContact.streetAddress || state.orderDraft.streetAddress,
+      city: mergedContact.city || state.orderDraft.city,
+      district: mergedContact.district || state.orderDraft.district,
       phone: mergedContact.phone || state.orderDraft.phone,
       deliveryCharge: getDeliveryChargeForAddress(
         mergedContact.address || state.orderDraft.address || '',
@@ -903,6 +947,9 @@ export async function routeCustomerMessage(
     const missingFields = getMissingContactFields({
       name: nextDraft.name,
       address: nextDraft.address,
+      streetAddress: nextDraft.streetAddress,
+      city: nextDraft.city,
+      district: nextDraft.district,
       phone: nextDraft.phone,
     });
 
@@ -919,12 +966,20 @@ export async function routeCustomerMessage(
     }
 
     const prevDraft = state.orderDraft;
-    const previouslyComplete = Boolean(prevDraft.name && prevDraft.address && prevDraft.phone);
+    const previouslyComplete = Boolean(
+      prevDraft.name &&
+      prevDraft.streetAddress &&
+      prevDraft.city &&
+      prevDraft.district &&
+      prevDraft.phone
+    );
     const changedFields = previouslyComplete
       ? (
           [
             ['name', prevDraft.name, nextDraft.name],
-            ['address', prevDraft.address, nextDraft.address],
+            ['streetAddress', prevDraft.streetAddress, nextDraft.streetAddress],
+            ['city', prevDraft.city, nextDraft.city],
+            ['district', prevDraft.district, nextDraft.district],
             ['phone', prevDraft.phone, nextDraft.phone],
           ] as const
         )
@@ -933,7 +988,9 @@ export async function routeCustomerMessage(
       : [];
     const FIELD_LABELS: Record<string, string> = {
       name: 'name',
-      address: 'address',
+      streetAddress: 'street address',
+      city: 'city/town',
+      district: 'district',
       phone: 'phone number',
     };
     const acknowledgement =
@@ -942,7 +999,7 @@ export async function routeCustomerMessage(
         : '';
 
     return finalizeReply({
-      reply: `${acknowledgement}${buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone)}`,
+      reply: `${acknowledgement}${buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone, nextDraft)}`,
       assistantReplyKind: 'contact_confirmation',
       nextState: {
         pendingStep: 'contact_confirmation',

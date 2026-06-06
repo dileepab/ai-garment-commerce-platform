@@ -1,10 +1,15 @@
-export type ContactField = 'name' | 'address' | 'phone';
+export type ContactField = 'name' | 'streetAddress' | 'city' | 'district' | 'phone';
 
 export interface ContactDetails {
   name: string;
   address: string;
+  streetAddress: string;
+  city: string;
+  district: string;
   phone: string;
 }
+
+type ContactDetailsInput = Partial<Record<keyof ContactDetails, string | null | undefined>>;
 
 export interface ConversationMessage {
   role: string;
@@ -14,11 +19,14 @@ export interface ConversationMessage {
 const EMPTY_CONTACT_DETAILS: ContactDetails = {
   name: '',
   address: '',
+  streetAddress: '',
+  city: '',
+  district: '',
   phone: '',
 };
 
 const LABEL_PATTERN =
-  /^(name|address|delivery address|phone number|phone|contact number|mobile number|mobile)\s*[:\-]?\s*(.*)$/i;
+  /^(name|street address|street|address\s*\(include city\/town\)|address|delivery address|city\/town|city|town|district|phone number|phone|contact number|mobile number|mobile)\s*[:\-]?\s*(.*)$/i;
 
 const PHONE_PATTERN =
   /(?:\+94\s?\d{2}\s?\d{7}|0\d{9}|\+?\d(?:[\d\s-]{7,}\d))/;
@@ -40,15 +48,31 @@ function normalizeWhitespace(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim();
 }
 
-function normalizeLabel(label: string): ContactField {
+function normalizeLabel(label: string): keyof ContactDetails {
   const normalized = label.trim().toLowerCase();
 
   if (normalized === 'name') {
     return 'name';
   }
 
-  if (normalized === 'address' || normalized === 'delivery address') {
+  if (normalized === 'street address' || normalized === 'street') {
+    return 'streetAddress';
+  }
+
+  if (
+    normalized === 'address' ||
+    normalized === 'address (include city/town)' ||
+    normalized === 'delivery address'
+  ) {
     return 'address';
+  }
+
+  if (normalized === 'city/town' || normalized === 'city' || normalized === 'town') {
+    return 'city';
+  }
+
+  if (normalized === 'district') {
+    return 'district';
   }
 
   return 'phone';
@@ -84,6 +108,77 @@ function sanitizeFieldValue(value: string): string {
   }
 
   return normalized;
+}
+
+function buildStructuredAddress(parts: {
+  streetAddress?: string | null;
+  city?: string | null;
+  district?: string | null;
+  address?: string | null;
+}): string {
+  const structured = [
+    cleanStoredContactValue(parts.streetAddress),
+    cleanStoredContactValue(parts.city),
+    cleanStoredContactValue(parts.district),
+  ].filter(Boolean);
+
+  return structured.length > 0
+    ? structured.join(', ')
+    : cleanStoredContactValue(parts.address);
+}
+
+function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'streetAddress' | 'city' | 'district'> {
+  const cleaned = cleanStoredContactValue(address);
+  const empty = { streetAddress: '', city: '', district: '' };
+
+  if (!cleaned || !cleaned.includes(',')) {
+    return empty;
+  }
+
+  const parts = cleaned
+    .split(',')
+    .map((part) => sanitizeFieldValue(part))
+    .filter(Boolean);
+
+  if (parts.length >= 3) {
+    return {
+      streetAddress: parts.slice(0, -2).join(', '),
+      city: parts[parts.length - 2],
+      district: parts[parts.length - 1],
+    };
+  }
+
+  if (parts.length === 2) {
+    return {
+      streetAddress: parts[0],
+      city: parts[1],
+      district: '',
+    };
+  }
+
+  return empty;
+}
+
+function hydrateStructuredAddress(details: ContactDetailsInput): Partial<ContactDetails> {
+  const parsed = splitFreeformAddress(details.address);
+  const streetAddress = cleanStoredContactValue(details.streetAddress) || parsed.streetAddress;
+  const city = cleanStoredContactValue(details.city) || parsed.city;
+  const district = cleanStoredContactValue(details.district) || parsed.district;
+  const address = buildStructuredAddress({
+    streetAddress,
+    city,
+    district,
+    address: details.address,
+  });
+
+  return {
+    name: cleanStoredContactValue(details.name),
+    streetAddress,
+    city,
+    district,
+    address,
+    phone: cleanStoredContactValue(details.phone),
+  };
 }
 
 function extractLabelledFields(message: string): Partial<ContactDetails> {
@@ -127,7 +222,7 @@ function extractLabelledFields(message: string): Partial<ContactDetails> {
     }
   }
 
-  return extracted;
+  return hydrateStructuredAddress(extracted);
 }
 
 function extractNameFromSentence(message: string): string {
@@ -217,7 +312,11 @@ function inferSingleMissingFieldReply(message: string, field: ContactField): Par
     return looksLikeName ? { name: sanitizeFieldValue(trimmedMessage) } : {};
   }
 
-  return trimmedMessage.length >= 8 ? { address: sanitizeFieldValue(trimmedMessage) } : {};
+  if (field === 'city' || field === 'district') {
+    return trimmedMessage.length >= 2 ? { [field]: sanitizeFieldValue(trimmedMessage) } : {};
+  }
+
+  return trimmedMessage.length >= 4 ? { streetAddress: sanitizeFieldValue(trimmedMessage) } : {};
 }
 
 export function cleanStoredContactValue(value: string | null | undefined): string {
@@ -247,31 +346,57 @@ export function extractContactDetailsFromText(
   if (!extracted.address) {
     const address = extractAddressFromSentence(message);
     if (address) {
-      extracted.address = address;
+      Object.assign(extracted, hydrateStructuredAddress({ address }));
     }
   }
 
   if (singleMissingField && !extracted[singleMissingField]) {
-    return { ...extracted, ...inferSingleMissingFieldReply(message, singleMissingField) };
+    return hydrateStructuredAddress({
+      ...extracted,
+      ...inferSingleMissingFieldReply(message, singleMissingField),
+    });
   }
 
-  return extracted;
+  return hydrateStructuredAddress(extracted);
 }
 
 export function mergeContactDetails(
-  base: Partial<ContactDetails>,
-  overrides: Partial<ContactDetails>
+  base: ContactDetailsInput,
+  overrides: ContactDetailsInput
 ): ContactDetails {
+  const hydratedBase = hydrateStructuredAddress(base);
+  const hydratedOverrides = hydrateStructuredAddress(overrides);
+  const streetAddress =
+    cleanStoredContactValue(hydratedOverrides.streetAddress) ||
+    cleanStoredContactValue(hydratedBase.streetAddress);
+  const city =
+    cleanStoredContactValue(hydratedOverrides.city) ||
+    cleanStoredContactValue(hydratedBase.city);
+  const district =
+    cleanStoredContactValue(hydratedOverrides.district) ||
+    cleanStoredContactValue(hydratedBase.district);
+  const address = buildStructuredAddress({
+    streetAddress,
+    city,
+    district,
+    address:
+      cleanStoredContactValue(hydratedOverrides.address) ||
+      cleanStoredContactValue(hydratedBase.address),
+  });
+
   return {
-    name: cleanStoredContactValue(overrides.name) || cleanStoredContactValue(base.name),
-    address: cleanStoredContactValue(overrides.address) || cleanStoredContactValue(base.address),
-    phone: cleanStoredContactValue(overrides.phone) || cleanStoredContactValue(base.phone),
+    name: cleanStoredContactValue(hydratedOverrides.name) || cleanStoredContactValue(hydratedBase.name),
+    address,
+    streetAddress,
+    city,
+    district,
+    phone: cleanStoredContactValue(hydratedOverrides.phone) || cleanStoredContactValue(hydratedBase.phone),
   };
 }
 
 export function collectContactDetailsFromMessages(
   messages: ConversationMessage[],
-  initial?: Partial<ContactDetails>
+  initial?: ContactDetailsInput
 ): ContactDetails {
   let details = mergeContactDetails(EMPTY_CONTACT_DETAILS, initial ?? {});
 
@@ -282,28 +407,45 @@ export function collectContactDetailsFromMessages(
   return details;
 }
 
-export function getMissingContactFields(details: Partial<ContactDetails>): ContactField[] {
+export function getMissingContactFields(details: ContactDetailsInput): ContactField[] {
   const missing: ContactField[] = [];
+  const hydrated = hydrateStructuredAddress(details);
 
-  if (!cleanStoredContactValue(details.name)) {
+  if (!cleanStoredContactValue(hydrated.name)) {
     missing.push('name');
   }
 
-  if (!cleanStoredContactValue(details.address)) {
-    missing.push('address');
+  if (!cleanStoredContactValue(hydrated.streetAddress)) {
+    missing.push('streetAddress');
   }
 
-  if (!cleanStoredContactValue(details.phone)) {
+  if (!cleanStoredContactValue(hydrated.city)) {
+    missing.push('city');
+  }
+
+  if (!cleanStoredContactValue(hydrated.district)) {
+    missing.push('district');
+  }
+
+  if (!cleanStoredContactValue(hydrated.phone)) {
     missing.push('phone');
   }
 
   return missing;
 }
 
-export function formatContactBlock(details: Partial<ContactDetails>): string {
+export function formatContactBlock(details: ContactDetailsInput): string {
+  const hydrated = hydrateStructuredAddress(details);
+
   return [
-    `Name: ${cleanStoredContactValue(details.name) || 'Missing'}`,
-    `Address: ${cleanStoredContactValue(details.address) || 'Missing'}`,
-    `Phone Number: ${cleanStoredContactValue(details.phone) || 'Missing'}`,
+    `Name: ${cleanStoredContactValue(hydrated.name) || 'Missing'}`,
+    `Street Address: ${cleanStoredContactValue(hydrated.streetAddress) || 'Missing'}`,
+    `City/Town: ${cleanStoredContactValue(hydrated.city) || 'Missing'}`,
+    `District: ${cleanStoredContactValue(hydrated.district) || 'Missing'}`,
+    `Phone Number: ${cleanStoredContactValue(hydrated.phone) || 'Missing'}`,
   ].join('\n');
+}
+
+export function formatDeliveryAddress(details: ContactDetailsInput): string {
+  return hydrateStructuredAddress(details).address || '';
 }

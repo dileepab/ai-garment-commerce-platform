@@ -116,6 +116,9 @@ export async function tryHandleShoppingSupport(
         take: 1,
         select: {
           deliveryAddress: true,
+          deliveryStreetAddress: true,
+          deliveryCity: true,
+          deliveryDistrict: true,
         },
       },
     },
@@ -183,6 +186,9 @@ export async function tryHandleShoppingSupport(
     name: customer?.name ?? undefined,
     phone: customer?.phone ?? undefined,
     address: customer?.orders[0]?.deliveryAddress ?? undefined,
+    streetAddress: customer?.orders[0]?.deliveryStreetAddress ?? undefined,
+    city: customer?.orders[0]?.deliveryCity ?? undefined,
+    district: customer?.orders[0]?.deliveryDistrict ?? undefined,
   });
   const missingFields = getMissingContactFields(contacts);
   const { draft } = await resolveDraftFromConversation(
@@ -219,7 +225,7 @@ export async function tryHandleShoppingSupport(
           );
         }
       } else {
-      const contactReply = buildContactConfirmationReply(draft.name, draft.address, draft.phone);
+      const contactReply = buildContactConfirmationReply(draft.name, draft.address, draft.phone, draft);
       const variantPrompt = buildVariantPrompt(
         draft.productName,
         draft.size,

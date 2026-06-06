@@ -68,6 +68,9 @@ export interface RouterInput {
   knownContact: {
     name?: string | null;
     address?: string | null;
+    streetAddress?: string | null;
+    city?: string | null;
+    district?: string | null;
     phone?: string | null;
   };
   lastReferencedOrderId?: number | null;

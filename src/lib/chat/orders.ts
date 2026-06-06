@@ -12,6 +12,7 @@ import {
 } from '@/lib/chat/reply-builders';
 import {
   extractContactDetailsFromText,
+  formatDeliveryAddress,
   getMissingContactFields,
 } from '@/lib/contact-profile';
 import {
@@ -89,14 +90,26 @@ async function updateOrderContactDetails(params: {
   orderId: number;
   customerId: number;
   address?: string | null;
+  streetAddress?: string | null;
+  city?: string | null;
+  district?: string | null;
   phone?: string | null;
 }) {
   return prisma.$transaction(async (tx) => {
-    if (params.address) {
+    if (params.address || params.streetAddress || params.city || params.district) {
+      const deliveryAddress = formatDeliveryAddress({
+        address: params.address,
+        streetAddress: params.streetAddress,
+        city: params.city,
+        district: params.district,
+      });
       await tx.order.update({
         where: { id: params.orderId },
         data: {
-          deliveryAddress: params.address,
+          deliveryAddress: deliveryAddress || params.address,
+          ...(params.streetAddress ? { deliveryStreetAddress: params.streetAddress } : {}),
+          ...(params.city ? { deliveryCity: params.city } : {}),
+          ...(params.district ? { deliveryDistrict: params.district } : {}),
         },
       });
     }
@@ -231,6 +244,9 @@ export async function handle_place_order(ctx: ChatContext) {
   const missingContactFields = getMissingContactFields({
     name: nextDraft.name,
     address: nextDraft.address,
+    streetAddress: nextDraft.streetAddress,
+    city: nextDraft.city,
+    district: nextDraft.district,
     phone: nextDraft.phone,
   });
 
@@ -247,7 +263,7 @@ export async function handle_place_order(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone),
+    reply: buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone, nextDraft),
     assistantReplyKind: 'contact_confirmation',
     nextState: {
       pendingStep: 'contact_confirmation',
@@ -291,6 +307,9 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         contact: {
           name: state.orderDraft.name,
           address: state.orderDraft.address,
+          streetAddress: state.orderDraft.streetAddress,
+          city: state.orderDraft.city,
+          district: state.orderDraft.district,
           phone: state.orderDraft.phone,
         },
       });
@@ -343,6 +362,9 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         customerId: ensuredCustomer.id,
         brand: state.orderDraft.brand,
         deliveryAddress: state.orderDraft.address,
+        deliveryStreetAddress: state.orderDraft.streetAddress,
+        deliveryCity: state.orderDraft.city,
+        deliveryDistrict: state.orderDraft.district,
         paymentMethod: state.orderDraft.paymentMethod,
         giftWrap: state.orderDraft.giftWrap,
         giftNote: state.orderDraft.giftNote,
@@ -421,6 +443,9 @@ export async function handle_confirm_pending(ctx: ChatContext) {
     const missingFields = getMissingContactFields({
       name: state.orderDraft.name,
       address: state.orderDraft.address,
+      streetAddress: state.orderDraft.streetAddress,
+      city: state.orderDraft.city,
+      district: state.orderDraft.district,
       phone: state.orderDraft.phone,
     });
 
@@ -670,7 +695,7 @@ export async function handle_reorder_last(ctx: ChatContext) {
   });
 
   return finalizeReply({
-    reply: buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone),
+    reply: buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone, nextDraft),
     assistantReplyKind: 'contact_confirmation',
     nextState: {
       pendingStep: 'contact_confirmation',
@@ -701,7 +726,14 @@ export async function handle_update_order_contact(ctx: ChatContext) {
   } = ctx.helpers;
 
   const extractedContact = extractContactDetailsFromText(input.currentMessage);
-  const requestedAddress = aiAction.contact.address || extractedContact.address || '';
+  const requestedAddress =
+    aiAction.contact.address ||
+    extractedContact.address ||
+    formatDeliveryAddress(extractedContact) ||
+    '';
+  const requestedStreetAddress = extractedContact.streetAddress || '';
+  const requestedCity = extractedContact.city || '';
+  const requestedDistrict = extractedContact.district || '';
   const requestedPhone = aiAction.contact.phone || extractedContact.phone || '';
   const requestedName = aiAction.contact.name || extractedContact.name || '';
 
@@ -797,6 +829,9 @@ export async function handle_update_order_contact(ctx: ChatContext) {
     orderId: targetOrder.id,
     customerId: customer.id,
     address: requestedAddress || null,
+    streetAddress: requestedStreetAddress || null,
+    city: requestedCity || null,
+    district: requestedDistrict || null,
     phone: requestedPhone || null,
   });
 

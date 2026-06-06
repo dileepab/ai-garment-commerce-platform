@@ -55,7 +55,9 @@ export function buildOrderSummaryReply(draft: ResolvedOrderDraft): string {
     `Total: Rs ${draft.total}`,
     `Payment Method: ${draft.paymentMethod}`,
     `Name: ${draft.name}`,
-    `Address: ${draft.address}`,
+    `Street Address: ${draft.streetAddress || 'Not specified'}`,
+    `City/Town: ${draft.city || 'Not specified'}`,
+    `District: ${draft.district || 'Not specified'}`,
     `Phone Number: ${draft.phone}`,
     ...specialInstructions,
     '',
@@ -63,11 +65,16 @@ export function buildOrderSummaryReply(draft: ResolvedOrderDraft): string {
   ].join('\n');
 }
 
-export function buildContactConfirmationReply(name: string, address: string, phone: string): string {
+export function buildContactConfirmationReply(
+  name: string,
+  address: string,
+  phone: string,
+  addressParts?: Partial<ResolvedOrderDraft>
+): string {
   return [
     'Please confirm if these delivery details are correct:',
     '',
-    formatContactBlock({ name, address, phone }),
+    formatContactBlock({ name, address, phone, ...addressParts }),
     '',
     'Reply "yes" to confirm, or send the correction you need.',
   ].join('\n');

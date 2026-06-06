@@ -20,7 +20,7 @@ const TEXT_MODEL_CHAIN = [
 const SINHALA_SCRIPT_RE = /[\u0D80-\u0DFF]/;
 const TAMIL_SCRIPT_RE = /[\u0B80-\u0BFF]/;
 const SINHALA_ROMAN_RE =
-  /\b(sinhala|sinhalese|sinhalen|singhala|singhalen|kohomada|kohoma|karanne|karanna|ganna|ganne|puluwanda|puluwan|mata|mama|ape|oyala|oyage|denna|danna|kiyanna|ona|one|mona|monawa|monawada|monawath|thiyana|thiyena|tiyana|tiyena|thiyenne|thiyenawada|tiyenawada|thiyanawada|adum|edum|anduma|koheda|keeyada|ganan|milada|mokakda|mokadda|mokada|penne|nane)\b/i;
+  /\b(sinhala|sinhalese|sinhalen|singhala|singhalen|kohomada|kohoma|karanne|karanna|ganna|ganne|puluwanda|puluwan|mata|mama|ape|oyala|oyage|denna|danna|kiyanna|ona|mona|monawa|monawada|monawath|thiyana|thiyena|tiyana|tiyena|thiyenne|thiyenawada|tiyenawada|thiyanawada|adum|edum|anduma|koheda|keeyada|ganan|milada|mokakda|mokadda|mokada|penne|nane)\b/i;
 const TAMIL_ROMAN_RE =
   /\b(tamil|thamizh|thamil|tamilil|eppadi|epdi|irukka|irukkaa|venum|vendaum|vangurathu|vaanga|order panna|vilai|evlo|evvalavu|size enna|color enna)\b/i;
 const ENGLISH_HINT_RE =

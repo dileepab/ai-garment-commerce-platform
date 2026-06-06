@@ -2,7 +2,7 @@ import { RouterProductContext, RouterInput, AiRoutedAction } from './types';
 import { extractContactDetailsFromText } from '@/lib/contact-profile';
 import { SizeChartCategory } from '@/lib/size-charts';
 
-export const SIZE_PATTERN = /\b(XXL|XL|XS|S|M|L|small|medium|large|extra small|extra large)\b/i;
+export const SIZE_PATTERN = /\b(4XL|3XL|2XL|XXL|XL|XS|S|M|L|small|medium|large|extra small|extra large|double extra large)\b/i;
 export const QUANTITY_PATTERNS = [
   /\bqty\s*[:\-]?\s*(\d+)\b/i,
   /\bquantity\s*[:\-]?\s*(\d+)\b/i,

@@ -586,7 +586,14 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
     throw new OrderRequestError('Customer phone is required to create a Koombiyo delivery.', 400);
   }
 
-  if (!order.deliveryAddress?.trim()) {
+  const receiverStreet = cleanOptionalText(order.deliveryStreetAddress) || cleanOptionalText(order.deliveryAddress);
+  const locationText = [
+    order.deliveryCity,
+    order.deliveryDistrict,
+    order.deliveryAddress,
+  ].filter(Boolean).join(', ');
+
+  if (!receiverStreet) {
     throw new OrderRequestError('Delivery address is required to create a Koombiyo delivery.', 400);
   }
 
@@ -595,7 +602,7 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
   const resolvedLocation =
     overrideDistrictId && overrideCityId
       ? null
-      : await resolveKoombiyoLocationFromAddress(brand, order.deliveryAddress);
+      : await resolveKoombiyoLocationFromAddress(brand, locationText);
   const receiverDistrictId =
     overrideDistrictId ||
     resolvedLocation?.districtId ||
@@ -609,7 +616,7 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
 
   if (!receiverDistrictId || !receiverCityId) {
     throw new OrderRequestError(
-      `Could not automatically match "${order.deliveryAddress}" to a Koombiyo city. Update the address with a clear city/town or enter Koombiyo district/city IDs as an override.`,
+      `Could not automatically match "${locationText || receiverStreet}" to a Koombiyo city. Update the order city/town and district or enter Koombiyo district/city IDs as an override.`,
       409,
     );
   }
@@ -633,7 +640,7 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
         waybillId: waybill.waybillId,
         orderReference,
         receiverName: order.customer.name,
-        receiverStreet: order.deliveryAddress,
+        receiverStreet,
         receiverDistrictId,
         receiverCityId,
         receiverPhone: order.customer.phone,

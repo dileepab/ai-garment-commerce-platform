@@ -109,7 +109,7 @@ export async function tryHandleOrderContactUpdate(
   let reply = '';
 
   if (isContactConfirmationMessage(assistantText)) {
-    reply = buildContactConfirmationReply(draft.name, draft.address, draft.phone);
+    reply = buildContactConfirmationReply(draft.name, draft.address, draft.phone, draft);
 
     const variantReply = buildMissingVariantReply(draft);
 

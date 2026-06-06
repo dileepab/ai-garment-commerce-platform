@@ -1,4 +1,4 @@
-export const SIZE_PATTERN = /\b(XXL|XL|XS|S|M|L)\b/i;
+export const SIZE_PATTERN = /\b(4XL|3XL|2XL|XXL|XL|XS|S|M|L|double extra large|extra large|extra small|small|medium|large)\b/i;
 export const SAME_ITEM_PATTERNS = [
   /\bsame item\b/i,
   /\bsame top\b/i,
@@ -15,7 +15,7 @@ export const SAME_ITEM_PATTERNS = [
 
 export const ORDER_SUMMARY_PATTERN = /\border summary\b/i;
 export const CONTACT_CONFIRMATION_HINT_PATTERN =
-  /name:\s*.+\naddress:\s*.+\nphone number:\s*.+/i;
+  /name:\s*.+\n(?:street address:\s*.+\ncity\/town:\s*.+\ndistrict:\s*.+|address:\s*.+)\nphone number:\s*.+/i;
 export const GIFT_PATTERN = /\bgift\b/i;
 export const HAPPY_BIRTHDAY_PATTERN = /\bhappy birthday\b/i;
 export const ONLINE_TRANSFER_PATTERN = /\bonline transfer\b|\bbank transfer\b/i;

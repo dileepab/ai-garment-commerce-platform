@@ -92,6 +92,26 @@ export function resolveProductFromMessages(
   return bestScore > 0 ? bestProduct : null;
 }
 
+function normalizeSizeToken(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, ' ');
+  const sizeMap: Record<string, string> = {
+    'extra small': 'XS',
+    xs: 'XS',
+    small: 'S',
+    s: 'S',
+    medium: 'M',
+    m: 'M',
+    large: 'L',
+    l: 'L',
+    'extra large': 'XL',
+    xl: 'XL',
+    'double extra large': 'XXL',
+    xxl: 'XXL',
+  };
+
+  return sizeMap[normalized] || value.trim().toUpperCase();
+}
+
 export function resolveSizeFromMessages(messages: ConversationMessage[], product?: CatalogProduct): string | undefined {
   const recentUserMessages = getRecentCustomerText(messages).slice(0, 8);
   const allowedSizes = product ? splitCsv(product.sizes).map((size) => size.toUpperCase()) : [];
@@ -103,7 +123,7 @@ export function resolveSizeFromMessages(messages: ConversationMessage[], product
       continue;
     }
 
-    const size = match[1].toUpperCase();
+    const size = normalizeSizeToken(match[1]);
 
     if (allowedSizes.length === 0 || allowedSizes.includes(size)) {
       return size;

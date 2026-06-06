@@ -102,6 +102,9 @@ export async function getAiStockReply(
     let storedName = '';
     let storedPhone = '';
     let storedAddress = '';
+    let storedStreetAddress = '';
+    let storedCity = '';
+    let storedDistrict = '';
     let previousMessages: RecentChatMessage[] = [];
     let existingCustomerId: number | null = null;
 
@@ -137,12 +140,18 @@ export async function getAiStockReply(
         storedName = cleanStoredContactValue(customer.name);
         storedPhone = customer.phone || '';
         storedAddress = customer.orders[0]?.deliveryAddress || '';
+        storedStreetAddress = customer.orders[0]?.deliveryStreetAddress || '';
+        storedCity = customer.orders[0]?.deliveryCity || '';
+        storedDistrict = customer.orders[0]?.deliveryDistrict || '';
         logDebug('AI', `Loaded stored profile for sender ${senderId}.`);
       }
 
       const detailsFromHistory = collectContactDetailsFromMessages(previousMessages, {
         name: storedName || customerName,
         address: storedAddress,
+        streetAddress: storedStreetAddress,
+        city: storedCity,
+        district: storedDistrict,
         phone: storedPhone,
       });
 
@@ -156,6 +165,9 @@ export async function getAiStockReply(
       storedName = mergedDetails.name;
       storedPhone = mergedDetails.phone;
       storedAddress = mergedDetails.address;
+      storedStreetAddress = mergedDetails.streetAddress;
+      storedCity = mergedDetails.city;
+      storedDistrict = mergedDetails.district;
 
       const profileName = storedName || cleanStoredContactValue(customerName);
 
@@ -207,18 +219,24 @@ export async function getAiStockReply(
       name: nameToUse,
       address: storedAddress,
       phone: storedPhone,
+      streetAddress: storedStreetAddress,
+      city: storedCity,
+      district: storedDistrict,
     });
 
     const missingContactFields = getMissingContactFields({
       name: nameToUse,
       address: storedAddress,
+      streetAddress: storedStreetAddress,
+      city: storedCity,
+      district: storedDistrict,
       phone: storedPhone,
     });
 
     const missingContactInstructions =
       missingContactFields.length > 0
         ? `CURRENT CONTACT GAPS: ${missingContactFields.join(', ')}. If the customer is ordering, ask for exactly these missing fields together in one message.`
-        : 'CURRENT CONTACT GAPS: none. If the customer is ordering, do not ask for name, address, or phone again. Show the saved contact block and ask the customer to confirm or correct it.';
+        : 'CURRENT CONTACT GAPS: none. If the customer is ordering, do not ask for name, delivery details, or phone again. Show the saved contact block and ask the customer to confirm or correct it.';
 
     const customerInfo = firstName
       ? `\nCUSTOMER INFO:\n- Name: ${firstName}\n- Gender hint: ${customerGender || 'unknown'}\n- Use their first name in the FIRST greeting only if it feels natural.\n- After the first greeting, use neutral professional wording.`
@@ -263,7 +281,7 @@ CONVERSION & FOLLOW-UP RULES:
 - IF CUSTOMER ASKS PRICE/AVAILABILITY: Answer directly, then follow up with: "Would you like to see the size chart?" or "Shall I check if we can deliver this to your area by tomorrow?"
 - IF STOCK IS LOW (< 5 pieces): Create subtle urgency, e.g., "Only 3 pieces left in this color! Should I reserve one for you while you decide?"
 - IF CUSTOMER IS UNDECIDED: Offer a benefit, e.g., "This fabric is perfect for the current weather. Would you like to see more close-up photos?"
-- IF ORDERING: Instead of just asking for details, use: "To get this delivered to you quickly, could you share your name, full delivery address with city/town, and phone number?"
+- IF ORDERING: Instead of just asking for details, use: "To get this delivered to you quickly, could you share your name, street address, city/town, district, and phone number?"
 
 YOUR STOCK (use ONLY this data):
 ${stockContext}
@@ -276,7 +294,9 @@ ORDER FLOW & DATA COLLECTION:
    - When Name, Address, or Phone Number are missing, ask for ALL missing fields in ONE short message.
    - Use these exact labels on separate lines and only include the fields that are still missing:
 Name:
-Address (include city/town):
+Street Address:
+City/Town:
+District:
 Phone Number:
    - If the customer replies with only some of them, ask again for ONLY the remaining missing fields using the same label format.
    - If all three details are already known, do NOT ask again. Move straight to the confirmation step.
@@ -288,7 +308,9 @@ Phone Number:
 3. CONTACT CONFIRMATION BLOCK:
    - Before finalizing an order, show this exact plain-text block with one field per line:
 Name: [customer name]
-Address: [full delivery address including city/town]
+Street Address: [house no / street / lane / landmark]
+City/Town: [city or town]
+District: [district]
 Phone Number: [phone number]
    - Then ask the customer to confirm these details or send corrections.
    - Never use bullets, tables, markdown boxes, or decorative separators for this contact block.
@@ -303,7 +325,9 @@ Size: [size]
 Color: [color]
 Price: Rs [price]
 Name: [customer name]
-Address: [full delivery address including city/town]
+Street Address: [house no / street / lane / landmark]
+City/Town: [city or town]
+District: [district]
 Phone Number: [phone number]
 
 Then ask: "Does everything look perfect? Shall I go ahead and confirm this for you so we can dispatch it as soon as possible? 😊"

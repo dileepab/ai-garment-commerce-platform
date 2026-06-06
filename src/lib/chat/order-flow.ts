@@ -36,6 +36,9 @@ interface OrderLike {
   orderStatus: string;
   totalAmount: number;
   deliveryAddress?: string | null;
+  deliveryStreetAddress?: string | null;
+  deliveryCity?: string | null;
+  deliveryDistrict?: string | null;
   paymentMethod?: string | null;
   giftWrap: boolean;
   giftNote?: string | null;
@@ -120,6 +123,9 @@ export function buildReorderDraftFromOrder(params: {
 }): ResolvedOrderDraft {
   const sourceItem = params.sourceOrder.orderItems[0];
   const deliveryAddress = params.sourceOrder.deliveryAddress || '';
+  const streetAddress = params.sourceOrder.deliveryStreetAddress || '';
+  const city = params.sourceOrder.deliveryCity || '';
+  const district = params.sourceOrder.deliveryDistrict || '';
   const deliveryCharge = params.getDeliveryChargeForAddress(deliveryAddress);
 
   return {
@@ -138,6 +144,9 @@ export function buildReorderDraftFromOrder(params: {
     deliveryEstimate: params.getDeliveryEstimateForAddress(deliveryAddress),
     name: cleanStoredContactValue(params.customer?.name) || params.sourceOrder.customer.name,
     address: deliveryAddress,
+    streetAddress,
+    city,
+    district,
     phone:
       cleanStoredContactValue(params.customer?.phone) ||
       params.sourceOrder.customer.phone ||

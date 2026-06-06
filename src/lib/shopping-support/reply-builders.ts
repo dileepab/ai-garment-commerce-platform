@@ -23,11 +23,11 @@ export function buildVariantPrompt(productName: string, size?: string, color?: s
 
   if (!color) {
     const colorOptions = splitCsv(product?.colors);
-    prompts.push(
-      colorOptions.length > 0
-        ? `Please let me know the color you need for ${productName}. Available colors: ${colorOptions.join(', ')}.`
-        : `Please let me know the color you need for ${productName}.`
-    );
+    if (colorOptions.length > 1) {
+      prompts.push(`Please let me know the color you need for ${productName}. Available colors: ${colorOptions.join(', ')}.`);
+    } else if (colorOptions.length === 0) {
+      prompts.push(`Please let me know the color you need for ${productName}.`);
+    }
   }
 
   return prompts.join('\n');
@@ -61,8 +61,14 @@ export function buildMissingFieldLabels(missingFields: ContactField[]): string {
       if (field === 'name') {
         return 'Name:';
       }
-      if (field === 'address') {
-        return 'Address (include city/town):';
+      if (field === 'streetAddress') {
+        return 'Street Address:';
+      }
+      if (field === 'city') {
+        return 'City/Town:';
+      }
+      if (field === 'district') {
+        return 'District:';
       }
       return 'Phone Number:';
     })

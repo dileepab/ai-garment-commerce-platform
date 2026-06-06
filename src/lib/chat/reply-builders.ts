@@ -31,8 +31,16 @@ export function buildMissingFieldLabels(missingFields: ContactField[]): string {
         return 'Name:';
       }
 
-      if (field === 'address') {
-        return 'Address (include city/town):';
+      if (field === 'streetAddress') {
+        return 'Street Address:';
+      }
+
+      if (field === 'city') {
+        return 'City/Town:';
+      }
+
+      if (field === 'district') {
+        return 'District:';
       }
 
       return 'Phone Number:';
@@ -81,11 +89,11 @@ export function buildVariantPrompt(
         ? [...new Set(availableVariants.map((v) => v.color))]
         : [];
     const colorOptions = variantColors.length > 0 ? variantColors : splitCsv(product?.colors);
-    prompts.push(
-      colorOptions.length > 0
-        ? `Please let me know the color you need for ${productName}. Available colors: ${colorOptions.join(', ')}.`
-        : `Please let me know the color you need for ${productName}.`
-    );
+    if (colorOptions.length > 1) {
+      prompts.push(`Please let me know the color you need for ${productName}. Available colors: ${colorOptions.join(', ')}.`);
+    } else if (colorOptions.length === 0) {
+      prompts.push(`Please let me know the color you need for ${productName}.`);
+    }
   }
 
   return prompts.join('\n');
@@ -274,6 +282,9 @@ export function buildClarificationReply(
     const missingFields = getMissingContactFields({
       name: state.orderDraft.name,
       address: state.orderDraft.address,
+      streetAddress: state.orderDraft.streetAddress,
+      city: state.orderDraft.city,
+      district: state.orderDraft.district,
       phone: state.orderDraft.phone,
     });
 
