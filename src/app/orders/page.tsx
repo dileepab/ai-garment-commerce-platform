@@ -33,6 +33,10 @@ export default async function OrdersPage() {
         orderBy: { receivedAt: 'desc' },
         take: 6,
       },
+      courierShipments: {
+        orderBy: { createdAt: 'desc' },
+        take: 4,
+      },
       returnRequests: {
         select: {
           id: true,
@@ -49,6 +53,25 @@ export default async function OrdersPage() {
     },
     orderBy: { createdAt: 'desc' },
   });
+  const orderBrandNames = Array.from(
+    new Set(orders.map((order) => order.brand).filter((brand): brand is string => Boolean(brand)))
+  );
+  const koombiyoSettings = await prisma.courierIntegrationSetting.findMany({
+    where: {
+      provider: 'koombiyo',
+      brand: { in: orderBrandNames },
+    },
+    select: {
+      brand: true,
+      isActive: true,
+      apiKey: true,
+      defaultReceiverDistrictId: true,
+      defaultReceiverCityId: true,
+    },
+  });
+  const koombiyoSettingsByBrand = new Map(
+    koombiyoSettings.map((setting) => [setting.brand, setting])
+  );
 
   const normalizedCounts = orders.reduce<Record<string, number>>((acc, o) => {
     const key = normalizeFulfillmentStatus(o.orderStatus);
@@ -83,6 +106,17 @@ export default async function OrdersPage() {
     courier: o.courier,
     failureReason: o.failureReason,
     returnReason: o.returnReason,
+    koombiyoCourier: o.brand
+      ? (() => {
+          const setting = koombiyoSettingsByBrand.get(o.brand);
+          return {
+            isActive: setting?.isActive ?? false,
+            hasApiKey: Boolean(setting?.apiKey),
+            defaultReceiverDistrictId: setting?.defaultReceiverDistrictId ?? null,
+            defaultReceiverCityId: setting?.defaultReceiverCityId ?? null,
+          };
+        })()
+      : null,
     customer: {
       id: o.customer.id,
       name: o.customer.name,
@@ -137,6 +171,18 @@ export default async function OrdersPage() {
       error: event.error,
       receivedAt: event.receivedAt.toISOString(),
       processedAt: event.processedAt?.toISOString() ?? null,
+    })),
+    courierShipments: o.courierShipments.map((shipment) => ({
+      id: shipment.id,
+      provider: shipment.provider,
+      waybillId: shipment.waybillId,
+      providerOrderId: shipment.providerOrderId,
+      orderReference: shipment.orderReference,
+      courierStatus: shipment.courierStatus,
+      mappedStatus: shipment.mappedStatus,
+      lastSyncedAt: shipment.lastSyncedAt?.toISOString() ?? null,
+      createdAt: shipment.createdAt.toISOString(),
+      updatedAt: shipment.updatedAt.toISOString(),
     })),
   }));
 

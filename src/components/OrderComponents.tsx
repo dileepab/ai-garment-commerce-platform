@@ -4,6 +4,7 @@ import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   cancelOrder,
+  createKoombiyoDeliveryAction,
   confirmOrder,
   deliverOrder,
   dispatchOrder,
@@ -11,6 +12,7 @@ import {
   markPacking,
   markReturned,
   reportDeliveryFailure,
+  refreshKoombiyoStatusAction,
   retryDispatch,
   type OrderActionResult,
 } from '@/app/orders/actions';
@@ -42,6 +44,7 @@ const ic = {
   alert: ["M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z", "M12 9v4", "M12 17h.01"],
   rotate: ["M1 4v6h6", "M3.51 15a9 9 0 102.13-9.36L1 10"],
   arrowLeft: ["M19 12H5", "M12 19l-7-7 7-7"],
+  refresh: ["M21 12a9 9 0 11-2.64-6.36", "M21 3v6h-6"],
 };
 
 const TIMELINE_STEPS = ["pending", "confirmed", "packing", "packed", "dispatched", "delivered"] as const;
@@ -161,6 +164,19 @@ export interface OrderCourierWebhookEventLike {
   processedAt: string | null;
 }
 
+export interface OrderCourierShipmentLike {
+  id: number;
+  provider: string;
+  waybillId: string;
+  providerOrderId: string | null;
+  orderReference: string | null;
+  courierStatus: string;
+  mappedStatus: string | null;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OrderReturnRequestLike {
   id: number;
   type: string;
@@ -186,6 +202,12 @@ export interface OrderDrawerOrder {
   courier?: string | null;
   failureReason?: string | null;
   returnReason?: string | null;
+  koombiyoCourier?: {
+    isActive: boolean;
+    hasApiKey: boolean;
+    defaultReceiverDistrictId: string | null;
+    defaultReceiverCityId: string | null;
+  } | null;
   orderItems?: OrderDrawerOrderItem[];
   supportEscalations?: {
     id: number;
@@ -195,6 +217,7 @@ export interface OrderDrawerOrder {
   }[];
   fulfillmentEvents?: OrderFulfillmentEventLike[];
   courierWebhookEvents?: OrderCourierWebhookEventLike[];
+  courierShipments?: OrderCourierShipmentLike[];
   returnRequests?: OrderReturnRequestLike[];
 }
 
@@ -238,6 +261,11 @@ export function OrderDrawer({
   const [reasonDraft, setReasonDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [showCreateReturn, setShowCreateReturn] = useState(false);
+  const [showKoombiyoForm, setShowKoombiyoForm] = useState(false);
+  const [koombiyoDistrictDraft, setKoombiyoDistrictDraft] = useState(order?.koombiyoCourier?.defaultReceiverDistrictId ?? '');
+  const [koombiyoCityDraft, setKoombiyoCityDraft] = useState(order?.koombiyoCourier?.defaultReceiverCityId ?? '');
+  const [koombiyoDescriptionDraft, setKoombiyoDescriptionDraft] = useState('');
+  const [koombiyoNoteDraft, setKoombiyoNoteDraft] = useState('');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -249,12 +277,24 @@ export function OrderDrawer({
       setNoteDraft('');
       setPendingActionForm(initialAction);
       setShowCreateReturn(false);
+      setShowKoombiyoForm(false);
+      setKoombiyoDistrictDraft(order?.koombiyoCourier?.defaultReceiverDistrictId ?? '');
+      setKoombiyoCityDraft(order?.koombiyoCourier?.defaultReceiverCityId ?? '');
+      setKoombiyoDescriptionDraft('');
+      setKoombiyoNoteDraft('');
       setError(null);
     });
     return () => {
       cancelled = true;
     };
-  }, [order?.id, order?.trackingNumber, order?.courier, initialAction]);
+  }, [
+    order?.id,
+    order?.trackingNumber,
+    order?.courier,
+    order?.koombiyoCourier?.defaultReceiverDistrictId,
+    order?.koombiyoCourier?.defaultReceiverCityId,
+    initialAction,
+  ]);
 
   const actions = canUpdate && order ? getActionsForStatus(status) : [];
   const activeSupport = order?.supportEscalations?.filter((support) => ACTIVE_SUPPORT_STATUSES.has(support.status)) || [];
@@ -317,6 +357,58 @@ export function OrderDrawer({
       (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
     );
   }, [order?.courierWebhookEvents]);
+  const koombiyoShipments = useMemo(() => {
+    return [...(order?.courierShipments ?? [])]
+      .filter((shipment) => shipment.provider === 'koombiyo')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [order?.courierShipments]);
+  const latestKoombiyoShipment = koombiyoShipments[0] ?? null;
+
+  const createKoombiyoDelivery = () => {
+    if (!order) return;
+    if (!koombiyoDistrictDraft.trim() || !koombiyoCityDraft.trim()) {
+      setError('Enter Koombiyo district ID and city ID before creating the delivery.');
+      return;
+    }
+
+    let force = false;
+    if (latestKoombiyoShipment) {
+      force = window.confirm(
+        `Order #${order.id} already has Koombiyo waybill ${latestKoombiyoShipment.waybillId}. Create another delivery anyway?`,
+      );
+      if (!force) return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      const result = await createKoombiyoDeliveryAction(order.id, {
+        receiverDistrictId: koombiyoDistrictDraft,
+        receiverCityId: koombiyoCityDraft,
+        description: koombiyoDescriptionDraft || undefined,
+        specialNote: koombiyoNoteDraft || undefined,
+        force,
+      });
+      if (!result.success && result.error) {
+        setError(result.error);
+        return;
+      }
+      setShowKoombiyoForm(false);
+      router.refresh();
+    });
+  };
+
+  const refreshKoombiyoStatus = () => {
+    if (!order) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await refreshKoombiyoStatusAction(order.id);
+      if (!result.success && result.error) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
 
   return (
     <>
@@ -381,7 +473,7 @@ export function OrderDrawer({
                 </div>
               </div>
 
-              {(order.trackingNumber || order.courier || order.failureReason || order.returnReason) && (
+              {(order.trackingNumber || order.courier || order.failureReason || order.returnReason || latestKoombiyoShipment || order.koombiyoCourier) && (
                 <div>
                   <div className="drawer-section-label">Shipment</div>
                   <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -397,6 +489,22 @@ export function OrderDrawer({
                         <code style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{order.trackingNumber}</code>
                       </div>
                     )}
+                    {latestKoombiyoShipment && (
+                      <>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                          <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Koombiyo status</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, textAlign: "right" }}>{latestKoombiyoShipment.courierStatus}</span>
+                        </div>
+                        {latestKoombiyoShipment.lastSyncedAt && (
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                            <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Last sync</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, textAlign: "right" }} suppressHydrationWarning>
+                              {new Date(latestKoombiyoShipment.lastSyncedAt).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
                     {order.failureReason && (
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                         <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Failure</span>
@@ -407,6 +515,96 @@ export function OrderDrawer({
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                         <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Return reason</span>
                         <span style={{ fontSize: 12, fontWeight: 600, textAlign: "right" }}>{order.returnReason}</span>
+                      </div>
+                    )}
+                    {canUpdate && order.brand && (
+                      <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                        {order.koombiyoCourier?.isActive ? (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ fontSize: 12 }}
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => setShowKoombiyoForm((value) => !value)}
+                            >
+                              <Icon d={ic.truck} size={12} />
+                              Create Courier Delivery
+                            </button>
+                            {latestKoombiyoShipment && (
+                              <button
+                                className="btn btn-secondary"
+                                style={{ fontSize: 12 }}
+                                type="button"
+                                disabled={isPending}
+                                onClick={refreshKoombiyoStatus}
+                              >
+                                <Icon d={ic.refresh} size={12} />
+                                Refresh Status
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: 'var(--color-fg-3)' }}>
+                            Koombiyo is not active for {order.brand}. Enable it in Settings before creating a delivery.
+                          </div>
+                        )}
+                        {showKoombiyoForm && (
+                          <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 10, display: 'grid', gap: 8 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
+                                District ID
+                                <input
+                                  className="search-input"
+                                  value={koombiyoDistrictDraft}
+                                  onChange={(event) => setKoombiyoDistrictDraft(event.target.value)}
+                                  placeholder="Koombiyo district ID"
+                                />
+                              </label>
+                              <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
+                                City ID
+                                <input
+                                  className="search-input"
+                                  value={koombiyoCityDraft}
+                                  onChange={(event) => setKoombiyoCityDraft(event.target.value)}
+                                  placeholder="Koombiyo city ID"
+                                />
+                              </label>
+                            </div>
+                            <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
+                              Package description
+                              <input
+                                className="search-input"
+                                value={koombiyoDescriptionDraft}
+                                onChange={(event) => setKoombiyoDescriptionDraft(event.target.value)}
+                                placeholder="Auto-filled from order items if blank"
+                              />
+                            </label>
+                            <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
+                              Special note
+                              <input
+                                className="search-input"
+                                value={koombiyoNoteDraft}
+                                onChange={(event) => setKoombiyoNoteDraft(event.target.value)}
+                                placeholder="Optional Koombiyo remark"
+                              />
+                            </label>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button className="btn btn-ghost" type="button" style={{ fontSize: 12 }} onClick={() => setShowKoombiyoForm(false)}>
+                                Cancel
+                              </button>
+                              <button
+                                className="btn btn-primary"
+                                type="button"
+                                style={{ fontSize: 12 }}
+                                disabled={isPending || !koombiyoDistrictDraft.trim() || !koombiyoCityDraft.trim()}
+                                onClick={createKoombiyoDelivery}
+                              >
+                                {isPending ? 'Creating…' : 'Create Courier Delivery'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

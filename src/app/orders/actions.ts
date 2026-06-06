@@ -13,6 +13,11 @@ import {
 } from '@/lib/authz';
 import type { UserScope } from '@/lib/access-control';
 import { transitionFulfillment } from '@/lib/fulfillment-service';
+import {
+  createKoombiyoDelivery,
+  refreshKoombiyoShipmentStatus,
+} from '@/lib/koombiyo-courier';
+import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
 
 export interface OrderActionResult {
   success: boolean;
@@ -33,6 +38,14 @@ export interface DeliveryFailureInput {
 export interface ReturnOrderInput {
   reason: string;
   note?: string;
+}
+
+export interface CreateKoombiyoDeliveryActionInput {
+  receiverDistrictId: string;
+  receiverCityId: string;
+  description?: string;
+  specialNote?: string;
+  force?: boolean;
 }
 
 async function assertOrderAccess(scope: UserScope, orderId: number) {
@@ -289,6 +302,63 @@ export async function cancelOrder(orderId: number): Promise<OrderActionResult> {
         { id: cancelled.id, customer },
         `Your order #${cancelled.id} has been cancelled. If this was unexpected, please reply and we will help.`,
       );
+    }
+
+    revalidatePath('/orders');
+    return { success: true };
+  } catch (error) {
+    return toResult(error);
+  }
+}
+
+export async function createKoombiyoDeliveryAction(
+  orderId: number,
+  input: CreateKoombiyoDeliveryActionInput,
+): Promise<OrderActionResult> {
+  try {
+    const scope = await requireActionPermission('orders:update');
+    await assertOrderAccess(scope, orderId);
+    await createKoombiyoDelivery({
+      orderId,
+      receiverDistrictId: input.receiverDistrictId,
+      receiverCityId: input.receiverCityId,
+      description: input.description,
+      specialNote: input.specialNote,
+      force: input.force,
+      actor: actorFromScope(scope),
+    });
+    revalidatePath('/orders');
+    return { success: true };
+  } catch (error) {
+    return toResult(error);
+  }
+}
+
+export async function refreshKoombiyoStatusAction(orderId: number): Promise<OrderActionResult> {
+  try {
+    const scope = await requireActionPermission('orders:update');
+    const order = await assertOrderAccess(scope, orderId);
+    const shipment = await refreshKoombiyoShipmentStatus({
+      orderId,
+      actor: actorFromScope(scope),
+    });
+    const currentStatus = normalizeFulfillmentStatus(order.orderStatus);
+    const nextStatus = normalizeFulfillmentStatus(shipment.mappedStatus);
+
+    if (
+      nextStatus !== currentStatus &&
+      (nextStatus === 'delivered' || nextStatus === 'delivery_failed') &&
+      currentStatus === 'dispatched'
+    ) {
+      await transitionFulfillment({
+        orderId,
+        toStatus: nextStatus,
+        trackingNumber: shipment.waybillId,
+        courier: 'Koombiyo Delivery',
+        note: `Koombiyo status refresh: ${shipment.courierStatus}.`,
+        failureReason: nextStatus === 'delivery_failed' ? 'Koombiyo reported a delivery issue.' : null,
+        actor: actorFromScope(scope),
+      });
     }
 
     revalidatePath('/orders');

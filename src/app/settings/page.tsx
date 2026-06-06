@@ -18,9 +18,15 @@ import {
 import { PageHeader } from '@/components/PageHeader';
 import {
   addBrandSettingsAction,
+  saveKoombiyoCourierSettingsAction,
   saveMerchantSettingsAction,
   testCourierWebhookSettingsAction,
+  testKoombiyoCourierSettingsAction,
 } from './actions';
+import {
+  getKoombiyoSettingsView,
+  type KoombiyoSettingsView,
+} from '@/lib/koombiyo-courier';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +54,7 @@ const sectionSummaryStyle = {
   justifyContent: 'space-between',
   gap: 12,
 } satisfies CSSProperties;
+const REQUIRED_BRANDS = ['DEEZ', 'Happyby', 'Cleopatra', 'Modabella'];
 
 interface CourierWebhookHealth {
   configured: boolean;
@@ -360,6 +367,146 @@ function CourierWebhookHealthPanel({
   );
 }
 
+function KoombiyoCourierSettingsPanel({
+  settings,
+  canManage,
+}: {
+  settings: KoombiyoSettingsView;
+  canManage: boolean;
+}) {
+  const apiSourceLabel =
+    settings.apiKeySource === 'database'
+      ? 'Saved in settings'
+      : settings.apiKeySource === 'env'
+        ? 'Environment fallback'
+        : 'Missing';
+  const testColor =
+    settings.lastTestStatus === 'success'
+      ? '#1E6B45'
+      : settings.lastTestStatus === 'failed'
+        ? '#8B2020'
+        : 'var(--color-fg-3)';
+
+  return (
+    <CollapsibleSection title="Courier Provider: Koombiyo">
+      <p className="app-muted" style={{ marginBottom: 12 }}>
+        Configure the Koombiyo account used by this brand. Leave the API key blank to keep the saved value.
+      </p>
+      <div style={gridStyle}>
+        <label style={fieldStyle}>
+          <span style={labelStyle}>Courier provider</span>
+          <input className="app-input" value="Koombiyo" readOnly />
+        </label>
+        <ToggleField
+          label="Koombiyo active"
+          name="koombiyoIsActive"
+          checked={settings.isActive}
+          disabled={!canManage}
+        />
+        <TokenField
+          label="Koombiyo API key"
+          name="koombiyoApiKey"
+          hasValue={settings.hasApiKey}
+          disabled={!canManage}
+        />
+        <label style={fieldStyle}>
+          <span style={labelStyle}>API key source</span>
+          <input className="app-input" value={apiSourceLabel} readOnly />
+        </label>
+      </div>
+      <div style={{ ...gridStyle, marginTop: 12 }}>
+        <TextField
+          label="Sender name"
+          name="koombiyoSenderName"
+          value={settings.senderName}
+          disabled={!canManage}
+          placeholder="Optional; Koombiyo may use account defaults"
+        />
+        <TextField
+          label="Sender address"
+          name="koombiyoSenderAddress"
+          value={settings.senderAddress}
+          disabled={!canManage}
+          placeholder="Optional"
+        />
+        <TextField
+          label="Sender phone"
+          name="koombiyoSenderPhone"
+          value={settings.senderPhone}
+          disabled={!canManage}
+          placeholder="Optional"
+        />
+      </div>
+      <div style={{ ...gridStyle, marginTop: 12 }}>
+        <TextField
+          label="Default receiver district ID"
+          name="koombiyoDefaultReceiverDistrictId"
+          value={settings.defaultReceiverDistrictId}
+          disabled={!canManage}
+          placeholder="Optional Koombiyo district ID"
+        />
+        <TextField
+          label="Default receiver city ID"
+          name="koombiyoDefaultReceiverCityId"
+          value={settings.defaultReceiverCityId}
+          disabled={!canManage}
+          placeholder="Optional Koombiyo city ID"
+        />
+        <TextField
+          label="Notes"
+          name="koombiyoNotes"
+          value={settings.notes}
+          disabled={!canManage}
+          placeholder="Internal courier notes"
+        />
+      </div>
+      <div
+        style={{
+          marginTop: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <p className="app-muted">
+          {settings.lastTestAt ? (
+            <>
+              Last test:{' '}
+              <span style={{ color: testColor, fontWeight: 700 }}>
+                {settings.lastTestStatus || 'unknown'}
+              </span>{' '}
+              on {new Date(settings.lastTestAt).toLocaleString()}
+              {settings.lastTestMessage ? ` - ${settings.lastTestMessage}` : ''}
+            </>
+          ) : (
+            'No Koombiyo connection test has been run for this brand.'
+          )}
+        </p>
+        {canManage && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-secondary"
+              type="submit"
+              formAction={testKoombiyoCourierSettingsAction}
+            >
+              Test connection
+            </button>
+            <button
+              className="app-button-primary"
+              type="submit"
+              formAction={saveKoombiyoCourierSettingsAction}
+            >
+              Save Koombiyo
+            </button>
+          </div>
+        )}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 function AddBrandForm({ canManage }: { canManage: boolean }) {
   if (!canManage) return null;
 
@@ -425,6 +572,7 @@ function AddBrandForm({ canManage }: { canManage: boolean }) {
 function SettingsForm({
   settings,
   channelConfig,
+  koombiyoSettings,
   courierWebhookSecretSaved = false,
   courierWebhookHealth,
   title,
@@ -434,6 +582,7 @@ function SettingsForm({
 }: {
   settings: MerchantSettings;
   channelConfig?: BrandChannelConfigView;
+  koombiyoSettings?: KoombiyoSettingsView;
   courierWebhookSecretSaved?: boolean;
   courierWebhookHealth?: CourierWebhookHealth;
   title: string;
@@ -623,6 +772,13 @@ function SettingsForm({
                 </div>
               </CollapsibleSection>
             )}
+
+            {settings.brand && koombiyoSettings && (
+              <KoombiyoCourierSettingsPanel
+                settings={koombiyoSettings}
+                canManage={canManage}
+              />
+            )}
           </div>
         </div>
       </details>
@@ -667,6 +823,7 @@ export default async function SettingsPage() {
     }),
   ]);
   const brandNames = uniqueBrands([
+    ...REQUIRED_BRANDS,
     ...settingsRows.map((row) => row.brand),
     ...channelRows.map((row) => row.brand),
     ...productBrands.map((row) => row.brand),
@@ -723,6 +880,7 @@ export default async function SettingsPage() {
     brandNames.map(async (brand) => ({
       settings: await getMerchantSettings(brand),
       channelConfig: await getBrandChannelConfigView(brand),
+      koombiyoSettings: await getKoombiyoSettingsView(brand),
     }))
   );
 
@@ -761,11 +919,12 @@ export default async function SettingsPage() {
                 Store-specific settings
               </h2>
             </div>
-            {scopedSettings.map(({ settings, channelConfig }) => (
+            {scopedSettings.map(({ settings, channelConfig, koombiyoSettings }) => (
               <SettingsForm
                 key={settings.storeKey}
                 settings={settings}
                 channelConfig={channelConfig}
+                koombiyoSettings={koombiyoSettings}
                 title={settings.displayName}
                 subtitle={`Overrides customer-facing behavior for ${settings.brand}.`}
                 canManage={canManage}

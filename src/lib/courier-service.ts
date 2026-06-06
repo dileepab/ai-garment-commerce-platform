@@ -21,16 +21,30 @@ export interface CourierWebhookPayload {
 function mapKoombiyoStatus(status: string): FulfillmentStatus {
   const s = status.toLowerCase().trim();
   switch (s) {
+    case 'pending':
+    case 'created':
+    case 'order_created':
+    case 'picked up':
+    case 'picked_up':
     case 'pickup_complete':
+    case 'pickup complete':
+    case 'in transit':
     case 'in_transit':
+    case 'out for delivery':
     case 'out_for_delivery':
       return 'dispatched';
     case 'delivered':
+    case 'delivery complete':
     case 'delivered_success':
       return 'delivered';
     case 'failed':
+    case 'delivery failed':
     case 'delivery_failed':
+    case 'returned':
+    case 'return':
+    case 'return to hub':
     case 'returned_to_hub':
+    case 'rejected by customer':
     case 'rejected_by_customer':
       return 'delivery_failed';
     default:

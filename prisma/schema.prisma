@@ -129,6 +129,7 @@ model Order {
   orderItems           OrderItem[]
   supportEscalations   SupportEscalation[]
   fulfillmentEvents    OrderFulfillmentEvent[]
+  courierShipments     CourierShipment[]
   courierWebhookEvents CourierWebhookEventLog[]
   returnRequests       ReturnRequest[]          @relation("OriginalOrder")
   replacedByRequests   ReturnRequest[]          @relation("ReplacementOrder")
@@ -392,6 +393,51 @@ model CourierWebhookEventLog {
 
   @@index([orderId, receivedAt])
   @@index([provider, status, receivedAt])
+}
+
+model CourierIntegrationSetting {
+  id                        Int       @id @default(autoincrement())
+  brand                     String
+  provider                  String    @default("koombiyo")
+  isActive                  Boolean   @default(false)
+  apiKey                    String?
+  senderName                String?
+  senderAddress             String?
+  senderPhone               String?
+  defaultReceiverDistrictId String?
+  defaultReceiverCityId     String?
+  notes                     String?
+  lastTestAt                DateTime?
+  lastTestStatus            String?
+  lastTestMessage           String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  @@unique([brand, provider])
+  @@index([provider, isActive])
+}
+
+model CourierShipment {
+  id                 Int       @id @default(autoincrement())
+  orderId            Int
+  order              Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  brand              String?
+  provider           String
+  waybillId          String
+  providerOrderId    String?
+  orderReference     String?
+  courierStatus      String    @default("created")
+  mappedStatus       String?
+  rawResponse        String?
+  lastSyncedAt       DateTime?
+  createdByEmail     String?
+  createdByName      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([provider, waybillId])
+  @@index([orderId, provider])
+  @@index([provider, courierStatus, updatedAt])
 }
 
 model AdminAuditLog {

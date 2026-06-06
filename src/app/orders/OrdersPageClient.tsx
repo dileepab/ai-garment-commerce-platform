@@ -77,6 +77,24 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
     receivedAt: string;
     processedAt: string | null;
   }[];
+  courierShipments: {
+    id: number;
+    provider: string;
+    waybillId: string;
+    providerOrderId: string | null;
+    orderReference: string | null;
+    courierStatus: string;
+    mappedStatus: string | null;
+    lastSyncedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  koombiyoCourier: {
+    isActive: boolean;
+    hasApiKey: boolean;
+    defaultReceiverDistrictId: string | null;
+    defaultReceiverCityId: string | null;
+  } | null;
   returnRequests: {
     id: number;
     type: string;
@@ -242,6 +260,14 @@ export default function OrdersPageClient({
           o.paymentMethod || '',
           o.orderStatus,
           normalizeOrderStatus(o.orderStatus),
+          o.trackingNumber || '',
+          o.courier || '',
+          ...o.courierShipments.flatMap((shipment) => [
+            shipment.provider,
+            shipment.waybillId,
+            shipment.courierStatus,
+            shipment.mappedStatus || '',
+          ]),
           ...o.orderItems.flatMap((item) => [
             item.product?.name || '',
             item.product?.style || '',
@@ -436,6 +462,7 @@ export default function OrdersPageClient({
                 <th>Payment</th>
                 <th>Support</th>
                 <th style={{ textAlign: "right" }}>Total</th>
+                <th>Courier</th>
                 <th>Status</th>
                 <th>Waiting</th>
                 <th style={{ textAlign: "right" }}>Action</th>
@@ -454,6 +481,9 @@ export default function OrdersPageClient({
                   : o.supportEscalations.length > 0
                     ? "resolved"
                     : "clear";
+                const latestKoombiyoShipment = [...o.courierShipments]
+                  .filter((shipment) => shipment.provider === 'koombiyo')
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
                 return (
                   <tr key={o.id} onClick={() => setSelectedOrderId(o.id)} className="cursor-pointer">
                     <td><code style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-fg-3)" }}>#ORD-{o.id}</code></td>
@@ -476,6 +506,21 @@ export default function OrdersPageClient({
                       <span className={`support-state-chip${activeSupport.length > 0 ? ' active' : ''}`}>{supportLabel}</span>
                     </td>
                     <td style={{ textAlign: "right", fontWeight: 700 }}>₺{o.totalAmount.toLocaleString()}</td>
+                    <td>
+                      {latestKoombiyoShipment ? (
+                        <div className="order-items-cell">
+                          <span className="order-item-summary">{latestKoombiyoShipment.courierStatus}</span>
+                          <span className="order-item-meta">{latestKoombiyoShipment.waybillId}</span>
+                        </div>
+                      ) : o.trackingNumber || o.courier ? (
+                        <div className="order-items-cell">
+                          <span className="order-item-summary">{o.courier || 'Courier'}</span>
+                          <span className="order-item-meta">{o.trackingNumber || 'No tracking'}</span>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "var(--color-fg-3)" }}>—</span>
+                      )}
+                    </td>
                     <td>
                       <span className={`pill pill-${displayStatus}`}>
                         {STATUS_LABELS[o.orderStatus] || displayStatus}
@@ -500,7 +545,7 @@ export default function OrdersPageClient({
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-fg-3)" }}>
+                  <td colSpan={12} style={{ textAlign: "center", padding: "40px 0", color: "var(--color-fg-3)" }}>
                     No orders match your filters.
                     {hasActiveFilters && (
                       <>

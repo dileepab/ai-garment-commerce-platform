@@ -6,6 +6,7 @@ import { assertBrandAccess, requireActionPermission } from '@/lib/authz';
 import { buildMerchantSettingsPersistenceInput } from '@/lib/runtime-config';
 import { getCourierWebhookSecret } from '@/lib/courier-webhook-secret';
 import { logAdminAudit } from '@/lib/admin-audit';
+import { testKoombiyoConnectionForBrand } from '@/lib/koombiyo-courier';
 
 function readText(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -29,6 +30,10 @@ function cleanOptionalText(value: string | null): string | null {
 function cleanAccessToken(value: string | null): string | null {
   const cleaned = value?.replace(/\s+/g, '').trim();
   return cleaned ? cleaned : null;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unexpected error';
 }
 
 function readList(formData: FormData, key: string): string[] {
@@ -218,6 +223,111 @@ export async function testCourierWebhookSettingsAction() {
     metadata: {
       configured: Boolean(configuredSecret),
       source,
+    },
+  });
+
+  revalidatePath('/settings');
+}
+
+export async function saveKoombiyoCourierSettingsAction(formData: FormData) {
+  const scope = await requireActionPermission('settings:write');
+  const brand = cleanOptionalText(readText(formData, 'brand'));
+
+  if (!brand) {
+    return;
+  }
+
+  assertBrandAccess(scope, brand, 'courier settings');
+
+  const apiKey = cleanAccessToken(readText(formData, 'koombiyoApiKey'));
+  const data = {
+    brand,
+    provider: 'koombiyo',
+    isActive: readBoolean(formData, 'koombiyoIsActive'),
+    senderName: cleanOptionalText(readText(formData, 'koombiyoSenderName')),
+    senderAddress: cleanOptionalText(readText(formData, 'koombiyoSenderAddress')),
+    senderPhone: cleanOptionalText(readText(formData, 'koombiyoSenderPhone')),
+    defaultReceiverDistrictId: cleanOptionalText(readText(formData, 'koombiyoDefaultReceiverDistrictId')),
+    defaultReceiverCityId: cleanOptionalText(readText(formData, 'koombiyoDefaultReceiverCityId')),
+    notes: cleanOptionalText(readText(formData, 'koombiyoNotes')),
+    ...(apiKey ? { apiKey } : {}),
+  };
+  const { provider, ...updateData } = data;
+
+  await prisma.courierIntegrationSetting.upsert({
+    where: { brand_provider: { brand, provider } },
+    create: data,
+    update: updateData,
+  });
+
+  await logAdminAudit({
+    action: 'courier_settings_saved',
+    entityType: 'courier_settings',
+    entityId: `${brand}:koombiyo`,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Saved Koombiyo courier settings for ${brand}.`,
+    metadata: {
+      provider,
+      isActive: data.isActive,
+      updatedApiKey: Boolean(apiKey),
+      hasDefaultReceiverDistrictId: Boolean(data.defaultReceiverDistrictId),
+      hasDefaultReceiverCityId: Boolean(data.defaultReceiverCityId),
+    },
+  });
+
+  revalidatePath('/settings');
+}
+
+export async function testKoombiyoCourierSettingsAction(formData: FormData) {
+  const scope = await requireActionPermission('settings:write');
+  const brand = cleanOptionalText(readText(formData, 'brand'));
+
+  if (!brand) {
+    return;
+  }
+
+  assertBrandAccess(scope, brand, 'courier settings');
+
+  let status = 'failed';
+  let message = '';
+
+  try {
+    const result = await testKoombiyoConnectionForBrand(brand);
+    status = result.ok ? 'success' : 'failed';
+    message = result.message;
+  } catch (error) {
+    message = getErrorMessage(error);
+  }
+
+  await prisma.courierIntegrationSetting.upsert({
+    where: { brand_provider: { brand, provider: 'koombiyo' } },
+    create: {
+      brand,
+      provider: 'koombiyo',
+      isActive: false,
+      lastTestAt: new Date(),
+      lastTestStatus: status,
+      lastTestMessage: message,
+    },
+    update: {
+      lastTestAt: new Date(),
+      lastTestStatus: status,
+      lastTestMessage: message,
+    },
+  });
+
+  await logAdminAudit({
+    action: 'courier_settings_tested',
+    entityType: 'courier_settings',
+    entityId: `${brand}:koombiyo`,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Koombiyo connection test ${status} for ${brand}.`,
+    metadata: {
+      provider: 'koombiyo',
+      status,
+      message,
     },
   });
 
