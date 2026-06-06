@@ -105,10 +105,12 @@ export default function ProductsPageClient({
   initialProducts,
   stats,
   canManageProducts,
+  availableBrands,
 }: {
   initialProducts: ProductWithVariants[];
   stats: ProductsPageStats;
   canManageProducts: boolean;
+  availableBrands: string[];
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -131,11 +133,6 @@ export default function ProductsPageClient({
     });
     return c;
   }, [initialProducts]);
-
-  const availableBrands = useMemo(
-    () => [...new Set(initialProducts.map(p => p.brand))].sort(),
-    [initialProducts],
-  );
 
   function openAddForm() {
     setEditingProduct(null);
