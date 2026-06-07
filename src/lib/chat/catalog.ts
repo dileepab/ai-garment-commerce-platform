@@ -13,6 +13,7 @@ import {
   buildSizeChartSelectionReply,
 } from '@/lib/chat/reply-builders';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
+import { brandsMatch } from '@/lib/brand-aliases';
 import type { ChatContext } from './types';
 
 type ProductImageSource = {
@@ -113,13 +114,16 @@ function getAvailableQty(product: {
   inventory?: { availableQty: number } | null;
   variants?: Array<{ status?: string | null; inventory?: { availableQty: number } | null }>;
 }): number {
+  const productLevelQty = product.inventory?.availableQty ?? product.stock ?? 0;
+
   if (product.variants && product.variants.length > 0) {
-    return product.variants
+    const variantQty = product.variants
       .filter((variant) => !variant.status || variant.status === 'active')
       .reduce((sum, variant) => sum + (variant.inventory?.availableQty ?? 0), 0);
+    return Math.max(variantQty, productLevelQty);
   }
 
-  return product.inventory?.availableQty ?? product.stock ?? 0;
+  return productLevelQty;
 }
 
 function hasAvailableStock(product: {
@@ -173,7 +177,7 @@ export async function handle_catalog_list(ctx: ChatContext) {
 
     const crossBrandProducts = globalProducts.filter(
       (product) =>
-        product.brand !== brandFilter &&
+        !brandsMatch(product.brand, brandFilter) &&
         getSizeChartCategoryFromStyle(product.style) === category &&
         hasAvailableStock(product)
     );
@@ -233,7 +237,7 @@ export async function handle_product_question(ctx: ChatContext) {
 
       const crossBrandProducts = globalProducts.filter(
         (product) =>
-          product.brand !== brandFilter &&
+          !brandsMatch(product.brand, brandFilter) &&
           getSizeChartCategoryFromStyle(product.style) === category &&
           hasAvailableStock(product)
       );

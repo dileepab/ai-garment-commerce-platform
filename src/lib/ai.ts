@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import prisma from '@/lib/prisma';
+import { brandsMatch } from '@/lib/brand-aliases';
 import {
   cleanStoredContactName,
   collectContactDetailsFromMessages,
@@ -75,14 +76,15 @@ export async function getAiStockReply(
     const ai = new GoogleGenAI({ apiKey });
 
     // 1. Fetch real-time products & variant inventory context
-    const whereClause = brandFilter ? { brand: brandFilter } : {};
-    const products = await prisma.product.findMany({
-      where: whereClause,
+    const allProducts = await prisma.product.findMany({
       include: {
         inventory: true,
         variants: { include: { inventory: true } },
       },
     });
+    const products = brandFilter
+      ? allProducts.filter((product) => brandsMatch(product.brand, brandFilter))
+      : allProducts;
 
     const stockContext = products.map(p => {
       const activeVariants = p.variants.filter(v => (v.inventory?.availableQty ?? 0) > 0);
@@ -467,14 +469,15 @@ export async function getAiCommentReply(
     const ai = new GoogleGenAI({ apiKey });
 
     // 1. Fetch real-time products & variant inventory context
-    const whereClause = brand ? { brand } : {};
-    const products = await prisma.product.findMany({
-      where: whereClause,
+    const allProducts = await prisma.product.findMany({
       include: {
         inventory: true,
         variants: { include: { inventory: true } },
       },
     });
+    const products = brand
+      ? allProducts.filter((product) => brandsMatch(product.brand, brand))
+      : allProducts;
 
     const stockContext = products.map(p => {
       const activeVariants = p.variants.filter(v => (v.inventory?.availableQty ?? 0) > 0);

@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { brandsMatch } from '@/lib/brand-aliases';
 import {
   extractExplicitOrderIdFromMessage,
   extractMaximumQuantityFromAssistantMessage,
@@ -262,12 +263,12 @@ export async function routeCustomerMessage(
     orderBy: { createdAt: 'asc' },
   });
   
-  const products = brandFilter 
-    ? globalProducts.filter(product => product.brand === brandFilter)
+  const products = brandFilter
+    ? globalProducts.filter((product) => brandsMatch(product.brand, brandFilter))
     : globalProducts;
 
   const scopedOrders = brandFilter
-    ? customer?.orders.filter((order) => order.brand === brandFilter) ?? []
+    ? customer?.orders.filter((order) => brandsMatch(order.brand, brandFilter)) ?? []
     : customer?.orders ?? [];
   const latestOrder = scopedOrders[0] || null;
   const latestActiveOrder =
