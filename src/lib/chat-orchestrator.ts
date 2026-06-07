@@ -496,10 +496,12 @@ export async function routeCustomerMessage(
               .map((variant) => variant.color)
           ))
         : colors;
+    const productColors = splitCsv(product.colors);
     const color =
       normalizeColor(aiAction.color, colorsForSelectedSize) ||
+      (aiAction.color ? normalizeColor(aiAction.color, productColors) || aiAction.color : undefined) ||
       previousDraft?.color ||
-      (colorsForSelectedSize.length === 1 ? colorsForSelectedSize[0] : undefined);
+      (!aiAction.color && colorsForSelectedSize.length === 1 ? colorsForSelectedSize[0] : undefined);
     const quantity = aiAction.quantity || previousDraft?.quantity || 1;
     const paymentMethod =
       aiAction.paymentMethod ||

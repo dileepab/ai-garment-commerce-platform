@@ -1638,7 +1638,7 @@ async function main() {
         senderId: buildSender(runId, 'stock-cap'),
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
-          'Stock Cap Customer',
+          'Cap Customer',
           '12 Main Street, Kurunegala',
           '0771007878',
           'yes correct',
