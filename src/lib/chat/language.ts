@@ -366,3 +366,115 @@ ${reply}`;
 
   return localizeFallback(reply, language);
 }
+
+export async function generateConversationalReplyWithGemini(
+  reply: string | null,
+  language: CustomerLanguage,
+  customerMessage: string,
+  history: Array<{ role: string; message: string }>,
+  brandName?: string | null,
+  customerName?: string | null
+): Promise<string | null> {
+  if (!reply) {
+    return null;
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || process.env.CHAT_TEST_MODE === '1') {
+    return null;
+  }
+
+  const brandDisplayName = brandName || 'our store';
+  const languageName =
+    language === 'sinhala' ? 'Sinhala' : language === 'tamil' ? 'Tamil' : 'English';
+
+  const scriptInstruction =
+    language === 'sinhala'
+      ? 'Reply in natural conversational Sinhala script (not romanized Sinhala).'
+      : language === 'tamil'
+        ? 'Reply in natural conversational Tamil script.'
+        : 'Reply in English.';
+
+  // Format history from oldest to newest
+  const chatHistory = [...history]
+    .reverse()
+    .map((m) => `${m.role === 'user' ? 'Customer' : 'Nisha (AI)'}: ${m.message}`)
+    .join('\n');
+
+  const prompt = `You are Nisha, a professional customer service representative for the online clothing store "${brandDisplayName}" in Sri Lanka.
+Your goal is to rewrite the raw draft reply (DATABASE_VERIFIED_REPLY) into a natural, conversational, polite, and warm customer response in ${languageName}.
+
+CONVERSATION CONTEXT:
+- Customer's Name: ${customerName || 'Customer'}
+- Latest message from Customer: "${customerMessage}"
+${chatHistory ? `- Conversation History:\n${chatHistory}\n` : ''}
+
+DATABASE_VERIFIED_REPLY (Your absolute source of truth):
+"""
+${reply}
+"""
+
+CRITICAL RULES FOR REWRITING:
+1. FACTUAL ACCURACY: You must strictly adhere to the information in the DATABASE_VERIFIED_REPLY.
+   - Do NOT invent, change, or omit any names, order IDs, quantities, prices, sizes, colors, shipping fees, courier terms, or delivery dates.
+   - For example, if the DATABASE_VERIFIED_REPLY states "shipping charge is Rs 350", you must use exactly "Rs 350".
+   - If a product is out of stock or has specific sizes, do not claim otherwise.
+
+2. PRESERVE STRUCTURED BLOCKS:
+   - If the DATABASE_VERIFIED_REPLY contains an Order Summary block or a Contact Details block (where details are shown line-by-line using exact labels like Name:, Street Address:, City/Town:, District:, Phone Number:, Product:, Quantity:, Size:, Color:, Price:), you MUST preserve that exact line-by-line format and values.
+   - Do not wrap these summary blocks in markdown quotes, bullet points, or tables. Keep them as clean, plain-text blocks.
+   - Make the surrounding messages (intro/outro) conversational.
+
+3. TONE & STYLE:
+   - Keep the reply friendly, polite, warm, and premium.
+   - Never say you are an AI or virtual assistant.
+   - Mirror the language and style of the customer, replying in ${scriptInstruction}
+   - Product names, brand names, order IDs, prices, sizes, and colors must remain in their original form (e.g. "Rs 1650").
+
+4. ACTION & CTAs:
+   - Make the response concise (1-3 sentences maximum for the conversational parts).
+   - If the draft reply ends with a question, make sure to keep a similar low-friction question or call to action to move the sale forward.
+
+Output only the final rewritten reply.`;
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  for (let index = 0; index < TEXT_MODEL_CHAIN.length; index += 1) {
+    const model = TEXT_MODEL_CHAIN[index];
+
+    try {
+      logDebug('Chat Language', `Trying Gemini text conversational model ${model}.`, {
+        language,
+      });
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ text: prompt }],
+        config: {
+          temperature: 0.3,
+        },
+      });
+      const rewritten = response.text?.trim();
+
+      if (rewritten) {
+        return rewritten;
+      }
+    } catch (error) {
+      const status = getErrorStatus(error);
+
+      if ((status === 429 || status === 503 || status === 404) && index < TEXT_MODEL_CHAIN.length - 1) {
+        logWarn('Chat Language', `Gemini text conversational model ${model} failed; trying fallback.`, {
+          language,
+          status,
+          nextModel: TEXT_MODEL_CHAIN[index + 1],
+        });
+        continue;
+      }
+
+      logError('Chat Language', 'Gemini text conversational rewriting failed.', error);
+      break;
+    }
+  }
+
+  return null;
+}
+

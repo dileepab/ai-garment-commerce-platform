@@ -43,6 +43,7 @@ import {
   buildLanguagePreferenceAcknowledgement,
   isLanguagePreferenceOnlyMessage,
   localizeReplyWithGemini,
+  generateConversationalReplyWithGemini,
   resolveCustomerLanguage,
 } from '@/lib/chat/language';
 import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
@@ -569,9 +570,28 @@ export async function routeCustomerMessage(
     skipLocalization?: boolean;
   }): Promise<CustomerMessageResult> {
     const assistantReplyKind = params.assistantReplyKind || 'generic';
-    const localizedReply = params.skipLocalization
-      ? params.reply
-      : await localizeReplyWithGemini(params.reply, replyLanguage);
+    let localizedReply: string | null = null;
+    if (params.skipLocalization) {
+      localizedReply = params.reply;
+    } else {
+      const apiKey = process.env.GEMINI_API_KEY;
+      const isChatTestMode = process.env.CHAT_TEST_MODE === '1';
+
+      if (apiKey && !isChatTestMode && params.reply) {
+        localizedReply = await generateConversationalReplyWithGemini(
+          params.reply,
+          replyLanguage,
+          input.currentMessage,
+          recentMessages,
+          brandFilter,
+          customer?.name || input.customerName
+        );
+      }
+
+      if (!localizedReply) {
+        localizedReply = await localizeReplyWithGemini(params.reply, replyLanguage);
+      }
+    }
     const shouldPersistState =
       Boolean(params.nextState) ||
       Boolean(params.assistantReplyKind) ||
