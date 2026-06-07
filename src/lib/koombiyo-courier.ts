@@ -7,6 +7,7 @@ import { getBrandLookupAliases } from '@/lib/brand-aliases';
 const KOOMBIYO_PROVIDER = 'koombiyo';
 const KOOMBIYO_COURIER_NAME = 'Koombiyo Delivery';
 const LOCATION_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const WAYBILL_FETCH_LIMIT = 50;
 const KOOMBIYO_BASE_URL =
   process.env.KOOMBIYO_BASE_URL?.trim().replace(/\/+$/, '') ||
   'https://application.koombiyodelivery.lk';
@@ -270,8 +271,35 @@ function walkResponse(
   return null;
 }
 
-function extractWaybillId(value: KoombiyoResponseValue): string | null {
-  const keyed = walkResponse(value, (key, primitive) => {
+function collectResponseMatches(
+  value: KoombiyoResponseValue,
+  visitor: (key: string, primitive: string) => string | null,
+  key = '',
+): string[] {
+  if (typeof value === 'string' || typeof value === 'number') {
+    const found = visitor(key, String(value).trim());
+    return found ? [found] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectResponseMatches(item, visitor, key));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([childKey, childValue]) =>
+      collectResponseMatches(childValue, visitor, childKey)
+    );
+  }
+
+  return [];
+}
+
+function uniqueInOrder(values: string[]): string[] {
+  return values.filter((value, index) => values.indexOf(value) === index);
+}
+
+function extractWaybillIds(value: KoombiyoResponseValue): string[] {
+  const keyedMatches = collectResponseMatches(value, (key, primitive) => {
     const normalizedKey = key.toLowerCase();
     if (
       primitive &&
@@ -286,9 +314,13 @@ function extractWaybillId(value: KoombiyoResponseValue): string | null {
     return null;
   });
 
-  if (keyed) return keyed;
+  if (keyedMatches.length > 0) {
+    return uniqueInOrder(keyedMatches);
+  }
 
-  return walkResponse(value, (_key, primitive) => (/\d{6,}/.test(primitive) ? primitive : null));
+  return uniqueInOrder(
+    collectResponseMatches(value, (_key, primitive) => (/\d{6,}/.test(primitive) ? primitive : null))
+  );
 }
 
 function extractStatus(value: KoombiyoResponseValue): string | null {
@@ -571,14 +603,31 @@ async function resolveKoombiyoLocationFromAddress(
 async function fetchAllocatedWaybill(apiKey: string): Promise<{ waybillId: string; rawResponse: string }> {
   const response = await postKoombiyoForm('/api/Waybils/users', {
     apikey: apiKey,
-    limit: '1',
+    limit: String(WAYBILL_FETCH_LIMIT),
   });
-  const waybillId = extractWaybillId(response);
+  const waybillIds = extractWaybillIds(response);
 
-  if (!waybillId) {
+  if (waybillIds.length === 0) {
     throw new OrderRequestError(
       `Koombiyo returned an unexpected waybill response: ${stringifyKoombiyoMessage(response)}`,
       502,
+    );
+  }
+
+  const existingShipments = await prisma.courierShipment.findMany({
+    where: {
+      provider: KOOMBIYO_PROVIDER,
+      waybillId: { in: waybillIds },
+    },
+    select: { waybillId: true },
+  });
+  const usedWaybills = new Set(existingShipments.map((shipment) => shipment.waybillId));
+  const waybillId = waybillIds.find((candidate) => !usedWaybills.has(candidate));
+
+  if (!waybillId) {
+    throw new OrderRequestError(
+      `All ${waybillIds.length} allocated Koombiyo waybills are already assigned in DEEZ. Request a new waybill allocation from Koombiyo and try again.`,
+      409,
     );
   }
 

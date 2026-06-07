@@ -95,6 +95,14 @@ function toResult(error: unknown): OrderActionResult {
   if (error instanceof OrderRequestError) {
     return { success: false, error: error.message };
   }
+  logWarn('Order Actions', 'Unexpected order action failure.', {
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorMessage: error instanceof Error ? error.message : String(error),
+    errorCode:
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code)
+        : null,
+  });
   return { success: false, error: 'Failed to update order. Please retry.' };
 }
 
