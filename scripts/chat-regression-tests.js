@@ -1300,14 +1300,14 @@ async function main() {
         verify: async ({ transcript, senderId }) => {
           assertIncludes(transcript[6].bot, [
             'I have updated order #',
-            'Address: 99 Self Service Road, Colombo',
+            'Address: 99 Self Service Road, Colombo, Colombo',
             'Phone Number: 0771234500',
           ], 'Self-service contact update reply');
 
           const { customer, latestOrder } = await getLatestOrderForSender(senderId);
           assert(latestOrder, 'Expected an order for the self-service contact update test.');
           assert(
-            latestOrder.deliveryAddress === '99 Self Service Road, Colombo',
+            latestOrder.deliveryAddress === '99 Self Service Road, Colombo, Colombo',
             `Expected delivery address to update, received ${String(latestOrder.deliveryAddress)}.`
           );
           assert(
@@ -1405,7 +1405,7 @@ async function main() {
             where: { id: latestOrder.id },
           });
           assert(
-            orderAfter?.deliveryAddress === '12 Main Street, Kurunegala',
+            orderAfter?.deliveryAddress === '12 Main Street, Kurunegala, Kurunegala',
             `Expected dispatched order address to remain unchanged, received ${String(orderAfter?.deliveryAddress)}.`
           );
 
