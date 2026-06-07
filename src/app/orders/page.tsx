@@ -3,6 +3,7 @@ import { canScope, getBrandScopedWhere } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import OrdersPageClient from './OrdersPageClient';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
+import { getBrandLookupAliases } from '@/lib/brand-aliases';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,10 +57,11 @@ export default async function OrdersPage() {
   const orderBrandNames = Array.from(
     new Set(orders.map((order) => order.brand).filter((brand): brand is string => Boolean(brand)))
   );
+  const koombiyoLookupBrands = Array.from(new Set(orderBrandNames.flatMap((brand) => getBrandLookupAliases(brand))));
   const koombiyoSettings = await prisma.courierIntegrationSetting.findMany({
     where: {
       provider: 'koombiyo',
-      brand: { in: orderBrandNames },
+      brand: { in: koombiyoLookupBrands },
     },
     select: {
       brand: true,
@@ -69,9 +71,18 @@ export default async function OrdersPage() {
       defaultReceiverCityId: true,
     },
   });
-  const koombiyoSettingsByBrand = new Map(
-    koombiyoSettings.map((setting) => [setting.brand, setting])
-  );
+  const getKoombiyoSettingForBrand = (brand: string) => {
+    const aliases = getBrandLookupAliases(brand);
+    const matches = koombiyoSettings.filter((setting) => aliases.includes(setting.brand));
+    return (
+      matches.find((setting) => setting.brand === brand && setting.isActive) ||
+      matches.find((setting) => setting.isActive) ||
+      matches.find((setting) => setting.brand === brand) ||
+      matches.find((setting) => Boolean(setting.apiKey)) ||
+      matches[0] ||
+      null
+    );
+  };
 
   const normalizedCounts = orders.reduce<Record<string, number>>((acc, o) => {
     const key = normalizeFulfillmentStatus(o.orderStatus);
@@ -111,7 +122,7 @@ export default async function OrdersPage() {
     returnReason: o.returnReason,
     koombiyoCourier: o.brand
       ? (() => {
-          const setting = koombiyoSettingsByBrand.get(o.brand);
+          const setting = getKoombiyoSettingForBrand(o.brand);
           return {
             isActive: setting?.isActive ?? false,
             hasApiKey: Boolean(setting?.apiKey),

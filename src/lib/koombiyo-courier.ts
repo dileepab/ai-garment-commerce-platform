@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma';
 import { OrderRequestError } from '@/lib/orders';
 import { mapCourierStatus } from '@/lib/courier-service';
 import type { FulfillmentStatus } from '@/lib/fulfillment';
+import { getBrandLookupAliases } from '@/lib/brand-aliases';
 
 const KOOMBIYO_PROVIDER = 'koombiyo';
 const KOOMBIYO_COURIER_NAME = 'Koombiyo Delivery';
@@ -104,6 +105,42 @@ function getEnvApiKey(brand: string): string | null {
       legacyHappybyKey ||
       process.env.KOOMBIYO_API_KEY
   );
+}
+
+function getCanonicalBrandForStorage(brand: string): string {
+  return getBrandLookupAliases(brand)[0] || brand;
+}
+
+function pickPreferredBrandRecord<T extends { brand: string; isActive?: boolean | null; apiKey?: string | null }>(
+  brand: string,
+  records: T[],
+): T | null {
+  const cleaned = brand.trim();
+  return (
+    records.find((record) => record.brand === cleaned && record.isActive && cleanApiKey(record.apiKey)) ||
+    records.find((record) => record.isActive && cleanApiKey(record.apiKey)) ||
+    records.find((record) => record.brand === cleaned && record.isActive) ||
+    records.find((record) => record.isActive) ||
+    records.find((record) => record.brand === cleaned && cleanApiKey(record.apiKey)) ||
+    records.find((record) => Boolean(cleanApiKey(record.apiKey))) ||
+    records.find((record) => record.brand === cleaned) ||
+    records[0] ||
+    null
+  );
+}
+
+async function findKoombiyoSettingsRecord(brand: string) {
+  const aliases = getBrandLookupAliases(brand);
+  if (aliases.length === 0) return null;
+
+  const records = await prisma.courierIntegrationSetting.findMany({
+    where: {
+      provider: KOOMBIYO_PROVIDER,
+      brand: { in: aliases },
+    },
+  });
+
+  return pickPreferredBrandRecord(brand, records);
 }
 
 function compactPayload(value: unknown): string {
@@ -340,9 +377,7 @@ async function postKoombiyoForm(path: string, fields: Record<string, string>): P
 }
 
 export async function getKoombiyoSettingsView(brand: string): Promise<KoombiyoSettingsView> {
-  const record = await prisma.courierIntegrationSetting.findUnique({
-    where: { brand_provider: { brand, provider: KOOMBIYO_PROVIDER } },
-  });
+  const record = await findKoombiyoSettingsRecord(brand);
   const envApiKey = getEnvApiKey(brand);
   const dbApiKey = cleanApiKey(record?.apiKey);
   const apiKeySource = dbApiKey ? 'database' : envApiKey ? 'env' : 'missing';
@@ -366,10 +401,7 @@ export async function getKoombiyoSettingsView(brand: string): Promise<KoombiyoSe
 }
 
 async function resolveKoombiyoApiKey(brand: string): Promise<string> {
-  const record = await prisma.courierIntegrationSetting.findUnique({
-    where: { brand_provider: { brand, provider: KOOMBIYO_PROVIDER } },
-    select: { apiKey: true },
-  });
+  const record = await findKoombiyoSettingsRecord(brand);
   const apiKey = cleanApiKey(record?.apiKey) || getEnvApiKey(brand);
 
   if (!apiKey) {
@@ -414,6 +446,7 @@ async function fetchKoombiyoCities(apiKey: string, districtId: string): Promise<
 
 export async function syncKoombiyoLocationsForBrand(brand: string): Promise<number> {
   const apiKey = await resolveKoombiyoApiKey(brand);
+  const storageBrand = getCanonicalBrandForStorage(brand);
   const districts = await fetchKoombiyoDistricts(apiKey);
   let synced = 0;
 
@@ -424,14 +457,14 @@ export async function syncKoombiyoLocationsForBrand(brand: string): Promise<numb
       await prisma.courierLocation.upsert({
         where: {
           brand_provider_districtId_cityId: {
-            brand,
+            brand: storageBrand,
             provider: KOOMBIYO_PROVIDER,
             districtId: district.id,
             cityId: city.id,
           },
         },
         create: {
-          brand,
+          brand: storageBrand,
           provider: KOOMBIYO_PROVIDER,
           districtId: district.id,
           districtName: district.name,
@@ -457,8 +490,9 @@ export async function syncKoombiyoLocationsForBrand(brand: string): Promise<numb
 }
 
 async function ensureKoombiyoLocations(brand: string): Promise<void> {
+  const aliases = getBrandLookupAliases(brand);
   const latest = await prisma.courierLocation.findFirst({
-    where: { brand, provider: KOOMBIYO_PROVIDER },
+    where: { brand: { in: aliases }, provider: KOOMBIYO_PROVIDER },
     orderBy: { syncedAt: 'desc' },
     select: { syncedAt: true },
   });
@@ -478,7 +512,7 @@ async function resolveKoombiyoLocationFromAddress(
   if (!normalizedAddress) return null;
 
   const locations = await prisma.courierLocation.findMany({
-    where: { brand, provider: KOOMBIYO_PROVIDER },
+    where: { brand: { in: getBrandLookupAliases(brand) }, provider: KOOMBIYO_PROVIDER },
     select: {
       districtId: true,
       districtName: true,
@@ -579,9 +613,7 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
     throw new OrderRequestError('This order does not have a brand, so a brand courier account cannot be selected.', 409);
   }
 
-  const settings = await prisma.courierIntegrationSetting.findUnique({
-    where: { brand_provider: { brand, provider: KOOMBIYO_PROVIDER } },
-  });
+  const settings = await findKoombiyoSettingsRecord(brand);
 
   if (!settings?.isActive) {
     throw new OrderRequestError(`Koombiyo is not active for ${brand}. Enable it in Settings first.`, 409);

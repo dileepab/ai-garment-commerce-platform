@@ -12,6 +12,17 @@ export function normalizeBrandKey(value?: string | null): string {
   return compact ? BRAND_KEY_ALIASES[compact] || compact : '';
 }
 
+export function getBrandLookupAliases(value?: string | null): string[] {
+  const cleaned = (value ?? '').trim();
+  const key = normalizeBrandKey(cleaned);
+
+  if (key === 'happybuy') {
+    return Array.from(new Set(['Happybuy', cleaned, 'Happyby', 'Happy Buy', 'happybuy', 'happyby'].filter(Boolean)));
+  }
+
+  return cleaned ? [cleaned] : [];
+}
+
 export function brandsMatch(left?: string | null, right?: string | null): boolean {
   const leftKey = normalizeBrandKey(left);
   const rightKey = normalizeBrandKey(right);

@@ -10,6 +10,7 @@ import {
   syncKoombiyoLocationsForBrand,
   testKoombiyoConnectionForBrand,
 } from '@/lib/koombiyo-courier';
+import { getBrandLookupAliases, normalizeBrandKey } from '@/lib/brand-aliases';
 
 function readText(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -33,6 +34,12 @@ function cleanOptionalText(value: string | null): string | null {
 function cleanAccessToken(value: string | null): string | null {
   const cleaned = value?.replace(/\s+/g, '').trim();
   return cleaned ? cleaned : null;
+}
+
+function canonicalizeBrandInput(value: string | null): string | null {
+  const brand = cleanOptionalText(value);
+  if (!brand) return null;
+  return normalizeBrandKey(brand) === 'happybuy' ? 'Happybuy' : brand;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -234,7 +241,7 @@ export async function testCourierWebhookSettingsAction() {
 
 export async function saveKoombiyoCourierSettingsAction(formData: FormData) {
   const scope = await requireActionPermission('settings:write');
-  const brand = cleanOptionalText(readText(formData, 'brand'));
+  const brand = canonicalizeBrandInput(readText(formData, 'brand'));
 
   if (!brand) {
     return;
@@ -255,13 +262,30 @@ export async function saveKoombiyoCourierSettingsAction(formData: FormData) {
     notes: cleanOptionalText(readText(formData, 'koombiyoNotes')),
     ...(apiKey ? { apiKey } : {}),
   };
-  const { provider, ...updateData } = data;
+  const provider = data.provider;
+  const updateData = {
+    isActive: data.isActive,
+    senderName: data.senderName,
+    senderAddress: data.senderAddress,
+    senderPhone: data.senderPhone,
+    defaultReceiverDistrictId: data.defaultReceiverDistrictId,
+    defaultReceiverCityId: data.defaultReceiverCityId,
+    notes: data.notes,
+    ...(apiKey ? { apiKey } : {}),
+  };
 
   await prisma.courierIntegrationSetting.upsert({
     where: { brand_provider: { brand, provider } },
     create: data,
     update: updateData,
   });
+  const legacyBrands = getBrandLookupAliases(brand).filter((alias) => alias !== brand);
+  if (legacyBrands.length > 0) {
+    await prisma.courierIntegrationSetting.updateMany({
+      where: { brand: { in: legacyBrands }, provider },
+      data: updateData,
+    });
+  }
 
   await logAdminAudit({
     action: 'courier_settings_saved',
@@ -284,7 +308,7 @@ export async function saveKoombiyoCourierSettingsAction(formData: FormData) {
 
 export async function testKoombiyoCourierSettingsAction(formData: FormData) {
   const scope = await requireActionPermission('settings:write');
-  const brand = cleanOptionalText(readText(formData, 'brand'));
+  const brand = canonicalizeBrandInput(readText(formData, 'brand'));
 
   if (!brand) {
     return;
@@ -319,6 +343,17 @@ export async function testKoombiyoCourierSettingsAction(formData: FormData) {
       lastTestMessage: message,
     },
   });
+  const legacyBrands = getBrandLookupAliases(brand).filter((alias) => alias !== brand);
+  if (legacyBrands.length > 0) {
+    await prisma.courierIntegrationSetting.updateMany({
+      where: { brand: { in: legacyBrands }, provider: 'koombiyo' },
+      data: {
+        lastTestAt: new Date(),
+        lastTestStatus: status,
+        lastTestMessage: message,
+      },
+    });
+  }
 
   await logAdminAudit({
     action: 'courier_settings_tested',
@@ -339,7 +374,7 @@ export async function testKoombiyoCourierSettingsAction(formData: FormData) {
 
 export async function syncKoombiyoLocationsAction(formData: FormData) {
   const scope = await requireActionPermission('settings:write');
-  const brand = cleanOptionalText(readText(formData, 'brand'));
+  const brand = canonicalizeBrandInput(readText(formData, 'brand'));
 
   if (!brand) {
     return;
@@ -375,6 +410,17 @@ export async function syncKoombiyoLocationsAction(formData: FormData) {
       lastTestMessage: message,
     },
   });
+  const legacyBrands = getBrandLookupAliases(brand).filter((alias) => alias !== brand);
+  if (legacyBrands.length > 0) {
+    await prisma.courierIntegrationSetting.updateMany({
+      where: { brand: { in: legacyBrands }, provider: 'koombiyo' },
+      data: {
+        lastTestAt: new Date(),
+        lastTestStatus: status,
+        lastTestMessage: message,
+      },
+    });
+  }
 
   await logAdminAudit({
     action: 'courier_locations_synced',

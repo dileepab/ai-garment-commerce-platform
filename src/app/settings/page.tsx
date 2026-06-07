@@ -28,6 +28,7 @@ import {
   getKoombiyoSettingsView,
   type KoombiyoSettingsView,
 } from '@/lib/koombiyo-courier';
+import { getBrandLookupAliases, normalizeBrandKey } from '@/lib/brand-aliases';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,7 +139,15 @@ function CollapsibleSection({
 
 function uniqueBrands(values: Array<string | null | undefined>): string[] {
   return Array.from(
-    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))
+    new Set(
+      values
+        .map((value) => {
+          const trimmed = value?.trim();
+          if (!trimmed) return null;
+          return normalizeBrandKey(trimmed) === 'happybuy' ? 'Happybuy' : trimmed;
+        })
+        .filter((value): value is string => Boolean(value))
+    )
   ).sort((a, b) => a.localeCompare(b));
 }
 
@@ -901,7 +910,9 @@ export default async function SettingsPage() {
       settings: await getMerchantSettings(brand),
       channelConfig: await getBrandChannelConfigView(brand),
       koombiyoSettings: await getKoombiyoSettingsView(brand),
-      koombiyoLocationCount: locationCounts.find((row) => row.brand === brand)?._count._all ?? 0,
+      koombiyoLocationCount: locationCounts
+        .filter((row) => getBrandLookupAliases(brand).includes(row.brand))
+        .reduce((sum, row) => sum + row._count._all, 0),
     }))
   );
 
