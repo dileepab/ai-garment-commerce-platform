@@ -57,8 +57,20 @@ async function waitForServer(baseUrl, server, timeoutMs = 40000) {
 }
 
 function startTestServer(port) {
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const child = spawn(npmCommand, ['run', 'start', '--', '--port', String(port)], {
+  const defaultCommand = (() => {
+    try {
+      require('node:child_process').execSync('pnpm --version', { stdio: 'ignore' });
+      return 'pnpm';
+    } catch {
+      return 'npm';
+    }
+  })();
+  const npmCommand = process.env.npm_execpath || (process.platform === 'win32' ? `${defaultCommand}.cmd` : defaultCommand);
+  const isPnpm = npmCommand.includes('pnpm');
+  const runArgs = isPnpm 
+    ? ['run', 'start', '--port', String(port)] 
+    : ['run', 'start', '--', '--port', String(port)];
+  const child = spawn(npmCommand, runArgs, {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -463,8 +475,13 @@ async function main() {
             where: { productId: { in: productIds } },
             data: { availableQty: 0, reservedQty: 0 },
           });
+          const variants = await prisma.productVariant.findMany({
+            where: { productId: { in: productIds } },
+            select: { id: true },
+          });
+          const variantIds = variants.map((v) => v.id);
           await prisma.variantInventory.updateMany({
-            where: { variant: { productId: { in: productIds } } },
+            where: { variantId: { in: variantIds } },
             data: { availableQty: 0, reservedQty: 0 },
           });
         },
@@ -595,14 +612,18 @@ async function main() {
           assertIncludes(transcript[0].bot, [
             'To proceed with the order, please share:',
             'Name:',
-            'Address:',
+            'Street Address:',
+            'City/Town:',
+            'District:',
             'Phone Number:',
           ], 'Initial contact collection reply');
 
           assertIncludes(transcript[3].bot, [
             'Please confirm if these delivery details are correct:',
             'Name: Regression Customer',
-            'Address: 12 Main Street, Kurunegala',
+            'Street Address: 12 Main Street',
+            'City/Town: Kurunegala',
+            'District: Kurunegala',
             'Phone Number: 0771009999',
           ], 'Contact confirmation reply');
 
@@ -643,7 +664,9 @@ async function main() {
           assertIncludes(transcript[0].bot, [
             'To proceed with the order, please share:',
             'Name:',
-            'Address:',
+            'Street Address:',
+            'City/Town:',
+            'District:',
             'Phone Number:',
           ], 'Instagram initial contact collection reply');
 
@@ -683,12 +706,16 @@ async function main() {
           assertIncludes(assistantMessages[0]?.message || '', [
             'To proceed with the order, please share:',
             'Name:',
-            'Address:',
+            'Street Address:',
+            'City/Town:',
+            'District:',
             'Phone Number:',
           ], 'First batched Messenger assistant reply');
           assertIncludes(assistantMessages[1]?.message || '', [
             'To proceed with the order, please share:',
-            'Address:',
+            'Street Address:',
+            'City/Town:',
+            'District:',
             'Phone Number:',
           ], 'Second batched Messenger assistant reply');
 
@@ -904,7 +931,9 @@ async function main() {
             "Got it — I've updated the address.",
             'Please confirm if these delivery details are correct:',
             'Name: Correction Customer',
-            'Address: 12 Main Street, Kurunegala',
+            'Street Address: 12 Main Street',
+            'City/Town: Kurunegala',
+            'District: Kurunegala',
             'Phone Number: 0771002222',
           ], 'Updated contact confirmation reply');
         },
@@ -1522,7 +1551,9 @@ async function main() {
           assertIncludes(transcript[7].bot, [
             'Please confirm if these delivery details are correct:',
             'Name: Reorder Customer',
-            'Address: 12 Main Street, Kurunegala',
+            'Street Address: 12 Main Street',
+            'City/Town: Kurunegala',
+            'District: Kurunegala',
             'Phone Number: 0771006666',
           ], 'Reorder contact confirmation reply');
 
@@ -1702,7 +1733,9 @@ async function main() {
           assertIncludes(transcript[6].bot, [
             'Please confirm if these delivery details are correct:',
             'Name: Explicit Lookup Customer',
-            'Address: 12 Main Street, Kurunegala',
+            'Street Address: 12 Main Street',
+            'City/Town: Kurunegala',
+            'District: Kurunegala',
             'Phone Number: 0771008888',
           ], 'Existing-customer contact confirmation reply');
           assertIncludes(transcript[7].bot, [

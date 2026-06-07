@@ -45,13 +45,16 @@ const ACKNOWLEDGEMENT_PATTERN =
   /^(yes|yep|yeah|ok|okay|correct|confirmed|confirm|sure|fine|thanks|thank you)$/i;
 
 const NON_CONTACT_ONLY_PATTERN =
-  /^(hi|hello|hey|good morning|good afternoon|good evening|how are you|how r you|how are u|ok|okay|alright|fine|noted|got it|understood|thanks|thank you|no|nope|cancel|cancel order|cancel the order|stop|later|not now|never mind|nevermind)$/i;
+  /^(hi|hello|hey|good morning|good afternoon|good evening|how are you|how r you|how are u|ok|okay|alright|fine|noted|got it|understood|thanks|thank you|no|nope|cancel|cancel order|cancel the order|stop|later|not now|never mind|nevermind|yes|yep|yeah|correct|confirmed|confirm|yes correct)$/i;
 
 const ORDER_DETAIL_WORD_PATTERN =
   /\b(size|sizes|color|colors|colour|colours|grey|gray|black|white|red|blue|green|pink|yellow|brown|beige|large|medium|small|xl|xxl|2xl|3xl|4xl|order|product|price|stock|available|cod|cash|payment|delivery)\b/i;
 
 const STREET_ADDRESS_HINT_PATTERN =
   /(?:\d|[,/]|(?:^|\b)(?:no|number|road|rd|street|st|lane|mawatha|avenue|ave|drive|dr|place|pl|gardens?|apartment|apt|flat|floor|house|building|junction|cross|path|terrace|estate|watta)(?:\b|$))/i;
+
+const INFERENCE_EXCLUDE_PATTERN =
+  /\b(support|agent|human|person|help|number|call|whatsapp|talk|speak|complaint|refund|damage|wrong|status|track|where|location|shop|store|branch|chart|price|cost|total|delivery|exchange|return|dresses|items|available|stock|online|bank|transfer|pay|cod|cash)\b|මාර්|හුවමාරු|ඩැමේජ්|කැඩිලා|වැරදි|සල්ලි|මුදල්|රිෆන්ඩ්|රිටර්න්|ආපහු|නැවත|ශාඛා|කඩේ|විවෘත|වහන්නේ|மாற்ற|எக்சேஞ்ச்|சேதம்|கிழிந்த|தவறான|பணம்|ரீபண்ட்|ரிட்டர்ன்|கடை|கிளை|முகவரி|டெலிவரி/i;
 
 const SRI_LANKA_DISTRICTS = new Set([
   'ampara',
@@ -245,6 +248,15 @@ function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'st
   }
 
   if (parts.length === 2) {
+    if (STREET_ADDRESS_HINT_PATTERN.test(parts[0])) {
+      const isDistrict = isKnownSriLankaDistrict(parts[1]);
+      return {
+        streetAddress: parts[0],
+        city: parts[1],
+        district: isDistrict ? parts[1] : '',
+      };
+    }
+
     return {
       streetAddress: STREET_ADDRESS_HINT_PATTERN.test(cleaned) ? cleaned : '',
       city: '',
@@ -403,11 +415,11 @@ function extractFreeformAddress(message: string): string {
     .map((part) => sanitizeFieldValue(part))
     .filter(Boolean);
 
-  if (parts.length < 3) {
+  if (parts.length < 2) {
     return '';
   }
 
-  const streetCandidate = parts.slice(0, -2).join(', ');
+  const streetCandidate = parts.length === 2 ? parts[0] : parts.slice(0, -2).join(', ');
 
   return STREET_ADDRESS_HINT_PATTERN.test(streetCandidate)
     ? sanitizeFieldValue(flattened)
@@ -436,13 +448,30 @@ function extractPhoneFromSentence(message: string): string {
   return sanitizeFieldValue(normalizePhone(match[0]));
 }
 
+function localIsUnambiguousCancellationMessage(message: string): boolean {
+  const normalized = message
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (
+    /^(cancel|delete this order|remove this order)\b/.test(normalized) ||
+    /^(please cancel|i want to cancel|i would like to cancel|i d like to cancel|can you cancel|can i cancel|want to cancel|wish to cancel)\b/.test(
+      normalized
+    ) ||
+    /^(don t want|dont want|i don t want|i dont want)\b/.test(normalized)
+  );
+}
+
 function inferSingleMissingFieldReply(message: string, field: ContactField): Partial<ContactDetails> {
   const trimmedMessage = normalizeWhitespace(message);
 
   if (
     !trimmedMessage ||
     ACKNOWLEDGEMENT_PATTERN.test(trimmedMessage) ||
-    isNonContactOnlyMessage(trimmedMessage)
+    isNonContactOnlyMessage(trimmedMessage) ||
+    localIsUnambiguousCancellationMessage(trimmedMessage) ||
+    (field !== 'name' && INFERENCE_EXCLUDE_PATTERN.test(trimmedMessage))
   ) {
     return {};
   }
@@ -462,7 +491,10 @@ function inferSingleMissingFieldReply(message: string, field: ContactField): Par
   }
 
   if (field === 'city' || field === 'district') {
-    return trimmedMessage.length >= 2 && !ORDER_DETAIL_WORD_PATTERN.test(trimmedMessage)
+    return trimmedMessage.length >= 2 &&
+      !ORDER_DETAIL_WORD_PATTERN.test(trimmedMessage) &&
+      !PHONE_PATTERN.test(trimmedMessage) &&
+      !/^\d+$/.test(trimmedMessage.replace(/[\s-+()]/g, ''))
       ? { [field]: sanitizeFieldValue(trimmedMessage) }
       : {};
   }

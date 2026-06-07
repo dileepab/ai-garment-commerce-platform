@@ -985,31 +985,25 @@ export async function routeCustomerMessage(
     }
 
     const prevDraft = state.orderDraft;
-    const previouslyComplete = Boolean(
-      prevDraft.name &&
-      prevDraft.streetAddress &&
-      prevDraft.city &&
-      prevDraft.district &&
-      prevDraft.phone
-    );
-    const changedFields = previouslyComplete
-      ? (
-          [
-            ['name', prevDraft.name, nextDraft.name],
-            ['streetAddress', prevDraft.streetAddress, nextDraft.streetAddress],
-            ['city', prevDraft.city, nextDraft.city],
-            ['district', prevDraft.district, nextDraft.district],
-            ['phone', prevDraft.phone, nextDraft.phone],
-          ] as const
-        )
-          .filter(([, before, after]) => before !== after)
-          .map(([field]) => field)
-      : [];
+    const hasAddressChange =
+      Boolean(prevDraft.streetAddress && prevDraft.streetAddress !== nextDraft.streetAddress) ||
+      Boolean(prevDraft.city && prevDraft.city !== nextDraft.city) ||
+      Boolean(prevDraft.district && prevDraft.district !== nextDraft.district);
+
+    const changedFields: string[] = [];
+    if (prevDraft.name && prevDraft.name !== nextDraft.name) {
+      changedFields.push('name');
+    }
+    if (hasAddressChange) {
+      changedFields.push('address');
+    }
+    if (prevDraft.phone && prevDraft.phone !== nextDraft.phone) {
+      changedFields.push('phone');
+    }
+
     const FIELD_LABELS: Record<string, string> = {
       name: 'name',
-      streetAddress: 'street address',
-      city: 'city/town',
-      district: 'district',
+      address: 'address',
       phone: 'phone number',
     };
     const acknowledgement =
@@ -1033,6 +1027,7 @@ export async function routeCustomerMessage(
     state.orderDraft &&
     ['contact_collection', 'contact_confirmation', 'order_confirmation'].includes(state.pendingStep) &&
     shouldIgnoreContactPayload &&
+    !isClearConfirmation(input.currentMessage) &&
     !isUnambiguousCancellationMessage(input.currentMessage)
   ) {
     const missingFields = getMissingContactFields({
