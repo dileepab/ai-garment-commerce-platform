@@ -44,6 +44,15 @@ const PLACEHOLDER_VALUES = new Set([
 const ACKNOWLEDGEMENT_PATTERN =
   /^(yes|yep|yeah|ok|okay|correct|confirmed|confirm|sure|fine|thanks|thank you)$/i;
 
+const NON_CONTACT_ONLY_PATTERN =
+  /^(hi|hello|hey|good morning|good afternoon|good evening|how are you|how r you|how are u|ok|okay|alright|fine|noted|got it|understood|thanks|thank you|no|nope|cancel|cancel order|cancel the order|stop|later|not now|never mind|nevermind)$/i;
+
+const ORDER_DETAIL_WORD_PATTERN =
+  /\b(size|sizes|color|colors|colour|colours|grey|gray|black|white|red|blue|green|pink|yellow|brown|beige|large|medium|small|xl|xxl|2xl|3xl|4xl|order|product|price|stock|available|cod|cash|payment|delivery)\b/i;
+
+const STREET_ADDRESS_HINT_PATTERN =
+  /(?:\d|[,/]|(?:^|\b)(?:no|number|road|rd|street|st|lane|mawatha|avenue|ave|drive|dr|place|pl|gardens?|apartment|apt|flat|floor|house|building|junction|cross|path|terrace|estate|watta)(?:\b|$))/i;
+
 function normalizeWhitespace(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -296,7 +305,11 @@ function extractPhoneFromSentence(message: string): string {
 function inferSingleMissingFieldReply(message: string, field: ContactField): Partial<ContactDetails> {
   const trimmedMessage = normalizeWhitespace(message);
 
-  if (!trimmedMessage || ACKNOWLEDGEMENT_PATTERN.test(trimmedMessage)) {
+  if (
+    !trimmedMessage ||
+    ACKNOWLEDGEMENT_PATTERN.test(trimmedMessage) ||
+    isNonContactOnlyMessage(trimmedMessage)
+  ) {
     return {};
   }
 
@@ -309,18 +322,36 @@ function inferSingleMissingFieldReply(message: string, field: ContactField): Par
     const looksLikeName =
       /^[A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3}$/.test(trimmedMessage);
 
-    return looksLikeName ? { name: sanitizeFieldValue(trimmedMessage) } : {};
+    return looksLikeName && !ORDER_DETAIL_WORD_PATTERN.test(trimmedMessage)
+      ? { name: sanitizeFieldValue(trimmedMessage) }
+      : {};
   }
 
   if (field === 'city' || field === 'district') {
-    return trimmedMessage.length >= 2 ? { [field]: sanitizeFieldValue(trimmedMessage) } : {};
+    return trimmedMessage.length >= 2 && !ORDER_DETAIL_WORD_PATTERN.test(trimmedMessage)
+      ? { [field]: sanitizeFieldValue(trimmedMessage) }
+      : {};
   }
 
-  return trimmedMessage.length >= 4 ? { streetAddress: sanitizeFieldValue(trimmedMessage) } : {};
+  return trimmedMessage.length >= 4 &&
+    !ORDER_DETAIL_WORD_PATTERN.test(trimmedMessage) &&
+    STREET_ADDRESS_HINT_PATTERN.test(trimmedMessage)
+    ? { streetAddress: sanitizeFieldValue(trimmedMessage) }
+    : {};
 }
 
 export function cleanStoredContactValue(value: string | null | undefined): string {
   return sanitizeFieldValue(value ?? '');
+}
+
+export function isNonContactOnlyMessage(message: string): boolean {
+  const normalized = normalizeWhitespace(message)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return NON_CONTACT_ONLY_PATTERN.test(normalized);
 }
 
 export function extractContactDetailsFromText(

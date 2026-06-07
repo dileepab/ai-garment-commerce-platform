@@ -64,6 +64,7 @@ import {
 import {
   extractContactDetailsFromText,
   getMissingContactFields,
+  isNonContactOnlyMessage,
   mergeContactDetails,
 } from '@/lib/contact-profile';
 import { isClearConfirmation } from '@/lib/order-confirmation';
@@ -374,12 +375,18 @@ export async function routeCustomerMessage(
         })[0]
       : undefined;
 
-  const extractedContact = extractContactDetailsFromText(input.currentMessage, singleMissingField);
+  const shouldIgnoreContactPayload = isNonContactOnlyMessage(input.currentMessage);
+  const extractedContact = shouldIgnoreContactPayload
+    ? {}
+    : extractContactDetailsFromText(input.currentMessage, singleMissingField);
+  const aiContact = shouldIgnoreContactPayload
+    ? { name: null, address: null, phone: null }
+    : aiAction.contact;
   const mergedContact = mergeContactDetails(baseContact, {
     ...extractedContact,
-    name: aiAction.contact.name || extractedContact.name,
-    address: aiAction.contact.address || extractedContact.address,
-    phone: aiAction.contact.phone || extractedContact.phone,
+    name: aiContact.name || extractedContact.name,
+    address: aiContact.address || extractedContact.address,
+    phone: aiContact.phone || extractedContact.phone,
   });
   const persistedSupportMode = state.supportMode;
   const conversationSupportMode =
@@ -1008,6 +1015,46 @@ export async function routeCustomerMessage(
         lastMissingOrderId: null,
       },
     });
+  }
+
+  if (
+    state.orderDraft &&
+    ['contact_collection', 'contact_confirmation', 'order_confirmation'].includes(state.pendingStep) &&
+    shouldIgnoreContactPayload &&
+    !isUnambiguousCancellationMessage(input.currentMessage)
+  ) {
+    const missingFields = getMissingContactFields({
+      name: state.orderDraft.name,
+      address: state.orderDraft.address,
+      streetAddress: state.orderDraft.streetAddress,
+      city: state.orderDraft.city,
+      district: state.orderDraft.district,
+      phone: state.orderDraft.phone,
+    });
+
+    if (missingFields.length > 0) {
+      return finalizeReply({
+        reply: buildMissingContactPrompt(missingFields),
+        nextState: {
+          pendingStep: 'contact_collection',
+          orderDraft: state.orderDraft,
+          quantityUpdate: null,
+          lastMissingOrderId: null,
+        },
+      });
+    }
+
+    if (state.pendingStep === 'contact_confirmation') {
+      return finalizeReply({
+        reply: 'Whenever you are ready, reply "yes" to confirm the delivery details — or send the change you need.',
+      });
+    }
+
+    if (state.pendingStep === 'order_confirmation') {
+      return finalizeReply({
+        reply: 'Whenever you are ready, reply "yes" to confirm the order summary — or tell me what to change.',
+      });
+    }
   }
 
   if (state.orderDraft && looksLikeTotalQuestion(input.currentMessage)) {
