@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { createOrderFromCatalog, OrderRequestError } from '@/lib/orders';
+import { autoAssignKoombiyoWaybill } from '@/lib/koombiyo-courier';
 import {
   buildOrderSummaryReply,
   getMissingDraftFields,
@@ -277,6 +278,10 @@ export async function tryConfirmOrderFromConversation(
           color: draft.color,
         },
       ],
+    });
+    await autoAssignKoombiyoWaybill({
+      orderId: order.id,
+      source: 'legacy chat order confirmation',
     });
 
     const reply = buildSuccessReply(draft, order.id);

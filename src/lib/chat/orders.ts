@@ -39,6 +39,7 @@ import {
   OrderRequestError,
   updateSingleItemOrderQuantityById,
 } from '@/lib/orders';
+import { autoAssignKoombiyoWaybill } from '@/lib/koombiyo-courier';
 import {
   buildSelfServiceEscalationReply,
   isCustomerSelfServiceCancellationAllowed,
@@ -697,6 +698,10 @@ export async function handle_confirm_pending(ctx: ChatContext) {
             color: state.orderDraft.color,
           },
         ],
+      });
+      await autoAssignKoombiyoWaybill({
+        orderId: order.id,
+        source: 'chat order confirmation',
       });
 
       return finalizeReply({

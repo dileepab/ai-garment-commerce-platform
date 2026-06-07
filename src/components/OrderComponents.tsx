@@ -3,7 +3,6 @@
 import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  assignKoombiyoWaybillAction,
   cancelOrder,
   confirmOrder,
   deliverOrder,
@@ -14,7 +13,6 @@ import {
   reportDeliveryFailure,
   refreshKoombiyoStatusAction,
   retryDispatch,
-  sendKoombiyoDeliveryAction,
   type OrderActionResult,
 } from '@/app/orders/actions';
 import {
@@ -278,31 +276,6 @@ function buildKoombiyoPackageDescription(order: OrderDrawerOrder | null): string
   return (lines.join(', ') || 'Garment order').slice(0, 240);
 }
 
-function buildKoombiyoSpecialNote(order: OrderDrawerOrder | null): string {
-  if (!order) return '';
-  return [`Brand: ${order.brand || 'DEEZ'}`, `Order: ORD-${order.id}`].join('; ');
-}
-
-function getKoombiyoDraftDefaults(
-  order: OrderDrawerOrder | null,
-  shipment: OrderCourierShipmentLike | null,
-) {
-  return {
-    districtId:
-      shipment?.receiverDistrictId ||
-      order?.koombiyoCourier?.resolvedReceiverDistrictId ||
-      order?.koombiyoCourier?.defaultReceiverDistrictId ||
-      '',
-    cityId:
-      shipment?.receiverCityId ||
-      order?.koombiyoCourier?.resolvedReceiverCityId ||
-      order?.koombiyoCourier?.defaultReceiverCityId ||
-      '',
-    description: shipment?.description || buildKoombiyoPackageDescription(order),
-    specialNote: shipment?.specialNote || buildKoombiyoSpecialNote(order),
-  };
-}
-
 function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipmentLike) {
   const customerName = shipment.receiverName || order.customer.name || 'Customer';
   const address = shipment.receiverStreet || order.deliveryStreetAddress || order.deliveryAddress || 'No address provided';
@@ -435,22 +408,16 @@ export function OrderDrawer({
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [order?.courierShipments]);
   const latestKoombiyoShipment = koombiyoShipments[0] ?? null;
-  const koombiyoDraftDefaults = useMemo(
-    () => getKoombiyoDraftDefaults(order, latestKoombiyoShipment),
-    [latestKoombiyoShipment, order],
-  );
+  const hasActiveKoombiyoCourier = Boolean(order?.koombiyoCourier?.isActive);
+  const initialPendingAction =
+    hasActiveKoombiyoCourier && initialAction === 'dispatch' ? null : initialAction;
   const [error, setError] = useState<string | null>(null);
-  const [pendingActionForm, setPendingActionForm] = useState<FulfillmentAction | null>(initialAction);
+  const [pendingActionForm, setPendingActionForm] = useState<FulfillmentAction | null>(initialPendingAction);
   const [trackingDraft, setTrackingDraft] = useState(order?.trackingNumber ?? '');
   const [courierDraft, setCourierDraft] = useState(order?.courier ?? '');
   const [reasonDraft, setReasonDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [showCreateReturn, setShowCreateReturn] = useState(false);
-  const [showKoombiyoForm, setShowKoombiyoForm] = useState(false);
-  const [koombiyoDistrictDraft, setKoombiyoDistrictDraft] = useState(koombiyoDraftDefaults.districtId);
-  const [koombiyoCityDraft, setKoombiyoCityDraft] = useState(koombiyoDraftDefaults.cityId);
-  const [koombiyoDescriptionDraft, setKoombiyoDescriptionDraft] = useState(koombiyoDraftDefaults.description);
-  const [koombiyoNoteDraft, setKoombiyoNoteDraft] = useState(koombiyoDraftDefaults.specialNote);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -460,13 +427,8 @@ export function OrderDrawer({
       setCourierDraft(order?.courier ?? '');
       setReasonDraft('');
       setNoteDraft('');
-      setPendingActionForm(initialAction);
+      setPendingActionForm(initialPendingAction);
       setShowCreateReturn(false);
-      setShowKoombiyoForm(false);
-      setKoombiyoDistrictDraft(koombiyoDraftDefaults.districtId);
-      setKoombiyoCityDraft(koombiyoDraftDefaults.cityId);
-      setKoombiyoDescriptionDraft(koombiyoDraftDefaults.description);
-      setKoombiyoNoteDraft(koombiyoDraftDefaults.specialNote);
       setError(null);
     });
     return () => {
@@ -476,11 +438,7 @@ export function OrderDrawer({
     order?.id,
     order?.trackingNumber,
     order?.courier,
-    koombiyoDraftDefaults.cityId,
-    koombiyoDraftDefaults.description,
-    koombiyoDraftDefaults.districtId,
-    koombiyoDraftDefaults.specialNote,
-    initialAction,
+    initialPendingAction,
   ]);
 
   const actions = canUpdate && order ? getActionsForStatus(status) : [];
@@ -544,59 +502,6 @@ export function OrderDrawer({
       (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
     );
   }, [order?.courierWebhookEvents]);
-  const matchedKoombiyoLocationLabel = order?.koombiyoCourier?.resolvedReceiverCityName && order.koombiyoCourier.resolvedReceiverDistrictName
-    ? `${order.koombiyoCourier.resolvedReceiverCityName} / ${order.koombiyoCourier.resolvedReceiverDistrictName} (${order.koombiyoCourier.resolvedReceiverCityId || '-'} / ${order.koombiyoCourier.resolvedReceiverDistrictId || '-'})`
-    : null;
-  const orderLocationLabel = [
-    order?.deliveryCity,
-    order?.deliveryDistrict,
-  ].filter(Boolean).join(', ');
-  const assignKoombiyoWaybill = () => {
-    if (!order) return;
-
-    let force = false;
-    if (latestKoombiyoShipment) {
-      force = window.confirm(
-        `Order #${order.id} already has Koombiyo waybill ${latestKoombiyoShipment.waybillId}. Assign another waybill anyway?`,
-      );
-      if (!force) return;
-    }
-
-    setError(null);
-    startTransition(async () => {
-      const result = await assignKoombiyoWaybillAction(order.id, {
-        receiverDistrictId: koombiyoDistrictDraft,
-        receiverCityId: koombiyoCityDraft,
-        description: koombiyoDescriptionDraft || undefined,
-        specialNote: koombiyoNoteDraft || undefined,
-        force,
-      });
-      if (!result.success && result.error) {
-        setError(result.error);
-        return;
-      }
-      setShowKoombiyoForm(false);
-      router.refresh();
-    });
-  };
-
-  const sendKoombiyoDelivery = () => {
-    if (!order) return;
-    if (normalized !== 'packed' && normalized !== 'dispatched') {
-      setError('Pack the order before sending it to Koombiyo.');
-      return;
-    }
-    setError(null);
-    startTransition(async () => {
-      const result = await sendKoombiyoDeliveryAction(order.id);
-      if (!result.success && result.error) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  };
-
   const printLatestKoombiyoLabel = () => {
     if (!order || !latestKoombiyoShipment) return;
     try {
@@ -743,16 +648,6 @@ export function OrderDrawer({
                       <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
                         {order.koombiyoCourier?.isActive ? (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button
-                              className="btn btn-secondary"
-                              style={{ fontSize: 12 }}
-                              type="button"
-                              disabled={isPending}
-                              onClick={() => setShowKoombiyoForm((value) => !value)}
-                            >
-                              <Icon d={ic.truck} size={12} />
-                              Assign Waybill
-                            </button>
                             {latestKoombiyoShipment && (
                               <button
                                 className="btn btn-secondary"
@@ -763,19 +658,6 @@ export function OrderDrawer({
                               >
                                 <Icon d={ic.printer} size={12} />
                                 Print Label
-                              </button>
-                            )}
-                            {latestKoombiyoShipment && !latestKoombiyoShipment.submittedAt && (
-                              <button
-                                className="btn btn-primary"
-                                style={{ fontSize: 12 }}
-                                type="button"
-                                disabled={isPending || normalized !== 'packed'}
-                                title={normalized !== 'packed' ? 'Pack the order before sending it to Koombiyo.' : undefined}
-                                onClick={sendKoombiyoDelivery}
-                              >
-                                <Icon d={ic.truck} size={12} />
-                                Send to Koombiyo
                               </button>
                             )}
                             {latestKoombiyoShipment?.submittedAt && (
@@ -790,73 +672,20 @@ export function OrderDrawer({
                                 Refresh Status
                               </button>
                             )}
+                            {!latestKoombiyoShipment && (
+                              <div style={{ fontSize: 12, color: 'var(--color-fg-3)', lineHeight: 1.4 }}>
+                                Waybill should be assigned automatically when the order is placed. Check the history for any courier setup error.
+                              </div>
+                            )}
+                            {latestKoombiyoShipment && !latestKoombiyoShipment.submittedAt && (
+                              <div style={{ fontSize: 12, color: 'var(--color-fg-3)', lineHeight: 1.4 }}>
+                                Print the label before handover. Sending to Koombiyo happens when you dispatch the packed order.
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div style={{ fontSize: 12, color: 'var(--color-fg-3)' }}>
-                            Koombiyo is not active for {order.brand}. Enable it in Settings before assigning a waybill.
-                          </div>
-                        )}
-                        {showKoombiyoForm && (
-                          <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 10, display: 'grid', gap: 8 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                              <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
-                                District ID
-                                <input
-                                  className="search-input"
-                                  value={koombiyoDistrictDraft}
-                                  onChange={(event) => setKoombiyoDistrictDraft(event.target.value)}
-                                  placeholder={order?.deliveryDistrict ? `Auto: ${order.deliveryDistrict}` : 'Optional override'}
-                                />
-                              </label>
-                              <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
-                                City ID
-                                <input
-                                  className="search-input"
-                                  value={koombiyoCityDraft}
-                                  onChange={(event) => setKoombiyoCityDraft(event.target.value)}
-                                  placeholder={order?.deliveryCity ? `Auto: ${order.deliveryCity}` : 'Optional override'}
-                                />
-                              </label>
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--color-fg-3)', lineHeight: 1.4 }}>
-                              {matchedKoombiyoLocationLabel
-                                ? `Matched from order address: ${matchedKoombiyoLocationLabel}.`
-                                : orderLocationLabel
-                                  ? `Order location: ${orderLocationLabel}. IDs will auto-match on assign from Koombiyo locations.`
-                                  : 'Add city/town and district to the order, or enter Koombiyo district/city IDs manually.'}
-                            </div>
-                            <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
-                              Package description
-                              <input
-                                className="search-input"
-                                value={koombiyoDescriptionDraft}
-                                onChange={(event) => setKoombiyoDescriptionDraft(event.target.value)}
-                                placeholder="Auto-filled from order items if blank"
-                              />
-                            </label>
-                            <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
-                              Special note
-                              <input
-                                className="search-input"
-                                value={koombiyoNoteDraft}
-                                onChange={(event) => setKoombiyoNoteDraft(event.target.value)}
-                                placeholder="Optional Koombiyo remark"
-                              />
-                            </label>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button className="btn btn-ghost" type="button" style={{ fontSize: 12 }} onClick={() => setShowKoombiyoForm(false)}>
-                                Cancel
-                              </button>
-                              <button
-                                className="btn btn-primary"
-                                type="button"
-                                style={{ fontSize: 12 }}
-                                disabled={isPending}
-                                onClick={assignKoombiyoWaybill}
-                              >
-                                {isPending ? 'Assigning…' : 'Assign Waybill'}
-                              </button>
-                            </div>
+                            Koombiyo is not active for {order.brand}. Enable it in Settings for automatic waybill assignment.
                           </div>
                         )}
                       </div>
@@ -1108,8 +937,9 @@ export function OrderDrawer({
                 </div>
               )}
               {actions.map((descriptor) => {
-                const requiresInput = Boolean(descriptor.requiresTracking || descriptor.requiresReason);
-                const isThisFormOpen = pendingActionForm === descriptor.action;
+                const isKoombiyoDispatch = hasActiveKoombiyoCourier && descriptor.action === 'dispatch';
+                const requiresInput = !isKoombiyoDispatch && Boolean(descriptor.requiresTracking || descriptor.requiresReason);
+                const isThisFormOpen = !isKoombiyoDispatch && pendingActionForm === descriptor.action;
                 const reasonMissing =
                   descriptor.requiresReason && isThisFormOpen && !reasonDraft.trim();
                 const buttonClass =
@@ -1121,6 +951,7 @@ export function OrderDrawer({
                         ? 'btn btn-secondary'
                         : 'btn btn-primary';
                 const submitLabel = `Save & ${descriptor.shortLabel}`;
+                const actionLabel = isKoombiyoDispatch ? 'Send to Koombiyo' : descriptor.label;
                 return (
                   <button
                     key={descriptor.action}
@@ -1135,7 +966,7 @@ export function OrderDrawer({
                       ? 'Saving…'
                       : isThisFormOpen
                         ? submitLabel
-                        : descriptor.label}
+                        : actionLabel}
                   </button>
                 );
               })}

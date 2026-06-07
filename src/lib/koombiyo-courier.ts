@@ -3,6 +3,8 @@ import { OrderRequestError } from '@/lib/orders';
 import { mapCourierStatus } from '@/lib/courier-service';
 import type { FulfillmentStatus } from '@/lib/fulfillment';
 import { getBrandLookupAliases } from '@/lib/brand-aliases';
+import { logWarn } from '@/lib/app-log';
+import type { CourierShipment } from '@prisma/client';
 
 const KOOMBIYO_PROVIDER = 'koombiyo';
 const KOOMBIYO_COURIER_NAME = 'Koombiyo Delivery';
@@ -50,6 +52,25 @@ export interface AssignKoombiyoWaybillInput {
 export interface SubmitKoombiyoDeliveryInput {
   orderId: number;
   force?: boolean;
+}
+
+export interface AutoAssignKoombiyoWaybillInput {
+  orderId: number;
+  actor?: { email?: string | null; name?: string | null } | null;
+  source?: string;
+}
+
+export interface AutoAssignKoombiyoWaybillResult {
+  assigned: boolean;
+  skipped?: boolean;
+  shipmentId?: number;
+  waybillId?: string;
+  error?: string;
+}
+
+export interface SubmitKoombiyoDeliveryForDispatchInput {
+  orderId: number;
+  actor?: { email?: string | null; name?: string | null } | null;
 }
 
 interface KoombiyoDistrict {
@@ -150,6 +171,25 @@ async function findKoombiyoSettingsRecord(brand: string) {
   });
 
   return pickPreferredBrandRecord(brand, records);
+}
+
+async function findActiveKoombiyoOrderContext(orderId: number) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, brand: true, orderStatus: true },
+  });
+
+  if (!order) {
+    throw new OrderRequestError(`Order #${orderId} was not found.`, 404);
+  }
+
+  const brand = cleanOptionalText(order.brand);
+  if (!brand) return null;
+
+  const settings = await findKoombiyoSettingsRecord(brand);
+  if (!settings?.isActive) return null;
+
+  return { order, brand };
 }
 
 function compactPayload(value: unknown): string {
@@ -661,6 +701,41 @@ function resolveCodAmount(order: { totalAmount: number; paymentMethod: string | 
     : 0;
 }
 
+function getKoombiyoErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function findLatestKoombiyoShipment(orderId: number) {
+  return prisma.courierShipment.findFirst({
+    where: { orderId, provider: KOOMBIYO_PROVIDER },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+async function recordAutoAssignmentFailure(input: AutoAssignKoombiyoWaybillInput, message: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: input.orderId },
+    select: { orderStatus: true },
+  });
+
+  if (!order) return;
+
+  const source = cleanOptionalText(input.source);
+  const prefix = source ? `Koombiyo auto-waybill failed during ${source}` : 'Koombiyo auto-waybill failed';
+
+  await prisma.orderFulfillmentEvent.create({
+    data: {
+      orderId: input.orderId,
+      fromStatus: order.orderStatus,
+      toStatus: order.orderStatus,
+      note: `${prefix}: ${message}`.slice(0, 500),
+      courier: KOOMBIYO_COURIER_NAME,
+      actorEmail: input.actor?.email ?? null,
+      actorName: input.actor?.name ?? null,
+    },
+  });
+}
+
 export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
   const order = await prisma.order.findUnique({
     where: { id: input.orderId },
@@ -795,6 +870,87 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
   });
 
   return shipment;
+}
+
+export async function autoAssignKoombiyoWaybill(
+  input: AutoAssignKoombiyoWaybillInput,
+): Promise<AutoAssignKoombiyoWaybillResult> {
+  if (process.env.CHAT_TEST_MODE === '1') {
+    return { assigned: false, skipped: true };
+  }
+
+  const context = await findActiveKoombiyoOrderContext(input.orderId);
+  if (!context) {
+    return { assigned: false, skipped: true };
+  }
+
+  const existing = await findLatestKoombiyoShipment(input.orderId);
+  if (existing) {
+    return {
+      assigned: false,
+      skipped: true,
+      shipmentId: existing.id,
+      waybillId: existing.waybillId,
+    };
+  }
+
+  try {
+    const shipment = await assignKoombiyoWaybill({
+      orderId: input.orderId,
+      actor: input.actor,
+    });
+
+    return {
+      assigned: true,
+      shipmentId: shipment.id,
+      waybillId: shipment.waybillId,
+    };
+  } catch (error) {
+    const message = getKoombiyoErrorMessage(error);
+    logWarn('Koombiyo Courier', 'Automatic waybill assignment failed.', {
+      orderId: input.orderId,
+      brand: context.brand,
+      source: input.source || null,
+      error: message,
+    });
+
+    try {
+      await recordAutoAssignmentFailure(input, message);
+    } catch (eventError) {
+      logWarn('Koombiyo Courier', 'Could not record automatic waybill failure on the order timeline.', {
+        orderId: input.orderId,
+        error: getKoombiyoErrorMessage(eventError),
+      });
+    }
+
+    return { assigned: false, error: message };
+  }
+}
+
+export async function submitKoombiyoDeliveryForDispatch(
+  input: SubmitKoombiyoDeliveryForDispatchInput,
+): Promise<CourierShipment | null> {
+  const context = await findActiveKoombiyoOrderContext(input.orderId);
+  if (!context) return null;
+
+  let shipment = await findLatestKoombiyoShipment(input.orderId);
+
+  if (!shipment) {
+    if (process.env.CHAT_TEST_MODE === '1') {
+      throw new OrderRequestError('Koombiyo is active for this brand, but courier submission is disabled in chat test mode.', 409);
+    }
+
+    shipment = await assignKoombiyoWaybill({
+      orderId: input.orderId,
+      actor: input.actor,
+    });
+  }
+
+  if (shipment.submittedAt) {
+    return shipment;
+  }
+
+  return submitKoombiyoDelivery({ orderId: input.orderId });
 }
 
 export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput) {

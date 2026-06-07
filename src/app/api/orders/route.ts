@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createOrderFromCatalog, CreateOrderInput, OrderRequestError } from '@/lib/orders';
+import { autoAssignKoombiyoWaybill } from '@/lib/koombiyo-courier';
 import { getBrandScopedWhere, type UserScope } from '@/lib/access-control';
 import {
   accessDeniedResponse,
@@ -80,6 +81,11 @@ export async function POST(request: Request) {
     const data = (await request.json()) as CreateOrderInput;
     await assertOrderInputBrandAccess(scope, data);
     const order = await createOrderFromCatalog(prisma, data);
+    await autoAssignKoombiyoWaybill({
+      orderId: order.id,
+      actor: { email: scope.email ?? null, name: scope.name ?? null },
+      source: 'orders API',
+    });
 
     return NextResponse.json({ success: true, data: order });
   } catch (error: unknown) {

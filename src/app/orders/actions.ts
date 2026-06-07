@@ -15,8 +15,9 @@ import type { UserScope } from '@/lib/access-control';
 import { transitionFulfillment } from '@/lib/fulfillment-service';
 import {
   assignKoombiyoWaybill,
+  KOOMBIYO_COURIER_DISPLAY_NAME,
   refreshKoombiyoShipmentStatus,
-  submitKoombiyoDelivery,
+  submitKoombiyoDeliveryForDispatch,
 } from '@/lib/koombiyo-courier';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
 
@@ -161,14 +162,25 @@ export async function dispatchOrder(
 ): Promise<OrderActionResult> {
   try {
     const scope = await requireActionPermission('orders:update');
-    await assertOrderAccess(scope, orderId);
+    const order = await assertOrderAccess(scope, orderId);
+    const actor = actorFromScope(scope);
+    const currentStatus = normalizeFulfillmentStatus(order.orderStatus);
+    const koombiyoShipment =
+      currentStatus === 'packed'
+        ? await submitKoombiyoDeliveryForDispatch({ orderId, actor })
+        : null;
+
     await transitionFulfillment({
       orderId,
       toStatus: 'dispatched',
-      trackingNumber: input.trackingNumber,
-      courier: input.courier,
-      note: input.note,
-      actor: actorFromScope(scope),
+      trackingNumber: koombiyoShipment?.waybillId ?? input.trackingNumber,
+      courier: koombiyoShipment ? KOOMBIYO_COURIER_DISPLAY_NAME : input.courier,
+      note:
+        input.note ||
+        (koombiyoShipment
+          ? `Sent packed order to Koombiyo with waybill ${koombiyoShipment.waybillId}.`
+          : undefined),
+      actor,
     });
     revalidatePath('/orders');
     return { success: true };
@@ -227,13 +239,20 @@ export async function retryDispatch(
   try {
     const scope = await requireActionPermission('orders:update');
     await assertOrderAccess(scope, orderId);
+    const actor = actorFromScope(scope);
+    const koombiyoShipment = await submitKoombiyoDeliveryForDispatch({ orderId, actor });
+
     await transitionFulfillment({
       orderId,
       toStatus: 'dispatched',
-      trackingNumber: input.trackingNumber,
-      courier: input.courier,
-      note: input.note,
-      actor: actorFromScope(scope),
+      trackingNumber: koombiyoShipment?.waybillId ?? input.trackingNumber,
+      courier: koombiyoShipment ? KOOMBIYO_COURIER_DISPLAY_NAME : input.courier,
+      note:
+        input.note ||
+        (koombiyoShipment
+          ? `Retried Koombiyo dispatch with waybill ${koombiyoShipment.waybillId}.`
+          : undefined),
+      actor,
     });
     revalidatePath('/orders');
     return { success: true };
@@ -356,16 +375,24 @@ export async function sendKoombiyoDeliveryAction(orderId: number): Promise<Order
       };
     }
 
-    const shipment = await submitKoombiyoDelivery({ orderId });
+    const actor = actorFromScope(scope);
+    const shipment = await submitKoombiyoDeliveryForDispatch({ orderId, actor });
+
+    if (!shipment) {
+      return {
+        success: false,
+        error: `Koombiyo is not active for ${order.brand || 'this order'}. Enable it in Settings before sending.`,
+      };
+    }
 
     if (currentStatus === 'packed') {
       await transitionFulfillment({
         orderId,
         toStatus: 'dispatched',
         trackingNumber: shipment.waybillId,
-        courier: 'Koombiyo Delivery',
+        courier: KOOMBIYO_COURIER_DISPLAY_NAME,
         note: `Sent packed order to Koombiyo with waybill ${shipment.waybillId}.`,
-        actor: actorFromScope(scope),
+        actor,
       });
     }
 
