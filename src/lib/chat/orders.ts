@@ -232,7 +232,9 @@ export async function handle_place_order(ctx: ChatContext) {
 
   if (!sourceProduct) {
     return finalizeReply({
-      reply: "Sure — please share the item name, size, and color and I'll set up the order.",
+      reply: aiAction.productName
+        ? "I couldn't confidently match that item in the current catalog. Please send the exact item name from the available list, and I'll help with the order."
+        : "Sure — please share the item name, size, and color and I'll set up the order.",
       nextState: {
         pendingStep: 'order_draft',
         orderDraft: existingDraft,

@@ -34,6 +34,7 @@ const SUPPORT_CONTACT_PATTERNS = [
 
 const THANKS_PATTERN =
   /\b(thanks|thank you|thankyou|many thanks|okay thank you|ok thank you|alright thank you)\b/i;
+const MIN_PRODUCT_MATCH_SCORE = 2;
 
 export function normalizeText(value: string): string {
   return value
@@ -105,7 +106,7 @@ export function findProductByMessage(
     }
   }
 
-  return bestScore > 0 ? bestProduct : null;
+  return bestScore >= MIN_PRODUCT_MATCH_SCORE ? bestProduct : null;
 }
 
 export function normalizeSize(size: string | null, product?: RouterProductContext | null): string | null {

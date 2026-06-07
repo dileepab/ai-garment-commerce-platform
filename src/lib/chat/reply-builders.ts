@@ -87,7 +87,9 @@ export function buildVariantPrompt(
   if (!color) {
     const variantColors =
       availableVariants.length > 0
-        ? [...new Set(availableVariants.map((v) => v.color))]
+        ? [...new Set(availableVariants
+            .filter((v) => !size || v.size === size)
+            .map((v) => v.color))]
         : [];
     const colorOptions = variantColors.length > 0 ? variantColors : splitCsv(product?.colors);
     if (colorOptions.length > 1) {
@@ -255,12 +257,13 @@ export function buildDeliveryReply(params: {
 
 export function buildGreetingReply(name?: string | null, brand?: string): string {
   const firstName = firstNameOf(name);
+  const storeName = brand || 'our store';
 
   if (firstName) {
-    return `Hello ${firstName}. How can I assist you with your ${brand || 'store'} order today?`;
+    return `Hello ${firstName}. How can I help you with ${storeName} today?`;
   }
 
-  return `Hello. How can I assist you with your ${brand || 'store'} order today?`;
+  return `Hello. How can I help you with ${storeName} today?`;
 }
 
 export function buildStoreLocationReply(supportConfig?: SupportContactConfig): string {

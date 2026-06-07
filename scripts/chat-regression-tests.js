@@ -575,6 +575,38 @@ async function main() {
         },
       },
       {
+        name: 'Roman Sinhala order follow-up keeps Sinhala for size and color prompts',
+        senderId: buildSender(runId, 'roman-sinhala-variant-prompts'),
+        messages: [
+          'Breezy Summer Dress order karanna ona',
+          'L size',
+        ],
+        verify: async ({ transcript }) => {
+          assert(
+            transcript[0].bot.includes('size එක') ||
+              transcript[0].bot.includes('ප්‍රමාණ'),
+            `Initial size prompt should stay in Sinhala for Roman Sinhala order intent.\n\nActual reply:\n${transcript[0].bot}`
+          );
+          assert(
+            transcript[1].bot.includes('color එක') ||
+              transcript[1].bot.includes('වර්ණ'),
+            `Color follow-up should preserve Sinhala after short English size reply.\n\nActual reply:\n${transcript[1].bot}`
+          );
+        },
+      },
+      {
+        name: 'Unknown product name is not matched to a loosely similar item',
+        senderId: buildSender(runId, 'unknown-product-name'),
+        messages: ['Summer Vacation T-shirt order karanna ona'],
+        verify: async ({ transcript }) => {
+          assert(
+            !transcript[0].bot.includes('Breezy Summer Dress') &&
+              !transcript[0].bot.includes('Please let me know the size'),
+            `Unknown product should not be turned into a different catalog item.\n\nActual reply:\n${transcript[0].bot}`
+          );
+        },
+      },
+      {
         name: 'Casual wellbeing question gets a natural reply',
         senderId: buildSender(runId, 'wellbeing'),
         messages: ['How are you'],

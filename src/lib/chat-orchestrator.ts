@@ -114,6 +114,71 @@ const CONVERSATIONAL_REWRITE_REPLY_KINDS = new Set<AssistantReplyKind>([
 
 const STRUCTURED_REPLY_LABEL_PATTERN =
   /^(?:Name|Street Address|City\/Town|District|Phone Number|Order Summary|Product|Quantity|Size|Color|Price|Order ID|Current Stage|Tracking|Delivery Address):/im;
+const MIN_PRODUCT_MATCH_SCORE = 2;
+const DRAFT_PENDING_STEPS = new Set([
+  'order_draft',
+  'contact_collection',
+  'contact_confirmation',
+  'order_confirmation',
+  'quantity_update_confirmation',
+]);
+
+function isShortOperationalFollowUp(message: string): boolean {
+  const normalized = message.trim();
+  const comparable = normalized
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s/:,+-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!comparable) {
+    return false;
+  }
+
+  if (/^(yes|yes correct|correct|confirm|confirmed|ok|okay|sure|no)$/i.test(comparable)) {
+    return true;
+  }
+
+  if (/^(xs|s|m|l|xl|xxl|2xl|3xl|4xl|small|medium|large)(?:\s+size)?$/i.test(comparable)) {
+    return true;
+  }
+
+  if (/^(black|white|grey|gray|beige|pink|coral|sage|cream|blue|red|green|brown)$/i.test(comparable)) {
+    return true;
+  }
+
+  if (/^(name|street address|address|city\/town|city|town|district|phone|phone number)\s*[: -]/i.test(normalized)) {
+    return true;
+  }
+
+  if (/^\+?\d[\d\s()+/-]{7,}$/.test(normalized)) {
+    return true;
+  }
+
+  return normalized.includes(',') && /[\d/]|road|rd|street|st|lane|mawatha|city|town/i.test(normalized);
+}
+
+function shouldPreservePreviousLanguage(params: {
+  pendingStep: ConversationStateData['pendingStep'];
+  previousLanguage: ConversationStateData['preferredLanguage'];
+  detectedLanguage: ConversationStateData['preferredLanguage'] | null;
+  isExplicitPreferenceRequest: boolean;
+  message: string;
+}): boolean {
+  return Boolean(
+    params.previousLanguage !== 'english' &&
+      params.detectedLanguage === 'english' &&
+      !params.isExplicitPreferenceRequest &&
+      DRAFT_PENDING_STEPS.has(params.pendingStep) &&
+      isShortOperationalFollowUp(params.message)
+  );
+}
+
+function messageMentionsProductType(message: string): boolean {
+  return /\b(?:t\s*shirt|tee|top|shirt|dress|gown|pant|pants|trouser|trousers|skirt|crop|linen|casual|vacation|summer)\b/i.test(
+    message
+  );
+}
 
 function canUseConversationalRewrite(params: {
   reply: string | null;
@@ -198,7 +263,15 @@ export async function routeCustomerMessage(
 
   const state = await loadConversationState(input.senderId, input.channel);
   const languageResolution = resolveCustomerLanguage(input.currentMessage, state.preferredLanguage);
-  const replyLanguage = languageResolution.language;
+  const replyLanguage = shouldPreservePreviousLanguage({
+    pendingStep: state.pendingStep,
+    previousLanguage: state.preferredLanguage,
+    detectedLanguage: languageResolution.detectedLanguage,
+    isExplicitPreferenceRequest: languageResolution.isExplicitPreferenceRequest,
+    message: input.currentMessage,
+  })
+    ? state.preferredLanguage
+    : languageResolution.language;
 
   if (
     languageResolution.isExplicitPreferenceRequest &&
@@ -461,7 +534,20 @@ export async function routeCustomerMessage(
       }
     }
 
-    return bestScore > 0 ? bestMatch : null;
+    if (!bestMatch || bestScore < MIN_PRODUCT_MATCH_SCORE) {
+      return null;
+    }
+
+    const messageScore = scoreProductMatch(bestMatch, input.currentMessage);
+    if (
+      messageMentionsProductType(input.currentMessage) &&
+      messageScore < MIN_PRODUCT_MATCH_SCORE &&
+      !state.orderDraft
+    ) {
+      return null;
+    }
+
+    return bestMatch;
   }
 
   async function findCustomerOrderById(orderId?: number | null) {
@@ -524,10 +610,12 @@ export async function routeCustomerMessage(
               .map((variant) => variant.color)
           ))
         : colors;
+    const allProductColors = splitCsv(product.colors);
     const colorOptionsForSelection =
       colorsForSelectedSize.length > 0 ? colorsForSelectedSize : splitCsv(product.colors);
     const requestedColor = aiAction.color
-      ? normalizeColor(aiAction.color, colorOptionsForSelection)
+      ? normalizeColor(aiAction.color, colorOptionsForSelection) ||
+        normalizeColor(aiAction.color, allProductColors)
       : undefined;
     const preservedColor =
       !aiAction.color && previousDraft?.color

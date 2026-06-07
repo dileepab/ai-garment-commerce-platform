@@ -287,9 +287,51 @@ function localizeDeliveryReply(reply: string, language: CustomerLanguage): strin
   return null;
 }
 
+function localizeVariantPromptFallback(reply: string, language: CustomerLanguage): string | null {
+  const sizeMatch = reply.match(
+    /^Please let me know the size you need for (.+?)(?:\. Available sizes: (.+?)\.)?$/
+  );
+  const colorMatch = reply.match(
+    /^Please let me know the color you need for (.+?)(?:\. Available colors: (.+?)\.)?$/
+  );
+
+  if (!sizeMatch && !colorMatch) {
+    return null;
+  }
+
+  const [, sizeProduct, sizeOptions] = sizeMatch ?? [];
+  const [, colorProduct, colorOptions] = colorMatch ?? [];
+
+  if (language === 'sinhala') {
+    if (sizeMatch) {
+      return `${sizeProduct} සඳහා ඔබට අවශ්‍ය size එක දන්වන්න.${
+        sizeOptions ? ` පවතින sizes: ${sizeOptions}.` : ''
+      }`;
+    }
+
+    return `${colorProduct} සඳහා ඔබට අවශ්‍ය color එක දන්වන්න.${
+      colorOptions ? ` පවතින colors: ${colorOptions}.` : ''
+    }`;
+  }
+
+  if (language === 'tamil') {
+    if (sizeMatch) {
+      return `${sizeProduct}க்கு தேவையான size-ஐ தெரிவிக்கவும்.${
+        sizeOptions ? ` கிடைக்கும் sizes: ${sizeOptions}.` : ''
+      }`;
+    }
+
+    return `${colorProduct}க்கு தேவையான color-ஐ தெரிவிக்கவும்.${
+      colorOptions ? ` கிடைக்கும் colors: ${colorOptions}.` : ''
+    }`;
+  }
+
+  return null;
+}
+
 function localizeKnownReply(reply: string, language: CustomerLanguage): string | null {
   if (reply !== EMPTY_CATALOG_REPLY) {
-    return localizeDeliveryReply(reply, language);
+    return localizeDeliveryReply(reply, language) || localizeVariantPromptFallback(reply, language);
   }
 
   if (language === 'sinhala') {
