@@ -13,9 +13,14 @@ export const QUANTITY_PATTERNS = [
 export const CONFIRMATION_PHRASES = new Set([
   'yes',
   'yes correct',
+  'yes that is correct',
   'correct',
+  'that is correct',
   'confirmed',
   'confirm',
+  'yes confirm',
+  'yes confirm order',
+  'yes confirm the order',
   'sure',
   'no changes needed',
   'looks good',
@@ -339,7 +344,19 @@ export function buildHeuristicAction(
   }
 
   if (
-    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b/.test(normalized) ||
+    product &&
+    /\b(?:do you(?: guys)? have|have you got|is (?:it|this|that)?\s*available|available|in stock)\b/.test(normalized)
+  ) {
+    return {
+      ...base,
+      action: 'product_question',
+      confidence: 0.92,
+      questionType: 'availability',
+    };
+  }
+
+  if (
+    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/.test(normalized) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(normalized) ||
     /\b(?:adum|edum|items?|products?)\b.*\b(?:monawada|monavada|mona|monawa|thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne)\b/i.test(normalized) ||
     /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||
@@ -376,6 +393,10 @@ export function buildHeuristicAction(
 
   if (
     /\bhow long\b|\bdelivery\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/.test(normalized) ||
+    /\b(?:delivery|shipping)\b.*\b(?:charge|charges|fee|fees|cost|price|how much)\b/.test(normalized) ||
+    /\bhow much\b.*\b(?:delivery|shipping)\b/.test(normalized) ||
+    /(ඩිලිවරි|delivery).*(කීයක්|ගාන|ගාස්තු|මුදල|ගන්නව|ගන්නේ|කොච්චර)/i.test(message) ||
+    /(කීයක්|ගාන|ගාස්තු|මුදල|කොච්චර).*(ඩිලිවරි|delivery)/i.test(message) ||
     /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|කීයක්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(message) ||
     /(දවස්|කීයක්|යයිද|කොච්චර|කල්).*(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i.test(message) ||
     /(அனுப்ப|டெலிவரி|delivery).*(எத்தனை|நாட்கள்|நேரம்|எப்போது|வரும்|கிடைக்கும்)/i.test(message) ||

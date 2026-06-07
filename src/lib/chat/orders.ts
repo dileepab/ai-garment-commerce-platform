@@ -561,6 +561,45 @@ export async function handle_confirm_pending(ctx: ChatContext) {
     }
   }
 
+  if (state.pendingStep === 'contact_collection' && state.orderDraft) {
+    const missingContactFields = getMissingContactFields({
+      name: state.orderDraft.name,
+      address: state.orderDraft.address,
+      streetAddress: state.orderDraft.streetAddress,
+      city: state.orderDraft.city,
+      district: state.orderDraft.district,
+      phone: state.orderDraft.phone,
+    });
+
+    if (missingContactFields.length > 0) {
+      return finalizeReply({
+        reply: buildMissingContactPrompt(missingContactFields),
+        nextState: {
+          pendingStep: 'contact_collection',
+          orderDraft: state.orderDraft,
+          quantityUpdate: null,
+          lastMissingOrderId: null,
+        },
+      });
+    }
+
+    return finalizeReply({
+      reply: buildContactConfirmationReply(
+        state.orderDraft.name,
+        state.orderDraft.address,
+        state.orderDraft.phone,
+        state.orderDraft
+      ),
+      assistantReplyKind: 'contact_confirmation',
+      nextState: {
+        pendingStep: 'contact_confirmation',
+        orderDraft: state.orderDraft,
+        quantityUpdate: null,
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
   if (state.pendingStep === 'contact_confirmation' && state.orderDraft) {
     return finalizeReply({
       reply: buildOrderSummaryReply(state.orderDraft),

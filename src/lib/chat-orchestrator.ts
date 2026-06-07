@@ -13,6 +13,7 @@ import {
   looksLikeCatalogQuestion,
   looksLikeCasualWellbeingQuestion,
   looksLikeDeliveryQuestion,
+  looksLikeDeliveryChargeQuestion,
   looksLikeGiftRequest,
   looksLikeHumanEscalationRequest,
   looksLikeMissingOrderFollowUp,
@@ -211,14 +212,28 @@ function shouldUseGreetingShortcut(message: string): boolean {
   }
 
   return !(
+    messageMentionsProductType(message) ||
     looksLikeCatalogQuestion(message) ||
     looksLikeStoreLocationQuestion(message) ||
     looksLikePaymentQuestion(message) ||
     looksLikeDeliveryQuestion(message) ||
+    looksLikeDeliveryChargeQuestion(message) ||
     looksLikeHumanEscalationRequest(message) ||
     looksLikeOrderStatusRequest(message) ||
     looksLikeOrderDetailsRequest(message) ||
     looksLikeSupportContactProblem(message)
+  );
+}
+
+function looksLikeProductAvailabilityQuestion(message: string): boolean {
+  const normalized = message
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /\b(?:do you(?: guys)? have|have you got|is (?:it|this|that)?\s*available|available|in stock)\b/.test(
+    normalized
   );
 }
 
@@ -1398,6 +1413,25 @@ export async function routeCustomerMessage(
         lastMissingOrderId: null,
       },
     });
+  }
+
+  const mentionedProductForAvailability =
+    state.pendingStep === 'none' && looksLikeProductAvailabilityQuestion(input.currentMessage)
+      ? products.find((product) => scoreProductMatch(product, input.currentMessage) >= 100) || null
+      : null;
+
+  if (
+    mentionedProductForAvailability &&
+    ['fallback', 'support_contact_request', 'greeting', 'catalog_list'].includes(effectiveAction)
+  ) {
+    effectiveAction = 'product_question';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'product_question',
+      productName: mentionedProductForAvailability.name,
+      questionType: effectiveAiAction.questionType || 'availability',
+      confidence: Math.max(effectiveAiAction.confidence, 0.92),
+    };
   }
 
   if (

@@ -200,16 +200,28 @@ export function buildDeliveryReply(params: {
   isDraft: boolean;
   existingOrderStatus?: string | null;
   getDeliveryEstimateForAddress: (address: string) => string;
+  getDeliveryChargeForAddress?: (address: string) => number;
+  includeCharge?: boolean;
   defaultDeliveryText?: string;
 }): string {
   const address = params.address?.trim();
 
   if (!address) {
-    return params.defaultDeliveryText ||
+    const chargeText =
+      params.includeCharge && params.defaultDeliveryText
+        ? `${params.defaultDeliveryText}.`
+        : '';
+
+    return chargeText ||
+      params.defaultDeliveryText ||
       'Delivery usually takes 1-2 business days within Colombo and 2-3 business days outside Colombo, excluding weekends and Sri Lankan public holidays.';
   }
 
   const estimate = params.getDeliveryEstimateForAddress(address);
+  const chargePrefix =
+    params.includeCharge && params.getDeliveryChargeForAddress
+      ? `Delivery to ${address} costs Rs ${params.getDeliveryChargeForAddress(address)}. `
+      : '';
   const businessDays = getBusinessDayRangeFromEstimate(estimate);
   const { earliestDate, latestDate } = calculateSriLankaDeliveryWindow(
     params.referenceDate,
@@ -218,8 +230,8 @@ export function buildDeliveryReply(params: {
   const intro = params.existingOrderStatus
     ? `Order is currently at the ${getOrderStageLabel(
         params.existingOrderStatus
-      )} stage. Delivery to ${address} usually takes ${estimate}, excluding weekends and Sri Lankan public holidays.`
-    : `Delivery to ${address} usually takes ${estimate}, excluding weekends and Sri Lankan public holidays.`;
+      )} stage. ${chargePrefix}Delivery to ${address} usually takes ${estimate}, excluding weekends and Sri Lankan public holidays.`
+    : `${chargePrefix}Delivery to ${address} usually takes ${estimate}, excluding weekends and Sri Lankan public holidays.`;
 
   if (!params.requestedDate) {
     if (params.isDraft) {

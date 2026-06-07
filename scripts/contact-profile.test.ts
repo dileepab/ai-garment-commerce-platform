@@ -57,3 +57,26 @@ test('single-line labelled details parse without leaking phone into address', ()
   assert.equal(contact.phone, '0771112222');
   assert.equal(contact.address, '10 Temple Rd, Colombo, Colombo');
 });
+
+test('sentence-style contact details preserve name and phone when address is parsed', () => {
+  const contact = extractContactDetailsFromText(
+    'Here is my info: Name is Dil, Address is 12 Main St, Colombo, phone is 0771234567'
+  );
+
+  assert.equal(contact.name, 'Dil');
+  assert.equal(contact.streetAddress, '12 Main St');
+  assert.equal(contact.city, '');
+  assert.equal(contact.district, 'Colombo');
+  assert.equal(contact.phone, '0771234567');
+  assert.equal(contact.address, '12 Main St, Colombo');
+});
+
+test('confirmation phrases are never inferred as missing address fields', () => {
+  const city = extractContactDetailsFromText('Yes, that is correct', 'city');
+  const district = extractContactDetailsFromText('Yes confirm order', 'district');
+
+  assert.equal(city.city, '');
+  assert.equal(city.address, '');
+  assert.equal(district.district, '');
+  assert.equal(district.address, '');
+});

@@ -24,7 +24,7 @@ const SINHALA_ROMAN_RE =
 const TAMIL_ROMAN_RE =
   /\b(tamil|thamizh|thamil|tamilil|eppadi|epdi|irukka|irukkaa|venum|vendaum|vangurathu|vaanga|order panna|vilai|evlo|evvalavu|size enna|color enna)\b/i;
 const ENGLISH_HINT_RE =
-  /\b(english|where|what|when|how|who|price|size|color|order|buy|available|delivery|payment|cancel|change|address|phone|thanks|hello|hi|shop|store|outlet|location|located|branch|branches|open|opening|close|closing|hours|item|items|product|products|details|interested|support|contact|chat)\b/i;
+  /\b(english|where|what|when|how|who|does|do|can|could|have|has|send|via|courier|price|cost|charge|fee|size|color|order|buy|available|delivery|shipping|payment|cancel|change|address|phone|thanks|hello|hi|shop|store|outlet|location|located|branch|branches|open|opening|close|closing|hours|item|items|product|products|details|fabric|slit|zip|dress|gown|top|skirt|pants|interested|support|contact|chat)\b/i;
 
 const SINHALA_PREFERENCE_RE =
   /\b(sinhala|sinhalese|sinhalen|singhala|singhalen)\b/i;
@@ -250,6 +250,40 @@ function localizeBusinessDayEstimate(estimate: string, language: CustomerLanguag
 }
 
 function localizeDeliveryReply(reply: string, language: CustomerLanguage): string | null {
+  const chargedPreOrderMatch = reply.match(
+    /^Delivery to (.+?) costs Rs (\d+)\. Delivery to \1 usually takes (.+?), excluding weekends and Sri Lankan public holidays\. If the order is confirmed on (.+?), the expected delivery window is (.+?) to (.+?)\.$/
+  );
+
+  if (chargedPreOrderMatch) {
+    const [, address, charge, estimate, referenceDate, earliestDate, latestDate] = chargedPreOrderMatch;
+    const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
+
+    if (language === 'sinhala') {
+      return `${address} වෙත delivery charge එක Rs ${charge} කි. ${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. ${referenceDate} දින ඇණවුම තහවුරු කළහොත්, අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
+    }
+
+    if (language === 'tamil') {
+      return `${address}க்கு delivery charge Rs ${charge}. ${address}க்கு டெலிவரி பொதுவாக ${localizedEstimate} ஆகும், வார இறுதி நாட்கள் மற்றும் இலங்கை பொது விடுமுறை நாட்களை தவிர்த்து. ${referenceDate} அன்று order confirm செய்தால், எதிர்பார்க்கப்படும் delivery window ${earliestDate} முதல் ${latestDate} வரை இருக்கும்.`;
+    }
+  }
+
+  const chargedWindowMatch = reply.match(
+    /^Delivery to (.+?) costs Rs (\d+)\. Delivery to \1 usually takes (.+?), excluding weekends and Sri Lankan public holidays\. The expected delivery window is (.+?) to (.+?)\.$/
+  );
+
+  if (chargedWindowMatch) {
+    const [, address, charge, estimate, earliestDate, latestDate] = chargedWindowMatch;
+    const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
+
+    if (language === 'sinhala') {
+      return `${address} වෙත delivery charge එක Rs ${charge} කි. ${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
+    }
+
+    if (language === 'tamil') {
+      return `${address}க்கு delivery charge Rs ${charge}. ${address}க்கு டெலிவரி பொதுவாக ${localizedEstimate} ஆகும், வார இறுதி நாட்கள் மற்றும் இலங்கை பொது விடுமுறை நாட்களை தவிர்த்து. எதிர்பார்க்கப்படும் delivery window ${earliestDate} முதல் ${latestDate} வரை இருக்கும்.`;
+    }
+  }
+
   const preOrderMatch = reply.match(
     /^Delivery to (.+?) usually takes (.+?), excluding weekends and Sri Lankan public holidays\. If the order is confirmed on (.+?), the expected delivery window is (.+?) to (.+?)\.$/
   );

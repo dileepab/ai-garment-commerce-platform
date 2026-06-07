@@ -42,10 +42,10 @@ const PLACEHOLDER_VALUES = new Set([
 ]);
 
 const ACKNOWLEDGEMENT_PATTERN =
-  /^(yes|yep|yeah|ok|okay|correct|confirmed|confirm|sure|fine|thanks|thank you)$/i;
+  /^(yes|yep|yeah|ok|okay|correct|confirmed|confirm|sure|fine|thanks|thank you|yes correct|yes that is correct|that is correct|yes it is correct|it is correct|yes confirm|yes confirm order|yes confirm the order)$/i;
 
 const NON_CONTACT_ONLY_PATTERN =
-  /^(hi|hello|hey|good morning|good afternoon|good evening|how are you|how r you|how are u|ok|okay|alright|fine|noted|got it|understood|thanks|thank you|no|nope|cancel|cancel order|cancel the order|stop|later|not now|never mind|nevermind|yes|yep|yeah|correct|confirmed|confirm|yes correct)$/i;
+  /^(hi|hello|hey|good morning|good afternoon|good evening|how are you|how r you|how are u|ok|okay|alright|fine|noted|got it|understood|thanks|thank you|no|nope|cancel|cancel order|cancel the order|stop|later|not now|never mind|nevermind|yes|yep|yeah|correct|confirmed|confirm|yes correct|yes that is correct|that is correct|yes it is correct|it is correct|yes confirm|yes confirm order|yes confirm the order)$/i;
 
 const ORDER_DETAIL_WORD_PATTERN =
   /\b(size|sizes|color|colors|colour|colours|grey|gray|black|white|red|blue|green|pink|yellow|brown|beige|large|medium|small|xl|xxl|2xl|3xl|4xl|order|product|price|stock|available|cod|cash|payment|delivery)\b/i;
@@ -404,11 +404,11 @@ function extractLabelledFields(message: string): Partial<ContactDetails> {
 
 function extractNameFromSentence(message: string): string {
   const patterns = [
-    /\bchange name to\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})\b/i,
-    /\bupdate name to\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})\b/i,
-    /\bmy name is\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})\b/i,
-    /\bthis is\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})\b/i,
-    /\bname is\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})\b/i,
+    /\bchange name to\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})(?=\s*(?:,|\.|$|\baddress\b|\bphone\b|\bcontact\b|\bmobile\b))/i,
+    /\bupdate name to\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})(?=\s*(?:,|\.|$|\baddress\b|\bphone\b|\bcontact\b|\bmobile\b))/i,
+    /\bmy name is\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})(?=\s*(?:,|\.|$|\baddress\b|\bphone\b|\bcontact\b|\bmobile\b))/i,
+    /\bthis is\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})(?=\s*(?:,|\.|$|\baddress\b|\bphone\b|\bcontact\b|\bmobile\b))/i,
+    /\bname is\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})(?=\s*(?:,|\.|$|\baddress\b|\bphone\b|\bcontact\b|\bmobile\b))/i,
   ];
 
   for (const pattern of patterns) {
@@ -597,7 +597,7 @@ export function extractContactDetailsFromText(
   if (!extracted.address) {
     const address = extractAddressFromSentence(message) || extractFreeformAddress(message);
     if (address) {
-      Object.assign(extracted, hydrateStructuredAddress({ address }));
+      Object.assign(extracted, hydrateStructuredAddress({ ...extracted, address }));
     }
   }
 

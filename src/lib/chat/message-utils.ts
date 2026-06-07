@@ -166,6 +166,7 @@ export function extractDeliveryLocationHint(message: string): string | null {
     /\b(?:delivery(?:\s+\w+){0,3}\s+to|deliver(?:y)?\s+to)\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
     /\bhow long does delivery take to\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
     /\bdelivery time to\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
+    /\b([A-Za-z][A-Za-z\s.'-]{1,50})\s*(?:වලට|ට|වෙත)\s*(?:එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery|කරන්න)/i,
     /([\u0D80-\u0DFF\s]{2,}?)(?:ට|වෙත)\s*(?:එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i,
     /([\u0B80-\u0BFF\s]{2,}?)(?:க்கு|இற்கு)\s*(?:அனுப்ப|அனுப்புவதற்கு|டெலிவரி|delivery)/i,
   ];
@@ -469,6 +470,7 @@ export function looksLikeDeliveryQuestion(message: string): boolean {
     /\bhow long\b|\bdelivery\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/i.test(
       message
     ) ||
+    looksLikeDeliveryChargeQuestion(message) ||
     /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|කීයක්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(
       message
     ) ||
@@ -482,6 +484,21 @@ export function looksLikeDeliveryQuestion(message: string): boolean {
   );
 }
 
+export function looksLikeDeliveryChargeQuestion(message: string): boolean {
+  const normalized = normalizeText(message);
+
+  return (
+    /\b(?:delivery|shipping)\b.*\b(?:charge|charges|fee|fees|cost|price|how much)\b/i.test(
+      normalized
+    ) ||
+    /\bhow much\b.*\b(?:delivery|shipping)\b/i.test(normalized) ||
+    /(ඩිලිවරි|delivery).*(කීයක්|ගාන|ගාස්තු|මුදල|ගන්නව|ගන්නේ|කොච්චර)/i.test(message) ||
+    /(කීයක්|ගාන|ගාස්තු|මුදල|කොච්චර).*(ඩිලිවරි|delivery)/i.test(message) ||
+    /(டெலிவரி|delivery).*(எவ்வளவு|கட்டணம்|செலவு|பணம்)/i.test(message) ||
+    /(எவ்வளவு|கட்டணம்|செலவு|பணம்).*(டெலிவரி|delivery)/i.test(message)
+  );
+}
+
 export function looksLikeTotalQuestion(message: string): boolean {
   return /\btotal\b|\bwith delivery\b|\bdelivery charges?\b|\bfinal amount\b|\bhow much altogether\b/i.test(
     message
@@ -492,7 +509,7 @@ export function looksLikeCatalogQuestion(message: string): boolean {
   const normalized = normalizeText(message);
 
   return (
-    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/i.test(
+    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/i.test(
       normalized
     ) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(

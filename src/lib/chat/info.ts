@@ -2,6 +2,7 @@ import {
   assistantOfferedGiftOptions,
   extractDeliveryLocationHint,
   extractGiftNoteFromText,
+  looksLikeDeliveryChargeQuestion,
   looksLikeCasualWellbeingQuestion,
   mentionsCurrentOrderReference,
   mentionsLatestOrderReference,
@@ -23,6 +24,7 @@ import { getSriLankaDateOnly, getSriLankaToday } from '@/lib/delivery-calendar';
 import { buildOrderDetailsReply, buildSelfServiceOrderStatusReply } from '@/lib/order-details';
 import {
   buildOrderSummaryReply,
+  getDeliveryChargeForAddress,
   getDeliveryEstimateForAddress,
 } from '@/lib/order-draft';
 import {
@@ -196,6 +198,9 @@ export async function handle_delivery_question(ctx: ChatContext) {
   const { finalizeReply } = ctx.helpers;
   const deliveryEstimateForAddress = (address: string) =>
     getDeliveryEstimateForAddress(address, settings.delivery);
+  const deliveryChargeForAddress = (address: string) =>
+    getDeliveryChargeForAddress(address, settings.delivery);
+  const includeCharge = looksLikeDeliveryChargeQuestion(input.currentMessage);
 
   const locationHint = aiAction.deliveryLocation || extractDeliveryLocationHint(input.currentMessage);
   const requestedDate =
@@ -210,6 +215,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
         requestedDate,
         isDraft: true,
         getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+        getDeliveryChargeForAddress: deliveryChargeForAddress,
+        includeCharge,
         defaultDeliveryText: describeDeliveryEstimates(settings),
       }),
       nextState: {
@@ -226,6 +233,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
         requestedDate,
         isDraft: true,
         getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+        getDeliveryChargeForAddress: deliveryChargeForAddress,
+        includeCharge,
         defaultDeliveryText: describeDeliveryEstimates(settings),
       }),
       nextState: {
@@ -243,6 +252,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
         isDraft: false,
         existingOrderStatus: latestActiveOrder.orderStatus,
         getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+        getDeliveryChargeForAddress: deliveryChargeForAddress,
+        includeCharge,
         defaultDeliveryText: describeDeliveryEstimates(settings),
       }),
       orderId: latestActiveOrder.id,
@@ -260,6 +271,8 @@ export async function handle_delivery_question(ctx: ChatContext) {
       requestedDate,
       isDraft: true,
       getDeliveryEstimateForAddress: deliveryEstimateForAddress,
+      getDeliveryChargeForAddress: deliveryChargeForAddress,
+      includeCharge,
       defaultDeliveryText: describeDeliveryEstimates(settings),
     }),
     nextState: {

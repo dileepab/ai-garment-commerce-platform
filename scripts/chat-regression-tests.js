@@ -450,6 +450,21 @@ async function main() {
         },
       },
       {
+        name: 'Greeting plus exact product availability answers product details',
+        senderId: buildSender(runId, 'greeting-product-availability'),
+        messages: ['Hey, do you guys have the Breezy Summer Dress?'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'Breezy Summer Dress',
+            'currently available',
+          ], 'Greeting plus product availability reply');
+          assert(
+            !transcript[0].bot.includes('How can I help you'),
+            `Product availability question should not collapse to greeting.\n\nActual reply:\n${transcript[0].bot}`
+          );
+        },
+      },
+      {
         name: 'Empty catalog replies keep customers engaged in each language',
         senderId: buildSender(runId, 'empty-catalog-friendly'),
         before: async () => {
@@ -575,6 +590,32 @@ async function main() {
         },
       },
       {
+        name: 'Sinhala delivery charge question includes the fee',
+        senderId: buildSender(runId, 'sinhala-delivery-charge'),
+        messages: ['Colombo වලට ඩිලිවරි කරන්න කීයක් ගන්නවද?'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, ['Colombo', 'Rs 150'], 'Sinhala delivery charge reply');
+        },
+      },
+      {
+        name: 'English product follow-up after Sinhala switches back to English',
+        senderId: buildSender(runId, 'english-after-sinhala-product'),
+        messages: [
+          'Pleated Midi Skirt එකේ රෙද්ද මොකක්ද?',
+          'Does the Breezy Summer Dress have a side slit or zip?',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[1].bot, [
+            'Breezy Summer Dress',
+            'Fabric',
+          ], 'English follow-up product details reply');
+          assert(
+            !/[\u0D80-\u0DFF]/.test(transcript[1].bot),
+            `English follow-up should not inherit Sinhala language.\n\nActual reply:\n${transcript[1].bot}`
+          );
+        },
+      },
+      {
         name: 'Roman Sinhala order follow-up keeps Sinhala for size and color prompts',
         senderId: buildSender(runId, 'roman-sinhala-variant-prompts'),
         messages: [
@@ -670,6 +711,39 @@ async function main() {
             latestOrder.orderStatus === 'confirmed',
             `Expected confirmed order status, received ${latestOrder.orderStatus}.`
           );
+        },
+      },
+      {
+        name: 'Confirmation phrase during missing contact does not become address data',
+        senderId: buildSender(runId, 'contact-confirmation-not-address'),
+        messages: [
+          'I want Breezy Summer Dress in Sage color, size L',
+          'Here is my info: Name is Dil, Address is 12 Main St, Colombo, phone is 0771234567',
+          'Yes, that is correct',
+          'City/Town: Colombo',
+          'yes correct',
+          'yes confirm order',
+        ],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[1].bot, ['City/Town:'], 'Missing city prompt');
+          assertIncludes(transcript[2].bot, ['City/Town:'], 'Repeated missing city prompt');
+          assert(
+            !transcript[2].bot.includes('Yes, that is correct'),
+            `Confirmation phrase was treated as contact data.\n\nActual reply:\n${transcript[2].bot}`
+          );
+          assertIncludes(transcript[3].bot, [
+            'Please confirm if these delivery details are correct:',
+            'Street Address: 12 Main St',
+            'City/Town: Colombo',
+            'District: Colombo',
+          ], 'Clean contact confirmation after city correction');
+          assertIncludes(transcript[5].bot, [
+            'Thank you. Your order has been confirmed successfully',
+            'Name: Dil',
+            'Street Address: 12 Main St',
+            'City/Town: Colombo',
+            'District: Colombo',
+          ], 'Final order confirmation with clean contact data');
         },
       },
       {

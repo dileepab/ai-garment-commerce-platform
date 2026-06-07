@@ -254,7 +254,7 @@ export async function handle_product_question(ctx: ChatContext) {
         reply:
           availableFilteredProducts.length === 0
             ? unavailableReply
-            : "Here is what we have available:",
+            : `Here is what we have available:\n\n${formatCatalogLines(availableFilteredProducts)}`,
         carouselProducts:
           availableFilteredProducts.length === 0
             ? undefined
