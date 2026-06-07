@@ -384,9 +384,9 @@ export async function routeCustomerMessage(
     : aiAction.contact;
   const mergedContact = mergeContactDetails(baseContact, {
     ...extractedContact,
-    name: aiContact.name || extractedContact.name,
-    address: aiContact.address || extractedContact.address,
-    phone: aiContact.phone || extractedContact.phone,
+    name: extractedContact.name || aiContact.name,
+    address: extractedContact.address || aiContact.address,
+    phone: extractedContact.phone || aiContact.phone,
   });
   const persistedSupportMode = state.supportMode;
   const conversationSupportMode =

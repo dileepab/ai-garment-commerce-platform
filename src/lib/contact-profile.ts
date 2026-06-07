@@ -53,6 +53,34 @@ const ORDER_DETAIL_WORD_PATTERN =
 const STREET_ADDRESS_HINT_PATTERN =
   /(?:\d|[,/]|(?:^|\b)(?:no|number|road|rd|street|st|lane|mawatha|avenue|ave|drive|dr|place|pl|gardens?|apartment|apt|flat|floor|house|building|junction|cross|path|terrace|estate|watta)(?:\b|$))/i;
 
+const SRI_LANKA_DISTRICTS = new Set([
+  'ampara',
+  'anuradhapura',
+  'badulla',
+  'batticaloa',
+  'colombo',
+  'galle',
+  'gampaha',
+  'hambantota',
+  'jaffna',
+  'kalutara',
+  'kandy',
+  'kegalle',
+  'kilinochchi',
+  'kurunegala',
+  'mannar',
+  'matale',
+  'matara',
+  'monaragala',
+  'mullaitivu',
+  'nuwara eliya',
+  'polonnaruwa',
+  'puttalam',
+  'ratnapura',
+  'trincomalee',
+  'vavuniya',
+]);
+
 function normalizeWhitespace(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -139,6 +167,37 @@ function cleanStoredAddressPartValue(value: string | null | undefined): string {
   return cleaned;
 }
 
+function normalizeComparableAddressPart(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function addressPartsMatch(left: string, right: string): boolean {
+  const normalizedLeft = normalizeComparableAddressPart(left);
+  const normalizedRight = normalizeComparableAddressPart(right);
+
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function addressPartContains(container: string, part: string): boolean {
+  const normalizedContainer = normalizeComparableAddressPart(container);
+  const normalizedPart = normalizeComparableAddressPart(part);
+
+  return Boolean(
+    normalizedContainer &&
+      normalizedPart &&
+      (normalizedContainer.split(' ').includes(normalizedPart) ||
+        normalizedContainer.includes(normalizedPart))
+  );
+}
+
+function isKnownSriLankaDistrict(value: string): boolean {
+  return SRI_LANKA_DISTRICTS.has(normalizeComparableAddressPart(value));
+}
+
 function buildStructuredAddress(parts: {
   streetAddress?: string | null;
   city?: string | null;
@@ -170,6 +229,14 @@ function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'st
     .filter(Boolean);
 
   if (parts.length >= 3) {
+    if (parts.length === 3 && STREET_ADDRESS_HINT_PATTERN.test(parts[1])) {
+      return {
+        streetAddress: parts.slice(0, 2).join(', '),
+        city: parts[2],
+        district: '',
+      };
+    }
+
     return {
       streetAddress: parts.slice(0, -2).join(', '),
       city: parts[parts.length - 2],
@@ -179,8 +246,8 @@ function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'st
 
   if (parts.length === 2) {
     return {
-      streetAddress: parts[0],
-      city: parts[1],
+      streetAddress: STREET_ADDRESS_HINT_PATTERN.test(cleaned) ? cleaned : '',
+      city: '',
       district: '',
     };
   }
@@ -191,13 +258,32 @@ function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'st
 function hydrateStructuredAddress(details: ContactDetailsInput): Partial<ContactDetails> {
   const parsed = splitFreeformAddress(details.address);
   const providedStreetAddress = cleanStoredAddressPartValue(details.streetAddress);
+  const providedCity = cleanStoredAddressPartValue(details.city);
+  const providedDistrict = cleanStoredAddressPartValue(details.district);
   const providedAddress = cleanStoredContactValue(details.address);
+  const parsedStreetMatches =
+    !providedStreetAddress ||
+    !parsed.streetAddress ||
+    addressPartsMatch(providedStreetAddress, parsed.streetAddress);
+  const parsedCityMatches =
+    !providedCity ||
+    !parsed.city ||
+    addressPartsMatch(providedCity, parsed.city);
+  const parsedDistrictMatches =
+    !providedDistrict ||
+    Boolean(parsed.district && addressPartsMatch(providedDistrict, parsed.district));
   const streetAddress =
     parsed.streetAddress && providedStreetAddress === providedAddress
       ? parsed.streetAddress
       : providedStreetAddress || parsed.streetAddress;
-  const city = cleanStoredAddressPartValue(details.city) || parsed.city;
-  const district = cleanStoredAddressPartValue(details.district) || parsed.district;
+  const city =
+    providedCity ||
+    (parsedStreetMatches && (!providedDistrict || parsedDistrictMatches)
+      ? parsed.city
+      : '');
+  const district =
+    providedDistrict ||
+    (parsedStreetMatches && parsedCityMatches ? parsed.district : '');
   const address = buildStructuredAddress({
     streetAddress,
     city,
@@ -449,15 +535,37 @@ export function mergeContactDetails(
 ): ContactDetails {
   const hydratedBase = hydrateStructuredAddress(base);
   const hydratedOverrides = hydrateStructuredAddress(overrides);
+  const overrideStreetAddress = cleanStoredAddressPartValue(hydratedOverrides.streetAddress);
+  const overrideCity = cleanStoredAddressPartValue(hydratedOverrides.city);
+  const overrideDistrict = cleanStoredAddressPartValue(hydratedOverrides.district);
+  const baseCity = cleanStoredAddressPartValue(hydratedBase.city);
+  const baseDistrict = cleanStoredAddressPartValue(hydratedBase.district);
   const streetAddress =
-    cleanStoredAddressPartValue(hydratedOverrides.streetAddress) ||
+    overrideStreetAddress ||
     cleanStoredAddressPartValue(hydratedBase.streetAddress);
-  const city =
-    cleanStoredAddressPartValue(hydratedOverrides.city) ||
-    cleanStoredAddressPartValue(hydratedBase.city);
-  const district =
-    cleanStoredAddressPartValue(hydratedOverrides.district) ||
-    cleanStoredAddressPartValue(hydratedBase.district);
+  let city = overrideCity || baseCity;
+  let district = overrideDistrict || baseDistrict;
+
+  if (
+    overrideStreetAddress &&
+    !overrideCity &&
+    baseCity &&
+    STREET_ADDRESS_HINT_PATTERN.test(baseCity) &&
+    addressPartContains(overrideStreetAddress, baseCity)
+  ) {
+    city = '';
+  }
+
+  if (
+    overrideCity &&
+    !overrideDistrict &&
+    district &&
+    addressPartsMatch(overrideCity, district) &&
+    !isKnownSriLankaDistrict(district)
+  ) {
+    district = '';
+  }
+
   const address = buildStructuredAddress({
     streetAddress,
     city,
