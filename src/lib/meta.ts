@@ -19,6 +19,11 @@ export interface MetaSendResult {
   data?: unknown;
 }
 
+export interface MetaQuickReply {
+  title: string;
+  payload: string;
+}
+
 interface MessengerSendOptions {
   payloadType: string;
   pageAccessToken?: string;
@@ -27,6 +32,28 @@ interface MessengerSendOptions {
 export interface MetaPageTokenOptions {
   pageAccessToken?: string | null;
   language?: CustomerLanguage;
+  quickReplies?: MetaQuickReply[];
+}
+
+function buildQuickReplies(options?: MetaQuickReply[]): Array<Record<string, string>> | undefined {
+  const quickReplies = (options ?? [])
+    .map((option) => ({
+      content_type: 'text',
+      title: option.title.trim().slice(0, 20),
+      payload: option.payload.trim(),
+    }))
+    .filter((option) => option.title && option.payload)
+    .slice(0, 13);
+
+  return quickReplies.length > 0 ? quickReplies : undefined;
+}
+
+function buildTextMessagePayload(messageText: string, options?: MetaPageTokenOptions) {
+  const quickReplies = buildQuickReplies(options?.quickReplies);
+  return {
+    text: messageText,
+    ...(quickReplies ? { quick_replies: quickReplies } : {}),
+  };
 }
 
 function getMimeType(filePath: string): string {
@@ -145,7 +172,7 @@ export async function sendMessengerMessage(
   return sendMessengerPayload(
     senderId,
     {
-      message: { text: messageText },
+      message: buildTextMessagePayload(messageText, options),
     },
     { payloadType: 'text', pageAccessToken: options?.pageAccessToken ?? undefined }
   );
@@ -169,7 +196,7 @@ export async function sendInstagramMessage(
 
   const payload = {
     recipient: { id: senderId },
-    message: { text: messageText },
+    message: buildTextMessagePayload(messageText, options),
   };
   const instagramEndpoints = [
     `https://graph.instagram.com/${META_GRAPH_VERSION}/${instagramAccountId}/messages`,

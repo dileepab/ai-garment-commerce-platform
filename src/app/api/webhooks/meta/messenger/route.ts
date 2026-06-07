@@ -182,7 +182,7 @@ async function deliverCustomerResult(
   }
 
   const failures: string[] = [];
-  const metaOptions = { pageAccessToken, language: result.language };
+  const metaOptions = { pageAccessToken, language: result.language, quickReplies: result.quickReplies };
   const messageResult = await sendMessengerMessage(senderId, result.reply, metaOptions);
 
   if (!messageResult.ok) {

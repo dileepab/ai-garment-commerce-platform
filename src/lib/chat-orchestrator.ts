@@ -488,10 +488,18 @@ export async function routeCustomerMessage(
         ? Array.from(new Set(availableVariants.map((variant) => variant.color)))
         : splitCsv(product.colors);
     const size = normalizeSize(aiAction.size, sizes) || previousDraft?.size;
+    const colorsForSelectedSize =
+      size && availableVariants.length > 0
+        ? Array.from(new Set(
+            availableVariants
+              .filter((variant) => variant.size === size)
+              .map((variant) => variant.color)
+          ))
+        : colors;
     const color =
-      normalizeColor(aiAction.color, colors) ||
+      normalizeColor(aiAction.color, colorsForSelectedSize) ||
       previousDraft?.color ||
-      (colors.length === 1 ? colors[0] : undefined);
+      (colorsForSelectedSize.length === 1 ? colorsForSelectedSize[0] : undefined);
     const quantity = aiAction.quantity || previousDraft?.quantity || 1;
     const paymentMethod =
       aiAction.paymentMethod ||
@@ -544,6 +552,7 @@ export async function routeCustomerMessage(
     nextState?: Partial<ConversationStateData>;
     imagePath?: string;
     imagePaths?: string[];
+    quickReplies?: CustomerMessageResult['quickReplies'];
     carouselProducts?: Array<{
       id: number;
       name: string;
@@ -584,6 +593,7 @@ export async function routeCustomerMessage(
     const hasMedia = Boolean(
       params.imagePath ||
         params.imagePaths?.length ||
+        params.quickReplies?.length ||
         params.carouselProducts?.length
     );
     const issueFlags = new Set<string>();
@@ -678,6 +688,7 @@ export async function routeCustomerMessage(
       reply: localizedReply,
       imagePath: params.imagePath ?? params.imagePaths?.[0],
       imagePaths: params.imagePaths ?? (params.imagePath ? [params.imagePath] : undefined),
+      quickReplies: params.quickReplies,
       carouselProducts: params.carouselProducts,
       orderId: params.orderId ?? null,
       language: replyLanguage,

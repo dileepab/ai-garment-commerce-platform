@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       silentReason: result.silentReason ?? null,
       imageUrl: result.imagePath ?? null,
       imageUrls: result.imagePaths ?? null,
+      quickReplies: result.quickReplies ?? null,
       carouselProducts: result.carouselProducts ?? null,
       orderId: result.orderId ?? null,
       language: result.language ?? null,

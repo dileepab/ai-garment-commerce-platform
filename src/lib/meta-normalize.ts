@@ -72,7 +72,9 @@ function getStructuredPostbackMessage(payload?: string): string | null {
 
   if (
     !trimmedPayload?.startsWith('ORDER_NOW|') &&
-    !trimmedPayload?.startsWith('PRODUCT_DETAILS|')
+    !trimmedPayload?.startsWith('PRODUCT_DETAILS|') &&
+    !trimmedPayload?.startsWith('ORDER_SIZE|') &&
+    !trimmedPayload?.startsWith('ORDER_COLOR|')
   ) {
     return null;
   }
@@ -93,6 +95,16 @@ function getStructuredPostbackMessage(payload?: string): string | null {
     }, {});
 
   const productName = decodeMetaValue(attributes.productName);
+
+  if (trimmedPayload.startsWith('ORDER_SIZE|')) {
+    const size = decodeMetaValue(attributes.size || attributes.value);
+    return size ? `${size} size` : null;
+  }
+
+  if (trimmedPayload.startsWith('ORDER_COLOR|')) {
+    const color = decodeMetaValue(attributes.color || attributes.value);
+    return color ? `${color} color` : null;
+  }
 
   if (trimmedPayload.startsWith('PRODUCT_DETAILS|')) {
     return productName ? `Please send details for ${productName}` : 'Please send item details';

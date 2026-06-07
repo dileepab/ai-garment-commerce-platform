@@ -158,7 +158,7 @@ async function deliverCustomerResult(
   }
 
   const failures: string[] = [];
-  const metaOptions = { pageAccessToken, language: result.language };
+  const metaOptions = { pageAccessToken, language: result.language, quickReplies: result.quickReplies };
   const messageResult = await sendInstagramMessage(senderId, accountId, result.reply, metaOptions);
 
   if (!messageResult.ok) {

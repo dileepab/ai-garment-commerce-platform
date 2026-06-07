@@ -81,6 +81,7 @@ export function buildVariantPrompt(
         ? `Please let me know the size you need for ${productName}. Available sizes: ${sizeOptions.join(', ')}.`
         : `Please let me know the size you need for ${productName}.`
     );
+    return prompts.join('\n');
   }
 
   if (!color) {

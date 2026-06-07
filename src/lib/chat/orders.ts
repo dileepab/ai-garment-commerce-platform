@@ -46,12 +46,18 @@ import {
 } from '@/lib/customer-self-service';
 import { saveConversationStateIfCurrent } from '@/lib/conversation-state';
 import {
+  splitCsv,
   mentionsLatestOrderReference,
   mentionsOwnedOrderReference,
 } from '@/lib/chat/message-utils';
 import { buildSupportContactLineFromConfig } from '@/lib/customer-support';
+import {
+  getSizeChartCategoryFromStyle,
+  getSizeChartImagePath,
+} from '@/lib/size-charts';
 import { upsertCustomerContact } from './shared-actions';
-import type { ChatContext } from './types';
+import type { CustomerQuickReply } from './contracts';
+import type { ChatContext, ChatProduct } from './types';
 
 const DRAFT_PENDING_STEPS = new Set([
   'order_draft',
@@ -59,6 +65,80 @@ const DRAFT_PENDING_STEPS = new Set([
   'contact_confirmation',
   'order_confirmation',
 ]);
+
+function encodeQuickReplyValue(value: string): string {
+  return encodeURIComponent(value.trim());
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
+}
+
+function getAvailableVariants(product: ChatProduct) {
+  return (product.variants ?? []).filter((variant) => (variant.inventory?.availableQty ?? 0) > 0);
+}
+
+function getSizeOptions(product: ChatProduct, selectedColor?: string | null): string[] {
+  const availableVariants = getAvailableVariants(product);
+
+  if (availableVariants.length > 0) {
+    return uniqueNonEmpty(
+      availableVariants
+        .filter((variant) => !selectedColor || variant.color === selectedColor)
+        .map((variant) => variant.size)
+    );
+  }
+
+  return splitCsv(product.sizes).map((size) => size.toUpperCase());
+}
+
+function getColorOptions(product: ChatProduct, selectedSize?: string | null): string[] {
+  const availableVariants = getAvailableVariants(product);
+
+  if (availableVariants.length > 0) {
+    return uniqueNonEmpty(
+      availableVariants
+        .filter((variant) => !selectedSize || variant.size === selectedSize)
+        .map((variant) => variant.color)
+    );
+  }
+
+  return splitCsv(product.colors);
+}
+
+function buildQuickReplies(kind: 'size' | 'color', options: string[]): CustomerQuickReply[] {
+  return options.slice(0, 13).map((option) => ({
+    title: option,
+    payload: kind === 'size'
+      ? `ORDER_SIZE|size=${encodeQuickReplyValue(option)}`
+      : `ORDER_COLOR|color=${encodeQuickReplyValue(option)}`,
+  }));
+}
+
+function buildVariantReplyOptions(product: ChatProduct, draft: ResolvedOrderDraft) {
+  if (!draft.size) {
+    const sizeOptions = getSizeOptions(product, draft.color);
+    const chartCategory = getSizeChartCategoryFromStyle(product.style);
+    const sizeChartPath = chartCategory ? getSizeChartImagePath(chartCategory, product.brand) : null;
+
+    return {
+      quickReplies: buildQuickReplies('size', sizeOptions),
+      imagePath: sizeChartPath ?? undefined,
+    };
+  }
+
+  if (!draft.color) {
+    return {
+      quickReplies: buildQuickReplies('color', getColorOptions(product, draft.size)),
+      imagePath: undefined,
+    };
+  }
+
+  return {
+    quickReplies: undefined,
+    imagePath: undefined,
+  };
+}
 
 async function findRecentMatchingOrderForDraft(customerId: number, draft: ResolvedOrderDraft) {
   const recentWindow = new Date(Date.now() - 5 * 60 * 1000);
@@ -177,8 +257,11 @@ export async function handle_place_order(ctx: ChatContext) {
     if (!matchedVariant) {
       // The chosen combo doesn't exist — clear it and re-prompt
       const resetDraft = { ...nextDraft, size: undefined, color: undefined, variantId: undefined };
+      const variantOptions = buildVariantReplyOptions(sourceProduct, resetDraft);
       return finalizeReply({
         reply: buildVariantPrompt(nextDraft.productName, undefined, undefined, sourceProduct),
+        imagePath: variantOptions.imagePath,
+        quickReplies: variantOptions.quickReplies,
         nextState: {
           pendingStep: 'order_draft',
           orderDraft: resetDraft,
@@ -230,8 +313,11 @@ export async function handle_place_order(ctx: ChatContext) {
   );
 
   if (missingVariantReply) {
+    const variantOptions = buildVariantReplyOptions(sourceProduct, nextDraft);
     return finalizeReply({
       reply: missingVariantReply,
+      imagePath: variantOptions.imagePath,
+      quickReplies: variantOptions.quickReplies,
       nextState: {
         pendingStep: 'order_draft',
         orderDraft: nextDraft,

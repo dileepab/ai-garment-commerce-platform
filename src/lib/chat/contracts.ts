@@ -10,11 +10,17 @@ export interface CustomerMessageInput {
   imageUrl?: string;
 }
 
+export interface CustomerQuickReply {
+  title: string;
+  payload: string;
+}
+
 export interface CustomerMessageResult {
   reply: string | null;
   silentReason?: 'support_handoff' | 'human_active';
   imagePath?: string;
   imagePaths?: string[];
+  quickReplies?: CustomerQuickReply[];
   carouselProducts?: Array<{
     id: number;
     name: string;

@@ -9,6 +9,10 @@ interface SimulatorMessage {
   language?: string | null;
   orderId?: number | null;
   imageUrls?: string[] | null;
+  quickReplies?: Array<{
+    title: string;
+    payload: string;
+  }> | null;
   carouselProducts?: Array<{
     id: number;
     name: string;
@@ -26,6 +30,7 @@ interface SimulatorResponse {
   error?: string;
   imageUrl?: string | null;
   imageUrls?: string[] | null;
+  quickReplies?: SimulatorMessage['quickReplies'];
   carouselProducts?: SimulatorMessage['carouselProducts'];
   orderId?: number | null;
   language?: string | null;
@@ -56,9 +61,8 @@ export function ChatSimulatorClient({ brands }: { brands: string[] }) {
     return `${lastAssistant.language || 'unknown'}${lastAssistant.orderId ? ` · ORD-${lastAssistant.orderId}` : ''}`;
   }, [messages]);
 
-  async function sendMessage(e: React.FormEvent) {
-    e.preventDefault();
-    const customerText = message.trim();
+  async function sendCustomerMessage(text?: string) {
+    const customerText = (text ?? message).trim();
     if (!customerText || isSending) return;
 
     const customerMessage: SimulatorMessage = {
@@ -121,6 +125,7 @@ export function ChatSimulatorClient({ brands }: { brands: string[] }) {
           language: payload.language,
           orderId: payload.orderId,
           imageUrls: payload.imageUrls || (payload.imageUrl ? [payload.imageUrl] : null),
+          quickReplies: payload.quickReplies,
           carouselProducts: payload.carouselProducts,
         },
       ]);
@@ -136,6 +141,11 @@ export function ChatSimulatorClient({ brands }: { brands: string[] }) {
     } finally {
       setIsSending(false);
     }
+  }
+
+  function sendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    void sendCustomerMessage();
   }
 
   function resetConversation() {
@@ -265,6 +275,22 @@ export function ChatSimulatorClient({ brands }: { brands: string[] }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {entry.imageUrls.map((url) => (
                     <img key={url} src={url} alt="" style={{ width: 96, aspectRatio: '4 / 5', objectFit: 'cover', borderRadius: 7, border: '1px solid var(--color-border-subtle)' }} />
+                  ))}
+                </div>
+              )}
+              {entry.quickReplies && entry.quickReplies.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {entry.quickReplies.map((reply) => (
+                    <button
+                      key={reply.payload}
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ minHeight: 28, padding: '5px 10px', fontSize: 12 }}
+                      disabled={isSending}
+                      onClick={() => void sendCustomerMessage(reply.title)}
+                    >
+                      {reply.title}
+                    </button>
                   ))}
                 </div>
               )}

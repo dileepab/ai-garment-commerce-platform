@@ -22,6 +22,7 @@ import type { ResolvedOrderDraft } from '@/lib/order-draft';
 import type { MerchantSettings } from '@/lib/runtime-config';
 import type { SizeChartCategory } from '@/lib/size-charts';
 import type {
+  CustomerQuickReply,
   CustomerMessageInput,
   CustomerMessageResult,
 } from './contracts';
@@ -55,6 +56,7 @@ export interface FinalizeReplyParams {
   nextState?: Partial<ConversationStateData>;
   imagePath?: string;
   imagePaths?: string[];
+  quickReplies?: CustomerQuickReply[];
   carouselProducts?: Array<{
     id: number;
     name: string;
