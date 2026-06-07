@@ -133,6 +133,7 @@ export function buildProductQuestionReply(
     price: number;
     sizes: string;
     colors: string;
+    fabric?: string | null;
     inventory?: { availableQty: number } | null;
     variants?: Array<{ size: string; color: string; inventory?: { availableQty: number } | null }>;
   } & ProductGarmentSpecSource,
@@ -168,11 +169,19 @@ export function buildProductQuestionReply(
   }
 
   const specText = buildGarmentSpecsForCustomer(product);
-  const specBlock = specText ? `\n\nFit/details:\n${specText}` : '';
+  const specParts = [];
+  if (product.fabric) {
+    specParts.push(`Fabric: ${product.fabric}`);
+  }
+  if (specText) {
+    specParts.push(specText);
+  }
+  const specBlockText = specParts.join('\n');
+  const specBlock = specBlockText ? `\n\nFit/details:\n${specBlockText}` : '';
 
   if (questionType === 'fit') {
-    return specText
-      ? `${product.name} fit/details:\n${specText}`
+    return specBlockText
+      ? `${product.name} fit/details:\n${specBlockText}`
       : `${product.name} fit details are not recorded yet.`;
   }
 

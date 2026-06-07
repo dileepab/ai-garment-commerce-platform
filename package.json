@@ -20,6 +20,7 @@
     "test:analytics": "node scripts/analytics-helpers.test.js",
     "test:bot-insights": "node scripts/bot-insights.test.js",
     "test:bot-training": "node scripts/bot-training.test.js",
+    "test:contact-profile": "node --test --experimental-strip-types --no-warnings scripts/contact-profile.test.ts",
     "test:retention": "node --test --experimental-strip-types --no-warnings scripts/retention-automation.test.ts",
     "test:fulfillment": "node --test --experimental-strip-types --no-warnings scripts/fulfillment.test.ts",
     "cleanup:conversation": "node scripts/prune-conversation-data.js",

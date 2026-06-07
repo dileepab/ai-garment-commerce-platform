@@ -218,8 +218,35 @@ function buildStructuredAddress(parts: {
     : cleanStoredContactValue(parts.address);
 }
 
+function cleanAddressString(addressStr: string): string {
+  if (!addressStr) {
+    return '';
+  }
+
+  const parts = addressStr.split(',');
+  const cleanedParts = parts.filter((part) => {
+    const trimmed = part.trim().toLowerCase();
+    if (
+      trimmed.startsWith('phone') ||
+      trimmed.startsWith('mobile') ||
+      trimmed.startsWith('name') ||
+      trimmed.startsWith('contact') ||
+      trimmed.startsWith('tel')
+    ) {
+      return false;
+    }
+    const digitOnly = trimmed.replace(/[\s-+()]/g, '');
+    if (digitOnly.length >= 9 && /^\d+$/.test(digitOnly)) {
+      return false;
+    }
+    return true;
+  });
+
+  return cleanedParts.join(',').trim();
+}
+
 function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'streetAddress' | 'city' | 'district'> {
-  const cleaned = cleanStoredContactValue(address);
+  const cleaned = cleanAddressString(cleanStoredContactValue(address));
   const empty = { streetAddress: '', city: '', district: '' };
 
   if (!cleaned || !cleaned.includes(',')) {
@@ -252,7 +279,7 @@ function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'st
       const isDistrict = isKnownSriLankaDistrict(parts[1]);
       return {
         streetAddress: parts[0],
-        city: parts[1],
+        city: isDistrict ? '' : parts[1],
         district: isDistrict ? parts[1] : '',
       };
     }
@@ -272,7 +299,6 @@ function hydrateStructuredAddress(details: ContactDetailsInput): Partial<Contact
   const providedStreetAddress = cleanStoredAddressPartValue(details.streetAddress);
   const providedCity = cleanStoredAddressPartValue(details.city);
   const providedDistrict = cleanStoredAddressPartValue(details.district);
-  const providedAddress = cleanStoredContactValue(details.address);
   const parsedStreetMatches =
     !providedStreetAddress ||
     !parsed.streetAddress ||
@@ -284,10 +310,7 @@ function hydrateStructuredAddress(details: ContactDetailsInput): Partial<Contact
   const parsedDistrictMatches =
     !providedDistrict ||
     Boolean(parsed.district && addressPartsMatch(providedDistrict, parsed.district));
-  const streetAddress =
-    parsed.streetAddress && providedStreetAddress === providedAddress
-      ? parsed.streetAddress
-      : providedStreetAddress || parsed.streetAddress;
+  const streetAddress = providedStreetAddress || parsed.streetAddress;
   const city =
     providedCity ||
     (parsedStreetMatches && (!providedDistrict || parsedDistrictMatches)
@@ -313,8 +336,30 @@ function hydrateStructuredAddress(details: ContactDetailsInput): Partial<Contact
   };
 }
 
+function normalizeCommaSeparatedLabels(message: string): string {
+  const trimmed = message.trim();
+  if (trimmed.includes('\n')) {
+    return message;
+  }
+
+  const labelNames =
+    'street address|delivery address|address\\s*\\(include city\\/town\\)|phone number|contact number|mobile number|city\\/town|address|district|mobile|street|phone|city|town|name';
+  const commaLabelRegex = new RegExp(
+    `,\\s*(?=(?:${labelNames})\\s*[:\\-])`,
+    'gi'
+  );
+
+  const commaLabelMatches = trimmed.match(commaLabelRegex);
+  if (!commaLabelMatches || commaLabelMatches.length < 1) {
+    return message;
+  }
+
+  return trimmed.replace(commaLabelRegex, '\n');
+}
+
 function extractLabelledFields(message: string): Partial<ContactDetails> {
-  const lines = message.split(/\r?\n/);
+  const normalized = normalizeCommaSeparatedLabels(message);
+  const lines = normalized.split(/\r?\n/);
   const extracted: Partial<ContactDetails> = {};
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -396,7 +441,7 @@ function extractAddressFromSentence(message: string): string {
     const match = flattened.match(pattern);
 
     if (match?.[1]) {
-      return sanitizeFieldValue(match[1]);
+      return cleanAddressString(sanitizeFieldValue(match[1]));
     }
   }
 
@@ -410,7 +455,12 @@ function extractFreeformAddress(message: string): string {
     return '';
   }
 
-  const parts = flattened
+  const cleanedAddress = cleanAddressString(flattened);
+  if (!cleanedAddress.includes(',')) {
+    return '';
+  }
+
+  const parts = cleanedAddress
     .split(',')
     .map((part) => sanitizeFieldValue(part))
     .filter(Boolean);
@@ -422,7 +472,7 @@ function extractFreeformAddress(message: string): string {
   const streetCandidate = parts.length === 2 ? parts[0] : parts.slice(0, -2).join(', ');
 
   return STREET_ADDRESS_HINT_PATTERN.test(streetCandidate)
-    ? sanitizeFieldValue(flattened)
+    ? sanitizeFieldValue(cleanedAddress)
     : '';
 }
 

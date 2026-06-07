@@ -42,6 +42,19 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+function formatConversationHistoryForPrompt(history: Array<{ role: string; message: string }>): string {
+  const recentHistory = history
+    .slice(-6)
+    .map((entry) => `${entry.role === 'assistant' ? 'Assistant' : 'Customer'}: ${entry.message}`)
+    .join('\n');
+
+  return recentHistory || 'No prior messages available.';
+}
+
+function isUnsafeConversationalRewrite(rewritten: string): boolean {
+  return /\[(?:insert|placeholder|add|image|photo|size chart)[^\]]*\]/i.test(rewritten);
+}
+
 export function detectCustomerLanguage(message: string): CustomerLanguage | null {
   const normalized = message.trim();
 
@@ -394,6 +407,7 @@ export async function generateConversationalReplyWithGemini(
       : language === 'tamil'
         ? 'Reply in natural conversational Tamil script.'
         : 'Reply in English.';
+  const historyText = formatConversationHistoryForPrompt(history);
 
   const prompt = `You are Nisha, a professional customer service representative for the online clothing store "${brandDisplayName}" in Sri Lanka.
 Your task is to rewrite and translate the raw draft reply (DATABASE_VERIFIED_REPLY) into a warm, polite, and natural conversational response in ${languageName}, mirroring the customer's script style.
@@ -401,6 +415,8 @@ Your task is to rewrite and translate the raw draft reply (DATABASE_VERIFIED_REP
 CONVERSATION CONTEXT:
 - Customer's Name: ${customerName || 'Customer'}
 - Latest message from Customer: "${customerMessage}"
+- Recent conversation:
+${historyText}
 
 DATABASE_VERIFIED_REPLY (Your absolute source of truth):
 """
@@ -413,6 +429,7 @@ CRITICAL RULES FOR REWRITING:
    - Do NOT add, invent, or assume any details (such as other product names, sizes, colors, prices, order IDs, or delivery times) that are not explicitly written in the DATABASE_VERIFIED_REPLY.
    - If the DATABASE_VERIFIED_REPLY asks for missing contact details, ONLY ask for those specific details. Do not ask for size or color unless the DATABASE_VERIFIED_REPLY asks for it.
    - If the customer's latest message contradicts the DATABASE_VERIFIED_REPLY, strictly ignore the contradiction and follow the DATABASE_VERIFIED_REPLY.
+   - Do NOT create placeholders such as "[Insert Size Chart Here]" or mention attachments/media unless DATABASE_VERIFIED_REPLY explicitly says so.
 
 2. PRESERVE STRUCTURED BLOCKS:
    - If the DATABASE_VERIFIED_REPLY contains an Order Summary block or a Contact Details block (where details are shown line-by-line using exact labels like Name:, Street Address:, City/Town:, District:, Phone Number:, Product:, Quantity:, Size:, Color:, Price:), you MUST preserve that exact line-by-line block format and values.
@@ -447,6 +464,13 @@ Output only the final rewritten reply.`;
       const rewritten = response.text?.trim();
 
       if (rewritten) {
+        if (isUnsafeConversationalRewrite(rewritten)) {
+          logWarn('Chat Language', 'Gemini conversational rewrite returned unsafe placeholder; using deterministic reply.', {
+            language,
+          });
+          return null;
+        }
+
         return rewritten;
       }
     } catch (error) {
@@ -468,4 +492,3 @@ Output only the final rewritten reply.`;
 
   return null;
 }
-

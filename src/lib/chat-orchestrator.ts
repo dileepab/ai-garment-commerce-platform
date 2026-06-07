@@ -104,6 +104,33 @@ const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
   'gift_request',
 ]);
 
+const CONVERSATIONAL_REWRITE_REPLY_KINDS = new Set<AssistantReplyKind>([
+  'greeting',
+  'support_contact',
+  'support_handoff',
+  'fallback',
+  'trained_reply',
+]);
+
+const STRUCTURED_REPLY_LABEL_PATTERN =
+  /^(?:Name|Street Address|City\/Town|District|Phone Number|Order Summary|Product|Quantity|Size|Color|Price|Order ID|Current Stage|Tracking|Delivery Address):/im;
+
+function canUseConversationalRewrite(params: {
+  reply: string | null;
+  assistantReplyKind: AssistantReplyKind;
+  hasInteractivePayload: boolean;
+}): params is { reply: string; assistantReplyKind: AssistantReplyKind; hasInteractivePayload: boolean } {
+  if (!params.reply || params.hasInteractivePayload) {
+    return false;
+  }
+
+  if (!CONVERSATIONAL_REWRITE_REPLY_KINDS.has(params.assistantReplyKind)) {
+    return false;
+  }
+
+  return !STRUCTURED_REPLY_LABEL_PATTERN.test(params.reply);
+}
+
 function isBotPausedForSupport(mode: SupportWorkflowMode): boolean {
   return mode === 'handoff_requested' || mode === 'human_active';
 }
@@ -497,11 +524,18 @@ export async function routeCustomerMessage(
               .map((variant) => variant.color)
           ))
         : colors;
-    const productColors = splitCsv(product.colors);
+    const colorOptionsForSelection =
+      colorsForSelectedSize.length > 0 ? colorsForSelectedSize : splitCsv(product.colors);
+    const requestedColor = aiAction.color
+      ? normalizeColor(aiAction.color, colorOptionsForSelection)
+      : undefined;
+    const preservedColor =
+      !aiAction.color && previousDraft?.color
+        ? normalizeColor(previousDraft.color, colorOptionsForSelection)
+        : undefined;
     const color =
-      normalizeColor(aiAction.color, colorsForSelectedSize) ||
-      (aiAction.color ? normalizeColor(aiAction.color, productColors) || aiAction.color : undefined) ||
-      previousDraft?.color ||
+      requestedColor ||
+      preservedColor ||
       (!aiAction.color && colorsForSelectedSize.length === 1 ? colorsForSelectedSize[0] : undefined);
     const quantity = aiAction.quantity || previousDraft?.quantity || 1;
     const paymentMethod =
@@ -525,12 +559,17 @@ export async function routeCustomerMessage(
       size && color
         ? (product.variants ?? []).find((v) => v.size === size && v.color === color) || null
         : null;
+    const canReusePreviousVariant =
+      Boolean(previousDraft?.variantId) &&
+      previousDraft?.productId === product.id &&
+      previousDraft?.size === size &&
+      previousDraft?.color === color;
 
     return {
       productId: product.id,
       productName: product.name,
       brand: product.brand,
-      variantId: resolvedVariant?.id ?? previousDraft?.variantId,
+      variantId: resolvedVariant?.id ?? (canReusePreviousVariant ? previousDraft?.variantId : undefined),
       quantity,
       size,
       color,
@@ -571,13 +610,28 @@ export async function routeCustomerMessage(
   }): Promise<CustomerMessageResult> {
     const assistantReplyKind = params.assistantReplyKind || 'generic';
     let localizedReply: string | null = null;
+    const hasInteractivePayload = Boolean(
+      params.imagePath ||
+        params.imagePaths?.length ||
+        params.quickReplies?.length ||
+        params.carouselProducts?.length
+    );
+
     if (params.skipLocalization) {
       localizedReply = params.reply;
     } else {
       const apiKey = process.env.GEMINI_API_KEY;
       const isChatTestMode = process.env.CHAT_TEST_MODE === '1';
 
-      if (apiKey && !isChatTestMode && params.reply) {
+      if (
+        apiKey &&
+        !isChatTestMode &&
+        canUseConversationalRewrite({
+          reply: params.reply,
+          assistantReplyKind,
+          hasInteractivePayload,
+        })
+      ) {
         localizedReply = await generateConversationalReplyWithGemini(
           params.reply,
           replyLanguage,
@@ -612,12 +666,7 @@ export async function routeCustomerMessage(
 
     await saveConversationPair(input.senderId, input.channel, input.currentMessage, localizedReply);
 
-    const hasMedia = Boolean(
-      params.imagePath ||
-        params.imagePaths?.length ||
-        params.quickReplies?.length ||
-        params.carouselProducts?.length
-    );
+    const hasMedia = hasInteractivePayload;
     const issueFlags = new Set<string>();
     const assistantDetectedLanguage = localizedReply
       ? detectCustomerLanguage(localizedReply)
@@ -1211,6 +1260,26 @@ export async function routeCustomerMessage(
     isUnambiguousCancellationMessage(input.currentMessage)
   ) {
     effectiveAction = 'cancel_order';
+  }
+
+  // If the customer is modifying size or color during an active draft but the AI
+  // classified the message as fallback (because no product name was mentioned),
+  // reclassify to place_order so the draft is actually updated with the new values.
+  if (
+    effectiveAction === 'fallback' &&
+    state.orderDraft &&
+    ['order_draft', 'contact_collection', 'contact_confirmation', 'order_confirmation'].includes(
+      state.pendingStep
+    ) &&
+    (effectiveAiAction.size || effectiveAiAction.color)
+  ) {
+    effectiveAction = 'place_order';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'place_order',
+      productName: effectiveAiAction.productName || state.orderDraft.productName,
+      confidence: Math.max(effectiveAiAction.confidence, 0.85),
+    };
   }
 
   if (effectiveAction === 'fallback' && followUpMissingOrderId) {

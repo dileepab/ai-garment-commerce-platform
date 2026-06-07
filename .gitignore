@@ -49,4 +49,13 @@ user_a_order_id.txt
 next-env.d.ts
 
 /src/generated/prisma
+
+# local assistant scratch/worktrees
 .claude/*
+
+# keep Vercel on the npm deployment path for this app
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# generated chatbot test transcripts
+scripts/gemini-chat-test-results.log

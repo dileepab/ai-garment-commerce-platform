@@ -57,18 +57,10 @@ async function waitForServer(baseUrl, server, timeoutMs = 40000) {
 }
 
 function startTestServer(port) {
-  const defaultCommand = (() => {
-    try {
-      require('node:child_process').execSync('pnpm --version', { stdio: 'ignore' });
-      return 'pnpm';
-    } catch {
-      return 'npm';
-    }
-  })();
-  const npmCommand = process.env.npm_execpath || (process.platform === 'win32' ? `${defaultCommand}.cmd` : defaultCommand);
+  const npmCommand = process.env.npm_execpath || (process.platform === 'win32' ? 'npm.cmd' : 'npm');
   const isPnpm = npmCommand.includes('pnpm');
-  const runArgs = isPnpm 
-    ? ['run', 'start', '--port', String(port)] 
+  const runArgs = isPnpm
+    ? ['run', 'start', '--port', String(port)]
     : ['run', 'start', '--', '--port', String(port)];
   const child = spawn(npmCommand, runArgs, {
     cwd: process.cwd(),
@@ -603,7 +595,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Regression Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771009999',
           'yes correct',
           'yes correct',
@@ -622,7 +614,7 @@ async function main() {
             'Please confirm if these delivery details are correct:',
             'Name: Regression Customer',
             'Street Address: 12 Main Street',
-            'City/Town: Kurunegala',
+            'City/Town: Bingiriya',
             'District: Kurunegala',
             'Phone Number: 0771009999',
           ], 'Contact confirmation reply');
@@ -655,7 +647,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Instagram Regression Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771009898',
           'yes correct',
           'yes correct',
@@ -778,7 +770,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Duplicate Confirm Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771009090',
           'yes correct',
           'yes correct',
@@ -806,7 +798,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Draft Cancel Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771009191',
           'yes correct',
           'yes correct',
@@ -870,7 +862,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Quantity Reserve Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771009292',
           'yes correct',
           'yes correct',
@@ -924,7 +916,7 @@ async function main() {
           '460/2, Temple Road, Bingiriya',
           '0771002222',
           'yes correct',
-          'change address to 12 Main Street, Kurunegala',
+          'change address to 12 Main Street, Bingiriya, Kurunegala',
         ],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[5].bot, [
@@ -932,7 +924,7 @@ async function main() {
             'Please confirm if these delivery details are correct:',
             'Name: Correction Customer',
             'Street Address: 12 Main Street',
-            'City/Town: Kurunegala',
+            'City/Town: Bingiriya',
             'District: Kurunegala',
             'Phone Number: 0771002222',
           ], 'Updated contact confirmation reply');
@@ -964,7 +956,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Gift Update Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771001111',
           'yes correct',
           'yes correct',
@@ -996,7 +988,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Gift Followup Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771001212',
           'yes correct',
           'yes correct',
@@ -1027,7 +1019,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Gift Capability Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771003333',
           'yes correct',
           'yes correct',
@@ -1050,7 +1042,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Complaint Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771004444',
           'yes correct',
           'yes correct',
@@ -1233,7 +1225,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Foreign Owner Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771005656',
           'yes correct',
           'yes correct',
@@ -1272,7 +1264,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Status Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771005555',
           'yes correct',
           'yes correct',
@@ -1291,23 +1283,23 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Self Service Contact Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771003030',
           'yes correct',
           'yes correct',
-          'Please update delivery details for my last order\nAddress: 99 Self Service Road, Colombo\nPhone: 0771234500',
+          'Please update delivery details for my last order\nAddress: 99 Self Service Road, Nugegoda, Colombo\nPhone: 0771234500',
         ],
         verify: async ({ transcript, senderId }) => {
           assertIncludes(transcript[6].bot, [
             'I have updated order #',
-            'Address: 99 Self Service Road, Colombo, Colombo',
+            'Address: 99 Self Service Road, Nugegoda, Colombo',
             'Phone Number: 0771234500',
           ], 'Self-service contact update reply');
 
           const { customer, latestOrder } = await getLatestOrderForSender(senderId);
           assert(latestOrder, 'Expected an order for the self-service contact update test.');
           assert(
-            latestOrder.deliveryAddress === '99 Self Service Road, Colombo, Colombo',
+            latestOrder.deliveryAddress === '99 Self Service Road, Nugegoda, Colombo',
             `Expected delivery address to update, received ${String(latestOrder.deliveryAddress)}.`
           );
           assert(
@@ -1327,7 +1319,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Tracking Status Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771003131',
           'yes correct',
           'yes correct',
@@ -1367,7 +1359,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Blocked Contact Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771003232',
           'yes correct',
           'yes correct',
@@ -1387,7 +1379,7 @@ async function main() {
 
           const followUpTranscript = await runConversation({
             senderId,
-            messages: ['Please update address of my last order to 55 Late Road, Colombo'],
+            messages: ['Please update address of my last order to 55 Late Road, Nugegoda, Colombo'],
             baseUrl,
             pageId: DEFAULT_PAGE_ID,
             reset: false,
@@ -1405,7 +1397,7 @@ async function main() {
             where: { id: latestOrder.id },
           });
           assert(
-            orderAfter?.deliveryAddress === '12 Main Street, Kurunegala, Kurunegala',
+            orderAfter?.deliveryAddress === '12 Main Street, Bingiriya, Kurunegala',
             `Expected dispatched order address to remain unchanged, received ${String(orderAfter?.deliveryAddress)}.`
           );
 
@@ -1430,7 +1422,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Contact Human Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771003233',
           'yes correct',
           'yes correct',
@@ -1470,7 +1462,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Blocked Cancel Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771003334',
           'yes correct',
           'yes correct',
@@ -1537,7 +1529,7 @@ async function main() {
         messages: [
           'I want Oversized Casual Top in black, M size',
           'Reorder Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771006666',
           'yes correct',
           'yes correct',
@@ -1552,7 +1544,7 @@ async function main() {
             'Please confirm if these delivery details are correct:',
             'Name: Reorder Customer',
             'Street Address: 12 Main Street',
-            'City/Town: Kurunegala',
+            'City/Town: Bingiriya',
             'District: Kurunegala',
             'Phone Number: 0771006666',
           ], 'Reorder contact confirmation reply');
@@ -1639,7 +1631,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Cap Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771007878',
           'yes correct',
           'yes correct',
@@ -1666,7 +1658,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Neutral Ack Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771007171',
           'okay',
         ],
@@ -1686,7 +1678,7 @@ async function main() {
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Summary Wording Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771007272',
           'yes correct',
         ],
@@ -1721,7 +1713,7 @@ async function main() {
         messages: [
           'I want Oversized Casual Top in black, M size',
           'Explicit Lookup Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771008888',
           'yes correct',
           'yes correct',
@@ -1734,7 +1726,7 @@ async function main() {
             'Please confirm if these delivery details are correct:',
             'Name: Explicit Lookup Customer',
             'Street Address: 12 Main Street',
-            'City/Town: Kurunegala',
+            'City/Town: Bingiriya',
             'District: Kurunegala',
             'Phone Number: 0771008888',
           ], 'Existing-customer contact confirmation reply');
@@ -1862,7 +1854,7 @@ async function main() {
         messages: [
           'I want Oversized Casual Top in black, M size',
           'Variant Reserve Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771020001',
           'yes correct',
           'yes correct',
@@ -1924,7 +1916,7 @@ async function main() {
         messages: [
           'I want Oversized Casual Top in black, M size',
           'Variant Cancel Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771020002',
           'yes correct',
           'yes correct',
@@ -1967,7 +1959,7 @@ async function main() {
         messages: [
           'I want Oversized Casual Top in white, L size',
           'OOS Variant Customer',
-          '12 Main Street, Kurunegala',
+          '12 Main Street, Bingiriya, Kurunegala',
           '0771020003',
           'yes correct',
           'yes correct',

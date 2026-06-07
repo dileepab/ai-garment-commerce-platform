@@ -154,8 +154,6 @@ Webhook behavior:
 
 Instagram DMs share the same orchestration pipeline as Messenger. Unsupported templates are logged and safely downgraded to text replies.
 
-For App Review submission wording, reviewer instructions, and the screencast checklist, see [`docs/meta-app-review-packet.md`](./docs/meta-app-review-packet.md).
-
 ## Fulfillment And Customer Self-Service
 
 Confirmed orders can move through richer fulfillment stages such as packing, shipped, out-for-delivery, delivered, failed delivery, returned, and cancelled. Customers can safely self-serve supported actions such as status lookup and pre-shipment contact updates, while risky requests still escalate to human support.
