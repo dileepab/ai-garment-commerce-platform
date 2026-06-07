@@ -140,6 +140,91 @@ function buildVariantReplyOptions(product: ChatProduct, draft: ResolvedOrderDraf
   };
 }
 
+function buildUnavailableVariantDraft(
+  product: ChatProduct,
+  draft: ResolvedOrderDraft
+): ResolvedOrderDraft | null {
+  const availableVariants = getAvailableVariants(product);
+
+  if (availableVariants.length === 0) {
+    return null;
+  }
+
+  const colorsForSelectedSize = draft.size
+    ? availableVariants.filter((variant) => variant.size === draft.size).map((variant) => variant.color)
+    : [];
+  const sizesForSelectedColor = draft.color
+    ? availableVariants.filter((variant) => variant.color === draft.color).map((variant) => variant.size)
+    : [];
+
+  if (colorsForSelectedSize.length > 0) {
+    return {
+      ...draft,
+      color: undefined,
+      variantId: undefined,
+      requiresExplicitVariantChoice: true,
+    };
+  }
+
+  if (sizesForSelectedColor.length > 0) {
+    return {
+      ...draft,
+      size: undefined,
+      variantId: undefined,
+      requiresExplicitVariantChoice: true,
+    };
+  }
+
+  return {
+    ...draft,
+    size: undefined,
+    color: undefined,
+    variantId: undefined,
+    requiresExplicitVariantChoice: true,
+  };
+}
+
+function buildUnavailableVariantReply(product: ChatProduct, draft: ResolvedOrderDraft): string {
+  const selectedLabel = [draft.color, draft.size].filter(Boolean).join(' ');
+  const productLabel = selectedLabel ? `${product.name} (${selectedLabel})` : product.name;
+  const availableVariants = getAvailableVariants(product);
+
+  if (availableVariants.length === 0) {
+    return `${productLabel} is currently out of stock. Please choose a different item.`;
+  }
+
+  if (draft.size) {
+    const colorsForSelectedSize = uniqueNonEmpty(
+      availableVariants
+        .filter((variant) => variant.size === draft.size)
+        .map((variant) => variant.color)
+    );
+
+    if (colorsForSelectedSize.length > 0) {
+      return `${productLabel} is currently out of stock. Size ${draft.size} is available in: ${colorsForSelectedSize.join(', ')}. Please choose one of these colors or send another size.`;
+    }
+  }
+
+  if (draft.color) {
+    const sizesForSelectedColor = uniqueNonEmpty(
+      availableVariants
+        .filter((variant) => variant.color === draft.color)
+        .map((variant) => variant.size)
+    );
+
+    if (sizesForSelectedColor.length > 0) {
+      return `${productLabel} is currently out of stock. ${draft.color} is available in sizes: ${sizesForSelectedColor.join(', ')}. Please choose one of these sizes or send another color.`;
+    }
+  }
+
+  const optionList = availableVariants
+    .slice(0, 8)
+    .map((variant) => `${variant.color} ${variant.size}`)
+    .join(', ');
+
+  return `${productLabel} is currently out of stock. Available options: ${optionList}. Please choose an available size and color.`;
+}
+
 async function findRecentMatchingOrderForDraft(customerId: number, draft: ResolvedOrderDraft) {
   const recentWindow = new Date(Date.now() - 5 * 60 * 1000);
 
@@ -318,6 +403,33 @@ export async function handle_place_order(ctx: ChatContext) {
   }
 
   if (nextDraft.quantity > availableQty) {
+    if (availableQty <= 0) {
+      const resetDraft = buildUnavailableVariantDraft(sourceProduct, nextDraft);
+
+      if (!resetDraft) {
+        return finalizeReply({
+          reply: buildUnavailableVariantReply(sourceProduct, nextDraft),
+          nextState: {
+            ...ctx.helpers.clearPendingConversationState(state),
+            lastMissingOrderId: null,
+          },
+        });
+      }
+
+      const variantOptions = buildVariantReplyOptions(sourceProduct, resetDraft);
+      return finalizeReply({
+        reply: buildUnavailableVariantReply(sourceProduct, nextDraft),
+        imagePath: variantOptions.imagePath,
+        quickReplies: variantOptions.quickReplies,
+        nextState: {
+          pendingStep: 'order_draft',
+          orderDraft: resetDraft,
+          quantityUpdate: null,
+          lastMissingOrderId: null,
+        },
+      });
+    }
+
     return finalizeReply({
       reply: `${sourceProduct.name}${nextDraft.color && nextDraft.size ? ` (${nextDraft.color} ${nextDraft.size})` : ''} currently has ${availableQty} item(s) available. Please send a lower quantity.`,
       nextState: {
@@ -339,7 +451,8 @@ export async function handle_place_order(ctx: ChatContext) {
     nextDraft.productName,
     nextDraft.size,
     nextDraft.color,
-    sourceProduct
+    sourceProduct,
+    { forceSingleOptionPrompt: nextDraft.requiresExplicitVariantChoice }
   );
 
   if (missingVariantReply) {
@@ -391,12 +504,62 @@ export async function handle_place_order(ctx: ChatContext) {
 }
 
 export async function handle_confirm_pending(ctx: ChatContext) {
-  const { customer, input, latestActiveOrder, state } = ctx;
+  const { customer, input, latestActiveOrder, products, state } = ctx;
   const {
     clearPendingConversationState,
     escalateToSupport,
     finalizeReply,
   } = ctx.helpers;
+
+  if (state.pendingStep === 'order_draft' && state.orderDraft) {
+    const product = products.find((item) => item.id === state.orderDraft?.productId) || null;
+
+    if (product) {
+      const missingVariantReply = buildVariantPrompt(
+        state.orderDraft.productName,
+        state.orderDraft.size,
+        state.orderDraft.color,
+        product,
+        { forceSingleOptionPrompt: state.orderDraft.requiresExplicitVariantChoice }
+      );
+
+      if (missingVariantReply) {
+        const variantOptions = buildVariantReplyOptions(product, state.orderDraft);
+        return finalizeReply({
+          reply: missingVariantReply,
+          imagePath: variantOptions.imagePath,
+          quickReplies: variantOptions.quickReplies,
+          nextState: {
+            pendingStep: 'order_draft',
+            orderDraft: state.orderDraft,
+            quantityUpdate: null,
+            lastMissingOrderId: null,
+          },
+        });
+      }
+    }
+
+    const missingContactFields = getMissingContactFields({
+      name: state.orderDraft.name,
+      address: state.orderDraft.address,
+      streetAddress: state.orderDraft.streetAddress,
+      city: state.orderDraft.city,
+      district: state.orderDraft.district,
+      phone: state.orderDraft.phone,
+    });
+
+    if (missingContactFields.length > 0) {
+      return finalizeReply({
+        reply: buildMissingContactPrompt(missingContactFields),
+        nextState: {
+          pendingStep: 'contact_collection',
+          orderDraft: state.orderDraft,
+          quantityUpdate: null,
+          lastMissingOrderId: null,
+        },
+      });
+    }
+  }
 
   if (state.pendingStep === 'contact_confirmation' && state.orderDraft) {
     return finalizeReply({

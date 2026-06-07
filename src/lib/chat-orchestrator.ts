@@ -613,6 +613,8 @@ export async function routeCustomerMessage(
     const allProductColors = splitCsv(product.colors);
     const colorOptionsForSelection =
       colorsForSelectedSize.length > 0 ? colorsForSelectedSize : splitCsv(product.colors);
+    const requiresExplicitVariantChoice =
+      Boolean(previousDraft?.requiresExplicitVariantChoice) && !aiAction.size && !aiAction.color;
     const requestedColor = aiAction.color
       ? normalizeColor(aiAction.color, colorOptionsForSelection) ||
         normalizeColor(aiAction.color, allProductColors)
@@ -624,7 +626,9 @@ export async function routeCustomerMessage(
     const color =
       requestedColor ||
       preservedColor ||
-      (!aiAction.color && colorsForSelectedSize.length === 1 ? colorsForSelectedSize[0] : undefined);
+      (!aiAction.color && !requiresExplicitVariantChoice && colorsForSelectedSize.length === 1
+        ? colorsForSelectedSize[0]
+        : undefined);
     const quantity = aiAction.quantity || previousDraft?.quantity || 1;
     const paymentMethod =
       aiAction.paymentMethod ||
@@ -658,6 +662,7 @@ export async function routeCustomerMessage(
       productName: product.name,
       brand: product.brand,
       variantId: resolvedVariant?.id ?? (canReusePreviousVariant ? previousDraft?.variantId : undefined),
+      requiresExplicitVariantChoice,
       quantity,
       size,
       color,

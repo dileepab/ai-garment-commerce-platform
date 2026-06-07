@@ -63,7 +63,8 @@ export function buildVariantPrompt(
     sizes: string;
     colors: string;
     variants?: Array<{ size: string; color: string; inventory?: { availableQty: number } | null }>;
-  } | null
+  } | null,
+  options?: { forceSingleOptionPrompt?: boolean }
 ): string {
   const prompts: string[] = [];
   const availableVariants = product?.variants?.filter(
@@ -92,7 +93,7 @@ export function buildVariantPrompt(
             .map((v) => v.color))]
         : [];
     const colorOptions = variantColors.length > 0 ? variantColors : splitCsv(product?.colors);
-    if (colorOptions.length > 1) {
+    if (colorOptions.length > 1 || (colorOptions.length === 1 && options?.forceSingleOptionPrompt)) {
       prompts.push(`Please let me know the color you need for ${productName}. Available colors: ${colorOptions.join(', ')}.`);
     } else if (colorOptions.length === 0) {
       prompts.push(`Please let me know the color you need for ${productName}.`);

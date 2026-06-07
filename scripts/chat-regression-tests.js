@@ -1996,13 +1996,31 @@ async function main() {
           'yes correct',
           'yes correct',
         ],
-        verify: async ({ transcript }) => {
-          // The order should be blocked — either at variant prompt or at quantity check
+        verify: async ({ transcript, senderId }) => {
+          // The order should be blocked and must not drift into contact collection for
+          // the unavailable variant.
           const allReplies = transcript.map(t => t.bot).join('\n');
           assert(
-            allReplies.includes('available') || allReplies.includes('not available') || allReplies.includes('0 item'),
+            allReplies.includes('currently out of stock') || allReplies.includes('not available') || allReplies.includes('0 item'),
             `Expected out-of-stock variant to be rejected.\n\nTranscript:\n${allReplies}`
           );
+          assert(
+            transcript[1].bot.includes('Please let me know the color') &&
+              transcript[1].bot.includes('Black'),
+            `Expected follow-up to ask for an explicit available color instead of contact details.\n\nActual reply:\n${transcript[1].bot}`
+          );
+          assert(
+            !allReplies.includes('Order Summary') &&
+              !allReplies.includes('Thank you. Your order has been confirmed successfully'),
+            `Expected no order summary or confirmation for out-of-stock variant.\n\nTranscript:\n${allReplies}`
+          );
+          assert(
+            !allReplies.includes("there's nothing pending"),
+            `Expected confirmation attempts to re-open the variant prompt instead of saying nothing is pending.\n\nTranscript:\n${allReplies}`
+          );
+
+          const { latestOrder } = await getLatestOrderForSender(senderId);
+          assert(!latestOrder, 'Expected no order to be created for an out-of-stock variant.');
         },
       },
       {

@@ -14,6 +14,7 @@ export interface ResolvedOrderDraft {
   productName: string;
   brand: string;
   variantId?: number;
+  requiresExplicitVariantChoice?: boolean;
   quantity: number;
   size?: string;
   color?: string;
