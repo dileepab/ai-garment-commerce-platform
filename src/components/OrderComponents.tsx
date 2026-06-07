@@ -220,6 +220,10 @@ export interface OrderDrawerOrder {
     hasApiKey: boolean;
     defaultReceiverDistrictId: string | null;
     defaultReceiverCityId: string | null;
+    resolvedReceiverDistrictId: string | null;
+    resolvedReceiverDistrictName: string | null;
+    resolvedReceiverCityId: string | null;
+    resolvedReceiverCityName: string | null;
   } | null;
   orderItems?: OrderDrawerOrderItem[];
   supportEscalations?: {
@@ -264,15 +268,46 @@ function formatCourierStatus(shipment: OrderCourierShipmentLike): string {
     .join(' ') || 'Unknown';
 }
 
+function buildKoombiyoPackageDescription(order: OrderDrawerOrder | null): string {
+  const lines = order?.orderItems?.map((item) => {
+    const product = item.product?.name || item.product?.style || 'Garment';
+    const variant = [item.size, item.color].filter(Boolean).join(' ');
+    return `${product}${variant ? ` (${variant})` : ''} x${item.quantity}`;
+  }) ?? [];
+
+  return (lines.join(', ') || 'Garment order').slice(0, 240);
+}
+
+function buildKoombiyoSpecialNote(order: OrderDrawerOrder | null): string {
+  if (!order) return '';
+  return [`Brand: ${order.brand || 'DEEZ'}`, `Order: ORD-${order.id}`].join('; ');
+}
+
+function getKoombiyoDraftDefaults(
+  order: OrderDrawerOrder | null,
+  shipment: OrderCourierShipmentLike | null,
+) {
+  return {
+    districtId:
+      shipment?.receiverDistrictId ||
+      order?.koombiyoCourier?.resolvedReceiverDistrictId ||
+      order?.koombiyoCourier?.defaultReceiverDistrictId ||
+      '',
+    cityId:
+      shipment?.receiverCityId ||
+      order?.koombiyoCourier?.resolvedReceiverCityId ||
+      order?.koombiyoCourier?.defaultReceiverCityId ||
+      '',
+    description: shipment?.description || buildKoombiyoPackageDescription(order),
+    specialNote: shipment?.specialNote || buildKoombiyoSpecialNote(order),
+  };
+}
+
 function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipmentLike) {
   const customerName = shipment.receiverName || order.customer.name || 'Customer';
   const address = shipment.receiverStreet || order.deliveryStreetAddress || order.deliveryAddress || 'No address provided';
   const phone = shipment.receiverPhone || order.customer.phone || 'No phone';
-  const description = shipment.description || order.orderItems?.map((item) => {
-    const product = item.product?.name || item.product?.style || 'Garment';
-    const variant = [item.size, item.color].filter(Boolean).join(' ');
-    return `${product}${variant ? ` (${variant})` : ''} x${item.quantity}`;
-  }).join(', ') || 'Garment order';
+  const description = shipment.description || buildKoombiyoPackageDescription(order);
   const codAmount = shipment.codAmount ?? 0;
   const printedAt = new Date().toLocaleString();
   const html = `<!doctype html>
@@ -394,6 +429,16 @@ export function OrderDrawer({
   const stepIdx = TIMELINE_STEPS.indexOf(normalized as typeof TIMELINE_STEPS[number]);
 
   const [isPending, startTransition] = useTransition();
+  const koombiyoShipments = useMemo(() => {
+    return [...(order?.courierShipments ?? [])]
+      .filter((shipment) => shipment.provider === 'koombiyo')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [order?.courierShipments]);
+  const latestKoombiyoShipment = koombiyoShipments[0] ?? null;
+  const koombiyoDraftDefaults = useMemo(
+    () => getKoombiyoDraftDefaults(order, latestKoombiyoShipment),
+    [latestKoombiyoShipment, order],
+  );
   const [error, setError] = useState<string | null>(null);
   const [pendingActionForm, setPendingActionForm] = useState<FulfillmentAction | null>(initialAction);
   const [trackingDraft, setTrackingDraft] = useState(order?.trackingNumber ?? '');
@@ -402,10 +447,10 @@ export function OrderDrawer({
   const [noteDraft, setNoteDraft] = useState('');
   const [showCreateReturn, setShowCreateReturn] = useState(false);
   const [showKoombiyoForm, setShowKoombiyoForm] = useState(false);
-  const [koombiyoDistrictDraft, setKoombiyoDistrictDraft] = useState(order?.koombiyoCourier?.defaultReceiverDistrictId ?? '');
-  const [koombiyoCityDraft, setKoombiyoCityDraft] = useState(order?.koombiyoCourier?.defaultReceiverCityId ?? '');
-  const [koombiyoDescriptionDraft, setKoombiyoDescriptionDraft] = useState('');
-  const [koombiyoNoteDraft, setKoombiyoNoteDraft] = useState('');
+  const [koombiyoDistrictDraft, setKoombiyoDistrictDraft] = useState(koombiyoDraftDefaults.districtId);
+  const [koombiyoCityDraft, setKoombiyoCityDraft] = useState(koombiyoDraftDefaults.cityId);
+  const [koombiyoDescriptionDraft, setKoombiyoDescriptionDraft] = useState(koombiyoDraftDefaults.description);
+  const [koombiyoNoteDraft, setKoombiyoNoteDraft] = useState(koombiyoDraftDefaults.specialNote);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -418,10 +463,10 @@ export function OrderDrawer({
       setPendingActionForm(initialAction);
       setShowCreateReturn(false);
       setShowKoombiyoForm(false);
-      setKoombiyoDistrictDraft(order?.koombiyoCourier?.defaultReceiverDistrictId ?? '');
-      setKoombiyoCityDraft(order?.koombiyoCourier?.defaultReceiverCityId ?? '');
-      setKoombiyoDescriptionDraft('');
-      setKoombiyoNoteDraft('');
+      setKoombiyoDistrictDraft(koombiyoDraftDefaults.districtId);
+      setKoombiyoCityDraft(koombiyoDraftDefaults.cityId);
+      setKoombiyoDescriptionDraft(koombiyoDraftDefaults.description);
+      setKoombiyoNoteDraft(koombiyoDraftDefaults.specialNote);
       setError(null);
     });
     return () => {
@@ -431,8 +476,10 @@ export function OrderDrawer({
     order?.id,
     order?.trackingNumber,
     order?.courier,
-    order?.koombiyoCourier?.defaultReceiverDistrictId,
-    order?.koombiyoCourier?.defaultReceiverCityId,
+    koombiyoDraftDefaults.cityId,
+    koombiyoDraftDefaults.description,
+    koombiyoDraftDefaults.districtId,
+    koombiyoDraftDefaults.specialNote,
     initialAction,
   ]);
 
@@ -497,13 +544,13 @@ export function OrderDrawer({
       (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
     );
   }, [order?.courierWebhookEvents]);
-  const koombiyoShipments = useMemo(() => {
-    return [...(order?.courierShipments ?? [])]
-      .filter((shipment) => shipment.provider === 'koombiyo')
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [order?.courierShipments]);
-  const latestKoombiyoShipment = koombiyoShipments[0] ?? null;
-
+  const matchedKoombiyoLocationLabel = order?.koombiyoCourier?.resolvedReceiverCityName && order.koombiyoCourier.resolvedReceiverDistrictName
+    ? `${order.koombiyoCourier.resolvedReceiverCityName} / ${order.koombiyoCourier.resolvedReceiverDistrictName} (${order.koombiyoCourier.resolvedReceiverCityId || '-'} / ${order.koombiyoCourier.resolvedReceiverDistrictId || '-'})`
+    : null;
+  const orderLocationLabel = [
+    order?.deliveryCity,
+    order?.deliveryDistrict,
+  ].filter(Boolean).join(', ');
   const assignKoombiyoWaybill = () => {
     if (!order) return;
 
@@ -758,7 +805,7 @@ export function OrderDrawer({
                                   className="search-input"
                                   value={koombiyoDistrictDraft}
                                   onChange={(event) => setKoombiyoDistrictDraft(event.target.value)}
-                                  placeholder="Optional override"
+                                  placeholder={order?.deliveryDistrict ? `Auto: ${order.deliveryDistrict}` : 'Optional override'}
                                 />
                               </label>
                               <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
@@ -767,12 +814,16 @@ export function OrderDrawer({
                                   className="search-input"
                                   value={koombiyoCityDraft}
                                   onChange={(event) => setKoombiyoCityDraft(event.target.value)}
-                                  placeholder="Optional override"
+                                  placeholder={order?.deliveryCity ? `Auto: ${order.deliveryCity}` : 'Optional override'}
                                 />
                               </label>
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--color-fg-3)', lineHeight: 1.4 }}>
-                              Leave district and city blank to auto-match from the delivery address using synced Koombiyo cities.
+                              {matchedKoombiyoLocationLabel
+                                ? `Matched from order address: ${matchedKoombiyoLocationLabel}.`
+                                : orderLocationLabel
+                                  ? `Order location: ${orderLocationLabel}. IDs will auto-match on assign from Koombiyo locations.`
+                                  : 'Add city/town and district to the order, or enter Koombiyo district/city IDs manually.'}
                             </div>
                             <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)' }}>
                               Package description

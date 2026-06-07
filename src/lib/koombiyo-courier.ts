@@ -70,6 +70,14 @@ interface ResolvedKoombiyoLocation {
   cityName: string;
 }
 
+export interface KoombiyoLocationCandidate {
+  districtId: string;
+  districtName: string;
+  cityId: string;
+  cityName: string;
+  normalized: string | null;
+}
+
 export interface RefreshKoombiyoStatusInput {
   orderId: number;
   actor?: { email?: string | null; name?: string | null } | null;
@@ -151,7 +159,7 @@ function compactPayload(value: unknown): string {
   }
 }
 
-function normalizeLocationText(value?: string | null): string {
+export function normalizeKoombiyoLocationText(value?: string | null): string {
   return (value || '')
     .toLowerCase()
     .normalize('NFKD')
@@ -159,6 +167,41 @@ function normalizeLocationText(value?: string | null): string {
     .replace(/\b(?:no|road|rd|street|st|lane|ln|mawatha|mw|place|pl|avenue|ave|district|city|town)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function selectBestKoombiyoLocation(
+  address: string,
+  locations: KoombiyoLocationCandidate[],
+): KoombiyoLocationCandidate | null {
+  const normalizedAddress = normalizeKoombiyoLocationText(address);
+  if (!normalizedAddress) return null;
+
+  const scored = locations
+    .map((location) => {
+      const city = normalizeKoombiyoLocationText(location.cityName);
+      const district = normalizeKoombiyoLocationText(location.districtName);
+      let score = 0;
+
+      if (city && normalizedAddress.includes(city)) score += city.length + 20;
+      if (district && normalizedAddress.includes(district)) score += district.length + 10;
+      if (location.normalized && normalizedAddress.includes(location.normalized)) score += 50;
+
+      return { location, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  if (!best) return null;
+
+  const tied = scored.filter((entry) => entry.score === best.score);
+  if (tied.length > 1) {
+    const bestCity = normalizeKoombiyoLocationText(best.location.cityName);
+    const exactCityMatches = tied.filter((entry) => normalizeKoombiyoLocationText(entry.location.cityName) === bestCity);
+    if (exactCityMatches.length !== 1) return null;
+  }
+
+  return best.location;
 }
 
 function parseKoombiyoResponse(text: string): KoombiyoResponseValue {
@@ -470,14 +513,14 @@ export async function syncKoombiyoLocationsForBrand(brand: string): Promise<numb
           districtName: district.name,
           cityId: city.id,
           cityName: city.name,
-          normalized: normalizeLocationText(`${city.name} ${district.name}`),
+          normalized: normalizeKoombiyoLocationText(`${city.name} ${district.name}`),
           rawPayload: compactPayload({ district: district.raw, city: city.raw }),
           syncedAt: new Date(),
         },
         update: {
           districtName: district.name,
           cityName: city.name,
-          normalized: normalizeLocationText(`${city.name} ${district.name}`),
+          normalized: normalizeKoombiyoLocationText(`${city.name} ${district.name}`),
           rawPayload: compactPayload({ district: district.raw, city: city.raw }),
           syncedAt: new Date(),
         },
@@ -508,7 +551,7 @@ async function resolveKoombiyoLocationFromAddress(
 ): Promise<ResolvedKoombiyoLocation | null> {
   await ensureKoombiyoLocations(brand);
 
-  const normalizedAddress = normalizeLocationText(address);
+  const normalizedAddress = normalizeKoombiyoLocationText(address);
   if (!normalizedAddress) return null;
 
   const locations = await prisma.courierLocation.findMany({
@@ -522,32 +565,7 @@ async function resolveKoombiyoLocationFromAddress(
     },
   });
 
-  const scored = locations
-    .map((location) => {
-      const city = normalizeLocationText(location.cityName);
-      const district = normalizeLocationText(location.districtName);
-      let score = 0;
-
-      if (city && normalizedAddress.includes(city)) score += city.length + 20;
-      if (district && normalizedAddress.includes(district)) score += district.length + 10;
-      if (location.normalized && normalizedAddress.includes(location.normalized)) score += 50;
-
-      return { location, score };
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  const best = scored[0];
-  if (!best) return null;
-
-  const tied = scored.filter((entry) => entry.score === best.score);
-  if (tied.length > 1) {
-    const bestCity = normalizeLocationText(best.location.cityName);
-    const exactCityMatches = tied.filter((entry) => normalizeLocationText(entry.location.cityName) === bestCity);
-    if (exactCityMatches.length !== 1) return null;
-  }
-
-  return best.location;
+  return selectBestKoombiyoLocation(normalizedAddress, locations);
 }
 
 async function fetchAllocatedWaybill(apiKey: string): Promise<{ waybillId: string; rawResponse: string }> {
@@ -582,6 +600,10 @@ function buildOrderDescription(order: {
   });
 
   return (lines.join(', ') || 'Garment order').slice(0, 240);
+}
+
+function buildSpecialNote(orderId: number, brand: string): string {
+  return [`Brand: ${brand}`, `Order: ORD-${orderId}`].join('; ');
 }
 
 function resolveCodAmount(order: { totalAmount: number; paymentMethod: string | null }): number {
@@ -670,7 +692,7 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
   const waybill = await fetchAllocatedWaybill(apiKey);
   const orderReference = `ORD-${order.id}`;
   const description = cleanOptionalText(input.description) || buildOrderDescription(order);
-  const specialNote = cleanOptionalText(input.specialNote) || `Brand: ${brand}`;
+  const specialNote = cleanOptionalText(input.specialNote) || buildSpecialNote(order.id, brand);
   const codAmount = resolveCodAmount(order);
   const rawResponse = compactPayload({
     waybill: parseKoombiyoResponse(waybill.rawResponse),
@@ -779,7 +801,7 @@ export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput)
     receiverCity: shipment.receiverCityId!,
     receiverPhone: shipment.receiverPhone!,
     description: shipment.description!,
-    spclNote: shipment.specialNote || `Brand: ${brand}`,
+    spclNote: shipment.specialNote || buildSpecialNote(input.orderId, brand),
     getCod: String(shipment.codAmount ?? 0),
   });
   const courierStatus = extractStatus(addOrderResponse) || 'submitted';

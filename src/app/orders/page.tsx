@@ -4,6 +4,7 @@ import { requirePagePermission } from '@/lib/authz';
 import OrdersPageClient from './OrdersPageClient';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
 import { getBrandLookupAliases } from '@/lib/brand-aliases';
+import { selectBestKoombiyoLocation } from '@/lib/koombiyo-courier';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,20 @@ export default async function OrdersPage() {
       defaultReceiverCityId: true,
     },
   });
+  const koombiyoLocations = await prisma.courierLocation.findMany({
+    where: {
+      provider: 'koombiyo',
+      brand: { in: koombiyoLookupBrands },
+    },
+    select: {
+      brand: true,
+      districtId: true,
+      districtName: true,
+      cityId: true,
+      cityName: true,
+      normalized: true,
+    },
+  });
   const getKoombiyoSettingForBrand = (brand: string) => {
     const aliases = getBrandLookupAliases(brand);
     const matches = koombiyoSettings.filter((setting) => aliases.includes(setting.brand));
@@ -82,6 +97,17 @@ export default async function OrdersPage() {
       matches[0] ||
       null
     );
+  };
+  const getKoombiyoLocationForOrder = (order: (typeof orders)[number]) => {
+    if (!order.brand) return null;
+    const aliases = getBrandLookupAliases(order.brand);
+    const brandLocations = koombiyoLocations.filter((location) => aliases.includes(location.brand));
+    const locationText = [
+      order.deliveryCity,
+      order.deliveryDistrict,
+      order.deliveryAddress,
+    ].filter(Boolean).join(', ');
+    return selectBestKoombiyoLocation(locationText, brandLocations);
   };
 
   const normalizedCounts = orders.reduce<Record<string, number>>((acc, o) => {
@@ -123,11 +149,16 @@ export default async function OrdersPage() {
     koombiyoCourier: o.brand
       ? (() => {
           const setting = getKoombiyoSettingForBrand(o.brand);
+          const matchedLocation = getKoombiyoLocationForOrder(o);
           return {
             isActive: setting?.isActive ?? false,
             hasApiKey: Boolean(setting?.apiKey),
             defaultReceiverDistrictId: setting?.defaultReceiverDistrictId ?? null,
             defaultReceiverCityId: setting?.defaultReceiverCityId ?? null,
+            resolvedReceiverDistrictId: matchedLocation?.districtId ?? null,
+            resolvedReceiverDistrictName: matchedLocation?.districtName ?? null,
+            resolvedReceiverCityId: matchedLocation?.cityId ?? null,
+            resolvedReceiverCityName: matchedLocation?.cityName ?? null,
           };
         })()
       : null,

@@ -103,6 +103,10 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
     hasApiKey: boolean;
     defaultReceiverDistrictId: string | null;
     defaultReceiverCityId: string | null;
+    resolvedReceiverDistrictId: string | null;
+    resolvedReceiverDistrictName: string | null;
+    resolvedReceiverCityId: string | null;
+    resolvedReceiverCityName: string | null;
   } | null;
   returnRequests: {
     id: number;
