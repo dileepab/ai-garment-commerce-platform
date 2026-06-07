@@ -255,11 +255,39 @@ export async function handle_place_order(ctx: ChatContext) {
     );
 
     if (!matchedVariant) {
-      // The chosen combo doesn't exist — clear it and re-prompt
-      const resetDraft = { ...nextDraft, size: undefined, color: undefined, variantId: undefined };
+      // Check if size and color are individually valid in the active inventory
+      const availableVariants = sourceProduct.variants.filter(
+        (v) => (v.inventory?.availableQty ?? 0) > 0
+      );
+      const validSizes = new Set(availableVariants.map((v) => v.size.toUpperCase()));
+      const validColors = new Set(availableVariants.map((v) => v.color.toLowerCase()));
+
+      const isSizeValid = nextDraft.size && validSizes.has(nextDraft.size.toUpperCase());
+      const isColorValid = nextDraft.color && validColors.has(nextDraft.color.toLowerCase());
+
+      // Keep the valid options; clear the invalid ones.
+      // If both are individually valid but the combo doesn't exist, clear the color to prompt again.
+      const nextSize = isSizeValid ? nextDraft.size : undefined;
+      let nextColor = isColorValid ? nextDraft.color : undefined;
+      if (isSizeValid && isColorValid) {
+        nextColor = undefined;
+      }
+
+      const resetDraft = {
+        ...nextDraft,
+        size: nextSize,
+        color: nextColor,
+        variantId: undefined,
+      };
+
       const variantOptions = buildVariantReplyOptions(sourceProduct, resetDraft);
       return finalizeReply({
-        reply: buildVariantPrompt(nextDraft.productName, undefined, undefined, sourceProduct),
+        reply: buildVariantPrompt(
+          nextDraft.productName,
+          nextSize,
+          nextColor,
+          sourceProduct
+        ),
         imagePath: variantOptions.imagePath,
         quickReplies: variantOptions.quickReplies,
         nextState: {
