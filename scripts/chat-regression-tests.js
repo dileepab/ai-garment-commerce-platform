@@ -419,7 +419,7 @@ async function main() {
         },
       },
       {
-        name: 'Available Happyby dresses reply stays professional',
+        name: 'Available Happybuy dresses reply stays professional',
         senderId: buildSender(runId, 'dresses'),
         messages: ['What are the available dresses'],
         verify: async ({ transcript }) => {
@@ -450,7 +450,7 @@ async function main() {
         senderId: buildSender(runId, 'empty-catalog-friendly'),
         before: async () => {
           const products = await prisma.product.findMany({
-            where: { brand: 'Happyby' },
+            where: { brand: 'Happybuy' },
             select: { id: true },
           });
           const productIds = products.map((product) => product.id);

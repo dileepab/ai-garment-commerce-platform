@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { normalizeBrandKey } from '@/lib/brand-aliases';
 
 export type SizeChartCategory = 'tops' | 'tshirts' | 'dresses' | 'pants' | 'skirts';
 
@@ -50,26 +51,26 @@ const SIZE_CHART_DEFINITIONS: Record<SizeChartCategory, SizeChartDefinition> = {
   },
 };
 
-function normalizeBrandSlug(brand?: string | null): string | null {
-  const compact = (brand ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+function getBrandSizeChartSlugs(brand?: string | null): string[] {
+  const compact = normalizeBrandKey(brand);
 
   if (!compact) {
-    return null;
+    return [];
   }
 
-  if (compact === 'happybuy' || compact === 'happyby') {
-    return 'happyby';
+  if (compact === 'happybuy') {
+    return ['happybuy'];
   }
 
   if (compact === 'cleopatra') {
-    return 'cleopatra';
+    return ['cleopatra'];
   }
 
   if (compact === 'modabella') {
-    return 'modabella';
+    return ['modabella'];
   }
 
-  return compact;
+  return [compact];
 }
 
 function publicSizeChartExists(relativePath: string): boolean {
@@ -90,9 +91,9 @@ export function getSizeChartImagePath(
   brand?: string | null
 ): string | null {
   const definition = getSizeChartDefinition(category);
-  const brandSlug = normalizeBrandSlug(brand);
+  const brandSlugs = getBrandSizeChartSlugs(brand);
 
-  if (brandSlug) {
+  for (const brandSlug of brandSlugs) {
     for (const fileName of definition.imageFiles) {
       const brandPath = `/size-charts/${brandSlug}/${fileName}`;
       if (publicSizeChartExists(brandPath)) {

@@ -1,7 +1,7 @@
 const testCatalog = [
   {
     name: 'Oversized Casual Top',
-    brand: 'Happyby',
+    brand: 'Happybuy',
     style: 'oversized_top',
     price: 1750,
     fabric: 'Cotton',
@@ -11,7 +11,7 @@ const testCatalog = [
   },
   {
     name: 'Ribbed Crop Top',
-    brand: 'Happyby',
+    brand: 'Happybuy',
     style: 'crop_top',
     price: 1250,
     fabric: 'Ribbed Cotton',
@@ -21,7 +21,7 @@ const testCatalog = [
   },
   {
     name: 'Breezy Summer Dress',
-    brand: 'Happyby',
+    brand: 'Happybuy',
     style: 'summer_dress',
     price: 2950,
     fabric: 'Rayon',
@@ -31,7 +31,7 @@ const testCatalog = [
   },
   {
     name: 'Relaxed Linen Pants',
-    brand: 'Happyby',
+    brand: 'Happybuy',
     style: 'linen_pants',
     price: 2400,
     fabric: 'Linen Blend',
@@ -41,7 +41,7 @@ const testCatalog = [
   },
   {
     name: 'Pleated Midi Skirt',
-    brand: 'Happyby',
+    brand: 'Happybuy',
     style: 'midi_skirt',
     price: 2100,
     fabric: 'Crepe',
@@ -145,26 +145,26 @@ const testCatalog = [
 // Keys are "brand:name", values are { size: { color: qty } }.
 // Totals must match product.stock above.
 const variantStocks = {
-  'Happyby:Oversized Casual Top': {
+  'Happybuy:Oversized Casual Top': {
     S: { Black: 2, White: 2 },
     M: { Black: 3, White: 2 },
     L: { Black: 2, White: 1 },
   },
-  'Happyby:Ribbed Crop Top': {
+  'Happybuy:Ribbed Crop Top': {
     S: { Beige: 2, Pink: 1 },
     M: { Beige: 2, Pink: 1 },
   },
-  'Happyby:Breezy Summer Dress': {
+  'Happybuy:Breezy Summer Dress': {
     S: { Coral: 2, Sage: 1 },
     M: { Coral: 2, Sage: 2 },
     L: { Coral: 1, Sage: 1 },
   },
-  'Happyby:Relaxed Linen Pants': {
+  'Happybuy:Relaxed Linen Pants': {
     S: { Beige: 2, Black: 1 },
     M: { Beige: 2, Black: 2 },
     L: { Beige: 2, Black: 1 },
   },
-  'Happyby:Pleated Midi Skirt': {
+  'Happybuy:Pleated Midi Skirt': {
     S: { Black: 1, Cream: 2 },
     M: { Black: 2, Cream: 1 },
     L: { Black: 1, Cream: 1 },
@@ -223,12 +223,12 @@ const variantStocks = {
 // Keys are "brand:name", values are { size: { color: reorderThreshold } }.
 // Any variant not listed here will use the system default (10).
 const variantThresholds = {
-  'Happyby:Oversized Casual Top': {
+  'Happybuy:Oversized Casual Top': {
     S: { Black: 5, White: 5 },
     M: { Black: 5, White: 5 },
     L: { Black: 5, White: 5 },
   },
-  'Happyby:Ribbed Crop Top': {
+  'Happybuy:Ribbed Crop Top': {
     S: { Beige: 4, Pink: 4 },
     M: { Beige: 4, Pink: 4 },
   },

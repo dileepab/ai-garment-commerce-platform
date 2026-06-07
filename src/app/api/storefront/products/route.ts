@@ -6,13 +6,14 @@ import { getErrorMessage } from '@/lib/error-message';
 export const revalidate = 60;
 
 const BRAND_SLUG_TO_PLATFORM: Record<string, string> = {
-  happybuy: 'Happyby',
-  happyby: 'Happyby',
+  happybuy: 'Happybuy',
+  happyby: 'Happybuy',
   cleopatra: 'Cleopatra',
   modabella: 'Modabella',
 };
 
 const PLATFORM_TO_BRAND_SLUG: Record<string, string> = {
+  Happybuy: 'happybuy',
   Happyby: 'happybuy',
   Cleopatra: 'cleopatra',
   Modabella: 'modabella',

@@ -8,10 +8,10 @@ export interface PersonaDef {
 }
 
 export const PERSONAS_BY_BRAND: Record<string, PersonaDef[]> = {
-  'Happyby': [
-    { id: 'happyby-1', label: 'Casual & Youthful', imageUrl: '/personas/happyby_model_1.png', height: '5\'4" (162cm)', bodyShape: 'petite slim build', skinTone: 'light olive skin tone' },
-    { id: 'happyby-2', label: 'Athletic Casual', imageUrl: '/personas/happyby_model_2.png', height: '5\'6" (168cm)', bodyShape: 'athletic build', skinTone: 'warm medium brown skin tone' },
-    { id: 'happyby-3', label: 'Curvy Casual', imageUrl: '/personas/happyby_model_3.png', height: '5\'7" (170cm)', bodyShape: 'curvy build', skinTone: 'deep brown skin tone' }
+  'Happybuy': [
+    { id: 'happybuy-1', label: 'Casual & Youthful', imageUrl: '/personas/happybuy_model_1.png', height: '5\'4" (162cm)', bodyShape: 'petite slim build', skinTone: 'light olive skin tone' },
+    { id: 'happybuy-2', label: 'Athletic Casual', imageUrl: '/personas/happybuy_model_2.png', height: '5\'6" (168cm)', bodyShape: 'athletic build', skinTone: 'warm medium brown skin tone' },
+    { id: 'happybuy-3', label: 'Curvy Casual', imageUrl: '/personas/happybuy_model_3.png', height: '5\'7" (170cm)', bodyShape: 'curvy build', skinTone: 'deep brown skin tone' }
   ],
   'Cleopatra': [
     { id: 'cleopatra-1', label: 'Statuesque Elegance', imageUrl: '/personas/cleopatra_model_1.png', height: '5\'10" (178cm)', bodyShape: 'very slim statuesque high-fashion build', skinTone: 'light golden skin tone' },

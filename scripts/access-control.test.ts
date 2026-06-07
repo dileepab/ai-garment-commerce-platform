@@ -36,16 +36,16 @@ test('session users normalize into role and brand scopes', () => {
   const supportScope = getUserScopeFromSessionUser({
     email: 'support@example.com',
     role: 'support',
-    brands: ['HappyBy', 'Cleopatra', 'HappyBy'],
+    brands: ['Happybuy', 'Cleopatra', 'Happybuy'],
   });
 
   assert.equal(supportScope.role, 'support');
   assert.equal(supportScope.brandAccess, 'limited');
-  assert.deepEqual(supportScope.brands, ['HappyBy', 'Cleopatra']);
-  assert.equal(describeScope(supportScope), 'HappyBy, Cleopatra');
-  assert.equal(canAccessBrand(supportScope, 'HappyBy'), true);
+  assert.deepEqual(supportScope.brands, ['Happybuy', 'Cleopatra']);
+  assert.equal(describeScope(supportScope), 'Happybuy, Cleopatra');
+  assert.equal(canAccessBrand(supportScope, 'Happybuy'), true);
   assert.equal(canAccessBrand(supportScope, 'ModaBella'), false);
-  assert.deepEqual(getBrandScopedWhere(supportScope), { brand: { in: ['HappyBy', 'Cleopatra'] } });
+  assert.deepEqual(getBrandScopedWhere(supportScope), { brand: { in: ['Happybuy', 'Cleopatra'] } });
 
   const ownerScope = getUserScopeFromSessionUser({ email: 'admin@example.com' });
   assert.equal(ownerScope.role, 'owner');
@@ -57,10 +57,10 @@ test('session users normalize into role and brand scopes', () => {
 test('role and brand parsing accepts aliases and all-brand markers', () => {
   assert.equal(normalizeRole('ops'), 'operations');
   assert.equal(normalizeRole('operator'), 'operations');
-  assert.deepEqual(normalizeBrands('HappyBy, all, Cleopatra, *'), ['HappyBy', 'Cleopatra']);
+  assert.deepEqual(normalizeBrands('Happybuy, all, Cleopatra, *'), ['Happybuy', 'Cleopatra']);
   assert.equal(resolveBrandAccess('support', []), 'all');
-  assert.equal(resolveBrandAccess('support', ['HappyBy']), 'limited');
-  assert.equal(resolveBrandAccess('admin', ['HappyBy']), 'all');
+  assert.equal(resolveBrandAccess('support', ['Happybuy']), 'limited');
+  assert.equal(resolveBrandAccess('admin', ['Happybuy']), 'all');
 });
 
 test('route helpers map pages and login fallbacks by role', () => {

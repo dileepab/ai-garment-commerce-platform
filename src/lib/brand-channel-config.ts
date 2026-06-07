@@ -38,13 +38,23 @@ function brandEnvKey(brand: string): string {
 
 function resolveEnv(brand: string, suffix: string, fallback?: string): string | undefined {
   const brandKey = brandEnvKey(brand);
-  return process.env[`${suffix}_${brandKey}`] ?? process.env[suffix] ?? fallback;
+  const happybuyKey =
+    brandKey === 'HAPPYBUY' || brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY'
+      ? process.env[`${suffix}_HAPPYBUY`]
+      : undefined;
+  const legacyHappybyKey =
+    brandKey === 'HAPPYBUY' || brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY'
+      ? process.env[`${suffix}_HAPPYBY`]
+      : undefined;
+  return process.env[`${suffix}_${brandKey}`] ?? happybuyKey ?? legacyHappybyKey ?? process.env[suffix] ?? fallback;
 }
 
 function legacyFacebookPageIdForBrand(brand: string): string | undefined {
   const brandKey = brandEnvKey(brand);
 
-  if (brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY') return process.env.HAPPYBY_PAGE_ID;
+  if (brandKey === 'HAPPYBUY' || brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY') {
+    return process.env.HAPPYBUY_PAGE_ID ?? process.env.HAPPYBY_PAGE_ID;
+  }
   if (brandKey === 'CLEOPATRA') return process.env.CLEOPATRA_PAGE_ID;
   if (brandKey === 'MODABELLA') return process.env.MODABELLA_PAGE_ID;
 
@@ -54,7 +64,9 @@ function legacyFacebookPageIdForBrand(brand: string): string | undefined {
 function legacyInstagramAccountIdForBrand(brand: string): string | undefined {
   const brandKey = brandEnvKey(brand);
 
-  if (brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY') return process.env.HAPPYBY_INSTAGRAM_ID;
+  if (brandKey === 'HAPPYBUY' || brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY') {
+    return process.env.HAPPYBUY_INSTAGRAM_ID ?? process.env.HAPPYBY_INSTAGRAM_ID;
+  }
   if (brandKey === 'CLEOPATRA') return process.env.CLEOPATRA_INSTAGRAM_ID;
   if (brandKey === 'MODABELLA') return process.env.MODABELLA_INSTAGRAM_ID;
 
@@ -147,7 +159,9 @@ export async function resolveBrandForFacebookPageId(pageId: string): Promise<str
   });
   if (record?.brand) return record.brand;
 
-  if (process.env.HAPPYBY_PAGE_ID === pageId) return 'Happyby';
+  if (process.env.HAPPYBUY_PAGE_ID === pageId || process.env.HAPPYBY_PAGE_ID === pageId) {
+    return 'Happybuy';
+  }
   if (process.env.CLEOPATRA_PAGE_ID === pageId) return 'Cleopatra';
   if (process.env.MODABELLA_PAGE_ID === pageId) return 'Modabella';
 
@@ -161,7 +175,12 @@ export async function resolveBrandForInstagramAccountId(accountId: string): Prom
   });
   if (record?.brand) return record.brand;
 
-  if (process.env.HAPPYBY_INSTAGRAM_ID === accountId) return 'Happyby';
+  if (
+    process.env.HAPPYBUY_INSTAGRAM_ID === accountId ||
+    process.env.HAPPYBY_INSTAGRAM_ID === accountId
+  ) {
+    return 'Happybuy';
+  }
   if (process.env.CLEOPATRA_INSTAGRAM_ID === accountId) return 'Cleopatra';
   if (process.env.MODABELLA_INSTAGRAM_ID === accountId) return 'Modabella';
 
@@ -181,6 +200,7 @@ export async function getConfiguredInstagramAccountIds(): Promise<Set<string>> {
   }
 
   for (const accountId of [
+    process.env.HAPPYBUY_INSTAGRAM_ID,
     process.env.HAPPYBY_INSTAGRAM_ID,
     process.env.CLEOPATRA_INSTAGRAM_ID,
     process.env.MODABELLA_INSTAGRAM_ID,

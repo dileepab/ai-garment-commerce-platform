@@ -4,8 +4,12 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const DEFAULT_BASE_URL = process.env.SIM_BASE_URL || 'http://127.0.0.1:3001';
-const DEFAULT_PAGE_ID = process.env.HAPPYBY_PAGE_ID || '127157417146065';
-const DEFAULT_INSTAGRAM_ID = process.env.HAPPYBY_INSTAGRAM_ID || '17841400000000000';
+const DEFAULT_PAGE_ID =
+  process.env.HAPPYBUY_PAGE_ID || process.env.HAPPYBY_PAGE_ID || '127157417146065';
+const DEFAULT_INSTAGRAM_ID =
+  process.env.HAPPYBUY_INSTAGRAM_ID ||
+  process.env.HAPPYBY_INSTAGRAM_ID ||
+  '17841400000000000';
 
 async function sleep(ms) {
   await new Promise((resolve) => {

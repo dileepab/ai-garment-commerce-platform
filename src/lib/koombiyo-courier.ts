@@ -90,7 +90,20 @@ function brandEnvKey(brand: string): string {
 
 function getEnvApiKey(brand: string): string | null {
   const key = brandEnvKey(brand);
-  return cleanApiKey(process.env[`KOOMBIYO_API_KEY_${key}`] || process.env.KOOMBIYO_API_KEY);
+  const happybuyKey =
+    key === 'HAPPYBUY' || key === 'HAPPYBY' || key === 'HAPPY_BUY'
+      ? process.env.KOOMBIYO_API_KEY_HAPPYBUY
+      : undefined;
+  const legacyHappybyKey =
+    key === 'HAPPYBUY' || key === 'HAPPYBY' || key === 'HAPPY_BUY'
+      ? process.env.KOOMBIYO_API_KEY_HAPPYBY
+      : undefined;
+  return cleanApiKey(
+    process.env[`KOOMBIYO_API_KEY_${key}`] ||
+      happybuyKey ||
+      legacyHappybyKey ||
+      process.env.KOOMBIYO_API_KEY
+  );
 }
 
 function compactPayload(value: unknown): string {

@@ -633,15 +633,19 @@ export function getRuntimeWarnings(): RuntimeWarning[] {
     });
   }
 
-  if (hasConfiguredValue(process.env.HAPPYBY_PAGE_ID)) {
+  if (
+    hasConfiguredValue(process.env.HAPPYBUY_PAGE_ID) ||
+    hasConfiguredValue(process.env.HAPPYBY_PAGE_ID)
+  ) {
     warnings.push({
-      key: 'HAPPYBY_PAGE_ID',
+      key: 'HAPPYBUY_PAGE_ID',
       level: 'info',
-      message: 'HAPPYBY_PAGE_ID is configured as a legacy fallback. Prefer storing Page IDs in Settings > Meta Channels.',
+      message: 'Happybuy Page ID is configured as an env fallback. Prefer storing Page IDs in Settings > Meta Channels.',
     });
   }
 
   if (
+    hasConfiguredValue(process.env.HAPPYBUY_INSTAGRAM_ID) ||
     hasConfiguredValue(process.env.HAPPYBY_INSTAGRAM_ID) ||
     hasConfiguredValue(process.env.CLEOPATRA_INSTAGRAM_ID) ||
     hasConfiguredValue(process.env.MODABELLA_INSTAGRAM_ID)

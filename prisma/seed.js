@@ -52,7 +52,7 @@ async function main() {
 
   console.log('Seeding Customers and Orders...');
   const cust1 = await prisma.customer.create({
-    data: { name: 'Amal Perera', phone: '0771234567', channel: 'messenger', preferredBrand: 'Happyby' }
+    data: { name: 'Amal Perera', phone: '0771234567', channel: 'messenger', preferredBrand: 'Happybuy' }
   });
 
   const cust2 = await prisma.customer.create({
@@ -60,7 +60,7 @@ async function main() {
   });
 
   // Seed order 1: reserve from variant inventory (M/Black Oversized Casual Top)
-  const product1 = createdProducts.get('Happyby:Oversized Casual Top');
+  const product1 = createdProducts.get('Happybuy:Oversized Casual Top');
   const variant1 = await prisma.productVariant.findUnique({
     where: { productId_size_color: { productId: product1.id, size: 'M', color: 'Black' } },
   });
@@ -68,7 +68,7 @@ async function main() {
   await prisma.order.create({
     data: {
       customerId: cust1.id,
-      brand: 'Happyby',
+      brand: 'Happybuy',
       totalAmount: 1750,
       orderStatus: 'confirmed',
       paymentMethod: 'Bank Transfer',

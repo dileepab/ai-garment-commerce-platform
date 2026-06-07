@@ -1,3 +1,5 @@
+import { brandsMatch, normalizeBrandKey } from './brand-aliases.ts';
+
 export const USER_ROLES = ['owner', 'admin', 'support', 'operations'] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
@@ -124,7 +126,11 @@ export function normalizeBrands(value: unknown): string[] {
       : [];
 
   const brands = rawValues
-    .map((brand) => String(brand).trim())
+    .map((brand) => {
+      const rawBrand = String(brand).trim();
+      const brandKey = normalizeBrandKey(rawBrand);
+      return brandKey === 'happybuy' ? 'Happybuy' : rawBrand;
+    })
     .filter(Boolean)
     .filter((brand) => !['*', 'all'].includes(brand.toLowerCase()));
 
@@ -205,7 +211,7 @@ export function getProductBrandScopedWhere(scope: UserScope) {
 export function canAccessBrand(scope: UserScope, brand?: string | null): boolean {
   if (scope.brandAccess === 'all') return true;
   if (!brand) return false;
-  return scope.brands.includes(brand);
+  return scope.brands.some((allowedBrand) => brandsMatch(allowedBrand, brand));
 }
 
 export function describeScope(scope: UserScope): string {

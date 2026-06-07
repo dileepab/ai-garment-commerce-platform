@@ -12,8 +12,8 @@ interface StorefrontChatRequest {
 }
 
 const BRAND_SLUG_TO_PLATFORM: Record<string, string> = {
-  happybuy: 'Happyby',
-  happyby: 'Happyby',
+  happybuy: 'Happybuy',
+  happyby: 'Happybuy',
   cleopatra: 'Cleopatra',
   modabella: 'Modabella',
 };

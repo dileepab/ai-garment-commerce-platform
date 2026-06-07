@@ -6,8 +6,8 @@ const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v23.0';
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 const BRAND_PAGE_ID_ENV_KEYS = {
+  happybuy: 'HAPPYBUY_PAGE_ID',
   happyby: 'HAPPYBY_PAGE_ID',
-  happybuy: 'HAPPYBY_PAGE_ID',
   cleopatra: 'CLEOPATRA_PAGE_ID',
   modabella: 'MODABELLA_PAGE_ID',
 };
@@ -101,7 +101,8 @@ function maskSecret(value) {
 }
 
 function normalizeBrand(value) {
-  return (value || 'happyby').toLowerCase().replace(/\s+/g, '');
+  const compact = (value || 'happybuy').toLowerCase().replace(/\s+/g, '');
+  return compact === 'happyby' ? 'happybuy' : compact;
 }
 
 function printSection(title) {
@@ -190,8 +191,11 @@ async function main() {
 
   const verbose = hasFlag('--verbose');
   const brand = normalizeBrand(readOption('--brand'));
-  const pageIdEnvKey = BRAND_PAGE_ID_ENV_KEYS[brand] || BRAND_PAGE_ID_ENV_KEYS.happyby;
-  const pageId = readOption('--page-id') || process.env[pageIdEnvKey];
+  const pageIdEnvKey = BRAND_PAGE_ID_ENV_KEYS[brand] || BRAND_PAGE_ID_ENV_KEYS.happybuy;
+  const pageId =
+    readOption('--page-id') ||
+    process.env[pageIdEnvKey] ||
+    (brand === 'happybuy' ? process.env.HAPPYBY_PAGE_ID : undefined);
   const pageAccessToken =
     readOption('--token') || firstDefinedValue(['META_PAGE_ACCESS_TOKEN']);
   const appId =

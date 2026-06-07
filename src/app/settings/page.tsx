@@ -55,7 +55,7 @@ const sectionSummaryStyle = {
   justifyContent: 'space-between',
   gap: 12,
 } satisfies CSSProperties;
-const REQUIRED_BRANDS = ['DEEZ', 'Happyby', 'Cleopatra', 'Modabella'];
+const REQUIRED_BRANDS = ['DEEZ', 'Happybuy', 'Cleopatra', 'Modabella'];
 
 interface CourierWebhookHealth {
   configured: boolean;
@@ -543,7 +543,7 @@ function AddBrandForm({ canManage }: { canManage: boolean }) {
           name="newBrand"
           value=""
           disabled={false}
-          placeholder="e.g. Happyby, Cleopatra, DEEZ"
+          placeholder="e.g. Happybuy, Cleopatra, DEEZ"
         />
         <TextField
           label="Display name"

@@ -1,8 +1,8 @@
 const BRAND_KEY_ALIASES: Record<string, string> = {
   deez: 'deez',
-  happyby: 'happyby',
-  happybuy: 'happyby',
-  happybuyfashion: 'happyby',
+  happyby: 'happybuy',
+  happybuy: 'happybuy',
+  happybuyfashion: 'happybuy',
   cleopatra: 'cleopatra',
   modabella: 'modabella',
 };
