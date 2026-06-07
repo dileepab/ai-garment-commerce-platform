@@ -1,5 +1,6 @@
 import { RouterProductContext, RouterInput, AiRoutedAction } from './types';
 import { extractContactDetailsFromText } from '@/lib/contact-profile';
+import { looksLikeCourierProviderQuestion } from '@/lib/chat/message-utils';
 import { SizeChartCategory } from '@/lib/size-charts';
 
 export const SIZE_PATTERN = /\b(4XL|3XL|2XL|XXL|XL|XS|S|M|L|small|medium|large|extra small|extra large|double extra large)\b/i;
@@ -392,6 +393,7 @@ export function buildHeuristicAction(
   }
 
   if (
+    looksLikeCourierProviderQuestion(message) ||
     /\bhow long\b|\bdelivery\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/.test(normalized) ||
     /\b(?:delivery|shipping)\b.*\b(?:charge|charges|fee|fees|cost|price|how much)\b/.test(normalized) ||
     /\bhow much\b.*\b(?:delivery|shipping)\b/.test(normalized) ||

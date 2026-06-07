@@ -12,6 +12,7 @@ import {
   isUnambiguousCancellationMessage,
   looksLikeCatalogQuestion,
   looksLikeCasualWellbeingQuestion,
+  looksLikeCourierProviderQuestion,
   looksLikeDeliveryQuestion,
   looksLikeDeliveryChargeQuestion,
   looksLikeGiftRequest,
@@ -21,6 +22,7 @@ import {
   looksLikeOrderDetailsRequest,
   looksLikeOrderStatusRequest,
   looksLikePaymentQuestion,
+  looksLikePreOrderIssuePolicyQuestion,
   looksLikeSameItemMessage,
   looksLikeStoreLocationQuestion,
   looksLikeSupportContactProblem,
@@ -1275,6 +1277,12 @@ export async function routeCustomerMessage(
   // speak with a human agent, even if the AI labelled it as support_contact_request.
   const hasSupportContactProblem = looksLikeSupportContactProblem(input.currentMessage);
   const detectedSupportIssueReason = inferSupportIssueReason(input.currentMessage);
+  const isCourierProviderQuestion = looksLikeCourierProviderQuestion(input.currentMessage);
+  const shouldAnswerSupportPolicy =
+    Boolean(detectedSupportIssueReason) &&
+    !looksLikeHumanEscalationRequest(input.currentMessage) &&
+    !hasSupportContactProblem &&
+    looksLikePreOrderIssuePolicyQuestion(input.currentMessage, detectedSupportIssueReason);
   const isSimpleSupportContactRequest =
     aiAction.action === 'support_contact_request' &&
     !looksLikeHumanEscalationRequest(input.currentMessage) &&
@@ -1282,6 +1290,8 @@ export async function routeCustomerMessage(
     !hasSupportContactProblem;
   const supportIssueReason =
     isSimpleSupportContactRequest ||
+    isCourierProviderQuestion ||
+    shouldAnswerSupportPolicy ||
     aiAction.action === 'thanks_acknowledgement' ||
     (looksLikeOrderContactUpdateRequest(input.currentMessage) &&
       !looksLikeHumanEscalationRequest(input.currentMessage))
@@ -1323,6 +1333,30 @@ export async function routeCustomerMessage(
 
   if (effectiveAction === 'confirm_pending' && !isClearConfirmation(input.currentMessage)) {
     effectiveAction = 'fallback';
+  }
+
+  if (
+    shouldAnswerSupportPolicy &&
+    ['fallback', 'support_contact_request', 'delivery_question', 'greeting'].includes(effectiveAction)
+  ) {
+    effectiveAction = 'exchange_question';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'exchange_question',
+      confidence: Math.max(effectiveAiAction.confidence, 0.9),
+    };
+  }
+
+  if (
+    isCourierProviderQuestion &&
+    ['fallback', 'support_contact_request', 'greeting', 'delivery_question'].includes(effectiveAction)
+  ) {
+    effectiveAction = 'delivery_question';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'delivery_question',
+      confidence: Math.max(effectiveAiAction.confidence, 0.9),
+    };
   }
 
   if (

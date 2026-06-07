@@ -313,7 +313,8 @@ export function looksLikeDeliveryComplaint(message: string): boolean {
   return (
     /\b(late|delayed|delay|not received|didn t receive|where is my parcel|where is my package|parcel not arrived|package not arrived|courier issue|still haven t received|still haven t got)\b/i.test(
       normalizeText(message)
-    ) && !looksLikeDeliveryQuestion(message)
+    ) && !looksLikeDeliveryQuestion(message) &&
+    !looksLikeCourierProviderQuestion(message)
   );
 }
 
@@ -356,12 +357,58 @@ export function looksLikeExchangeRequest(message: string): boolean {
   const normalized = normalizeText(message);
 
   return (
-    /\b(want to exchange|would like to exchange|need to exchange|requesting an exchange|exchange the order|exchange my order|exchange my item|exchange request|swap for|swap it for)\b/i.test(
+    /\b(want to exchange|would like to exchange|need to exchange|requesting an exchange|exchange the order|exchange my order|exchange my item|exchange request|swap for|swap it for|can i exchange|can i get an exchange|exchange if|exchange when)\b/i.test(
       normalized
     ) ||
     /(මාරු\s*කර|හුවමාරු|ලොකු\s*size|වෙන\s*size|සයිස්.*මාරු|size.*මාරු)/i.test(message) ||
     /(மாற்றி|மாற்ற|எக்சேஞ்ச்|exchange|வேறு\s*size|பெரிய\s*size|சைஸ்.*மாற்ற)/i.test(message)
   );
+}
+
+export function looksLikePreOrderIssuePolicyQuestion(
+  message: string,
+  reason?: SupportIssueReason | null
+): boolean {
+  const normalized = normalizeText(message);
+  const asksQuestion =
+    message.includes('?') ||
+    /^(can|could|do|does|is|are|what|how|if|will|would)\b/.test(normalized) ||
+    /\b(?:what if|in case|if it|if the|if my|if this|if that)\b/.test(normalized) ||
+    /(මොකද|කොහොම|කළ\s*යුතු|කරන්නේ|හැකිද|\?)/i.test(message);
+  const isConditional =
+    /\b(?:what if|in case|if it|if the|if my|if this|if that|doesn t fit|does not fit|don t fit|do not fit|doesnt fit|wont fit|won t fit|not fit|arrives? damaged|comes? damaged|come damaged|came damaged if)\b/i.test(
+      normalized
+    ) ||
+    /(ආවොත්|ආවේ\s*නම්|නොගැලපුණොත්|නොගැලපේ\s*නම්|නොගැලපෙනවා\s*නම්|size.*නොගැලප|සයිස්.*නොගැලප)/i.test(
+      message
+    );
+  const looksPastIssue =
+    /\b(?:already|received|got|came|arrived)\b.{0,50}\b(?:damaged|broken|defective|wrong item|wrong product)\b/i.test(
+      normalized
+    ) ||
+    /(ආපු|ලැබුණ|ලැබුන|ඇවිත්|ඇවිල්ලා).{0,40}(ඩැමේජ්|හානි|කැඩිලා|වැරදි)/i.test(message);
+
+  if (!asksQuestion && !isConditional) {
+    return false;
+  }
+
+  if (looksPastIssue && !isConditional) {
+    return false;
+  }
+
+  if (reason === 'exchange_request') {
+    return isConditional || (asksQuestion && !messageReferencesExistingOrder(message));
+  }
+
+  if (reason === 'return_request') {
+    return isConditional || /\b(?:return policy|can i return|can we return|possible to return)\b/i.test(normalized);
+  }
+
+  if (reason === 'refund_or_damage') {
+    return isConditional;
+  }
+
+  return false;
 }
 
 export function looksLikeClarificationBreakdown(message: string): boolean {
@@ -481,6 +528,25 @@ export function looksLikeDeliveryQuestion(message: string): boolean {
       message
     ) ||
     /(எத்தனை|நாட்கள்|நேரம்|எப்போது).*(அனுப்ப|டெலிவரி|delivery)/i.test(message)
+  );
+}
+
+export function looksLikeCourierProviderQuestion(message: string): boolean {
+  const normalized = normalizeText(message);
+  const mentionsCourierProvider =
+    /\b(?:courier|delivery partner|shipping provider|pronto|domex|koombiyo|koombio|prompt)\b/i.test(
+      normalized
+    );
+
+  if (!mentionsCourierProvider) {
+    return false;
+  }
+
+  return (
+    /\b(?:which|what|available|use|send|ship|deliver|via|through|courier service|delivery partner|shipping provider)\b/i.test(
+      normalized
+    ) ||
+    /\b(?:pronto|domex|koombiyo|koombio|prompt)\b/i.test(normalized)
   );
 }
 

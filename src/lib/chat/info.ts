@@ -2,17 +2,22 @@ import {
   assistantOfferedGiftOptions,
   extractDeliveryLocationHint,
   extractGiftNoteFromText,
+  inferSupportIssueReason,
   looksLikeDeliveryChargeQuestion,
   looksLikeCasualWellbeingQuestion,
+  looksLikeCourierProviderQuestion,
   mentionsCurrentOrderReference,
   mentionsLatestOrderReference,
   mentionsOwnedOrderReference,
   mentionsRelativeOrderReference,
   messageReferencesExistingOrder,
+  looksLikePreOrderIssuePolicyQuestion,
   looksLikeGiftFollowUp,
   looksLikeGiftUpdateInstruction,
   parseRequestedDateFromMessage,
 } from '@/lib/chat/message-utils';
+import prisma from '@/lib/prisma';
+import { brandsMatch } from '@/lib/brand-aliases';
 import {
   buildClarificationReply,
   buildDeliveryReply,
@@ -36,6 +41,60 @@ import { describeDeliveryEstimates, resolvePaymentMethod } from '@/lib/runtime-c
 import { isOrderMutableStatus } from '@/lib/orders';
 import { updateOrderGiftInstructions } from './shared-actions';
 import type { ChatContext } from './types';
+
+const COURIER_PROVIDER_LABELS: Record<string, string> = {
+  koombiyo: 'Koombiyo Delivery',
+  koombio: 'Koombiyo Delivery',
+  pronto: 'Pronto',
+  domex: 'Domex',
+  prompt: 'Prompt Express',
+};
+
+function formatList(values: string[]): string {
+  if (values.length <= 1) {
+    return values[0] || '';
+  }
+
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`;
+  }
+
+  return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
+}
+
+function getCourierProviderLabel(provider: string): string {
+  const normalized = provider.trim().toLowerCase();
+  return COURIER_PROVIDER_LABELS[normalized] ||
+    normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getRequestedCourierProviderLabels(message: string): string[] {
+  const normalized = message.toLowerCase();
+  const requested: string[] = [];
+
+  for (const [provider, label] of Object.entries(COURIER_PROVIDER_LABELS)) {
+    if (normalized.includes(provider) && !requested.includes(label)) {
+      requested.push(label);
+    }
+  }
+
+  return requested;
+}
+
+async function getActiveCourierProviderLabels(brand?: string | null): Promise<string[]> {
+  const records = await prisma.courierIntegrationSetting.findMany({
+    where: { isActive: true },
+    select: { brand: true, provider: true },
+    orderBy: [{ brand: 'asc' }, { provider: 'asc' }],
+  });
+  const matchingRecords = brand
+    ? records.filter((record) => brandsMatch(record.brand, brand))
+    : records;
+
+  return Array.from(
+    new Set(matchingRecords.map((record) => getCourierProviderLabel(record.provider)))
+  );
+}
 
 export async function handle_greeting(ctx: ChatContext) {
   const { customer, input, mergedContact, settings } = ctx;
@@ -202,6 +261,36 @@ export async function handle_delivery_question(ctx: ChatContext) {
     getDeliveryChargeForAddress(address, settings.delivery);
   const includeCharge = looksLikeDeliveryChargeQuestion(input.currentMessage);
 
+  if (looksLikeCourierProviderQuestion(input.currentMessage)) {
+    const activeProviderLabels = await getActiveCourierProviderLabels(input.brand || ctx.brandFilter);
+    const requestedProviderLabels = getRequestedCourierProviderLabels(input.currentMessage);
+    const unavailableRequestedProviders = requestedProviderLabels.filter(
+      (provider) => !activeProviderLabels.includes(provider)
+    );
+    const brandLabel = input.brand || ctx.brandFilter || settings.displayName || 'this brand';
+
+    if (activeProviderLabels.length > 0) {
+      const availableText = formatList(activeProviderLabels);
+      const unavailableText = unavailableRequestedProviders.length > 0
+        ? ` ${formatList(unavailableRequestedProviders)} ${unavailableRequestedProviders.length === 1 ? 'is' : 'are'} not available for ${brandLabel} right now.`
+        : '';
+
+      return finalizeReply({
+        reply: `For ${brandLabel}, the available courier service is ${availableText}.${unavailableText}`,
+        nextState: {
+          lastMissingOrderId: null,
+        },
+      });
+    }
+
+    return finalizeReply({
+      reply: `Courier service is not active for ${brandLabel} yet. Once a courier account is enabled for this brand, I can confirm the available courier before you place the order.`,
+      nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
   const locationHint = aiAction.deliveryLocation || extractDeliveryLocationHint(input.currentMessage);
   const requestedDate =
     parseRequestedDateFromMessage(input.currentMessage, getSriLankaToday()) ||
@@ -331,8 +420,13 @@ export async function handle_payment_question(ctx: ChatContext) {
 }
 
 export async function handle_exchange_question(ctx: ChatContext) {
-  const { aiAction, customer, explicitOrderId, latestOrder, latestActiveOrder, state } = ctx;
+  const { aiAction, customer, explicitOrderId, input, latestOrder, latestActiveOrder, state } = ctx;
   const { escalateToSupport, finalizeReply } = ctx.helpers;
+  const detectedIssueReason = inferSupportIssueReason(input.currentMessage);
+  const isPolicyQuestion = looksLikePreOrderIssuePolicyQuestion(
+    input.currentMessage,
+    detectedIssueReason
+  );
 
   // If the customer has a delivered order they are likely referencing, treat
   // this as an actionable exchange request and escalate to the support team so
@@ -345,20 +439,35 @@ export async function handle_exchange_question(ctx: ChatContext) {
     latestActiveOrder?.id ??
     null;
 
-  if (customer && relatedOrderId) {
+  if (customer && relatedOrderId && !isPolicyQuestion) {
     return escalateToSupport('exchange_request', relatedOrderId);
   }
 
   // No order context — give a policy reply and let the customer follow up
   // with their order details. The next message with an order reference will
   // re-trigger escalation via inferSupportIssueReason if needed.
-  const supportLine = buildSupportContactLineFromConfig(ctx.settings.support).toLowerCase();
+  const isSinhala = /[\u0D80-\u0DFF]/.test(input.currentMessage);
+
+  if (detectedIssueReason === 'refund_or_damage') {
+    return finalizeReply({
+      reply: isSinhala
+        ? 'භාණ්ඩය ලැබුණු විට හානි වී තිබුණොත්, කරුණාකර පැකේජය සහ භාණ්ඩය එම තත්ත්වයෙන්ම තබාගෙන පැහැදිලි ඡායාරූප කිහිපයක් ගන්න. ඉන්පසු order number එකත් සමඟ අපට එවන්න. අපි තත්ත්වය පරීක්ෂා කර replacement, exchange, හෝ refund option එකක් arrange කරන්නම්.'
+        : 'If an item arrives damaged, please keep the package and item as they are, take clear photos of the item and packaging, and send them with your order number after delivery. We will check it and arrange the right replacement, exchange, or refund option.',
+      nextState: {
+        lastMissingOrderId: null,
+      },
+      skipLocalization: isSinhala,
+    });
+  }
 
   return finalizeReply({
-    reply: `If the size or item isn't right, please reply with your order number and we will arrange the exchange for you, subject to stock availability. If you'd like to speak to someone directly, ${supportLine}`,
+    reply: isSinhala
+      ? 'ඔව්, size/fit එක නොගැලපුණොත් exchange එකක් බලන්න පුළුවන්. Item එක භාවිතා නොකර, tags/packaging එක්ක තබාගන්න. Delivery එක ලැබුණාට පස්සේ order number එක සහ ඔබට අවශ්‍ය size/item එක එවන්න. Stock availability සහ item condition අනුව අපි option එක confirm කරන්නම්.'
+      : "Yes, exchange is possible if the size or fit is not right after delivery, subject to item condition and stock availability. Please keep the item unused with its tags/packaging, then send your order number and the size or item you want instead.",
     nextState: {
       lastMissingOrderId: null,
     },
+    skipLocalization: isSinhala,
   });
 }
 

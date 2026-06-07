@@ -1224,6 +1224,58 @@ async function main() {
         },
       },
       {
+        name: 'Pre-order Sinhala damaged arrival question returns policy without support escalation',
+        senderId: buildSender(runId, 'sinhala-damage-policy'),
+        messages: [
+          'භාණ්ඩය හානි වෙලා ආවොත් මම මොකද කරන්නේ?',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[0].bot, [
+            'භාණ්ඩය ලැබුණු විට හානි වී තිබුණොත්',
+            'order number',
+            'refund option',
+          ], 'Sinhala damaged arrival policy reply');
+          assert(
+            !transcript[0].bot.includes('flagged this conversation') &&
+              !transcript[0].bot.includes('team follow-up'),
+            `Damaged arrival policy question should not create a support handoff.\n\nActual reply:\n${transcript[0].bot}`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(!escalation, 'Did not expect support escalation for a pre-order damage policy question.');
+        },
+      },
+      {
+        name: 'Pre-order exchange fit question returns policy without support escalation',
+        senderId: buildSender(runId, 'exchange-fit-policy'),
+        messages: [
+          "Can I get an exchange if it doesn't fit?",
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[0].bot, [
+            'exchange is possible',
+            'subject to item condition and stock availability',
+            'order number',
+          ], 'Exchange fit policy reply');
+          assert(
+            !transcript[0].bot.includes('flagged this conversation') &&
+              !transcript[0].bot.includes('team follow-up'),
+            `Exchange policy question should not create a support handoff.\n\nActual reply:\n${transcript[0].bot}`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(!escalation, 'Did not expect support escalation for a pre-order exchange policy question.');
+        },
+      },
+      {
         name: 'Sinhala damaged item and refund requests escalate instead of exchange policy',
         senderId: buildSender(runId, 'sinhala-damage-refund'),
         messages: [
@@ -1248,6 +1300,88 @@ async function main() {
             escalation.reason === 'refund_or_damage',
             `Expected reason refund_or_damage, received ${String(escalation.reason)}.`
           );
+        },
+      },
+      {
+        name: 'Courier provider question lists active brand courier instead of delivery timing',
+        senderId: buildSender(runId, 'courier-provider-question'),
+        before: async ({ context }) => {
+          context.previousCourierSetting = await prisma.courierIntegrationSetting.findUnique({
+            where: {
+              brand_provider: {
+                brand: 'Happybuy',
+                provider: 'koombiyo',
+              },
+            },
+          });
+
+          await prisma.courierIntegrationSetting.upsert({
+            where: {
+              brand_provider: {
+                brand: 'Happybuy',
+                provider: 'koombiyo',
+              },
+            },
+            create: {
+              brand: 'Happybuy',
+              provider: 'koombiyo',
+              isActive: true,
+            },
+            update: {
+              isActive: true,
+            },
+          });
+        },
+        messages: [
+          'Can you send it via Pronto or Domex courier?',
+        ],
+        verify: async ({ transcript, senderId, context }) => {
+          try {
+            assertIncludes(transcript[0].bot, [
+              'Koombiyo Delivery',
+              'Pronto and Domex',
+              'not available',
+            ], 'Courier provider availability reply');
+            assert(
+              !transcript[0].bot.includes('Delivery usually takes'),
+              `Courier provider question should not receive a generic ETA reply.\n\nActual reply:\n${transcript[0].bot}`
+            );
+
+            const escalation = await prisma.supportEscalation.findFirst({
+              where: { senderId, channel: 'messenger' },
+              orderBy: { updatedAt: 'desc' },
+            });
+
+            assert(!escalation, 'Did not expect support escalation for courier provider question.');
+          } finally {
+            if (context.previousCourierSetting) {
+              await prisma.courierIntegrationSetting.update({
+                where: {
+                  id: context.previousCourierSetting.id,
+                },
+                data: {
+                  isActive: context.previousCourierSetting.isActive,
+                  apiKey: context.previousCourierSetting.apiKey,
+                  senderName: context.previousCourierSetting.senderName,
+                  senderAddress: context.previousCourierSetting.senderAddress,
+                  senderPhone: context.previousCourierSetting.senderPhone,
+                  defaultReceiverDistrictId: context.previousCourierSetting.defaultReceiverDistrictId,
+                  defaultReceiverCityId: context.previousCourierSetting.defaultReceiverCityId,
+                  notes: context.previousCourierSetting.notes,
+                  lastTestAt: context.previousCourierSetting.lastTestAt,
+                  lastTestStatus: context.previousCourierSetting.lastTestStatus,
+                  lastTestMessage: context.previousCourierSetting.lastTestMessage,
+                },
+              });
+            } else {
+              await prisma.courierIntegrationSetting.deleteMany({
+                where: {
+                  brand: 'Happybuy',
+                  provider: 'koombiyo',
+                },
+              });
+            }
+          }
         },
       },
       {
