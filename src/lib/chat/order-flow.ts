@@ -1,4 +1,4 @@
-import { cleanStoredContactValue } from '@/lib/contact-profile';
+import { cleanStoredContactName, cleanStoredContactValue } from '@/lib/contact-profile';
 import type { ResolvedOrderDraft } from '@/lib/order-draft';
 import type { QuantityUpdateSummary } from '@/lib/order-details';
 
@@ -142,7 +142,9 @@ export function buildReorderDraftFromOrder(params: {
     giftWrap: params.sourceOrder.giftWrap,
     giftNote: params.sourceOrder.giftNote || undefined,
     deliveryEstimate: params.getDeliveryEstimateForAddress(deliveryAddress),
-    name: cleanStoredContactValue(params.customer?.name) || params.sourceOrder.customer.name,
+    name:
+      cleanStoredContactName(params.customer?.name) ||
+      cleanStoredContactName(params.sourceOrder.customer.name),
     address: deliveryAddress,
     streetAddress,
     city,

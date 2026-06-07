@@ -119,6 +119,26 @@ function sanitizeFieldValue(value: string): string {
   return normalized;
 }
 
+function cleanStoredNameValue(value: string | null | undefined): string {
+  const cleaned = sanitizeFieldValue(value ?? '');
+
+  if (!cleaned || isNonContactOnlyMessage(cleaned) || ORDER_DETAIL_WORD_PATTERN.test(cleaned)) {
+    return '';
+  }
+
+  return cleaned;
+}
+
+function cleanStoredAddressPartValue(value: string | null | undefined): string {
+  const cleaned = sanitizeFieldValue(value ?? '');
+
+  if (!cleaned || isNonContactOnlyMessage(cleaned)) {
+    return '';
+  }
+
+  return cleaned;
+}
+
 function buildStructuredAddress(parts: {
   streetAddress?: string | null;
   city?: string | null;
@@ -126,9 +146,9 @@ function buildStructuredAddress(parts: {
   address?: string | null;
 }): string {
   const structured = [
-    cleanStoredContactValue(parts.streetAddress),
-    cleanStoredContactValue(parts.city),
-    cleanStoredContactValue(parts.district),
+    cleanStoredAddressPartValue(parts.streetAddress),
+    cleanStoredAddressPartValue(parts.city),
+    cleanStoredAddressPartValue(parts.district),
   ].filter(Boolean);
 
   return structured.length > 0
@@ -170,9 +190,14 @@ function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'st
 
 function hydrateStructuredAddress(details: ContactDetailsInput): Partial<ContactDetails> {
   const parsed = splitFreeformAddress(details.address);
-  const streetAddress = cleanStoredContactValue(details.streetAddress) || parsed.streetAddress;
-  const city = cleanStoredContactValue(details.city) || parsed.city;
-  const district = cleanStoredContactValue(details.district) || parsed.district;
+  const providedStreetAddress = cleanStoredAddressPartValue(details.streetAddress);
+  const providedAddress = cleanStoredContactValue(details.address);
+  const streetAddress =
+    parsed.streetAddress && providedStreetAddress === providedAddress
+      ? parsed.streetAddress
+      : providedStreetAddress || parsed.streetAddress;
+  const city = cleanStoredAddressPartValue(details.city) || parsed.city;
+  const district = cleanStoredAddressPartValue(details.district) || parsed.district;
   const address = buildStructuredAddress({
     streetAddress,
     city,
@@ -181,7 +206,7 @@ function hydrateStructuredAddress(details: ContactDetailsInput): Partial<Contact
   });
 
   return {
-    name: cleanStoredContactValue(details.name),
+    name: cleanStoredNameValue(details.name),
     streetAddress,
     city,
     district,
@@ -280,6 +305,29 @@ function extractAddressFromSentence(message: string): string {
   return '';
 }
 
+function extractFreeformAddress(message: string): string {
+  const flattened = normalizeWhitespace(message.replace(/\r?\n/g, ' '));
+
+  if (!flattened.includes(',')) {
+    return '';
+  }
+
+  const parts = flattened
+    .split(',')
+    .map((part) => sanitizeFieldValue(part))
+    .filter(Boolean);
+
+  if (parts.length < 3) {
+    return '';
+  }
+
+  const streetCandidate = parts.slice(0, -2).join(', ');
+
+  return STREET_ADDRESS_HINT_PATTERN.test(streetCandidate)
+    ? sanitizeFieldValue(flattened)
+    : '';
+}
+
 function extractPhoneFromSentence(message: string): string {
   const explicitChangeMatch = message.match(
     /\b(?:change|update|correct|edit)\s+(?:phone number|phone|contact number|mobile number|mobile)(?:\s+(?:of|for)\b.*)?\s+to\b[:\s-]*(.+)$/i
@@ -344,6 +392,10 @@ export function cleanStoredContactValue(value: string | null | undefined): strin
   return sanitizeFieldValue(value ?? '');
 }
 
+export function cleanStoredContactName(value: string | null | undefined): string {
+  return cleanStoredNameValue(value);
+}
+
 export function isNonContactOnlyMessage(message: string): boolean {
   const normalized = normalizeWhitespace(message)
     .toLowerCase()
@@ -375,7 +427,7 @@ export function extractContactDetailsFromText(
   }
 
   if (!extracted.address) {
-    const address = extractAddressFromSentence(message);
+    const address = extractAddressFromSentence(message) || extractFreeformAddress(message);
     if (address) {
       Object.assign(extracted, hydrateStructuredAddress({ address }));
     }
@@ -398,14 +450,14 @@ export function mergeContactDetails(
   const hydratedBase = hydrateStructuredAddress(base);
   const hydratedOverrides = hydrateStructuredAddress(overrides);
   const streetAddress =
-    cleanStoredContactValue(hydratedOverrides.streetAddress) ||
-    cleanStoredContactValue(hydratedBase.streetAddress);
+    cleanStoredAddressPartValue(hydratedOverrides.streetAddress) ||
+    cleanStoredAddressPartValue(hydratedBase.streetAddress);
   const city =
-    cleanStoredContactValue(hydratedOverrides.city) ||
-    cleanStoredContactValue(hydratedBase.city);
+    cleanStoredAddressPartValue(hydratedOverrides.city) ||
+    cleanStoredAddressPartValue(hydratedBase.city);
   const district =
-    cleanStoredContactValue(hydratedOverrides.district) ||
-    cleanStoredContactValue(hydratedBase.district);
+    cleanStoredAddressPartValue(hydratedOverrides.district) ||
+    cleanStoredAddressPartValue(hydratedBase.district);
   const address = buildStructuredAddress({
     streetAddress,
     city,
@@ -416,7 +468,7 @@ export function mergeContactDetails(
   });
 
   return {
-    name: cleanStoredContactValue(hydratedOverrides.name) || cleanStoredContactValue(hydratedBase.name),
+    name: cleanStoredNameValue(hydratedOverrides.name) || cleanStoredNameValue(hydratedBase.name),
     address,
     streetAddress,
     city,
@@ -442,19 +494,19 @@ export function getMissingContactFields(details: ContactDetailsInput): ContactFi
   const missing: ContactField[] = [];
   const hydrated = hydrateStructuredAddress(details);
 
-  if (!cleanStoredContactValue(hydrated.name)) {
+  if (!cleanStoredNameValue(hydrated.name)) {
     missing.push('name');
   }
 
-  if (!cleanStoredContactValue(hydrated.streetAddress)) {
+  if (!cleanStoredAddressPartValue(hydrated.streetAddress)) {
     missing.push('streetAddress');
   }
 
-  if (!cleanStoredContactValue(hydrated.city)) {
+  if (!cleanStoredAddressPartValue(hydrated.city)) {
     missing.push('city');
   }
 
-  if (!cleanStoredContactValue(hydrated.district)) {
+  if (!cleanStoredAddressPartValue(hydrated.district)) {
     missing.push('district');
   }
 
@@ -469,10 +521,10 @@ export function formatContactBlock(details: ContactDetailsInput): string {
   const hydrated = hydrateStructuredAddress(details);
 
   return [
-    `Name: ${cleanStoredContactValue(hydrated.name) || 'Missing'}`,
-    `Street Address: ${cleanStoredContactValue(hydrated.streetAddress) || 'Missing'}`,
-    `City/Town: ${cleanStoredContactValue(hydrated.city) || 'Missing'}`,
-    `District: ${cleanStoredContactValue(hydrated.district) || 'Missing'}`,
+    `Name: ${cleanStoredNameValue(hydrated.name) || 'Missing'}`,
+    `Street Address: ${cleanStoredAddressPartValue(hydrated.streetAddress) || 'Missing'}`,
+    `City/Town: ${cleanStoredAddressPartValue(hydrated.city) || 'Missing'}`,
+    `District: ${cleanStoredAddressPartValue(hydrated.district) || 'Missing'}`,
     `Phone Number: ${cleanStoredContactValue(hydrated.phone) || 'Missing'}`,
   ].join('\n');
 }

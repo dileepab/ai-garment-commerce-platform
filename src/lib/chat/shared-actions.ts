@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import {
+  cleanStoredContactName,
   cleanStoredContactValue,
   type ContactDetails,
 } from '@/lib/contact-profile';
@@ -35,7 +36,7 @@ export async function upsertCustomerContact(params: {
   currentPhone?: string | null;
   contact: ContactDetails;
 }) {
-  const nextName = params.contact.name || cleanStoredContactValue(params.currentName);
+  const nextName = params.contact.name || cleanStoredContactName(params.currentName);
   const nextPhone = params.contact.phone || cleanStoredContactValue(params.currentPhone);
 
   if (!nextName && !nextPhone && !params.currentCustomerId) {
@@ -46,7 +47,7 @@ export async function upsertCustomerContact(params: {
     return prisma.customer.update({
       where: { id: params.currentCustomerId },
       data: {
-        name: nextName || cleanStoredContactValue(params.currentName) || '',
+        name: nextName || cleanStoredContactName(params.currentName) || '',
         phone: nextPhone || null,
         channel: params.channel,
         preferredBrand: params.preferredBrand || undefined,

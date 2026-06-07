@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import prisma from '@/lib/prisma';
 import {
-  cleanStoredContactValue,
+  cleanStoredContactName,
   collectContactDetailsFromMessages,
   extractContactDetailsFromText,
   formatContactBlock,
@@ -137,7 +137,7 @@ export async function getAiStockReply(
 
       if (customer) {
         existingCustomerId = customer.id;
-        storedName = cleanStoredContactValue(customer.name);
+        storedName = cleanStoredContactName(customer.name);
         storedPhone = customer.phone || '';
         storedAddress = customer.orders[0]?.deliveryAddress || '';
         storedStreetAddress = customer.orders[0]?.deliveryStreetAddress || '';
@@ -169,7 +169,7 @@ export async function getAiStockReply(
       storedCity = mergedDetails.city;
       storedDistrict = mergedDetails.district;
 
-      const profileName = storedName || cleanStoredContactValue(customerName);
+      const profileName = storedName || cleanStoredContactName(customerName);
 
       if (existingCustomerId) {
         const nextName = storedName || profileName;
@@ -212,7 +212,7 @@ export async function getAiStockReply(
     }
 
     // 3. Build system instructions
-    const nameToUse = cleanStoredContactValue(storedName || customerName || '');
+    const nameToUse = cleanStoredContactName(storedName || customerName || '');
     const firstName = nameToUse.split(' ')[0] || '';
 
     const profileMemory = formatContactBlock({

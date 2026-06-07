@@ -1,4 +1,4 @@
-import { cleanStoredContactValue } from '@/lib/contact-profile';
+import { cleanStoredContactName } from '@/lib/contact-profile';
 import type { SupportIssueReason } from '@/lib/customer-support';
 import type { PendingConversationStep } from '@/lib/conversation-state';
 import type { SizeChartCategory } from '@/lib/size-charts';
@@ -45,7 +45,7 @@ export function splitCsv(value?: string | null): string[] {
 }
 
 export function firstNameOf(value?: string | null): string {
-  return cleanStoredContactValue(value).split(' ')[0] || '';
+  return cleanStoredContactName(value).split(' ')[0] || '';
 }
 
 export function scoreProductMatch(
