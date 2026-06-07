@@ -18,7 +18,7 @@ import {
   type SizeChartCategory,
 } from '@/lib/size-charts';
 import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
-import { splitCsv, firstNameOf } from '@/lib/chat/message-utils';
+import { splitCsv, firstNameOf, sortSizeOptions, formatSizeList } from '@/lib/chat/message-utils';
 import { buildGarmentSpecsForCustomer, type ProductGarmentSpecSource } from '@/lib/product-garment-specs';
 
 export const EMPTY_CATALOG_REPLY =
@@ -76,7 +76,9 @@ export function buildVariantPrompt(
       availableVariants.length > 0
         ? [...new Set(availableVariants.map((v) => v.size))]
         : [];
-    const sizeOptions = variantSizes.length > 0 ? variantSizes : splitCsv(product?.sizes);
+    const sizeOptions = sortSizeOptions(
+      variantSizes.length > 0 ? variantSizes : splitCsv(product?.sizes)
+    );
     prompts.push(
       sizeOptions.length > 0
         ? `Please let me know the size you need for ${productName}. Available sizes: ${sizeOptions.join(', ')}.`
@@ -118,7 +120,7 @@ export function formatCatalogListReply(
 
   const lines = products.map(
     (product) =>
-      `${product.name}: Rs ${product.price} (Sizes ${product.sizes || '-'} / Colors: ${
+      `${product.name}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
         product.colors || '-'
       })`
   );
@@ -147,9 +149,11 @@ export function buildProductQuestionReply(
   ) ?? [];
 
   const sizeList =
-    availableVariants.length > 0
-      ? [...new Set(availableVariants.map((v) => v.size))]
-      : splitCsv(product.sizes);
+    sortSizeOptions(
+      availableVariants.length > 0
+        ? [...new Set(availableVariants.map((v) => v.size))]
+        : splitCsv(product.sizes)
+    );
   const colorList =
     availableVariants.length > 0
       ? [...new Set(availableVariants.map((v) => v.color))]

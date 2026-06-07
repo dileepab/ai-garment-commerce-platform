@@ -28,6 +28,22 @@ const MONTH_MAP: Record<string, number> = {
   dec: 11,
   december: 11,
 };
+const SIZE_DISPLAY_ORDER = [
+  'XXS',
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  '2XL',
+  'XXL',
+  '3XL',
+  '4XL',
+  '5XL',
+  '6XL',
+  'FREE SIZE',
+  'ONE SIZE',
+];
 
 export function normalizeText(value: string): string {
   return value
@@ -42,6 +58,32 @@ export function splitCsv(value?: string | null): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function getSizeDisplayIndex(size: string): number {
+  const normalized = size.trim().toUpperCase().replace(/\s+/g, ' ');
+  const alias = normalized === 'XXL' ? '2XL' : normalized;
+  const index = SIZE_DISPLAY_ORDER.findIndex((option) => option === alias);
+
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+export function sortSizeOptions(sizes: string[]): string[] {
+  return [...sizes].sort((left, right) => {
+    const leftIndex = getSizeDisplayIndex(left);
+    const rightIndex = getSizeDisplayIndex(right);
+
+    if (leftIndex !== rightIndex) {
+      return leftIndex - rightIndex;
+    }
+
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
+export function formatSizeList(value?: string | null): string {
+  const sizes = splitCsv(value);
+  return sizes.length > 0 ? sortSizeOptions(sizes).join(', ') : '';
 }
 
 export function firstNameOf(value?: string | null): string {

@@ -14,6 +14,7 @@ import {
 } from '@/lib/chat/reply-builders';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { brandsMatch } from '@/lib/brand-aliases';
+import { formatSizeList } from '@/lib/chat/message-utils';
 import type { ChatContext } from './types';
 
 type ProductImageSource = {
@@ -103,7 +104,7 @@ function toCarouselProducts(products: Array<{ id: number; name: string; price: n
     id: product.id,
     name: product.name,
     price: product.price,
-    sizes: product.sizes,
+    sizes: formatSizeList(product.sizes) || product.sizes,
     colors: product.colors,
     ...(productPrimaryImageUrl(product) ? { imageUrl: productPrimaryImageUrl(product) } : {}),
   }));
@@ -143,7 +144,7 @@ function formatCatalogLines(products: Array<{
   return products
     .map(
       (product) =>
-        `${product.name}: Rs ${product.price} (Sizes ${product.sizes || '-'} / Colors: ${
+        `${product.name}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
           product.colors || '-'
         })`
     )

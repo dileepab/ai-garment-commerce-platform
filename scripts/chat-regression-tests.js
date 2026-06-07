@@ -450,6 +450,50 @@ async function main() {
         },
       },
       {
+        name: 'Catalog size lists are displayed smallest to largest',
+        senderId: buildSender(runId, 'catalog-size-sort'),
+        before: async ({ context }) => {
+          const product = await prisma.product.findFirst({
+            where: {
+              brand: 'Happybuy',
+              name: 'Oversized Casual Top',
+            },
+            select: {
+              id: true,
+              sizes: true,
+            },
+          });
+
+          assert(product, 'Expected Oversized Casual Top for catalog size sorting test.');
+          context.productId = product.id;
+          context.previousSizes = product.sizes;
+
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { sizes: '2XL,L,M,S,XL' },
+          });
+        },
+        messages: ['what do you have available in size M?'],
+        verify: async ({ transcript, context }) => {
+          try {
+            assertIncludes(transcript[0].bot, [
+              'Oversized Casual Top: Rs 1750 (Sizes S, M, L, XL, 2XL / Colors: Black,White)',
+            ], 'Catalog sorted size reply');
+            assert(
+              !transcript[0].bot.includes('Sizes 2XL,L,M,S,XL'),
+              `Catalog size list should be sorted smallest to largest.\n\nActual reply:\n${transcript[0].bot}`
+            );
+          } finally {
+            if (context.productId && context.previousSizes) {
+              await prisma.product.update({
+                where: { id: context.productId },
+                data: { sizes: context.previousSizes },
+              });
+            }
+          }
+        },
+      },
+      {
         name: 'Greeting plus exact product availability answers product details',
         senderId: buildSender(runId, 'greeting-product-availability'),
         messages: ['Hey, do you guys have the Breezy Summer Dress?'],

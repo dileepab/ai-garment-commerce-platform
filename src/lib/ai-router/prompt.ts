@@ -1,4 +1,5 @@
 import { RouterInput } from './types';
+import { formatSizeList } from '@/lib/chat/message-utils';
 
 export interface PromptContent {
   text: string;
@@ -10,7 +11,7 @@ export function buildRouterPrompt(input: RouterInput): string {
   const products = input.products
     .map(
       (product) =>
-        `- ${product.name} | Style: ${product.style || '-'} | Price: Rs ${product.price} | Sizes: ${product.sizes || '-'} | Colors: ${product.colors || '-'} | Available: ${product.availableQty}${product.garmentSpecs ? ` | Garment specs: ${product.garmentSpecs}` : ''}`
+        `- ${product.name} | Style: ${product.style || '-'} | Price: Rs ${product.price} | Sizes: ${formatSizeList(product.sizes) || '-'} | Colors: ${product.colors || '-'} | Available: ${product.availableQty}${product.garmentSpecs ? ` | Garment specs: ${product.garmentSpecs}` : ''}`
     )
     .join('\n');
 

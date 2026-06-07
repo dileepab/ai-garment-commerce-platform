@@ -47,6 +47,7 @@ import {
 import { saveConversationStateIfCurrent } from '@/lib/conversation-state';
 import {
   splitCsv,
+  sortSizeOptions,
   mentionsLatestOrderReference,
   mentionsOwnedOrderReference,
 } from '@/lib/chat/message-utils';
@@ -82,14 +83,14 @@ function getSizeOptions(product: ChatProduct, selectedColor?: string | null): st
   const availableVariants = getAvailableVariants(product);
 
   if (availableVariants.length > 0) {
-    return uniqueNonEmpty(
+    return sortSizeOptions(uniqueNonEmpty(
       availableVariants
         .filter((variant) => !selectedColor || variant.color === selectedColor)
         .map((variant) => variant.size)
-    );
+    ));
   }
 
-  return splitCsv(product.sizes).map((size) => size.toUpperCase());
+  return sortSizeOptions(splitCsv(product.sizes).map((size) => size.toUpperCase()));
 }
 
 function getColorOptions(product: ChatProduct, selectedSize?: string | null): string[] {
@@ -206,11 +207,11 @@ function buildUnavailableVariantReply(product: ChatProduct, draft: ResolvedOrder
   }
 
   if (draft.color) {
-    const sizesForSelectedColor = uniqueNonEmpty(
+    const sizesForSelectedColor = sortSizeOptions(uniqueNonEmpty(
       availableVariants
         .filter((variant) => variant.color === draft.color)
         .map((variant) => variant.size)
-    );
+    ));
 
     if (sizesForSelectedColor.length > 0) {
       return `${productLabel} is currently out of stock. ${draft.color} is available in sizes: ${sizesForSelectedColor.join(', ')}. Please choose one of these sizes or send another color.`;
