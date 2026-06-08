@@ -167,6 +167,11 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "cancelled",
 };
 
+function formatMoney(value?: number | null): string {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return Math.max(0, numeric).toLocaleString('en-LK');
+}
+
 function normalizeOrderStatus(status: string): string {
   // Bucket statuses for the tab filter only — the underlying state machine
   // distinguishes packing vs packed and dispatched vs shipped, but admins
@@ -318,7 +323,7 @@ export default function OrdersPageClient({
           return aCreated - bCreated;
         }
         case "value-desc":
-          return b.totalAmount - a.totalAmount;
+          return (b.codValue ?? b.orderTotal ?? b.totalAmount) - (a.codValue ?? a.orderTotal ?? a.totalAmount);
         case "newest":
         default:
           return bCreated - aCreated;
@@ -349,7 +354,7 @@ export default function OrdersPageClient({
     <main className="main">
       <PageHeader
         title="Orders"
-        subtitle={`${stats.total} total orders · Today's Revenue: ₺${stats.revenueToday.toLocaleString()}`}
+        subtitle={`${stats.total} total orders · Today's Revenue: Rs ${formatMoney(stats.revenueToday)}`}
         actions={
           <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export</button>
         }
@@ -383,7 +388,7 @@ export default function OrdersPageClient({
         </div>
         <div className="kpi-strip-card">
           <div className="kpi-strip-label">Revenue Today</div>
-          <div className="kpi-strip-val">₺{Math.round(stats.revenueToday / 1000)}k</div>
+          <div className="kpi-strip-val">Rs {formatMoney(stats.revenueToday)}</div>
           <div className="kpi-strip-note">confirmed</div>
         </div>
       </div>
@@ -477,7 +482,8 @@ export default function OrdersPageClient({
                 <th>Items</th>
                 <th>Payment</th>
                 <th>Support</th>
-                <th style={{ textAlign: "right" }}>Total</th>
+                <th style={{ textAlign: "right" }}>Amount</th>
+                <th style={{ textAlign: "right" }}>COD Value</th>
                 <th>Courier</th>
                 <th>Status</th>
                 <th>Waiting</th>
@@ -521,7 +527,8 @@ export default function OrdersPageClient({
                     <td>
                       <span className={`support-state-chip${activeSupport.length > 0 ? ' active' : ''}`}>{supportLabel}</span>
                     </td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>₺{o.totalAmount.toLocaleString()}</td>
+                    <td style={{ textAlign: "right", fontWeight: 600 }}>Rs {formatMoney(o.amount ?? o.totalAmount)}</td>
+                    <td style={{ textAlign: "right", fontWeight: 700 }}>Rs {formatMoney(o.codValue ?? o.orderTotal ?? o.totalAmount)}</td>
                     <td>
                       {latestKoombiyoShipment ? (
                         <div className="order-items-cell">

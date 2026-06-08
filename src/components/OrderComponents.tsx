@@ -200,6 +200,10 @@ export interface OrderDrawerOrder {
   id: number;
   orderStatus: string;
   totalAmount: number;
+  amount?: number;
+  deliveryCharge?: number;
+  orderTotal?: number;
+  codValue?: number;
   createdAt: Date | string;
   customer: { name: string; phone?: string | null; channel?: string | null };
   deliveryAddress?: string | null;
@@ -256,6 +260,36 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatMoney(value?: number | null): string {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return Math.max(0, numeric).toLocaleString('en-LK');
+}
+
+function formatKoombiyoAmount(value?: number | null): string {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return Math.max(0, numeric).toFixed(2);
+}
+
+function formatKoombiyoDateTime(value: Date | string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return [
+    date.getFullYear(),
+    '-',
+    pad(date.getMonth() + 1),
+    '-',
+    pad(date.getDate()),
+    ' ',
+    pad(date.getHours()),
+    ':',
+    pad(date.getMinutes()),
+    ':',
+    pad(date.getSeconds()),
+  ].join('');
 }
 
 function formatCourierStatus(shipment: OrderCourierShipmentLike): string {
@@ -323,10 +357,10 @@ function buildCode128BarcodeSvg(value: string): string {
   ].join('');
 }
 
-function buildKoombiyoPrintAddress(
+function buildKoombiyoPrintAddressLines(
   order: OrderDrawerOrder,
   shipment: OrderCourierShipmentLike,
-): string {
+): string[] {
   const parts = [
     shipment.receiverStreet,
     order.deliveryStreetAddress,
@@ -348,23 +382,20 @@ function buildKoombiyoPrintAddress(
     }
   }
 
-  return selected.join(', ') || 'No address provided';
+  return selected.length > 0 ? selected : ['No address provided'];
 }
 
 function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipmentLike) {
   const customerName = shipment.receiverName || order.customer.name || 'Customer';
-  const address = buildKoombiyoPrintAddress(order, shipment);
+  const addressLines = buildKoombiyoPrintAddressLines(order, shipment);
+  const addressHtml = addressLines.map((line) => escapeHtml(line)).join('<br />');
   const phone = shipment.receiverPhone || order.customer.phone || 'No phone';
   const description = shipment.description || buildKoombiyoPackageDescription(order);
-  const codAmount = shipment.codAmount ?? 0;
-  const issuedDate = new Date(order.createdAt).toLocaleDateString();
-  const printedAt = new Date().toLocaleString();
+  const codAmount = order.orderTotal ?? order.codValue ?? shipment.codAmount ?? order.totalAmount ?? 0;
+  const issuedDate = formatKoombiyoDateTime(order.createdAt);
   const brandName = order.brand || 'DEEZ';
   const senderName = order.koombiyoCourier?.senderName || brandName;
-  const senderAddress = order.koombiyoCourier?.senderAddress || '';
   const senderPhone = order.koombiyoCourier?.senderPhone || '-';
-  const district = order.deliveryDistrict || order.koombiyoCourier?.resolvedReceiverDistrictName || shipment.receiverDistrictId || '-';
-  const city = order.deliveryCity || order.koombiyoCourier?.resolvedReceiverCityName || shipment.receiverCityId || '-';
   const orderNumber = shipment.orderReference || `ORD-${order.id}`;
   const barcodeSvg = buildCode128BarcodeSvg(shipment.waybillId);
   const html = `<!doctype html>
@@ -373,189 +404,334 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
   <title>Koombiyo Label ORD-${order.id}</title>
   <style>
     * { box-sizing: border-box; }
-    @page { size: 180mm 100mm; margin: 4mm; }
+    @page { size: A4 landscape; margin: 4mm; }
     body {
       margin: 0;
-      padding: 8px;
+      padding: 0;
       font-family: Arial, Helvetica, sans-serif;
-      color: #222;
+      color: #111;
       background: #fff;
     }
-    .sheet {
-      width: 180mm;
-      min-height: 100mm;
-      border: 2px solid #b9b9b9;
+    .print-page {
+      width: 289mm;
+      min-height: 202mm;
+      padding: 0;
       display: grid;
-      grid-template-columns: 58% 42%;
-      position: relative;
-      background: #fff;
-    }
-    .sheet::before,
-    .sheet::after {
-      content: "";
-      position: absolute;
-      top: 5mm;
-      bottom: 5mm;
-      width: 3mm;
-      background: repeating-radial-gradient(circle at center, #e6cfcf 0 1.3mm, transparent 1.45mm 8mm);
-      opacity: 0.9;
-    }
-    .sheet::before { left: -5mm; }
-    .sheet::after { right: -5mm; }
-    .left,
-    .right { padding: 4mm; }
-    .left { border-right: 2px solid #b9b9b9; }
-    .right { padding-left: 3mm; }
-    .logo-wrap { text-align: center; border-bottom: 1px solid #c8c8c8; padding-bottom: 1.5mm; }
-    .logo { width: 58mm; height: auto; }
-    .company-line { font-size: 7.5px; color: #555; margin-top: 1mm; line-height: 1.35; }
-    .field {
-      display: grid;
-      grid-template-columns: 28mm 1fr;
-      min-height: 8mm;
-      border-bottom: 1px solid #c8c8c8;
-      align-items: center;
+      grid-template-columns: repeat(2, 1fr);
+      grid-auto-rows: 100mm;
       gap: 2mm;
-      padding: 1mm 0;
+      align-content: start;
+      background: #fff;
     }
-    .field.tall { min-height: 26mm; align-items: start; padding-top: 2mm; }
-    .field.description { min-height: 9mm; }
-    .label-key { font-size: 10px; font-weight: 800; color: #666; }
-    .value { font-size: 16px; font-weight: 700; line-height: 1.25; color: #24304a; }
-    .value.small-value { font-size: 13px; }
-    .sender-address { font-size: 11px; font-weight: 600; margin-top: 1mm; color: #444; }
-    .address-value { font-size: 18px; line-height: 1.3; word-break: break-word; }
+    .waybill {
+      height: 100mm;
+      border: 1.2px solid #1f5da8;
+      border-radius: 2.5mm;
+      outline: 0.6px solid #1f5da8;
+      outline-offset: -1.4mm;
+      display: grid;
+      grid-template-columns: 56% 44%;
+      overflow: hidden;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .left-pane,
+    .right-pane { min-width: 0; }
+    .left-pane {
+      display: grid;
+      grid-template-rows: 30mm 27mm 1fr;
+      border-right: 1.2px solid #1f5da8;
+    }
+    .logo-block {
+      padding: 2mm 2.5mm 1mm;
+      border-bottom: 1.2px solid #1f5da8;
+    }
+    .logo-wrap { text-align: center; height: 22mm; }
+    .logo { width: 69mm; max-height: 22mm; object-fit: contain; }
+    .company-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 2mm;
+      font-size: 7.5px;
+      font-weight: 700;
+      color: #1f5da8;
+      white-space: nowrap;
+    }
+    .field-block {
+      padding: 1.4mm 2mm;
+      border-bottom: 1.2px solid #1f5da8;
+    }
+    .address-block { padding: 1.7mm 2mm 1.2mm; }
+    .line {
+      display: grid;
+      grid-template-columns: 32mm 3mm 1fr;
+      align-items: start;
+      min-height: 8.5mm;
+      font-size: 11px;
+      line-height: 1.25;
+    }
+    .address-line {
+      grid-template-columns: 18mm 3mm 1fr;
+      min-height: 19mm;
+    }
+    .phone-line {
+      grid-template-columns: 22mm 3mm 1fr;
+      min-height: 7mm;
+      align-items: end;
+    }
+    .description-line {
+      grid-template-columns: 22mm 3mm 1fr;
+      min-height: 0;
+      align-items: start;
+    }
+    .label-key {
+      color: #1f5da8;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .separator {
+      color: #1f5da8;
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .value {
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.35;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .address-value { font-size: 11px; }
+    .right-pane {
+      display: grid;
+      grid-template-rows: 30mm 21mm 1fr;
+    }
+    .proof-block {
+      border-bottom: 1.2px solid #1f5da8;
+      padding: 1.6mm 1.6mm 1.2mm;
+    }
+    .proof-inner {
+      height: 100%;
+      border: 1.2px solid #1f5da8;
+      border-radius: 2mm;
+      display: grid;
+      grid-template-rows: 9mm 1fr;
+      overflow: hidden;
+    }
     .proof-title {
-      height: 10mm;
-      border-bottom: 2px solid #b9b9b9;
       display: flex;
       align-items: center;
       justify-content: center;
+      color: #1f5da8;
       font-size: 20px;
       font-weight: 900;
-      letter-spacing: 0.5px;
-      color: #596074;
+      line-height: 1;
+      white-space: nowrap;
     }
     .barcode-panel {
-      height: 24mm;
-      border: 1px solid #b9b9b9;
-      margin: 2mm 0;
       display: grid;
-      align-content: center;
       justify-items: center;
-      padding: 2mm;
+      align-content: center;
+      padding: 1mm 4mm 1.5mm;
     }
-    .barcode-svg { width: 62mm; height: 13mm; fill: #111; }
-    .barcode-text { font-family: "Courier New", monospace; font-size: 11px; letter-spacing: 1px; margin-top: 1mm; }
-    .right-row {
-      min-height: 8mm;
+    .barcode-svg { width: 54mm; height: 12mm; fill: #111; }
+    .barcode-text {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      margin-top: 0.5mm;
+    }
+    .cod-block {
+      padding: 1.8mm 1.6mm;
+      border-bottom: 1.2px solid #1f5da8;
       display: grid;
-      grid-template-columns: 31mm 1fr;
-      border-bottom: 1px solid #c8c8c8;
+      grid-template-rows: 8.5mm 6mm 6mm;
+      gap: 0.3mm;
+    }
+    .cod-line {
+      display: grid;
+      grid-template-columns: 30mm 3mm 1fr;
+      align-items: center;
+      font-size: 11px;
+    }
+    .cod-box {
+      height: 10mm;
+      border: 1px solid #1f5da8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 400;
+      background: #fff;
+    }
+    .pod-block {
+      padding: 2.2mm 2mm 1.5mm;
+    }
+    .pod-inner {
+      height: 100%;
+      border: 1.2px solid #1f5da8;
+      border-radius: 1.5mm;
+      padding: 1.5mm 2mm;
+      display: grid;
+      grid-template-rows: repeat(5, 7.5mm) 1fr;
+    }
+    .pod-line {
+      display: grid;
+      grid-template-columns: 27mm 3mm 1fr;
+      align-items: start;
+    }
+    .delivered-line {
+      display: grid;
+      grid-template-columns: 27mm 3mm 1fr;
       align-items: center;
     }
-    .right-row.large { min-height: 11mm; }
-    .cod { font-size: 22px; font-weight: 900; letter-spacing: 1px; }
-    .blank { color: #777; }
-    .footer {
-      position: absolute;
-      left: 4mm;
-      right: 4mm;
-      bottom: 1.5mm;
+    .checks {
       display: flex;
-      justify-content: space-between;
-      font-size: 8px;
-      color: #555;
+      justify-content: flex-end;
+      gap: 5mm;
+      align-items: center;
+      color: #1f5da8;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .box {
+      display: inline-block;
+      width: 4.5mm;
+      height: 4.5mm;
+      border: 1.1px solid #1f5da8;
+      vertical-align: middle;
+      margin-right: 1.4mm;
     }
     @media print {
       body { padding: 0; }
-      .sheet { border-color: #999; page-break-after: always; }
+      .print-page { padding: 0; }
       .no-print { display: none; }
     }
   </style>
 </head>
 <body>
-  <div class="sheet">
-    <section class="left">
-      <div class="logo-wrap">
-        <img class="logo" src="/koombiyo-logo.png" alt="Koombiyo Delivery" />
-        <div class="company-line">Address / No. 25, Epitamulla Road, Pita Kotte. Tel / +94 117 886 786<br />Web / koombiyodelivery.lk &nbsp; Email / info@koombiyodelivery.com</div>
-      </div>
-      <div class="field">
-        <div class="label-key">From</div>
-        <div class="value">
-          ${escapeHtml(senderName)}
-          ${senderAddress ? `<div class="sender-address">${escapeHtml(senderAddress)}</div>` : ''}
+  <div class="print-page">
+    <section class="waybill">
+      <div class="left-pane">
+        <div class="logo-block">
+          <div class="logo-wrap">
+            <img class="logo" src="/koombiyo-logo.png" alt="Koombiyo Delivery" />
+          </div>
+          <div class="company-line">
+            <span>Address: No.25, Epitamulla Road, Kotte.</span>
+            <span>Tel: 011 7 886 786</span>
+          </div>
+        </div>
+        <div class="field-block">
+          <div class="line">
+            <div class="label-key">From</div>
+            <div class="separator">:</div>
+            <div class="value">${escapeHtml(senderName)}</div>
+          </div>
+          <div class="line">
+            <div class="label-key">Contact Number</div>
+            <div class="separator">:</div>
+            <div class="value">${escapeHtml(senderPhone)}</div>
+          </div>
+          <div class="line">
+            <div class="label-key">Issued Date</div>
+            <div class="separator">:</div>
+            <div class="value">${escapeHtml(issuedDate)}</div>
+          </div>
+        </div>
+        <div class="address-block">
+          <div class="line">
+            <div class="label-key">To</div>
+            <div class="separator">:</div>
+            <div class="value">${escapeHtml(customerName)}</div>
+          </div>
+          <div class="line address-line">
+            <div class="label-key">Address</div>
+            <div class="separator">:</div>
+            <div class="value address-value">${addressHtml}</div>
+          </div>
+          <div class="line phone-line">
+            <div class="label-key">Phone No</div>
+            <div class="separator">:</div>
+            <div class="value">${escapeHtml(phone)}</div>
+          </div>
+          <div class="line description-line">
+            <div class="label-key">Description</div>
+            <div class="separator">:</div>
+            <div class="value">${escapeHtml(description)}</div>
+          </div>
         </div>
       </div>
-      <div class="field">
-        <div class="label-key">Contact Number</div>
-        <div class="value small-value">${escapeHtml(senderPhone)}</div>
-      </div>
-      <div class="field">
-        <div class="label-key">Issued Date</div>
-        <div class="value small-value">${escapeHtml(issuedDate)}</div>
-      </div>
-      <div class="field tall">
-        <div class="label-key">To / Address</div>
-        <div class="value address-value">
-          ${escapeHtml(customerName)}<br />
-          ${escapeHtml(address)}<br />
-          Phone No. 01: ${escapeHtml(phone)}
+      <div class="right-pane">
+        <div class="proof-block">
+          <div class="proof-inner">
+            <div class="proof-title">PROOF OF DELIVERY</div>
+            <div class="barcode-panel">
+              ${barcodeSvg}
+              <div class="barcode-text">${escapeHtml(shipment.waybillId)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="cod-block">
+          <div class="cod-line">
+            <div class="label-key">COD AMOUNT</div>
+            <div class="separator">:</div>
+            <div class="cod-box">${formatKoombiyoAmount(codAmount)}</div>
+          </div>
+          <div class="cod-line">
+            <div class="label-key">Order No</div>
+            <div class="separator">:</div>
+            <div class="value">${escapeHtml(orderNumber)}</div>
+          </div>
+          <div class="cod-line">
+            <div class="label-key">Weight</div>
+            <div class="separator">:</div>
+            <div class="value"></div>
+          </div>
+        </div>
+        <div class="pod-block">
+          <div class="pod-inner">
+            <div class="pod-line">
+              <div class="label-key">Name</div>
+              <div class="separator">:</div>
+              <div class="value"></div>
+            </div>
+            <div class="pod-line">
+              <div class="label-key">Address</div>
+              <div class="separator">:</div>
+              <div class="value"></div>
+            </div>
+            <div class="pod-line">
+              <div class="label-key">NIC Number</div>
+              <div class="separator">:</div>
+              <div class="value"></div>
+            </div>
+            <div class="pod-line">
+              <div class="label-key">Date</div>
+              <div class="separator">:</div>
+              <div class="value"></div>
+            </div>
+            <div class="pod-line">
+              <div class="label-key">Signature</div>
+              <div class="separator">:</div>
+              <div class="value"></div>
+            </div>
+            <div class="delivered-line">
+              <div class="label-key">Delivrd</div>
+              <div class="separator">:</div>
+              <div class="checks">
+                <span><span class="box"></span>Yes</span>
+                <span><span class="box"></span>No</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="field description">
-        <div class="label-key">Description</div>
-        <div class="value small-value">${escapeHtml(description)}</div>
-      </div>
     </section>
-    <section class="right">
-      <div class="proof-title">PROOF OF DELIVERY</div>
-      <div class="barcode-panel">
-        ${barcodeSvg}
-        <div class="barcode-text">${escapeHtml(shipment.waybillId)}</div>
-      </div>
-      <div class="right-row large">
-        <div class="label-key">COD AMOUNT</div>
-        <div class="value cod">Rs ${codAmount.toLocaleString()}</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">Order No.</div>
-        <div class="value small-value">${escapeHtml(orderNumber)}</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">Weight</div>
-        <div class="value small-value blank">-</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">District</div>
-        <div class="value small-value">${escapeHtml(district)}</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">Nearest City</div>
-        <div class="value small-value">${escapeHtml(city)}</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">Name</div>
-        <div class="value small-value blank">-</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">NIC Number</div>
-        <div class="value small-value blank">-</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">Date</div>
-        <div class="value small-value blank">-</div>
-      </div>
-      <div class="right-row">
-        <div class="label-key">Signature</div>
-        <div class="value small-value blank">-</div>
-      </div>
-    </section>
-    <div class="footer">
-      <span>Printed ${escapeHtml(printedAt)}</span>
-      <span>${shipment.submittedAt ? 'Sent to Koombiyo' : 'Not sent to Koombiyo yet'}</span>
-    </div>
   </div>
   <div class="no-print" style="padding:12px">
     <button onclick="window.print()">Print label</button>
@@ -778,9 +954,21 @@ export function OrderDrawer({
                       {activeSupport.length > 0 ? `${activeSupport.length} active` : order.supportEscalations?.length ? 'resolved' : 'clear'}
                     </span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Amount:</span>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>Rs {formatMoney(order.amount ?? order.totalAmount)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Delivery Charge:</span>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>Rs {formatMoney(order.deliveryCharge ?? 0)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                     <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Total Amount:</span>
-                    <span style={{ fontSize: 14, fontWeight: 700 }}>₺{order.totalAmount.toLocaleString()}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>Rs {formatMoney(order.orderTotal ?? order.totalAmount)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>COD Value:</span>
+                    <span style={{ fontSize: 14, fontWeight: 700 }}>Rs {formatMoney(order.codValue ?? order.orderTotal ?? order.totalAmount)}</span>
                   </div>
                 </div>
               </div>

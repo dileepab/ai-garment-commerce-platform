@@ -5,6 +5,8 @@ import OrdersPageClient from './OrdersPageClient';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
 import { getBrandLookupAliases } from '@/lib/brand-aliases';
 import { selectBestKoombiyoLocation } from '@/lib/koombiyo-courier';
+import { getDeliveryChargeForAddress } from '@/lib/order-draft';
+import { getMerchantSettings } from '@/lib/runtime-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +91,10 @@ export default async function OrdersPage() {
       normalized: true,
     },
   });
+  const merchantSettingsEntries = await Promise.all(
+    orderBrandNames.map(async (brand) => [brand, await getMerchantSettings(brand)] as const)
+  );
+  const merchantSettingsByBrand = new Map(merchantSettingsEntries);
   const getKoombiyoSettingForBrand = (brand: string) => {
     const aliases = getBrandLookupAliases(brand);
     const matches = koombiyoSettings.filter((setting) => aliases.includes(setting.brand));
@@ -112,6 +118,19 @@ export default async function OrdersPage() {
     ].filter(Boolean).join(', ');
     return selectBestKoombiyoLocation(locationText, brandLocations);
   };
+  const getOrderAmountBreakdown = (order: (typeof orders)[number]) => {
+    const amount = Math.max(0, Math.round(order.totalAmount));
+    const settings = order.brand ? merchantSettingsByBrand.get(order.brand) : null;
+    const deliveryCharge = getDeliveryChargeForAddress(order.deliveryAddress || '', settings?.delivery);
+    const orderTotal = amount + deliveryCharge;
+
+    return {
+      amount,
+      deliveryCharge,
+      orderTotal,
+      codValue: orderTotal,
+    };
+  };
 
   const normalizedCounts = orders.reduce<Record<string, number>>((acc, o) => {
     const key = normalizeFulfillmentStatus(o.orderStatus);
@@ -131,120 +150,128 @@ export default async function OrdersPage() {
     cancelled: normalizedCounts.cancelled ?? 0,
     revenueToday: orders
       .filter(o => o.orderStatus !== 'cancelled' && new Date(o.createdAt).toDateString() === new Date().toDateString())
-      .reduce((acc, o) => acc + o.totalAmount, 0),
+      .reduce((acc, o) => acc + getOrderAmountBreakdown(o).orderTotal, 0),
   };
 
-  const serialized = orders.map((o) => ({
-    id: o.id,
-    orderStatus: o.orderStatus,
-    totalAmount: o.totalAmount,
-    createdAt: o.createdAt.toISOString(),
-    brand: o.brand,
-    paymentMethod: o.paymentMethod,
-    deliveryAddress: o.deliveryAddress,
-    deliveryStreetAddress: o.deliveryStreetAddress,
-    deliveryCity: o.deliveryCity,
-    deliveryDistrict: o.deliveryDistrict,
-    trackingNumber: o.trackingNumber,
-    courier: o.courier,
-    failureReason: o.failureReason,
-    returnReason: o.returnReason,
-    koombiyoCourier: o.brand
-      ? (() => {
-          const setting = getKoombiyoSettingForBrand(o.brand);
-          const matchedLocation = getKoombiyoLocationForOrder(o);
-          return {
-            isActive: setting?.isActive ?? false,
-            hasApiKey: Boolean(setting?.apiKey),
-            senderName: setting?.senderName ?? null,
-            senderAddress: setting?.senderAddress ?? null,
-            senderPhone: setting?.senderPhone ?? null,
-            defaultReceiverDistrictId: setting?.defaultReceiverDistrictId ?? null,
-            defaultReceiverCityId: setting?.defaultReceiverCityId ?? null,
-            resolvedReceiverDistrictId: matchedLocation?.districtId ?? null,
-            resolvedReceiverDistrictName: matchedLocation?.districtName ?? null,
-            resolvedReceiverCityId: matchedLocation?.cityId ?? null,
-            resolvedReceiverCityName: matchedLocation?.cityName ?? null,
-          };
-        })()
-      : null,
-    customer: {
-      id: o.customer.id,
-      name: o.customer.name,
-      phone: o.customer.phone,
-      channel: o.customer.channel,
-    },
-    orderItems: o.orderItems.map((item) => ({
-      id: item.id,
-      quantity: item.quantity,
-      size: item.size,
-      color: item.color,
-      price: item.price,
-      product: item.product
-        ? { name: item.product.name, style: item.product.style }
+  const serialized = orders.map((o) => {
+    const amounts = getOrderAmountBreakdown(o);
+
+    return {
+      id: o.id,
+      orderStatus: o.orderStatus,
+      totalAmount: o.totalAmount,
+      amount: amounts.amount,
+      deliveryCharge: amounts.deliveryCharge,
+      orderTotal: amounts.orderTotal,
+      codValue: amounts.codValue,
+      createdAt: o.createdAt.toISOString(),
+      brand: o.brand,
+      paymentMethod: o.paymentMethod,
+      deliveryAddress: o.deliveryAddress,
+      deliveryStreetAddress: o.deliveryStreetAddress,
+      deliveryCity: o.deliveryCity,
+      deliveryDistrict: o.deliveryDistrict,
+      trackingNumber: o.trackingNumber,
+      courier: o.courier,
+      failureReason: o.failureReason,
+      returnReason: o.returnReason,
+      koombiyoCourier: o.brand
+        ? (() => {
+            const setting = getKoombiyoSettingForBrand(o.brand);
+            const matchedLocation = getKoombiyoLocationForOrder(o);
+            return {
+              isActive: setting?.isActive ?? false,
+              hasApiKey: Boolean(setting?.apiKey),
+              senderName: setting?.senderName ?? null,
+              senderAddress: setting?.senderAddress ?? null,
+              senderPhone: setting?.senderPhone ?? null,
+              defaultReceiverDistrictId: setting?.defaultReceiverDistrictId ?? null,
+              defaultReceiverCityId: setting?.defaultReceiverCityId ?? null,
+              resolvedReceiverDistrictId: matchedLocation?.districtId ?? null,
+              resolvedReceiverDistrictName: matchedLocation?.districtName ?? null,
+              resolvedReceiverCityId: matchedLocation?.cityId ?? null,
+              resolvedReceiverCityName: matchedLocation?.cityName ?? null,
+            };
+          })()
         : null,
-    })),
-    supportEscalations: o.supportEscalations.map((support) => ({
-      id: support.id,
-      status: support.status,
-      reason: support.reason,
-      updatedAt: support.updatedAt.toISOString(),
-    })),
-    returnRequests: o.returnRequests.map((rr) => ({
-      id: rr.id,
-      type: rr.type,
-      status: rr.status,
-      reason: rr.reason,
-      stockReconciled: rr.stockReconciled,
-      replacementOrderId: rr.replacementOrderId,
-      createdAt: rr.createdAt.toISOString(),
-      updatedAt: rr.updatedAt.toISOString(),
-    })),
-    fulfillmentEvents: o.fulfillmentEvents.map((event) => ({
-      id: event.id,
-      fromStatus: event.fromStatus,
-      toStatus: event.toStatus,
-      note: event.note,
-      trackingNumber: event.trackingNumber,
-      courier: event.courier,
-      actorEmail: event.actorEmail,
-      actorName: event.actorName,
-      customerNotified: event.customerNotified,
-      createdAt: event.createdAt.toISOString(),
-    })),
-    courierWebhookEvents: o.courierWebhookEvents.map((event) => ({
-      id: event.id,
-      provider: event.provider,
-      trackingNumber: event.trackingNumber,
-      courierStatus: event.courierStatus,
-      mappedStatus: event.mappedStatus,
-      status: event.status,
-      error: event.error,
-      receivedAt: event.receivedAt.toISOString(),
-      processedAt: event.processedAt?.toISOString() ?? null,
-    })),
-    courierShipments: o.courierShipments.map((shipment) => ({
-      id: shipment.id,
-      provider: shipment.provider,
-      waybillId: shipment.waybillId,
-      providerOrderId: shipment.providerOrderId,
-      orderReference: shipment.orderReference,
-      receiverName: shipment.receiverName,
-      receiverStreet: shipment.receiverStreet,
-      receiverDistrictId: shipment.receiverDistrictId,
-      receiverCityId: shipment.receiverCityId,
-      receiverPhone: shipment.receiverPhone,
-      description: shipment.description,
-      specialNote: shipment.specialNote,
-      codAmount: shipment.codAmount,
-      courierStatus: shipment.courierStatus,
-      mappedStatus: shipment.mappedStatus,
-      lastSyncedAt: shipment.lastSyncedAt?.toISOString() ?? null,
-      submittedAt: shipment.submittedAt?.toISOString() ?? null,
-      createdAt: shipment.createdAt.toISOString(),
-      updatedAt: shipment.updatedAt.toISOString(),
-    })),
-  }));
+      customer: {
+        id: o.customer.id,
+        name: o.customer.name,
+        phone: o.customer.phone,
+        channel: o.customer.channel,
+      },
+      orderItems: o.orderItems.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        size: item.size,
+        color: item.color,
+        price: item.price,
+        product: item.product
+          ? { name: item.product.name, style: item.product.style }
+          : null,
+      })),
+      supportEscalations: o.supportEscalations.map((support) => ({
+        id: support.id,
+        status: support.status,
+        reason: support.reason,
+        updatedAt: support.updatedAt.toISOString(),
+      })),
+      returnRequests: o.returnRequests.map((rr) => ({
+        id: rr.id,
+        type: rr.type,
+        status: rr.status,
+        reason: rr.reason,
+        stockReconciled: rr.stockReconciled,
+        replacementOrderId: rr.replacementOrderId,
+        createdAt: rr.createdAt.toISOString(),
+        updatedAt: rr.updatedAt.toISOString(),
+      })),
+      fulfillmentEvents: o.fulfillmentEvents.map((event) => ({
+        id: event.id,
+        fromStatus: event.fromStatus,
+        toStatus: event.toStatus,
+        note: event.note,
+        trackingNumber: event.trackingNumber,
+        courier: event.courier,
+        actorEmail: event.actorEmail,
+        actorName: event.actorName,
+        customerNotified: event.customerNotified,
+        createdAt: event.createdAt.toISOString(),
+      })),
+      courierWebhookEvents: o.courierWebhookEvents.map((event) => ({
+        id: event.id,
+        provider: event.provider,
+        trackingNumber: event.trackingNumber,
+        courierStatus: event.courierStatus,
+        mappedStatus: event.mappedStatus,
+        status: event.status,
+        error: event.error,
+        receivedAt: event.receivedAt.toISOString(),
+        processedAt: event.processedAt?.toISOString() ?? null,
+      })),
+      courierShipments: o.courierShipments.map((shipment) => ({
+        id: shipment.id,
+        provider: shipment.provider,
+        waybillId: shipment.waybillId,
+        providerOrderId: shipment.providerOrderId,
+        orderReference: shipment.orderReference,
+        receiverName: shipment.receiverName,
+        receiverStreet: shipment.receiverStreet,
+        receiverDistrictId: shipment.receiverDistrictId,
+        receiverCityId: shipment.receiverCityId,
+        receiverPhone: shipment.receiverPhone,
+        description: shipment.description,
+        specialNote: shipment.specialNote,
+        codAmount: shipment.codAmount,
+        courierStatus: shipment.courierStatus,
+        mappedStatus: shipment.mappedStatus,
+        lastSyncedAt: shipment.lastSyncedAt?.toISOString() ?? null,
+        submittedAt: shipment.submittedAt?.toISOString() ?? null,
+        createdAt: shipment.createdAt.toISOString(),
+        updatedAt: shipment.updatedAt.toISOString(),
+      })),
+    };
+  });
 
   return (
     <OrdersPageClient
