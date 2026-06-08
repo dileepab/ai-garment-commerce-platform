@@ -4,6 +4,8 @@ import { mapCourierStatus } from '@/lib/courier-service';
 import type { FulfillmentStatus } from '@/lib/fulfillment';
 import { getBrandLookupAliases } from '@/lib/brand-aliases';
 import { logWarn } from '@/lib/app-log';
+import { getDeliveryChargeForAddress } from '@/lib/order-draft/pricing';
+import { getMerchantSettings } from '@/lib/runtime-config';
 import type { CourierShipment } from '@prisma/client';
 
 const KOOMBIYO_PROVIDER = 'koombiyo';
@@ -695,10 +697,30 @@ function buildSpecialNote(orderId: number, brand: string): string {
   return [`Brand: ${brand}`, `Order: ORD-${orderId}`].join('; ');
 }
 
-function resolveCodAmount(order: { totalAmount: number; paymentMethod: string | null }): number {
-  return /\b(cod|cash on delivery)\b/i.test(order.paymentMethod || '')
-    ? Math.round(order.totalAmount)
-    : 0;
+async function resolveKoombiyoAmounts(order: {
+  brand: string | null;
+  deliveryAddress: string | null;
+  paymentMethod: string | null;
+  totalAmount: number;
+}) {
+  const itemSubtotal = Math.max(0, Math.round(order.totalAmount));
+
+  if (!/\b(cod|cash on delivery)\b/i.test(order.paymentMethod || '')) {
+    return {
+      codAmount: 0,
+      deliveryCharge: 0,
+      itemSubtotal,
+    };
+  }
+
+  const settings = await getMerchantSettings(order.brand);
+  const deliveryCharge = getDeliveryChargeForAddress(order.deliveryAddress || '', settings.delivery);
+
+  return {
+    codAmount: itemSubtotal + deliveryCharge,
+    deliveryCharge,
+    itemSubtotal,
+  };
 }
 
 function getKoombiyoErrorMessage(error: unknown): string {
@@ -817,9 +839,10 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
   const orderReference = `ORD-${order.id}`;
   const description = cleanOptionalText(input.description) || buildOrderDescription(order);
   const specialNote = cleanOptionalText(input.specialNote) || buildSpecialNote(order.id, brand);
-  const codAmount = resolveCodAmount(order);
+  const amounts = await resolveKoombiyoAmounts(order);
   const rawResponse = compactPayload({
     waybill: parseKoombiyoResponse(waybill.rawResponse),
+    amounts,
   });
 
   const shipment = await prisma.$transaction(async (tx) => {
@@ -837,7 +860,7 @@ export async function assignKoombiyoWaybill(input: AssignKoombiyoWaybillInput) {
         receiverPhone: order.customer.phone,
         description,
         specialNote,
-        codAmount,
+        codAmount: amounts.codAmount,
         courierStatus: 'waybill_assigned',
         rawResponse,
         createdByEmail: input.actor?.email ?? null,
@@ -957,7 +980,17 @@ export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput)
   const shipment = await prisma.courierShipment.findFirst({
     where: { orderId: input.orderId, provider: KOOMBIYO_PROVIDER },
     orderBy: { createdAt: 'desc' },
-    include: { order: { select: { brand: true, orderStatus: true } } },
+    include: {
+      order: {
+        select: {
+          brand: true,
+          deliveryAddress: true,
+          orderStatus: true,
+          paymentMethod: true,
+          totalAmount: true,
+        },
+      },
+    },
   });
 
   if (!shipment) {
@@ -996,8 +1029,15 @@ export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput)
   }
 
   const apiKey = await resolveKoombiyoApiKey(brand);
+  const amounts = await resolveKoombiyoAmounts({
+    brand,
+    deliveryAddress: shipment.order.deliveryAddress,
+    paymentMethod: shipment.order.paymentMethod,
+    totalAmount: shipment.order.totalAmount,
+  });
   const addOrderResponse = await postKoombiyoForm('/api/Addorders/users', {
     apikey: apiKey,
+    order_id: '',
     orderWaybillid: shipment.waybillId,
     orderNo: shipment.orderReference || `ORD-${input.orderId}`,
     receiverName: shipment.receiverName!,
@@ -1007,7 +1047,8 @@ export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput)
     receiverPhone: shipment.receiverPhone!,
     description: shipment.description!,
     spclNote: shipment.specialNote || buildSpecialNote(input.orderId, brand),
-    getCod: String(shipment.codAmount ?? 0),
+    getCod: String(amounts.codAmount),
+    getCodzero: String(amounts.itemSubtotal),
   });
   const courierStatus = extractStatus(addOrderResponse) || 'submitted';
   const mappedStatus: FulfillmentStatus = mapCourierStatus(KOOMBIYO_PROVIDER, courierStatus);
