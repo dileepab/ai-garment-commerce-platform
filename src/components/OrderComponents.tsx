@@ -458,41 +458,46 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       white-space: nowrap;
     }
     .field-block {
-      padding: 1.4mm 2mm;
+      padding: 2.2mm 2mm;
       border-bottom: 1.2px solid #1f5da8;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 27mm;
     }
-    .address-block { padding: 1.7mm 2mm 1.2mm; }
+    .address-block {
+      padding: 2mm 2mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+    }
     .line {
       display: grid;
-      grid-template-columns: 32mm 3mm 1fr;
+      grid-template-columns: 30mm 3mm 1fr;
       align-items: start;
-      min-height: 8.5mm;
+      min-height: 6.5mm;
       font-size: 11px;
       line-height: 1.25;
     }
     .address-line {
-      grid-template-columns: 18mm 3mm 1fr;
-      min-height: 19mm;
+      align-items: start;
     }
     .phone-line {
-      grid-template-columns: 22mm 3mm 1fr;
-      min-height: 7mm;
-      align-items: end;
+      align-items: start;
     }
     .description-line {
-      grid-template-columns: 22mm 3mm 1fr;
-      min-height: 0;
       align-items: start;
     }
     .label-key {
       color: #1f5da8;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 800;
       white-space: nowrap;
     }
     .separator {
       color: #1f5da8;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 800;
       text-align: center;
     }
@@ -506,7 +511,7 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
     .address-value { font-size: 11px; }
     .right-pane {
       display: grid;
-      grid-template-rows: 30mm 21mm 1fr;
+      grid-template-rows: 30mm 27mm 1fr;
     }
     .proof-block {
       border-bottom: 1.2px solid #1f5da8;
@@ -545,49 +550,55 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       margin-top: 0.5mm;
     }
     .cod-block {
-      padding: 1.8mm 1.6mm;
+      padding: 2.2mm 2mm;
       border-bottom: 1.2px solid #1f5da8;
-      display: grid;
-      grid-template-rows: 8.5mm 6mm 6mm;
-      gap: 0.3mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 27mm;
     }
     .cod-line {
       display: grid;
       grid-template-columns: 30mm 3mm 1fr;
       align-items: center;
+      min-height: 6mm;
       font-size: 11px;
     }
     .cod-box {
-      height: 10mm;
-      border: 1px solid #1f5da8;
+      height: 9.5mm;
+      border: 1.2px solid #1f5da8;
+      border-radius: 1mm;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 16px;
       font-family: Georgia, "Times New Roman", serif;
-      font-weight: 400;
+      font-weight: 700;
       background: #fff;
     }
     .pod-block {
-      padding: 2.2mm 2mm 1.5mm;
+      padding: 2mm;
     }
     .pod-inner {
       height: 100%;
       border: 1.2px solid #1f5da8;
       border-radius: 1.5mm;
       padding: 1.5mm 2mm;
-      display: grid;
-      grid-template-rows: repeat(5, 7.5mm) 1fr;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .pod-line {
       display: grid;
-      grid-template-columns: 27mm 3mm 1fr;
-      align-items: start;
+      grid-template-columns: 30mm 3mm 1fr;
+      align-items: center;
+      min-height: 5.2mm;
     }
     .delivered-line {
       display: grid;
-      grid-template-columns: 27mm 3mm 1fr;
+      grid-template-columns: 30mm 3mm 1fr;
       align-items: center;
+      min-height: 5.2mm;
     }
     .checks {
       display: flex;
