@@ -101,6 +101,9 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
   koombiyoCourier: {
     isActive: boolean;
     hasApiKey: boolean;
+    senderName: string | null;
+    senderAddress: string | null;
+    senderPhone: string | null;
     defaultReceiverDistrictId: string | null;
     defaultReceiverCityId: string | null;
     resolvedReceiverDistrictId: string | null;
