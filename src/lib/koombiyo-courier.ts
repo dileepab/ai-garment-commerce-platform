@@ -697,6 +697,22 @@ function buildSpecialNote(orderId: number, brand: string): string {
   return [`Brand: ${brand}`, `Order: ORD-${orderId}`].join('; ');
 }
 
+function buildKoombiyoReceiverStreet(street: string, city?: string | null): string {
+  const cleanedStreet = street.trim();
+  const cleanedCity = cleanOptionalText(city);
+
+  if (!cleanedCity) return cleanedStreet;
+
+  const normalizedStreet = normalizeKoombiyoLocationText(cleanedStreet);
+  const normalizedCity = normalizeKoombiyoLocationText(cleanedCity);
+
+  if (normalizedCity && normalizedStreet.includes(normalizedCity)) {
+    return cleanedStreet;
+  }
+
+  return `${cleanedStreet}, ${cleanedCity}`;
+}
+
 async function resolveKoombiyoAmounts(order: {
   brand: string | null;
   deliveryAddress: string | null;
@@ -985,6 +1001,7 @@ export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput)
         select: {
           brand: true,
           deliveryAddress: true,
+          deliveryCity: true,
           orderStatus: true,
           paymentMethod: true,
           totalAmount: true,
@@ -1035,13 +1052,17 @@ export async function submitKoombiyoDelivery(input: SubmitKoombiyoDeliveryInput)
     paymentMethod: shipment.order.paymentMethod,
     totalAmount: shipment.order.totalAmount,
   });
+  const receiverStreet = buildKoombiyoReceiverStreet(
+    shipment.receiverStreet!,
+    shipment.order.deliveryCity,
+  );
   const addOrderResponse = await postKoombiyoForm('/api/Addorders/users', {
     apikey: apiKey,
     order_id: '',
     orderWaybillid: shipment.waybillId,
     orderNo: shipment.orderReference || `ORD-${input.orderId}`,
     receiverName: shipment.receiverName!,
-    receiverStreet: shipment.receiverStreet!,
+    receiverStreet,
     receiverDistrict: shipment.receiverDistrictId!,
     receiverCity: shipment.receiverCityId!,
     receiverPhone: shipment.receiverPhone!,
