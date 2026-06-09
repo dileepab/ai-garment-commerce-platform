@@ -443,15 +443,15 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
     .right-pane { min-width: 0; }
     .left-pane {
       display: grid;
-      grid-template-rows: 30mm 27mm 1fr;
+      grid-template-rows: 26mm 22mm 1fr;
       border-right: 1.2px solid #1f5da8;
     }
     .logo-block {
       padding: 2mm 2.5mm 1mm;
       border-bottom: 1.2px solid #1f5da8;
     }
-    .logo-wrap { text-align: center; height: 22mm; }
-    .logo { width: 69mm; max-height: 22mm; object-fit: contain; }
+    .logo-wrap { text-align: center; height: 18mm; }
+    .logo { width: 69mm; max-height: 18mm; object-fit: contain; }
     .company-line {
       display: flex;
       justify-content: space-between;
@@ -462,12 +462,12 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       white-space: nowrap;
     }
     .field-block {
-      padding: 2.2mm 2mm;
+      padding: 1.2mm 2mm;
       border-bottom: 1.2px solid #1f5da8;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      height: 27mm;
+      height: 22mm;
     }
     .address-block {
       padding: 2mm 2mm;
@@ -483,6 +483,9 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       min-height: 6.5mm;
       font-size: 11px;
       line-height: 1.25;
+    }
+    .address-block .line {
+      grid-template-columns: 20mm 2mm 1fr;
     }
     .address-line {
       align-items: start;
@@ -518,7 +521,7 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
     .address-value { font-size: 11.5px; }
     .right-pane {
       display: grid;
-      grid-template-rows: 30mm 27mm 1fr;
+      grid-template-rows: 26mm 22mm 1fr;
     }
     .proof-block {
       border-bottom: 1.2px solid #1f5da8;
@@ -561,12 +564,12 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       color: #0f172a;
     }
     .cod-block {
-      padding: 2.2mm 2mm;
+      padding: 1.2mm 2mm;
       border-bottom: 1.2px solid #1f5da8;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      height: 27mm;
+      height: 22mm;
     }
     .cod-line {
       display: grid;
@@ -576,7 +579,7 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       font-size: 11px;
     }
     .cod-box {
-      height: 9.5mm;
+      height: 8mm;
       border: 1.2px solid #1f5da8;
       border-radius: 1mm;
       display: flex;
@@ -621,13 +624,13 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
     }
     .pod-line {
       display: grid;
-      grid-template-columns: 30mm 3mm 1fr;
+      grid-template-columns: 20mm 2mm 1fr;
       align-items: center;
       min-height: 5.2mm;
     }
     .delivered-line {
       display: grid;
-      grid-template-columns: 30mm 3mm 1fr;
+      grid-template-columns: 20mm 2mm 1fr;
       align-items: center;
       min-height: 5.2mm;
     }
