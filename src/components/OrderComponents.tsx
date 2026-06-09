@@ -470,10 +470,11 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       height: 22mm;
     }
     .address-block {
-      padding: 2mm 2mm;
+      padding: 2.5mm 2mm;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      gap: 2mm;
+      justify-content: flex-start;
       height: 100%;
     }
     .line {
@@ -532,7 +533,7 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       border: 1.2px solid #1f5da8;
       border-radius: 2mm;
       display: grid;
-      grid-template-rows: 9mm 1fr;
+      grid-template-rows: 7mm 1fr;
       overflow: hidden;
     }
     .proof-title {
@@ -541,7 +542,7 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       justify-content: center;
       color: #fff;
       background: #1f5da8;
-      font-size: 13.5px;
+      font-size: 11px;
       font-weight: 800;
       letter-spacing: 0.6px;
       line-height: 1;
@@ -552,12 +553,12 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       display: grid;
       justify-items: center;
       align-content: center;
-      padding: 1mm 4mm 1.5mm;
+      padding: 0.5mm 4mm 1mm;
     }
-    .barcode-svg { width: 54mm; height: 12mm; fill: #111; }
+    .barcode-svg { width: 54mm; height: 8mm; fill: #111; }
     .barcode-text {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 800;
       letter-spacing: 0.5px;
       margin-top: 0.5mm;
