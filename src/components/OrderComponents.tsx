@@ -403,14 +403,17 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
 <html>
 <head>
   <title>Koombiyo Label ORD-${order.id}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
     @page { size: A4 landscape; margin: 4mm; }
     body {
       margin: 0;
       padding: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      color: #111;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+      color: #0f172a;
       background: #fff;
     }
     .print-page {
@@ -491,25 +494,28 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       align-items: start;
     }
     .label-key {
-      color: #1f5da8;
-      font-size: 12px;
-      font-weight: 800;
+      color: #4b5563;
+      font-size: 10px;
+      font-weight: 700;
       white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
     .separator {
-      color: #1f5da8;
-      font-size: 12px;
-      font-weight: 800;
+      color: #9ca3af;
+      font-size: 10px;
+      font-weight: 700;
       text-align: center;
     }
     .value {
-      font-size: 11px;
-      font-weight: 800;
+      font-size: 11.5px;
+      font-weight: 750;
       line-height: 1.35;
       min-width: 0;
       overflow-wrap: anywhere;
+      color: #0f172a;
     }
-    .address-value { font-size: 11px; }
+    .address-value { font-size: 11.5px; }
     .right-pane {
       display: grid;
       grid-template-rows: 30mm 27mm 1fr;
@@ -530,10 +536,13 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #1f5da8;
-      font-size: 20px;
-      font-weight: 900;
+      color: #fff;
+      background: #1f5da8;
+      font-size: 13.5px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
       line-height: 1;
+      text-transform: uppercase;
       white-space: nowrap;
     }
     .barcode-panel {
@@ -544,11 +553,12 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
     }
     .barcode-svg { width: 54mm; height: 12mm; fill: #111; }
     .barcode-text {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: 0.2px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
       margin-top: 0.5mm;
+      color: #0f172a;
     }
     .cod-block {
       padding: 2.2mm 2mm;
@@ -573,9 +583,10 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       align-items: center;
       justify-content: center;
       font-size: 16px;
-      font-family: Georgia, "Times New Roman", serif;
-      font-weight: 700;
-      background: #fff;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+      font-weight: 850;
+      background: #f8fafc;
+      color: #1e3a8a;
     }
     .pod-block {
       padding: 2mm;
@@ -584,10 +595,29 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       height: 100%;
       border: 1.2px solid #1f5da8;
       border-radius: 1.5mm;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .pod-header {
+      background: #eff6ff;
+      color: #1f5da8;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-align: center;
+      padding: 1.2mm 0;
+      border-bottom: 1.2px solid #1f5da8;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+    .pod-body {
+      flex: 1;
       padding: 1.5mm 2mm;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      min-height: 0;
     }
     .pod-line {
       display: grid;
@@ -607,7 +637,7 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       gap: 5mm;
       align-items: center;
       color: #1f5da8;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
     }
     .box {
@@ -617,6 +647,8 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
       border: 1.1px solid #1f5da8;
       vertical-align: middle;
       margin-right: 1.4mm;
+      background: #fff;
+      border-radius: 0.5mm;
     }
     @media print {
       body { padding: 0; }
@@ -707,37 +739,40 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
         </div>
         <div class="pod-block">
           <div class="pod-inner">
-            <div class="pod-line">
-              <div class="label-key">Name</div>
-              <div class="separator">:</div>
-              <div class="value"></div>
-            </div>
-            <div class="pod-line">
-              <div class="label-key">Address</div>
-              <div class="separator">:</div>
-              <div class="value"></div>
-            </div>
-            <div class="pod-line">
-              <div class="label-key">NIC Number</div>
-              <div class="separator">:</div>
-              <div class="value"></div>
-            </div>
-            <div class="pod-line">
-              <div class="label-key">Date</div>
-              <div class="separator">:</div>
-              <div class="value"></div>
-            </div>
-            <div class="pod-line">
-              <div class="label-key">Signature</div>
-              <div class="separator">:</div>
-              <div class="value"></div>
-            </div>
-            <div class="delivered-line">
-              <div class="label-key">Delivrd</div>
-              <div class="separator">:</div>
-              <div class="checks">
-                <span><span class="box"></span>Yes</span>
-                <span><span class="box"></span>No</span>
+            <div class="pod-header">RECEIVER SIGN-OFF</div>
+            <div class="pod-body">
+              <div class="pod-line">
+                <div class="label-key">Name</div>
+                <div class="separator">:</div>
+                <div class="value"></div>
+              </div>
+              <div class="pod-line">
+                <div class="label-key">Address</div>
+                <div class="separator">:</div>
+                <div class="value"></div>
+              </div>
+              <div class="pod-line">
+                <div class="label-key">NIC Number</div>
+                <div class="separator">:</div>
+                <div class="value"></div>
+              </div>
+              <div class="pod-line">
+                <div class="label-key">Date</div>
+                <div class="separator">:</div>
+                <div class="value"></div>
+              </div>
+              <div class="pod-line">
+                <div class="label-key">Signature</div>
+                <div class="separator">:</div>
+                <div class="value"></div>
+              </div>
+              <div class="delivered-line">
+                <div class="label-key">Delivrd</div>
+                <div class="separator">:</div>
+                <div class="checks">
+                  <span><span class="box"></span>Yes</span>
+                  <span><span class="box"></span>No</span>
+                </div>
               </div>
             </div>
           </div>
