@@ -392,9 +392,10 @@ function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipm
   const phone = shipment.receiverPhone || order.customer.phone || 'No phone';
   const description = shipment.description || buildKoombiyoPackageDescription(order);
   const codAmount = order.orderTotal ?? order.codValue ?? shipment.codAmount ?? order.totalAmount ?? 0;
-  const issuedDate = formatKoombiyoDateTime(order.createdAt);
+  const issuedDate = formatKoombiyoDateTime(order.createdAt).split(' ')[0];
   const brandName = order.brand || 'DEEZ';
-  const senderName = order.koombiyoCourier?.senderName || brandName;
+  const rawSender = order.koombiyoCourier?.senderName || brandName;
+  const senderName = rawSender.toLowerCase().replace(/[^a-z0-9]+/g, '') === 'happybuy' ? 'Happy Buy' : rawSender;
   const senderPhone = order.koombiyoCourier?.senderPhone || '-';
   const orderNumber = shipment.orderReference || `ORD-${order.id}`;
   const barcodeSvg = buildCode128BarcodeSvg(shipment.waybillId);
