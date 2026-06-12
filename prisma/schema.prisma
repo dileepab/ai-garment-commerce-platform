@@ -404,6 +404,11 @@ model CourierIntegrationSetting {
   provider                  String    @default("koombiyo")
   isActive                  Boolean   @default(false)
   apiKey                    String?
+  accountEmail              String?
+  accountPassword           String?
+  merchantBusinessId        String?
+  pickupAddressId           String?
+  originCityId              String?
   senderName                String?
   senderAddress             String?
   senderPhone               String?

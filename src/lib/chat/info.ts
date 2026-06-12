@@ -45,6 +45,8 @@ import type { ChatContext } from './types';
 const COURIER_PROVIDER_LABELS: Record<string, string> = {
   koombiyo: 'Koombiyo Delivery',
   koombio: 'Koombiyo Delivery',
+  royalexpress: 'RoyalExpress',
+  'royal express': 'RoyalExpress',
   pronto: 'Pronto',
   domex: 'Domex',
   prompt: 'Prompt Express',

@@ -19,6 +19,11 @@ import {
   refreshKoombiyoShipmentStatus,
   submitKoombiyoDeliveryForDispatch,
 } from '@/lib/koombiyo-courier';
+import {
+  refreshRoyalExpressShipmentStatus,
+  ROYALEXPRESS_COURIER_DISPLAY_NAME,
+  submitRoyalExpressDeliveryForDispatch,
+} from '@/lib/royal-express-courier';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
 
 export interface OrderActionResult {
@@ -165,21 +170,32 @@ export async function dispatchOrder(
     const order = await assertOrderAccess(scope, orderId);
     const actor = actorFromScope(scope);
     const currentStatus = normalizeFulfillmentStatus(order.orderStatus);
-    const koombiyoShipment =
+    const royalExpressShipment =
       currentStatus === 'packed'
+        ? await submitRoyalExpressDeliveryForDispatch({ orderId, actor })
+        : null;
+    const koombiyoShipment =
+      !royalExpressShipment && currentStatus === 'packed'
         ? await submitKoombiyoDeliveryForDispatch({ orderId, actor })
         : null;
+    const courierShipment = royalExpressShipment || koombiyoShipment;
+    const courierName = royalExpressShipment
+      ? ROYALEXPRESS_COURIER_DISPLAY_NAME
+      : koombiyoShipment
+        ? KOOMBIYO_COURIER_DISPLAY_NAME
+        : undefined;
+    const courierNote = royalExpressShipment
+      ? `Sent packed order to RoyalExpress with waybill ${royalExpressShipment.waybillId}.`
+      : koombiyoShipment
+        ? `Sent packed order to Koombiyo with waybill ${koombiyoShipment.waybillId}.`
+        : undefined;
 
     await transitionFulfillment({
       orderId,
       toStatus: 'dispatched',
-      trackingNumber: koombiyoShipment?.waybillId ?? input.trackingNumber,
-      courier: koombiyoShipment ? KOOMBIYO_COURIER_DISPLAY_NAME : input.courier,
-      note:
-        input.note ||
-        (koombiyoShipment
-          ? `Sent packed order to Koombiyo with waybill ${koombiyoShipment.waybillId}.`
-          : undefined),
+      trackingNumber: courierShipment?.waybillId ?? input.trackingNumber,
+      courier: courierName ?? input.courier,
+      note: input.note || courierNote,
       actor,
     });
     revalidatePath('/orders');
@@ -240,18 +256,28 @@ export async function retryDispatch(
     const scope = await requireActionPermission('orders:update');
     await assertOrderAccess(scope, orderId);
     const actor = actorFromScope(scope);
-    const koombiyoShipment = await submitKoombiyoDeliveryForDispatch({ orderId, actor });
+    const royalExpressShipment = await submitRoyalExpressDeliveryForDispatch({ orderId, actor });
+    const koombiyoShipment = royalExpressShipment
+      ? null
+      : await submitKoombiyoDeliveryForDispatch({ orderId, actor });
+    const courierShipment = royalExpressShipment || koombiyoShipment;
+    const courierName = royalExpressShipment
+      ? ROYALEXPRESS_COURIER_DISPLAY_NAME
+      : koombiyoShipment
+        ? KOOMBIYO_COURIER_DISPLAY_NAME
+        : undefined;
+    const courierNote = royalExpressShipment
+      ? `Retried RoyalExpress dispatch with waybill ${royalExpressShipment.waybillId}.`
+      : koombiyoShipment
+        ? `Retried Koombiyo dispatch with waybill ${koombiyoShipment.waybillId}.`
+        : undefined;
 
     await transitionFulfillment({
       orderId,
       toStatus: 'dispatched',
-      trackingNumber: koombiyoShipment?.waybillId ?? input.trackingNumber,
-      courier: koombiyoShipment ? KOOMBIYO_COURIER_DISPLAY_NAME : input.courier,
-      note:
-        input.note ||
-        (koombiyoShipment
-          ? `Retried Koombiyo dispatch with waybill ${koombiyoShipment.waybillId}.`
-          : undefined),
+      trackingNumber: courierShipment?.waybillId ?? input.trackingNumber,
+      courier: courierName ?? input.courier,
+      note: input.note || courierNote,
       actor,
     });
     revalidatePath('/orders');
@@ -426,6 +452,40 @@ export async function refreshKoombiyoStatusAction(orderId: number): Promise<Orde
         courier: 'Koombiyo Delivery',
         note: `Koombiyo status refresh: ${shipment.courierStatus}.`,
         failureReason: nextStatus === 'delivery_failed' ? 'Koombiyo reported a delivery issue.' : null,
+        actor: actorFromScope(scope),
+      });
+    }
+
+    revalidatePath('/orders');
+    return { success: true };
+  } catch (error) {
+    return toResult(error);
+  }
+}
+
+export async function refreshRoyalExpressStatusAction(orderId: number): Promise<OrderActionResult> {
+  try {
+    const scope = await requireActionPermission('orders:update');
+    const order = await assertOrderAccess(scope, orderId);
+    const shipment = await refreshRoyalExpressShipmentStatus({
+      orderId,
+      actor: actorFromScope(scope),
+    });
+    const currentStatus = normalizeFulfillmentStatus(order.orderStatus);
+    const nextStatus = normalizeFulfillmentStatus(shipment.mappedStatus);
+
+    if (
+      nextStatus !== currentStatus &&
+      (nextStatus === 'delivered' || nextStatus === 'delivery_failed') &&
+      currentStatus === 'dispatched'
+    ) {
+      await transitionFulfillment({
+        orderId,
+        toStatus: nextStatus,
+        trackingNumber: shipment.waybillId,
+        courier: ROYALEXPRESS_COURIER_DISPLAY_NAME,
+        note: `RoyalExpress status refresh: ${shipment.courierStatus}.`,
+        failureReason: nextStatus === 'delivery_failed' ? 'RoyalExpress reported a delivery issue.' : null,
         actor: actorFromScope(scope),
       });
     }

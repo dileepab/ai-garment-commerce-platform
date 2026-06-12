@@ -1,0 +1,739 @@
+import prisma from '@/lib/prisma';
+import { OrderRequestError } from '@/lib/orders';
+import { mapCourierStatus } from '@/lib/courier-service';
+import type { FulfillmentStatus } from '@/lib/fulfillment';
+import { getBrandLookupAliases } from '@/lib/brand-aliases';
+import { getDeliveryChargeForAddress } from '@/lib/order-draft/pricing';
+import { getMerchantSettings } from '@/lib/runtime-config';
+import type { CourierShipment } from '@prisma/client';
+
+const ROYALEXPRESS_PROVIDER = 'royalexpress';
+const ROYALEXPRESS_COURIER_NAME = 'RoyalExpress';
+const CURFOX_BASE_URL =
+  process.env.ROYALEXPRESS_CURFOX_BASE_URL?.trim().replace(/\/+$/, '') ||
+  process.env.CURFOX_BASE_URL?.trim().replace(/\/+$/, '') ||
+  'https://v1.api.curfox.com';
+const CURFOX_TENANT =
+  process.env.ROYALEXPRESS_CURFOX_TENANT?.trim() ||
+  process.env.CURFOX_TENANT?.trim() ||
+  'royalexpress';
+const CURFOX_API_STYLE = (
+  process.env.ROYALEXPRESS_CURFOX_API_STYLE?.trim().toLowerCase() ||
+  process.env.CURFOX_API_STYLE?.trim().toLowerCase() ||
+  ''
+);
+const USE_TENANT_PATHS =
+  CURFOX_API_STYLE === 'tenant' ||
+  CURFOX_API_STYLE === 'v2' ||
+  CURFOX_BASE_URL.includes('v2-') ||
+  /\/api$/i.test(CURFOX_BASE_URL);
+const CURFOX_PATHS = {
+  login: USE_TENANT_PATHS ? '/merchant/login' : '/api/public/merchant/login',
+  userInfo: USE_TENANT_PATHS ? '/merchant/user/get-current' : '/api/public/merchant/user/get-current',
+  orderSingle: USE_TENANT_PATHS ? '/merchant/order/single' : '/api/public/merchant/order/single',
+  trackingInfo: USE_TENANT_PATHS ? '/merchant/order/tracking-info' : '/api/public/merchant/order/tracking-info',
+};
+
+type CurfoxResponseValue =
+  | string
+  | number
+  | boolean
+  | null
+  | CurfoxResponseValue[]
+  | { [key: string]: CurfoxResponseValue };
+
+interface ResolvedRoyalExpressCredentials {
+  email: string;
+  password: string;
+  merchantBusinessId: string;
+  pickupAddressId: string;
+  originCityId: string | null;
+  defaultDestinationCityId: string | null;
+}
+
+export interface RoyalExpressSettingsView {
+  brand: string;
+  provider: 'royalexpress';
+  isActive: boolean;
+  hasCredentials: boolean;
+  credentialSource: 'database' | 'env' | 'missing';
+  accountEmail: string | null;
+  merchantBusinessId: string | null;
+  pickupAddressId: string | null;
+  originCityId: string | null;
+  defaultDestinationCityId: string | null;
+  notes: string | null;
+  lastTestAt: string | null;
+  lastTestStatus: string | null;
+  lastTestMessage: string | null;
+}
+
+export interface SubmitRoyalExpressDeliveryForDispatchInput {
+  orderId: number;
+  actor?: { email?: string | null; name?: string | null } | null;
+}
+
+export interface RefreshRoyalExpressStatusInput {
+  orderId: number;
+  actor?: { email?: string | null; name?: string | null } | null;
+}
+
+function cleanOptionalText(value?: string | null): string | null {
+  const cleaned = value?.trim();
+  return cleaned ? cleaned : null;
+}
+
+function cleanSecret(value?: string | null): string | null {
+  const cleaned = value?.trim().replace(/^["'`]+|["'`]+$/g, '');
+  return cleaned ? cleaned : null;
+}
+
+function brandEnvKey(brand: string): string {
+  return brand.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+}
+
+function getCanonicalBrandForStorage(brand: string): string {
+  return getBrandLookupAliases(brand)[0] || brand;
+}
+
+function getEnvCredential(brand: string, key: string): string | null {
+  const brandKey = brandEnvKey(brand);
+  return cleanSecret(
+    process.env[`ROYALEXPRESS_${key}_${brandKey}`] ||
+      process.env[`ROYAL_EXPRESS_${key}_${brandKey}`] ||
+      process.env[`CURFOX_${key}_${brandKey}`] ||
+      process.env[`ROYALEXPRESS_${key}`] ||
+      process.env[`ROYAL_EXPRESS_${key}`] ||
+      process.env[`CURFOX_${key}`],
+  );
+}
+
+function hasDatabaseCredentials(record: {
+  accountEmail?: string | null;
+  accountPassword?: string | null;
+  merchantBusinessId?: string | null;
+  pickupAddressId?: string | null;
+}) {
+  return Boolean(
+    cleanSecret(record.accountEmail) &&
+      cleanSecret(record.accountPassword) &&
+      cleanOptionalText(record.merchantBusinessId) &&
+      cleanOptionalText(record.pickupAddressId),
+  );
+}
+
+function pickPreferredBrandRecord<
+  T extends {
+    brand: string;
+    isActive?: boolean | null;
+    accountEmail?: string | null;
+    accountPassword?: string | null;
+    merchantBusinessId?: string | null;
+    pickupAddressId?: string | null;
+  },
+>(brand: string, records: T[]): T | null {
+  const cleaned = brand.trim();
+  return (
+    records.find((record) => record.brand === cleaned && record.isActive && hasDatabaseCredentials(record)) ||
+    records.find((record) => record.isActive && hasDatabaseCredentials(record)) ||
+    records.find((record) => record.brand === cleaned && record.isActive) ||
+    records.find((record) => record.isActive) ||
+    records.find((record) => record.brand === cleaned && hasDatabaseCredentials(record)) ||
+    records.find((record) => hasDatabaseCredentials(record)) ||
+    records.find((record) => record.brand === cleaned) ||
+    records[0] ||
+    null
+  );
+}
+
+async function findRoyalExpressSettingsRecord(brand: string) {
+  const aliases = getBrandLookupAliases(brand);
+  if (aliases.length === 0) return null;
+
+  const records = await prisma.courierIntegrationSetting.findMany({
+    where: {
+      provider: ROYALEXPRESS_PROVIDER,
+      brand: { in: aliases },
+    },
+  });
+
+  return pickPreferredBrandRecord(brand, records);
+}
+
+async function findActiveRoyalExpressOrderContext(orderId: number) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, brand: true, orderStatus: true },
+  });
+
+  if (!order) {
+    throw new OrderRequestError(`Order #${orderId} was not found.`, 404);
+  }
+
+  const brand = cleanOptionalText(order.brand);
+  if (!brand) return null;
+
+  const settings = await findRoyalExpressSettingsRecord(brand);
+  if (!settings?.isActive) return null;
+
+  return { order, brand };
+}
+
+export async function isRoyalExpressActiveForBrand(brand?: string | null): Promise<boolean> {
+  const cleaned = cleanOptionalText(brand);
+  if (!cleaned) return false;
+
+  const settings = await findRoyalExpressSettingsRecord(cleaned);
+  return Boolean(settings?.isActive);
+}
+
+function compactPayload(value: unknown): string {
+  try {
+    return JSON.stringify(value).slice(0, 8000);
+  } catch {
+    return String(value).slice(0, 8000);
+  }
+}
+
+function parseCurfoxResponse(text: string): CurfoxResponseValue {
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed) as CurfoxResponseValue;
+  } catch {
+    return trimmed;
+  }
+}
+
+function stringifyCurfoxMessage(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const message = record.message || record.error || record.errors || record.detail;
+    if (message) {
+      return stringifyCurfoxMessage(message);
+    }
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function isRecord(value: CurfoxResponseValue): value is Record<string, CurfoxResponseValue> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function collectRecords(value: CurfoxResponseValue): Array<Record<string, CurfoxResponseValue>> {
+  const records: Array<Record<string, CurfoxResponseValue>> = [];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      records.push(...collectRecords(item));
+    }
+    return records;
+  }
+  if (!isRecord(value)) return records;
+  records.push(value);
+  for (const item of Object.values(value)) {
+    records.push(...collectRecords(item));
+  }
+  return records;
+}
+
+function getRecordString(record: Record<string, CurfoxResponseValue>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' || typeof value === 'number') {
+      const cleaned = cleanOptionalText(String(value));
+      if (cleaned) return cleaned;
+    }
+  }
+  return null;
+}
+
+function extractBearerToken(value: CurfoxResponseValue): string | null {
+  const directKeys = [
+    'token',
+    'access_token',
+    'accessToken',
+    'bearer_token',
+    'bearerToken',
+    'auth_token',
+    'authToken',
+    'authorization',
+  ];
+
+  for (const record of collectRecords(value)) {
+    const token = getRecordString(record, directKeys);
+    if (token) {
+      return token.replace(/^Bearer\s+/i, '').trim();
+    }
+  }
+
+  return null;
+}
+
+function extractFirstMatchingString(value: CurfoxResponseValue, keys: string[]): string | null {
+  for (const record of collectRecords(value)) {
+    const result = getRecordString(record, keys);
+    if (result) return result;
+  }
+  return null;
+}
+
+function extractWaybillId(value: CurfoxResponseValue): string | null {
+  const direct = extractFirstMatchingString(value, [
+    'waybill_number',
+    'waybillNumber',
+    'waybill_no',
+    'waybillNo',
+    'waybill',
+    'tracking_number',
+    'trackingNumber',
+    'tracking_no',
+    'trackingNo',
+    'barcode',
+    'barcode_number',
+    'awb',
+  ]);
+  if (direct) return direct;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string' || typeof item === 'number') {
+        const cleaned = cleanOptionalText(String(item));
+        if (cleaned) return cleaned;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractProviderOrderId(value: CurfoxResponseValue): string | null {
+  return extractFirstMatchingString(value, [
+    'order_id',
+    'orderId',
+    'id',
+    'order_no',
+    'orderNo',
+    'reference',
+    'merchant_order_id',
+  ]);
+}
+
+function extractStatus(value: CurfoxResponseValue): string | null {
+  return extractFirstMatchingString(value, [
+    'status',
+    'order_status',
+    'orderStatus',
+    'delivery_status',
+    'deliveryStatus',
+    'current_status',
+    'currentStatus',
+    'state',
+  ]);
+}
+
+async function requestCurfoxJson(
+  path: string,
+  options: {
+    method?: 'GET' | 'POST';
+    body?: unknown;
+    token?: string;
+  } = {},
+): Promise<CurfoxResponseValue> {
+  const response = await fetch(`${CURFOX_BASE_URL}${path}`, {
+    method: options.method || (options.body ? 'POST' : 'GET'),
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(CURFOX_TENANT ? { 'X-tenant': CURFOX_TENANT } : {}),
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    cache: 'no-store',
+  });
+  const text = await response.text();
+  const parsed = parseCurfoxResponse(text);
+
+  if (!response.ok) {
+    throw new OrderRequestError(
+      `RoyalExpress Curfox request failed (${response.status}): ${stringifyCurfoxMessage(parsed)}`,
+      response.status >= 400 && response.status < 500 ? response.status : 502,
+    );
+  }
+
+  return parsed;
+}
+
+async function loginRoyalExpress(brand: string, credentials?: ResolvedRoyalExpressCredentials): Promise<string> {
+  const resolved = credentials || (await resolveRoyalExpressCredentials(brand));
+  const response = await requestCurfoxJson(CURFOX_PATHS.login, {
+    method: 'POST',
+    body: {
+      email: resolved.email,
+      password: resolved.password,
+    },
+  });
+  const token = extractBearerToken(response);
+
+  if (!token) {
+    throw new OrderRequestError(
+      `RoyalExpress Curfox login succeeded but did not return a bearer token for ${brand}.`,
+      502,
+    );
+  }
+
+  return token;
+}
+
+async function resolveRoyalExpressCredentials(brand: string): Promise<ResolvedRoyalExpressCredentials> {
+  const record = await findRoyalExpressSettingsRecord(brand);
+  const email = cleanSecret(record?.accountEmail) || getEnvCredential(brand, 'EMAIL');
+  const password = cleanSecret(record?.accountPassword) || getEnvCredential(brand, 'PASSWORD');
+  const merchantBusinessId =
+    cleanOptionalText(record?.merchantBusinessId) || getEnvCredential(brand, 'MERCHANT_BUSINESS_ID');
+  const pickupAddressId =
+    cleanOptionalText(record?.pickupAddressId) || getEnvCredential(brand, 'PICKUP_ADDRESS_ID');
+  const originCityId = cleanOptionalText(record?.originCityId) || getEnvCredential(brand, 'ORIGIN_CITY_ID');
+  const defaultDestinationCityId =
+    cleanOptionalText(record?.defaultReceiverCityId) || getEnvCredential(brand, 'DEFAULT_DESTINATION_CITY_ID');
+
+  if (!email || !password) {
+    throw new OrderRequestError(`RoyalExpress Curfox email/password is not configured for ${brand}.`, 409);
+  }
+  if (!merchantBusinessId) {
+    throw new OrderRequestError(`RoyalExpress merchant business ID is not configured for ${brand}.`, 409);
+  }
+  if (!pickupAddressId) {
+    throw new OrderRequestError(`RoyalExpress pickup address ID is not configured for ${brand}.`, 409);
+  }
+
+  return {
+    email,
+    password,
+    merchantBusinessId,
+    pickupAddressId,
+    originCityId,
+    defaultDestinationCityId,
+  };
+}
+
+export async function getRoyalExpressSettingsView(brand: string): Promise<RoyalExpressSettingsView> {
+  const record = await findRoyalExpressSettingsRecord(brand);
+  const envEmail = getEnvCredential(brand, 'EMAIL');
+  const envPassword = getEnvCredential(brand, 'PASSWORD');
+  const envBusinessId = getEnvCredential(brand, 'MERCHANT_BUSINESS_ID');
+  const envPickupAddressId = getEnvCredential(brand, 'PICKUP_ADDRESS_ID');
+  const databaseHasCredentials = Boolean(record && hasDatabaseCredentials(record));
+  const envHasCredentials = Boolean(envEmail && envPassword && envBusinessId && envPickupAddressId);
+
+  return {
+    brand: getCanonicalBrandForStorage(brand),
+    provider: ROYALEXPRESS_PROVIDER,
+    isActive: record?.isActive ?? false,
+    hasCredentials: databaseHasCredentials || envHasCredentials,
+    credentialSource: databaseHasCredentials ? 'database' : envHasCredentials ? 'env' : 'missing',
+    accountEmail: cleanOptionalText(record?.accountEmail) || envEmail,
+    merchantBusinessId: cleanOptionalText(record?.merchantBusinessId) || envBusinessId,
+    pickupAddressId: cleanOptionalText(record?.pickupAddressId) || envPickupAddressId,
+    originCityId: cleanOptionalText(record?.originCityId) || getEnvCredential(brand, 'ORIGIN_CITY_ID'),
+    defaultDestinationCityId:
+      cleanOptionalText(record?.defaultReceiverCityId) || getEnvCredential(brand, 'DEFAULT_DESTINATION_CITY_ID'),
+    notes: record?.notes ?? null,
+    lastTestAt: record?.lastTestAt?.toISOString() ?? null,
+    lastTestStatus: record?.lastTestStatus ?? null,
+    lastTestMessage: record?.lastTestMessage ?? null,
+  };
+}
+
+export async function testRoyalExpressConnectionForBrand(brand: string) {
+  const credentials = await resolveRoyalExpressCredentials(brand);
+  const token = await loginRoyalExpress(brand, credentials);
+  await requestCurfoxJson(CURFOX_PATHS.userInfo, { token });
+
+  return {
+    ok: true,
+    message: `RoyalExpress Curfox connection succeeded for ${brand}.`,
+  };
+}
+
+function buildOrderDescription(order: {
+  orderItems: Array<{
+    quantity: number;
+    size: string | null;
+    color: string | null;
+    product: { name: string | null; style: string | null } | null;
+  }>;
+}) {
+  const lines = order.orderItems.map((item) => {
+    const name = item.product?.name || item.product?.style || 'Item';
+    const attributes = [item.size, item.color].filter(Boolean).join('/');
+    return `${item.quantity}x ${name}${attributes ? ` (${attributes})` : ''}`;
+  });
+
+  return lines.join('; ').slice(0, 500) || 'Garment order';
+}
+
+function buildSpecialNote(orderId: number, brand: string) {
+  return `DEEZ ${brand} order #${orderId}`.slice(0, 250);
+}
+
+function buildRoyalExpressAddress(order: {
+  deliveryStreetAddress: string | null;
+  deliveryAddress: string | null;
+  deliveryCity: string | null;
+  deliveryDistrict: string | null;
+}) {
+  const primary = cleanOptionalText(order.deliveryStreetAddress) || cleanOptionalText(order.deliveryAddress);
+  const cityDistrict = [order.deliveryCity, order.deliveryDistrict]
+    .map(cleanOptionalText)
+    .filter(Boolean)
+    .join(', ');
+
+  return [primary, cityDistrict].filter(Boolean).join(', ');
+}
+
+async function resolveRoyalExpressAmounts(order: {
+  brand: string | null;
+  deliveryAddress: string | null;
+  paymentMethod: string | null;
+  totalAmount: number;
+}) {
+  const itemSubtotal = Math.max(0, Math.round(order.totalAmount));
+
+  if (!/\b(cod|cash on delivery)\b/i.test(order.paymentMethod || '')) {
+    return {
+      codAmount: 0,
+      deliveryCharge: 0,
+      itemSubtotal,
+    };
+  }
+
+  const settings = await getMerchantSettings(order.brand);
+  const deliveryCharge = getDeliveryChargeForAddress(order.deliveryAddress || '', settings.delivery);
+
+  return {
+    codAmount: itemSubtotal + deliveryCharge,
+    deliveryCharge,
+    itemSubtotal,
+  };
+}
+
+async function findLatestRoyalExpressShipment(orderId: number) {
+  return prisma.courierShipment.findFirst({
+    where: { orderId, provider: ROYALEXPRESS_PROVIDER },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+async function createRoyalExpressDelivery(input: SubmitRoyalExpressDeliveryForDispatchInput) {
+  const order = await prisma.order.findUnique({
+    where: { id: input.orderId },
+    include: {
+      customer: true,
+      orderItems: { include: { product: true } },
+      courierShipments: {
+        where: { provider: ROYALEXPRESS_PROVIDER },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!order) {
+    throw new OrderRequestError(`Order #${input.orderId} was not found.`, 404);
+  }
+
+  const brand = cleanOptionalText(order.brand);
+  if (!brand) {
+    throw new OrderRequestError('This order does not have a brand, so a brand courier account cannot be selected.', 409);
+  }
+
+  const settings = await findRoyalExpressSettingsRecord(brand);
+  if (!settings?.isActive) {
+    throw new OrderRequestError(`RoyalExpress is not active for ${brand}. Enable it in Settings first.`, 409);
+  }
+
+  const duplicate = order.courierShipments[0];
+  if (duplicate) {
+    return duplicate;
+  }
+
+  if (!order.customer.phone?.trim()) {
+    throw new OrderRequestError('Customer phone is required to create a RoyalExpress delivery.', 400);
+  }
+
+  const customerAddress = buildRoyalExpressAddress(order);
+  if (!customerAddress) {
+    throw new OrderRequestError('Delivery address is required to create a RoyalExpress delivery.', 400);
+  }
+
+  const credentials = await resolveRoyalExpressCredentials(brand);
+  const destinationCityId = credentials.defaultDestinationCityId;
+  if (!destinationCityId) {
+    throw new OrderRequestError(
+      `RoyalExpress destination city ID is not configured for ${brand}. Add the Curfox destination city ID in Settings before dispatching.`,
+      409,
+    );
+  }
+
+  const token = await loginRoyalExpress(brand, credentials);
+  const orderReference = `ORD-${order.id}`;
+  const description = buildOrderDescription(order);
+  const specialNote = buildSpecialNote(order.id, brand);
+  const amounts = await resolveRoyalExpressAmounts(order);
+  const generalData: Record<string, string> = {
+    merchant_business_id: credentials.merchantBusinessId,
+    pickup_address_id: credentials.pickupAddressId,
+  };
+
+  if (credentials.originCityId) {
+    generalData.origin_city_id = credentials.originCityId;
+  }
+
+  const payload = {
+    general_data: generalData,
+    order_data: [
+      {
+        waybill_number: '',
+        order_no: orderReference,
+        customer_name: order.customer.name,
+        customer_address: customerAddress,
+        customer_phone: order.customer.phone,
+        customer_secondary_phone: null,
+        customer_email: null,
+        destination_city_id: destinationCityId,
+        cod: String(amounts.codAmount),
+        weight: '1',
+        description,
+        remark: specialNote,
+      },
+    ],
+  };
+  const response = await requestCurfoxJson(CURFOX_PATHS.orderSingle, {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+  const waybillId = extractWaybillId(response);
+
+  if (!waybillId) {
+    throw new OrderRequestError(
+      `RoyalExpress created the Curfox order but did not return a waybill number: ${stringifyCurfoxMessage(response)}`,
+      502,
+    );
+  }
+
+  const courierStatus = extractStatus(response) || 'submitted';
+  const mappedStatus: FulfillmentStatus = mapCourierStatus(ROYALEXPRESS_PROVIDER, courierStatus);
+  const now = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.courierShipment.create({
+      data: {
+        orderId: order.id,
+        brand,
+        provider: ROYALEXPRESS_PROVIDER,
+        waybillId,
+        providerOrderId: extractProviderOrderId(response),
+        orderReference,
+        receiverName: order.customer.name,
+        receiverStreet: customerAddress,
+        receiverCityId: destinationCityId,
+        receiverPhone: order.customer.phone,
+        description,
+        specialNote,
+        codAmount: amounts.codAmount,
+        courierStatus,
+        mappedStatus,
+        rawResponse: compactPayload({ request: payload, response, amounts }),
+        submittedAt: now,
+        lastSyncedAt: now,
+        createdByEmail: input.actor?.email ?? null,
+        createdByName: input.actor?.name ?? null,
+      },
+    });
+
+    await tx.order.update({
+      where: { id: order.id },
+      data: {
+        trackingNumber: waybillId,
+        courier: ROYALEXPRESS_COURIER_NAME,
+      },
+    });
+
+    await tx.orderFulfillmentEvent.create({
+      data: {
+        orderId: order.id,
+        fromStatus: order.orderStatus,
+        toStatus: order.orderStatus,
+        note: `RoyalExpress delivery ${waybillId} created in Curfox.`,
+        trackingNumber: waybillId,
+        courier: ROYALEXPRESS_COURIER_NAME,
+        actorEmail: input.actor?.email ?? null,
+        actorName: input.actor?.name ?? null,
+      },
+    });
+
+    return created;
+  });
+}
+
+export async function submitRoyalExpressDeliveryForDispatch(
+  input: SubmitRoyalExpressDeliveryForDispatchInput,
+): Promise<CourierShipment | null> {
+  const context = await findActiveRoyalExpressOrderContext(input.orderId);
+  if (!context) return null;
+
+  const existing = await findLatestRoyalExpressShipment(input.orderId);
+  if (existing) return existing;
+
+  if (process.env.CHAT_TEST_MODE === '1') {
+    throw new OrderRequestError('RoyalExpress is active for this brand, but courier submission is disabled in chat test mode.', 409);
+  }
+
+  return createRoyalExpressDelivery(input);
+}
+
+export async function refreshRoyalExpressShipmentStatus(input: RefreshRoyalExpressStatusInput) {
+  const shipment = await prisma.courierShipment.findFirst({
+    where: { orderId: input.orderId, provider: ROYALEXPRESS_PROVIDER },
+    orderBy: { createdAt: 'desc' },
+    include: { order: { select: { brand: true, orderStatus: true } } },
+  });
+
+  if (!shipment) {
+    throw new OrderRequestError(`Order #${input.orderId} does not have a RoyalExpress delivery yet.`, 404);
+  }
+
+  const brand = cleanOptionalText(shipment.brand || shipment.order.brand);
+  if (!brand) {
+    throw new OrderRequestError('This shipment does not have a brand, so the RoyalExpress account cannot be selected.', 409);
+  }
+
+  const token = await loginRoyalExpress(brand);
+  const query = new URLSearchParams({
+    waybill_number: shipment.waybillId,
+  });
+  const response = await requestCurfoxJson(`${CURFOX_PATHS.trackingInfo}?${query.toString()}`, {
+    token,
+  });
+  const courierStatus = extractStatus(response) || shipment.courierStatus || 'unknown';
+  const mappedStatus = mapCourierStatus(ROYALEXPRESS_PROVIDER, courierStatus);
+
+  return prisma.courierShipment.update({
+    where: { id: shipment.id },
+    data: {
+      courierStatus,
+      mappedStatus,
+      rawResponse: compactPayload(response),
+      lastSyncedAt: new Date(),
+    },
+  });
+}
+
+export const ROYALEXPRESS_PROVIDER_ID = ROYALEXPRESS_PROVIDER;
+export const ROYALEXPRESS_COURIER_DISPLAY_NAME = ROYALEXPRESS_COURIER_NAME;

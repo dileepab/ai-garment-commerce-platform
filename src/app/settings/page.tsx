@@ -20,14 +20,20 @@ import {
   addBrandSettingsAction,
   saveKoombiyoCourierSettingsAction,
   saveMerchantSettingsAction,
+  saveRoyalExpressCourierSettingsAction,
   syncKoombiyoLocationsAction,
   testCourierWebhookSettingsAction,
   testKoombiyoCourierSettingsAction,
+  testRoyalExpressCourierSettingsAction,
 } from './actions';
 import {
   getKoombiyoSettingsView,
   type KoombiyoSettingsView,
 } from '@/lib/koombiyo-courier';
+import {
+  getRoyalExpressSettingsView,
+  type RoyalExpressSettingsView,
+} from '@/lib/royal-express-courier';
 import { getBrandLookupAliases, normalizeBrandKey } from '@/lib/brand-aliases';
 
 export const dynamic = 'force-dynamic';
@@ -400,7 +406,7 @@ function KoombiyoCourierSettingsPanel({
         : 'var(--color-fg-3)';
 
   return (
-    <CollapsibleSection title="Courier Provider: Koombiyo">
+    <CollapsibleSection title="Courier Provider: Koombiyo" defaultOpen={false}>
       <p className="app-muted" style={{ marginBottom: 12 }}>
         Configure the Koombiyo account used by this brand. Leave the API key blank to keep the saved value. City IDs are matched automatically from the order address after syncing locations.
       </p>
@@ -528,6 +534,146 @@ function KoombiyoCourierSettingsPanel({
   );
 }
 
+function RoyalExpressCourierSettingsPanel({
+  settings,
+  canManage,
+}: {
+  settings: RoyalExpressSettingsView;
+  canManage: boolean;
+}) {
+  const credentialSourceLabel =
+    settings.credentialSource === 'database'
+      ? 'Saved in settings'
+      : settings.credentialSource === 'env'
+        ? 'Environment fallback'
+        : 'Missing';
+  const testColor =
+    settings.lastTestStatus === 'success'
+      ? '#1E6B45'
+      : settings.lastTestStatus === 'failed'
+        ? '#8B2020'
+        : 'var(--color-fg-3)';
+
+  return (
+    <CollapsibleSection title="Primary Courier Provider: RoyalExpress">
+      <p className="app-muted" style={{ marginBottom: 12 }}>
+        Configure the RoyalExpress Curfox merchant account used by this brand. Leave the password blank to keep the saved value. Destination city IDs come from Curfox/RoyalExpress.
+      </p>
+      <div style={gridStyle}>
+        <label style={fieldStyle}>
+          <span style={labelStyle}>Courier provider</span>
+          <input className="app-input" value="RoyalExpress" readOnly />
+        </label>
+        <ToggleField
+          label="RoyalExpress active"
+          name="royalExpressIsActive"
+          checked={settings.isActive}
+          disabled={!canManage}
+        />
+        <TextField
+          label="Curfox email"
+          name="royalExpressEmail"
+          value={settings.accountEmail}
+          disabled={!canManage}
+          placeholder="Merchant login email"
+        />
+        <TokenField
+          label="Curfox password"
+          name="royalExpressPassword"
+          hasValue={settings.hasCredentials}
+          disabled={!canManage}
+        />
+      </div>
+      <div style={{ ...gridStyle, marginTop: 12 }}>
+        <TextField
+          label="Merchant business ID"
+          name="royalExpressMerchantBusinessId"
+          value={settings.merchantBusinessId}
+          disabled={!canManage}
+          placeholder="Curfox business profile ID"
+        />
+        <TextField
+          label="Pickup address ID"
+          name="royalExpressPickupAddressId"
+          value={settings.pickupAddressId}
+          disabled={!canManage}
+          placeholder="Curfox pickup address ID"
+        />
+        <TextField
+          label="Origin city ID"
+          name="royalExpressOriginCityId"
+          value={settings.originCityId}
+          disabled={!canManage}
+          placeholder="Optional"
+        />
+      </div>
+      <div style={{ ...gridStyle, marginTop: 12 }}>
+        <TextField
+          label="Default destination city ID"
+          name="royalExpressDefaultDestinationCityId"
+          value={settings.defaultDestinationCityId}
+          disabled={!canManage}
+          placeholder="Required until city matching is added"
+        />
+        <label style={fieldStyle}>
+          <span style={labelStyle}>Credential source</span>
+          <input className="app-input" value={credentialSourceLabel} readOnly />
+        </label>
+        <TextField
+          label="Notes"
+          name="royalExpressNotes"
+          value={settings.notes}
+          disabled={!canManage}
+          placeholder="Internal courier notes"
+        />
+      </div>
+      <div
+        style={{
+          marginTop: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <p className="app-muted">
+          {settings.lastTestAt ? (
+            <>
+              Last test:{' '}
+              <span style={{ color: testColor, fontWeight: 700 }}>
+                {settings.lastTestStatus || 'unknown'}
+              </span>{' '}
+              on {new Date(settings.lastTestAt).toLocaleString()}
+              {settings.lastTestMessage ? ` - ${settings.lastTestMessage}` : ''}
+            </>
+          ) : (
+            'No RoyalExpress connection test has been run for this brand.'
+          )}
+        </p>
+        {canManage && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-secondary"
+              type="submit"
+              formAction={testRoyalExpressCourierSettingsAction}
+            >
+              Test connection
+            </button>
+            <button
+              className="app-button-primary"
+              type="submit"
+              formAction={saveRoyalExpressCourierSettingsAction}
+            >
+              Save RoyalExpress
+            </button>
+          </div>
+        )}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 function AddBrandForm({ canManage }: { canManage: boolean }) {
   if (!canManage) return null;
 
@@ -595,6 +741,7 @@ function SettingsForm({
   channelConfig,
   koombiyoSettings,
   koombiyoLocationCount = 0,
+  royalExpressSettings,
   courierWebhookSecretSaved = false,
   courierWebhookHealth,
   title,
@@ -606,6 +753,7 @@ function SettingsForm({
   channelConfig?: BrandChannelConfigView;
   koombiyoSettings?: KoombiyoSettingsView;
   koombiyoLocationCount?: number;
+  royalExpressSettings?: RoyalExpressSettingsView;
   courierWebhookSecretSaved?: boolean;
   courierWebhookHealth?: CourierWebhookHealth;
   title: string;
@@ -796,6 +944,13 @@ function SettingsForm({
               </CollapsibleSection>
             )}
 
+            {settings.brand && royalExpressSettings && (
+              <RoyalExpressCourierSettingsPanel
+                settings={royalExpressSettings}
+                canManage={canManage}
+              />
+            )}
+
             {settings.brand && koombiyoSettings && (
               <KoombiyoCourierSettingsPanel
                 settings={koombiyoSettings}
@@ -910,6 +1065,7 @@ export default async function SettingsPage() {
       settings: await getMerchantSettings(brand),
       channelConfig: await getBrandChannelConfigView(brand),
       koombiyoSettings: await getKoombiyoSettingsView(brand),
+      royalExpressSettings: await getRoyalExpressSettingsView(brand),
       koombiyoLocationCount: locationCounts
         .filter((row) => getBrandLookupAliases(brand).includes(row.brand))
         .reduce((sum, row) => sum + row._count._all, 0),
@@ -951,13 +1107,14 @@ export default async function SettingsPage() {
                 Store-specific settings
               </h2>
             </div>
-            {scopedSettings.map(({ settings, channelConfig, koombiyoSettings, koombiyoLocationCount }) => (
+            {scopedSettings.map(({ settings, channelConfig, koombiyoSettings, koombiyoLocationCount, royalExpressSettings }) => (
               <SettingsForm
                 key={settings.storeKey}
                 settings={settings}
                 channelConfig={channelConfig}
                 koombiyoSettings={koombiyoSettings}
                 koombiyoLocationCount={koombiyoLocationCount}
+                royalExpressSettings={royalExpressSettings}
                 title={settings.displayName}
                 subtitle={`Overrides customer-facing behavior for ${settings.brand}.`}
                 canManage={canManage}

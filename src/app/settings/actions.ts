@@ -10,6 +10,7 @@ import {
   syncKoombiyoLocationsForBrand,
   testKoombiyoConnectionForBrand,
 } from '@/lib/koombiyo-courier';
+import { testRoyalExpressConnectionForBrand } from '@/lib/royal-express-courier';
 import { getBrandLookupAliases, normalizeBrandKey } from '@/lib/brand-aliases';
 
 function readText(formData: FormData, key: string): string | null {
@@ -306,6 +307,75 @@ export async function saveKoombiyoCourierSettingsAction(formData: FormData) {
   revalidatePath('/settings');
 }
 
+export async function saveRoyalExpressCourierSettingsAction(formData: FormData) {
+  const scope = await requireActionPermission('settings:write');
+  const brand = canonicalizeBrandInput(readText(formData, 'brand'));
+
+  if (!brand) {
+    return;
+  }
+
+  assertBrandAccess(scope, brand, 'courier settings');
+
+  const accountPassword = cleanOptionalText(readText(formData, 'royalExpressPassword'));
+  const data = {
+    brand,
+    provider: 'royalexpress',
+    isActive: readBoolean(formData, 'royalExpressIsActive'),
+    accountEmail: cleanOptionalText(readText(formData, 'royalExpressEmail')),
+    merchantBusinessId: cleanOptionalText(readText(formData, 'royalExpressMerchantBusinessId')),
+    pickupAddressId: cleanOptionalText(readText(formData, 'royalExpressPickupAddressId')),
+    originCityId: cleanOptionalText(readText(formData, 'royalExpressOriginCityId')),
+    defaultReceiverCityId: cleanOptionalText(readText(formData, 'royalExpressDefaultDestinationCityId')),
+    notes: cleanOptionalText(readText(formData, 'royalExpressNotes')),
+    ...(accountPassword ? { accountPassword } : {}),
+  };
+  const provider = data.provider;
+  const updateData = {
+    isActive: data.isActive,
+    accountEmail: data.accountEmail,
+    merchantBusinessId: data.merchantBusinessId,
+    pickupAddressId: data.pickupAddressId,
+    originCityId: data.originCityId,
+    defaultReceiverCityId: data.defaultReceiverCityId,
+    notes: data.notes,
+    ...(accountPassword ? { accountPassword } : {}),
+  };
+
+  await prisma.courierIntegrationSetting.upsert({
+    where: { brand_provider: { brand, provider } },
+    create: data,
+    update: updateData,
+  });
+  const legacyBrands = getBrandLookupAliases(brand).filter((alias) => alias !== brand);
+  if (legacyBrands.length > 0) {
+    await prisma.courierIntegrationSetting.updateMany({
+      where: { brand: { in: legacyBrands }, provider },
+      data: updateData,
+    });
+  }
+
+  await logAdminAudit({
+    action: 'courier_settings_saved',
+    entityType: 'courier_settings',
+    entityId: `${brand}:royalexpress`,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Saved RoyalExpress courier settings for ${brand}.`,
+    metadata: {
+      provider,
+      isActive: data.isActive,
+      updatedPassword: Boolean(accountPassword),
+      hasAccountEmail: Boolean(data.accountEmail),
+      hasMerchantBusinessId: Boolean(data.merchantBusinessId),
+      hasPickupAddressId: Boolean(data.pickupAddressId),
+      hasDefaultDestinationCityId: Boolean(data.defaultReceiverCityId),
+    },
+  });
+
+  revalidatePath('/settings');
+}
+
 export async function testKoombiyoCourierSettingsAction(formData: FormData) {
   const scope = await requireActionPermission('settings:write');
   const brand = canonicalizeBrandInput(readText(formData, 'brand'));
@@ -364,6 +434,72 @@ export async function testKoombiyoCourierSettingsAction(formData: FormData) {
     summary: `Koombiyo connection test ${status} for ${brand}.`,
     metadata: {
       provider: 'koombiyo',
+      status,
+      message,
+    },
+  });
+
+  revalidatePath('/settings');
+}
+
+export async function testRoyalExpressCourierSettingsAction(formData: FormData) {
+  const scope = await requireActionPermission('settings:write');
+  const brand = canonicalizeBrandInput(readText(formData, 'brand'));
+
+  if (!brand) {
+    return;
+  }
+
+  assertBrandAccess(scope, brand, 'courier settings');
+
+  let status = 'failed';
+  let message = '';
+
+  try {
+    const result = await testRoyalExpressConnectionForBrand(brand);
+    status = result.ok ? 'success' : 'failed';
+    message = result.message;
+  } catch (error) {
+    message = getErrorMessage(error);
+  }
+
+  await prisma.courierIntegrationSetting.upsert({
+    where: { brand_provider: { brand, provider: 'royalexpress' } },
+    create: {
+      brand,
+      provider: 'royalexpress',
+      isActive: false,
+      lastTestAt: new Date(),
+      lastTestStatus: status,
+      lastTestMessage: message,
+    },
+    update: {
+      lastTestAt: new Date(),
+      lastTestStatus: status,
+      lastTestMessage: message,
+    },
+  });
+  const legacyBrands = getBrandLookupAliases(brand).filter((alias) => alias !== brand);
+  if (legacyBrands.length > 0) {
+    await prisma.courierIntegrationSetting.updateMany({
+      where: { brand: { in: legacyBrands }, provider: 'royalexpress' },
+      data: {
+        lastTestAt: new Date(),
+        lastTestStatus: status,
+        lastTestMessage: message,
+      },
+    });
+  }
+
+  await logAdminAudit({
+    action: 'courier_settings_tested',
+    entityType: 'courier_settings',
+    entityId: `${brand}:royalexpress`,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `RoyalExpress connection test ${status} for ${brand}.`,
+    metadata: {
+      provider: 'royalexpress',
       status,
       message,
     },

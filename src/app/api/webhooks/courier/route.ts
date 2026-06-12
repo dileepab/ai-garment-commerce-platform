@@ -66,7 +66,7 @@ function parseCourierWebhookPayload(value: unknown): CourierWebhookPayload | nul
   if (
     !Number.isInteger(orderId) ||
     orderId <= 0 ||
-    (provider !== 'koombiyo' && provider !== 'prompt') ||
+    (provider !== 'koombiyo' && provider !== 'prompt' && provider !== 'royalexpress') ||
     !trackingNumber ||
     !status
   ) {

@@ -6,6 +6,7 @@ import { getBrandLookupAliases } from '@/lib/brand-aliases';
 import { logWarn } from '@/lib/app-log';
 import { getDeliveryChargeForAddress } from '@/lib/order-draft/pricing';
 import { getMerchantSettings } from '@/lib/runtime-config';
+import { isRoyalExpressActiveForBrand } from '@/lib/royal-express-courier';
 import type { CourierShipment } from '@prisma/client';
 
 const KOOMBIYO_PROVIDER = 'koombiyo';
@@ -920,6 +921,10 @@ export async function autoAssignKoombiyoWaybill(
 
   const context = await findActiveKoombiyoOrderContext(input.orderId);
   if (!context) {
+    return { assigned: false, skipped: true };
+  }
+
+  if (await isRoyalExpressActiveForBrand(context.brand)) {
     return { assigned: false, skipped: true };
   }
 

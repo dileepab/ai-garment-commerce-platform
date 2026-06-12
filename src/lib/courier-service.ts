@@ -8,7 +8,7 @@ import { logInfo } from './app-log.ts';
 
 export interface CourierWebhookPayload {
   orderId: number;
-  provider: 'koombiyo' | 'prompt';
+  provider: 'koombiyo' | 'prompt' | 'royalexpress';
   trackingNumber: string;
   status: string; // Proprietary courier status
   notes?: string | null;
@@ -75,18 +75,62 @@ function mapPromptStatus(status: string): FulfillmentStatus {
   }
 }
 
+function mapRoyalExpressStatus(status: string): FulfillmentStatus {
+  const s = status.toLowerCase().trim();
+  switch (s) {
+    case 'pending':
+    case 'created':
+    case 'order_created':
+    case 'submitted':
+    case 'accepted':
+    case 'processing':
+    case 'pickup':
+    case 'picked up':
+    case 'picked_up':
+    case 'in transit':
+    case 'in_transit':
+    case 'out for delivery':
+    case 'out_for_delivery':
+      return 'dispatched';
+    case 'success':
+    case 'completed':
+    case 'complete':
+    case 'delivered':
+      return 'delivered';
+    case 'failed':
+    case 'delivery failed':
+    case 'delivery_failed':
+    case 'returned':
+    case 'return':
+    case 'return to origin':
+    case 'return_to_origin':
+    case 'cancelled':
+    case 'rejected':
+      return 'delivery_failed';
+    default:
+      return 'dispatched';
+  }
+}
+
 export function mapCourierStatus(
   provider: CourierWebhookPayload['provider'],
   status: string,
 ): FulfillmentStatus {
-  return provider === 'koombiyo' ? mapKoombiyoStatus(status) : mapPromptStatus(status);
+  if (provider === 'koombiyo') return mapKoombiyoStatus(status);
+  if (provider === 'royalexpress') return mapRoyalExpressStatus(status);
+  return mapPromptStatus(status);
 }
 
 /**
  * Normalizes and processes incoming courier tracking webhook updates.
  */
 export async function processCourierWebhookUpdate(payload: CourierWebhookPayload) {
-  const providerName = payload.provider === 'koombiyo' ? 'Koombiyo Delivery' : 'Prompt Express';
+  const providerName =
+    payload.provider === 'koombiyo'
+      ? 'Koombiyo Delivery'
+      : payload.provider === 'royalexpress'
+        ? 'RoyalExpress'
+        : 'Prompt Express';
   
   // 1. Resolve normalized status
   const mappedStatus = mapCourierStatus(payload.provider, payload.status);

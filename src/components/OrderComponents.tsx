@@ -12,6 +12,7 @@ import {
   markReturned,
   reportDeliveryFailure,
   refreshKoombiyoStatusAction,
+  refreshRoyalExpressStatusAction,
   retryDispatch,
   type OrderActionResult,
 } from '@/app/orders/actions';
@@ -229,6 +230,15 @@ export interface OrderDrawerOrder {
     resolvedReceiverDistrictName: string | null;
     resolvedReceiverCityId: string | null;
     resolvedReceiverCityName: string | null;
+  } | null;
+  royalExpressCourier?: {
+    isActive: boolean;
+    hasCredentials: boolean;
+    accountEmail: string | null;
+    merchantBusinessId: string | null;
+    pickupAddressId: string | null;
+    originCityId: string | null;
+    defaultDestinationCityId: string | null;
   } | null;
   orderItems?: OrderDrawerOrderItem[];
   supportEscalations?: {
@@ -828,9 +838,25 @@ export function OrderDrawer({
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [order?.courierShipments]);
   const latestKoombiyoShipment = koombiyoShipments[0] ?? null;
+  const latestIntegratedShipment = useMemo(() => {
+    return [...(order?.courierShipments ?? [])]
+      .filter((shipment) => shipment.provider === 'royalexpress' || shipment.provider === 'koombiyo')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
+  }, [order?.courierShipments]);
   const hasActiveKoombiyoCourier = Boolean(order?.koombiyoCourier?.isActive);
+  const hasActiveRoyalExpressCourier = Boolean(order?.royalExpressCourier?.isActive);
+  const hasActiveIntegratedCourier = hasActiveRoyalExpressCourier || hasActiveKoombiyoCourier;
+  const activeIntegratedCourierLabel = hasActiveRoyalExpressCourier
+    ? 'RoyalExpress'
+    : hasActiveKoombiyoCourier
+      ? 'Koombiyo'
+      : null;
+  const latestIntegratedCourierLabel =
+    latestIntegratedShipment?.provider === 'royalexpress' ? 'RoyalExpress' : 'Koombiyo';
   const initialPendingAction =
-    hasActiveKoombiyoCourier && initialAction === 'dispatch' ? null : initialAction;
+    hasActiveIntegratedCourier && (initialAction === 'dispatch' || initialAction === 'retry_dispatch')
+      ? null
+      : initialAction;
   const [error, setError] = useState<string | null>(null);
   const [pendingActionForm, setPendingActionForm] = useState<FulfillmentAction | null>(initialPendingAction);
   const [trackingDraft, setTrackingDraft] = useState(order?.trackingNumber ?? '');
@@ -944,6 +970,27 @@ export function OrderDrawer({
     });
   };
 
+  const refreshRoyalExpressStatus = () => {
+    if (!order) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await refreshRoyalExpressStatusAction(order.id);
+      if (!result.success && result.error) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const refreshLatestIntegratedStatus = () => {
+    if (latestIntegratedShipment?.provider === 'royalexpress') {
+      refreshRoyalExpressStatus();
+      return;
+    }
+    refreshKoombiyoStatus();
+  };
+
   return (
     <>
       <div className={`drawer-overlay${open ? " open" : ""}`} onClick={onClose} />
@@ -1024,7 +1071,7 @@ export function OrderDrawer({
                 </div>
               </div>
 
-              {(order.trackingNumber || order.courier || order.failureReason || order.returnReason || latestKoombiyoShipment || order.koombiyoCourier) && (
+              {(order.trackingNumber || order.courier || order.failureReason || order.returnReason || latestIntegratedShipment || order.koombiyoCourier || order.royalExpressCourier) && (
                 <div>
                   <div className="drawer-section-label">Shipment</div>
                   <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1040,25 +1087,25 @@ export function OrderDrawer({
                         <code style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{order.trackingNumber}</code>
                       </div>
                     )}
-                    {latestKoombiyoShipment && (
+                    {latestIntegratedShipment && (
                       <>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                          <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Koombiyo status</span>
+                          <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>{latestIntegratedCourierLabel} status</span>
                           <span style={{ fontSize: 12, fontWeight: 600, textAlign: "right" }}>
-                            {formatCourierStatus(latestKoombiyoShipment)}
+                            {formatCourierStatus(latestIntegratedShipment)}
                           </span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                          <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Koombiyo handover</span>
+                          <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>{latestIntegratedCourierLabel} handover</span>
                           <span style={{ fontSize: 12, fontWeight: 600, textAlign: "right" }}>
-                            {latestKoombiyoShipment.submittedAt ? 'Sent' : 'Not sent yet'}
+                            {latestIntegratedShipment.submittedAt ? 'Sent' : 'Not sent yet'}
                           </span>
                         </div>
-                        {latestKoombiyoShipment.lastSyncedAt && (
+                        {latestIntegratedShipment.lastSyncedAt && (
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                             <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>Last sync</span>
                             <span style={{ fontSize: 12, fontWeight: 600, textAlign: "right" }} suppressHydrationWarning>
-                              {new Date(latestKoombiyoShipment.lastSyncedAt).toLocaleString()}
+                              {new Date(latestIntegratedShipment.lastSyncedAt).toLocaleString()}
                             </span>
                           </div>
                         )}
@@ -1078,7 +1125,7 @@ export function OrderDrawer({
                     )}
                     {canUpdate && order.brand && (
                       <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                        {order.koombiyoCourier?.isActive ? (
+                        {hasActiveIntegratedCourier ? (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             {latestKoombiyoShipment && (
                               <button
@@ -1092,19 +1139,24 @@ export function OrderDrawer({
                                 Print Label
                               </button>
                             )}
-                            {latestKoombiyoShipment?.submittedAt && (
+                            {latestIntegratedShipment?.submittedAt && (
                               <button
                                 className="btn btn-secondary"
                                 style={{ fontSize: 12 }}
                                 type="button"
                                 disabled={isPending}
-                                onClick={refreshKoombiyoStatus}
+                                onClick={refreshLatestIntegratedStatus}
                               >
                                 <Icon d={ic.refresh} size={12} />
                                 Refresh Status
                               </button>
                             )}
-                            {!latestKoombiyoShipment && (
+                            {!latestIntegratedShipment && hasActiveRoyalExpressCourier && (
+                              <div style={{ fontSize: 12, color: 'var(--color-fg-3)', lineHeight: 1.4 }}>
+                                RoyalExpress delivery is created in Curfox when you dispatch the packed order.
+                              </div>
+                            )}
+                            {!latestIntegratedShipment && hasActiveKoombiyoCourier && !hasActiveRoyalExpressCourier && (
                               <div style={{ fontSize: 12, color: 'var(--color-fg-3)', lineHeight: 1.4 }}>
                                 Waybill should be assigned automatically when the order is placed. Check the history for any courier setup error.
                               </div>
@@ -1117,7 +1169,7 @@ export function OrderDrawer({
                           </div>
                         ) : (
                           <div style={{ fontSize: 12, color: 'var(--color-fg-3)' }}>
-                            Koombiyo is not active for {order.brand}. Enable it in Settings for automatic waybill assignment.
+                            No integrated courier is active for {order.brand}. Enable RoyalExpress or Koombiyo in Settings.
                           </div>
                         )}
                       </div>
@@ -1369,9 +1421,11 @@ export function OrderDrawer({
                 </div>
               )}
               {actions.map((descriptor) => {
-                const isKoombiyoDispatch = hasActiveKoombiyoCourier && descriptor.action === 'dispatch';
-                const requiresInput = !isKoombiyoDispatch && Boolean(descriptor.requiresTracking || descriptor.requiresReason);
-                const isThisFormOpen = !isKoombiyoDispatch && pendingActionForm === descriptor.action;
+                const isIntegratedDispatch =
+                  hasActiveIntegratedCourier &&
+                  (descriptor.action === 'dispatch' || descriptor.action === 'retry_dispatch');
+                const requiresInput = !isIntegratedDispatch && Boolean(descriptor.requiresTracking || descriptor.requiresReason);
+                const isThisFormOpen = !isIntegratedDispatch && pendingActionForm === descriptor.action;
                 const reasonMissing =
                   descriptor.requiresReason && isThisFormOpen && !reasonDraft.trim();
                 const buttonClass =
@@ -1383,7 +1437,11 @@ export function OrderDrawer({
                         ? 'btn btn-secondary'
                         : 'btn btn-primary';
                 const submitLabel = `Save & ${descriptor.shortLabel}`;
-                const actionLabel = isKoombiyoDispatch ? 'Send to Koombiyo' : descriptor.label;
+                const actionLabel = isIntegratedDispatch
+                  ? descriptor.action === 'retry_dispatch'
+                    ? `Retry ${activeIntegratedCourierLabel}`
+                    : `Send to ${activeIntegratedCourierLabel}`
+                  : descriptor.label;
                 return (
                   <button
                     key={descriptor.action}
@@ -1576,6 +1634,8 @@ export function OrderRowQuickActions({
   orderId,
   status,
   onRequireForm,
+  hasActiveCourier = false,
+  activeCourierLabel = 'Courier',
 }: {
   orderId: number;
   status: string;
@@ -1583,6 +1643,8 @@ export function OrderRowQuickActions({
   // opens the drawer for this order with the form pre-opened — keeping the
   // row useful even at stages whose only forward move is dispatch/return/fail.
   onRequireForm?: (orderId: number, action: FulfillmentAction) => void;
+  hasActiveCourier?: boolean;
+  activeCourierLabel?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1610,7 +1672,9 @@ export function OrderRowQuickActions({
       if (ok) runRowAction(descriptor.action);
       return;
     }
-    if (descriptor.requiresTracking || descriptor.requiresReason) {
+    const usesIntegratedCourier =
+      hasActiveCourier && (descriptor.action === 'dispatch' || descriptor.action === 'retry_dispatch');
+    if (!usesIntegratedCourier && (descriptor.requiresTracking || descriptor.requiresReason)) {
       onRequireForm?.(orderId, descriptor.action);
       return;
     }
@@ -1620,15 +1684,27 @@ export function OrderRowQuickActions({
   return (
     <div className="row-actions" title={error || undefined} data-error={error ? 'true' : undefined}>
       {actions.map((descriptor) => (
-        <button
-          key={descriptor.action}
-          className={descriptor.destructive ? 'row-action-btn row-action-danger' : 'row-action-btn'}
-          onClick={handleClick(descriptor)}
-          disabled={isPending}
-          title={descriptor.label}
-        >
-          {isPending ? '...' : descriptor.shortLabel}
-        </button>
+        (() => {
+          const usesIntegratedCourier =
+            hasActiveCourier && (descriptor.action === 'dispatch' || descriptor.action === 'retry_dispatch');
+          const title = usesIntegratedCourier
+            ? descriptor.action === 'retry_dispatch'
+              ? `Retry ${activeCourierLabel}`
+              : `Send to ${activeCourierLabel}`
+            : descriptor.label;
+
+          return (
+            <button
+              key={descriptor.action}
+              className={descriptor.destructive ? 'row-action-btn row-action-danger' : 'row-action-btn'}
+              onClick={handleClick(descriptor)}
+              disabled={isPending}
+              title={title}
+            >
+              {isPending ? '...' : descriptor.shortLabel}
+            </button>
+          );
+        })()
       ))}
     </div>
   );

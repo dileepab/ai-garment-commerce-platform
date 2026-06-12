@@ -60,11 +60,11 @@ export default async function OrdersPage() {
   const orderBrandNames = Array.from(
     new Set(orders.map((order) => order.brand).filter((brand): brand is string => Boolean(brand)))
   );
-  const koombiyoLookupBrands = Array.from(new Set(orderBrandNames.flatMap((brand) => getBrandLookupAliases(brand))));
+  const courierLookupBrands = Array.from(new Set(orderBrandNames.flatMap((brand) => getBrandLookupAliases(brand))));
   const koombiyoSettings = await prisma.courierIntegrationSetting.findMany({
     where: {
       provider: 'koombiyo',
-      brand: { in: koombiyoLookupBrands },
+      brand: { in: courierLookupBrands },
     },
     select: {
       brand: true,
@@ -77,10 +77,26 @@ export default async function OrdersPage() {
       defaultReceiverCityId: true,
     },
   });
+  const royalExpressSettings = await prisma.courierIntegrationSetting.findMany({
+    where: {
+      provider: 'royalexpress',
+      brand: { in: courierLookupBrands },
+    },
+    select: {
+      brand: true,
+      isActive: true,
+      accountEmail: true,
+      accountPassword: true,
+      merchantBusinessId: true,
+      pickupAddressId: true,
+      originCityId: true,
+      defaultReceiverCityId: true,
+    },
+  });
   const koombiyoLocations = await prisma.courierLocation.findMany({
     where: {
       provider: 'koombiyo',
-      brand: { in: koombiyoLookupBrands },
+      brand: { in: courierLookupBrands },
     },
     select: {
       brand: true,
@@ -103,6 +119,18 @@ export default async function OrdersPage() {
       matches.find((setting) => setting.isActive) ||
       matches.find((setting) => setting.brand === brand) ||
       matches.find((setting) => Boolean(setting.apiKey)) ||
+      matches[0] ||
+      null
+    );
+  };
+  const getRoyalExpressSettingForBrand = (brand: string) => {
+    const aliases = getBrandLookupAliases(brand);
+    const matches = royalExpressSettings.filter((setting) => aliases.includes(setting.brand));
+    return (
+      matches.find((setting) => setting.brand === brand && setting.isActive) ||
+      matches.find((setting) => setting.isActive) ||
+      matches.find((setting) => setting.brand === brand) ||
+      matches.find((setting) => Boolean(setting.accountEmail && setting.accountPassword)) ||
       matches[0] ||
       null
     );
@@ -191,6 +219,25 @@ export default async function OrdersPage() {
               resolvedReceiverDistrictName: matchedLocation?.districtName ?? null,
               resolvedReceiverCityId: matchedLocation?.cityId ?? null,
               resolvedReceiverCityName: matchedLocation?.cityName ?? null,
+            };
+          })()
+        : null,
+      royalExpressCourier: o.brand
+        ? (() => {
+            const setting = getRoyalExpressSettingForBrand(o.brand);
+            return {
+              isActive: setting?.isActive ?? false,
+              hasCredentials: Boolean(
+                setting?.accountEmail &&
+                  setting.accountPassword &&
+                  setting.merchantBusinessId &&
+                  setting.pickupAddressId
+              ),
+              accountEmail: setting?.accountEmail ?? null,
+              merchantBusinessId: setting?.merchantBusinessId ?? null,
+              pickupAddressId: setting?.pickupAddressId ?? null,
+              originCityId: setting?.originCityId ?? null,
+              defaultDestinationCityId: setting?.defaultReceiverCityId ?? null,
             };
           })()
         : null,

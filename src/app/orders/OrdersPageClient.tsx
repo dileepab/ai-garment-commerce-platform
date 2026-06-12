@@ -111,6 +111,15 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
     resolvedReceiverCityId: string | null;
     resolvedReceiverCityName: string | null;
   } | null;
+  royalExpressCourier: {
+    isActive: boolean;
+    hasCredentials: boolean;
+    accountEmail: string | null;
+    merchantBusinessId: string | null;
+    pickupAddressId: string | null;
+    originCityId: string | null;
+    defaultDestinationCityId: string | null;
+  } | null;
   returnRequests: {
     id: number;
     type: string;
@@ -503,9 +512,14 @@ export default function OrdersPageClient({
                   : o.supportEscalations.length > 0
                     ? "resolved"
                     : "clear";
-                const latestKoombiyoShipment = [...o.courierShipments]
-                  .filter((shipment) => shipment.provider === 'koombiyo')
+                const latestIntegratedShipment = [...o.courierShipments]
+                  .filter((shipment) => shipment.provider === 'royalexpress' || shipment.provider === 'koombiyo')
                   .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+                const latestIntegratedProvider =
+                  latestIntegratedShipment?.provider === 'royalexpress' ? 'RoyalExpress' : 'Koombiyo';
+                const hasActiveIntegratedCourier = Boolean(
+                  o.royalExpressCourier?.isActive || o.koombiyoCourier?.isActive
+                );
                 return (
                   <tr key={o.id} onClick={() => setSelectedOrderId(o.id)} className="cursor-pointer">
                     <td><code style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-fg-3)" }}>#ORD-{o.id}</code></td>
@@ -530,12 +544,14 @@ export default function OrdersPageClient({
                     <td style={{ textAlign: "right", fontWeight: 600 }}>Rs {formatMoney(o.amount ?? o.totalAmount)}</td>
                     <td style={{ textAlign: "right", fontWeight: 700 }}>Rs {formatMoney(o.codValue ?? o.orderTotal ?? o.totalAmount)}</td>
                     <td>
-                      {latestKoombiyoShipment ? (
+                      {latestIntegratedShipment ? (
                         <div className="order-items-cell">
                           <span className="order-item-summary">
-                            {latestKoombiyoShipment.submittedAt ? latestKoombiyoShipment.courierStatus : 'Waybill assigned'}
+                            {latestIntegratedShipment.submittedAt
+                              ? latestIntegratedShipment.courierStatus
+                              : `${latestIntegratedProvider} assigned`}
                           </span>
-                          <span className="order-item-meta">{latestKoombiyoShipment.waybillId}</span>
+                          <span className="order-item-meta">{latestIntegratedShipment.waybillId}</span>
                         </div>
                       ) : o.trackingNumber || o.courier ? (
                         <div className="order-items-cell">
@@ -560,6 +576,8 @@ export default function OrdersPageClient({
                           orderId={o.id}
                           status={o.orderStatus}
                           onRequireForm={handleRowRequireForm}
+                          hasActiveCourier={hasActiveIntegratedCourier}
+                          activeCourierLabel={o.royalExpressCourier?.isActive ? 'RoyalExpress' : 'Koombiyo'}
                         />
                       ) : (
                         <span style={{ fontSize: 11, color: "var(--color-fg-3)" }}>Read only</span>

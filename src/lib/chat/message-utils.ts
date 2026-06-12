@@ -576,7 +576,7 @@ export function looksLikeDeliveryQuestion(message: string): boolean {
 export function looksLikeCourierProviderQuestion(message: string): boolean {
   const normalized = normalizeText(message);
   const mentionsCourierProvider =
-    /\b(?:courier|delivery partner|shipping provider|pronto|domex|koombiyo|koombio|prompt)\b/i.test(
+    /\b(?:courier|delivery partner|shipping provider|pronto|domex|koombiyo|koombio|royalexpress|royal express|prompt)\b/i.test(
       normalized
     );
 
@@ -588,7 +588,7 @@ export function looksLikeCourierProviderQuestion(message: string): boolean {
     /\b(?:which|what|available|use|send|ship|deliver|via|through|courier service|delivery partner|shipping provider)\b/i.test(
       normalized
     ) ||
-    /\b(?:pronto|domex|koombiyo|koombio|prompt)\b/i.test(normalized)
+    /\b(?:pronto|domex|koombiyo|koombio|royalexpress|royal express|prompt)\b/i.test(normalized)
   );
 }
 
