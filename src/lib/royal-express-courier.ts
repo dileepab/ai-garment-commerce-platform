@@ -84,6 +84,16 @@ const CURFOX_BUSINESS_LIST_PATHS = USE_TENANT_PATHS
       '/merchant/resource/business-list',
       '/merchant/resources/business-list',
     ];
+const CURFOX_BUSINESS_ADDRESS_PATHS = (businessId: string) =>
+  USE_TENANT_PATHS
+    ? [
+        `/merchant/business/${businessId}/addresses/list?concat=true`,
+        `/api/merchant/business/${businessId}/addresses/list?concat=true`,
+      ]
+    : [
+        `/api/merchant/business/${businessId}/addresses/list?concat=true`,
+        `/merchant/business/${businessId}/addresses/list?concat=true`,
+      ];
 const SEND_ROYALEXPRESS_ORIGIN_CITY_ID =
   process.env.ROYALEXPRESS_SEND_ORIGIN_CITY_ID?.trim() === '1' ||
   process.env.CURFOX_SEND_ORIGIN_CITY_ID?.trim() === '1';
@@ -102,6 +112,8 @@ interface ResolvedRoyalExpressCredentials {
   merchantBusinessId: string;
   pickupAddressId: string;
   originCityId: string | null;
+  originCityName: string | null;
+  senderAddress: string | null;
   defaultDestinationCityId: string | null;
 }
 
@@ -433,6 +445,44 @@ function getRoyalExpressBusinessName(record: Record<string, CurfoxResponseValue>
   ]);
 }
 
+function getRoyalExpressPickupAddressId(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'pickup_address_id',
+    'pickupAddressId',
+    'address_id',
+    'addressId',
+    'merchant_address_id',
+    'merchantAddressId',
+    'id',
+    'value',
+  ]);
+}
+
+function getRoyalExpressOriginCityName(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'origin_city_name',
+    'originCityName',
+    'city_name',
+    'cityName',
+    'city',
+    'pickup_city',
+    'pickupCity',
+  ]);
+}
+
+function getRoyalExpressAddressText(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'concat_address',
+    'concatAddress',
+    'full_address',
+    'fullAddress',
+    'address',
+    'name',
+    'label',
+    'text',
+  ]);
+}
+
 async function requestRoyalExpressBusinessList(token: string): Promise<{
   response: CurfoxResponseValue;
   path: string;
@@ -458,6 +508,39 @@ async function requestRoyalExpressBusinessList(token: string): Promise<{
 
   throw new OrderRequestError(
     `RoyalExpress Curfox business list endpoint was not found. Tried: ${errors.join(', ') || CURFOX_BUSINESS_LIST_PATHS.join(', ')}.`,
+    502,
+  );
+}
+
+async function requestRoyalExpressBusinessAddressList(
+  token: string,
+  businessId: string,
+): Promise<{
+  response: CurfoxResponseValue;
+  path: string;
+  attemptedPaths: string[];
+}> {
+  const paths = CURFOX_BUSINESS_ADDRESS_PATHS(businessId);
+  const errors: string[] = [];
+
+  for (const path of paths) {
+    try {
+      return {
+        response: await requestCurfoxJson(path, { token }),
+        path,
+        attemptedPaths: paths,
+      };
+    } catch (error) {
+      if (error instanceof OrderRequestError && error.status === 404) {
+        errors.push(path);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new OrderRequestError(
+    `RoyalExpress Curfox pickup address list endpoint was not found. Tried: ${errors.join(', ') || paths.join(', ')}.`,
     502,
   );
 }
@@ -519,6 +602,98 @@ async function resolveRoyalExpressMerchantBusinessId(input: {
     attemptedBusinessListPaths: CURFOX_BUSINESS_LIST_PATHS,
     warning: 'RoyalExpress business list did not contain a usable business id; using Settings value.',
   };
+}
+
+function inferOriginCityNameFromText(value?: string | null): string | null {
+  const cleaned = cleanOptionalText(value);
+  if (!cleaned) return null;
+
+  const parts = cleaned
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !/^\d+$/.test(part));
+
+  return cleanOptionalText(parts.at(-1));
+}
+
+async function resolveRoyalExpressOriginCityName(input: {
+  token: string;
+  businessId: string;
+  pickupAddressId: string;
+  configuredOriginCityName: string | null;
+  senderAddress: string | null;
+}): Promise<{
+  originCityName: string;
+  source: 'business-address' | 'settings' | 'sender-address';
+  addressListPath?: string;
+  attemptedAddressListPaths?: string[];
+  warning?: string;
+}> {
+  try {
+    const addressList = await requestRoyalExpressBusinessAddressList(input.token, input.businessId);
+    const records = collectRecords(addressList.response)
+      .map((record) => ({
+        record,
+        id: getRoyalExpressPickupAddressId(record),
+        cityName: getRoyalExpressOriginCityName(record),
+        addressText: getRoyalExpressAddressText(record),
+      }))
+      .filter((record) => record.id || record.cityName || record.addressText);
+    const matched =
+      records.find((record) => record.id === input.pickupAddressId) ||
+      (records.length === 1 ? records[0] : null);
+    const cityName =
+      cleanOptionalText(matched?.cityName) ||
+      inferOriginCityNameFromText(matched?.addressText);
+
+    if (cityName) {
+      return {
+        originCityName: cityName,
+        source: 'business-address',
+        addressListPath: addressList.path,
+        attemptedAddressListPaths: addressList.attemptedPaths,
+      };
+    }
+  } catch (error) {
+    const fallback =
+      input.configuredOriginCityName ||
+      inferOriginCityNameFromText(input.senderAddress);
+    if (fallback) {
+      return {
+        originCityName: fallback,
+        source: input.configuredOriginCityName ? 'settings' : 'sender-address',
+        attemptedAddressListPaths: CURFOX_BUSINESS_ADDRESS_PATHS(input.businessId),
+        warning: error instanceof Error ? error.message : String(error),
+      };
+    }
+    throw error;
+  }
+
+  const configured = input.configuredOriginCityName;
+  if (configured) {
+    return {
+      originCityName: configured,
+      source: 'settings',
+      attemptedAddressListPaths: CURFOX_BUSINESS_ADDRESS_PATHS(input.businessId),
+      warning: 'RoyalExpress pickup address list did not include an origin city name; using configured origin city name.',
+    };
+  }
+
+  const inferred = inferOriginCityNameFromText(input.senderAddress);
+  if (inferred) {
+    return {
+      originCityName: inferred,
+      source: 'sender-address',
+      attemptedAddressListPaths: CURFOX_BUSINESS_ADDRESS_PATHS(input.businessId),
+      warning: 'RoyalExpress pickup address list did not include an origin city name; inferred it from sender address.',
+    };
+  }
+
+  throw new OrderRequestError(
+    'RoyalExpress origin city name is required. Add ROYALEXPRESS_ORIGIN_CITY_NAME or a sender address ending with the origin city before processing the batch.',
+    409,
+  );
 }
 
 function normalizeCityText(value?: string | null): string {
@@ -791,6 +966,11 @@ async function resolveRoyalExpressCredentials(brand: string): Promise<ResolvedRo
   const pickupAddressId =
     cleanOptionalText(record?.pickupAddressId) || getEnvCredential(brand, 'PICKUP_ADDRESS_ID');
   const originCityId = cleanOptionalText(record?.originCityId) || getEnvCredential(brand, 'ORIGIN_CITY_ID');
+  const originCityName =
+    getEnvCredential(brand, 'ORIGIN_CITY_NAME') ||
+    getEnvCredential(brand, 'ORIGIN_CITY') ||
+    inferOriginCityNameFromText(record?.senderAddress);
+  const senderAddress = cleanOptionalText(record?.senderAddress) || getEnvCredential(brand, 'SENDER_ADDRESS');
   const defaultDestinationCityId =
     cleanOptionalText(record?.defaultReceiverCityId) || getEnvCredential(brand, 'DEFAULT_DESTINATION_CITY_ID');
 
@@ -810,6 +990,8 @@ async function resolveRoyalExpressCredentials(brand: string): Promise<ResolvedRo
     merchantBusinessId,
     pickupAddressId,
     originCityId,
+    originCityName,
+    senderAddress,
     defaultDestinationCityId,
   };
 }
@@ -971,6 +1153,13 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
     configuredBusinessId: credentials.merchantBusinessId,
     brand,
   });
+  const originCity = await resolveRoyalExpressOriginCityName({
+    token,
+    businessId: merchantBusiness.businessId,
+    pickupAddressId: credentials.pickupAddressId,
+    configuredOriginCityName: credentials.originCityName,
+    senderAddress: credentials.senderAddress,
+  });
   const destinationCity = await resolveRoyalExpressDestinationCityId({
     token,
     order,
@@ -988,6 +1177,8 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
 
   if (credentials.originCityId && SEND_ROYALEXPRESS_ORIGIN_CITY_ID) {
     generalData.origin_city_id = credentials.originCityId;
+  } else {
+    generalData.origin_city_name = originCity.originCityName;
   }
 
   const payload = {
@@ -1052,6 +1243,7 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
           amounts,
           destinationCity,
           merchantBusiness,
+          originCity,
           omittedOriginCityId:
             credentials.originCityId && !SEND_ROYALEXPRESS_ORIGIN_CITY_ID
               ? credentials.originCityId
