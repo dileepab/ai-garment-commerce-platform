@@ -583,7 +583,7 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
   const destinationCityId = credentials.defaultDestinationCityId;
   if (!destinationCityId) {
     throw new OrderRequestError(
-      `RoyalExpress destination city ID is not configured for ${brand}. Add the Curfox destination city ID in Settings before dispatching.`,
+      `RoyalExpress destination city ID is not configured for ${brand}. Add the Curfox destination city ID in Settings before processing the RoyalExpress batch.`,
       409,
     );
   }
