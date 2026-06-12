@@ -910,7 +910,7 @@ export async function handle_cancel_order(ctx: ChatContext) {
     });
   }
 
-  if (!isCustomerSelfServiceCancellationAllowed(targetOrder.orderStatus)) {
+  if (!isCustomerSelfServiceCancellationAllowed(targetOrder.orderStatus, targetOrder.courierProcessedAt)) {
     return escalateToSupport(
       'human_request',
       targetOrder.id,
@@ -918,6 +918,7 @@ export async function handle_cancel_order(ctx: ChatContext) {
         action: 'cancel',
         orderId: targetOrder.id,
         status: targetOrder.orderStatus,
+        courierProcessedAt: targetOrder.courierProcessedAt,
         supportLine: buildSupportContactLineFromConfig(ctx.settings.support, {
           orderId: targetOrder.id,
         }),
@@ -1125,7 +1126,7 @@ export async function handle_update_order_contact(ctx: ChatContext) {
     });
   }
 
-  if (!isCustomerSelfServiceContactUpdateAllowed(targetOrder.orderStatus)) {
+  if (!isCustomerSelfServiceContactUpdateAllowed(targetOrder.orderStatus, targetOrder.courierProcessedAt)) {
     return escalateToSupport(
       'delivery_issue',
       targetOrder.id,
@@ -1133,6 +1134,7 @@ export async function handle_update_order_contact(ctx: ChatContext) {
         action: 'update_contact',
         orderId: targetOrder.id,
         status: targetOrder.orderStatus,
+        courierProcessedAt: targetOrder.courierProcessedAt,
         supportLine: buildSupportContactLineFromConfig(ctx.settings.support, {
           orderId: targetOrder.id,
         }),
@@ -1248,6 +1250,16 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
         lastMissingOrderId: null,
       },
     });
+  }
+
+  if (targetOrder.courierProcessedAt) {
+    return escalateToSupport(
+      'human_request',
+      targetOrder.id,
+      `Order #${targetOrder.id} has already been processed for courier handover, so I cannot update the quantity in chat. ${buildSupportContactLineFromConfig(ctx.settings.support, {
+        orderId: targetOrder.id,
+      })} I have also flagged this conversation for a team follow-up.`
+    );
   }
 
   if (targetOrder.orderItems.length !== 1) {

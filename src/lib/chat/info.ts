@@ -568,11 +568,14 @@ export async function handle_gift_request(ctx: ChatContext) {
 
   if (
     targetOrderForGift &&
-    !isOrderMutableStatus(targetOrderForGift.orderStatus) &&
+    (!isOrderMutableStatus(targetOrderForGift.orderStatus) || targetOrderForGift.courierProcessedAt) &&
     shouldApplyGiftUpdate
   ) {
+    const lockedReason = targetOrderForGift.courierProcessedAt
+      ? 'has already been processed for courier handover'
+      : `is already ${targetOrderForGift.orderStatus}`;
     return finalizeReply({
-      reply: `Order #${targetOrderForGift.id} is already ${targetOrderForGift.orderStatus}, so I cannot add gift instructions to it. Please send an active order ID or place a new order.`,
+      reply: `Order #${targetOrderForGift.id} ${lockedReason}, so I cannot add gift instructions to it. Please send an active order ID or place a new order.`,
       orderId: targetOrderForGift.id,
       nextState: {
         ...clearPendingConversationState(state),
@@ -602,7 +605,7 @@ export async function handle_gift_request(ctx: ChatContext) {
     });
   }
 
-  if (targetOrderForGift && isOrderMutableStatus(targetOrderForGift.orderStatus)) {
+  if (targetOrderForGift && isOrderMutableStatus(targetOrderForGift.orderStatus) && !targetOrderForGift.courierProcessedAt) {
     return finalizeReply({
       reply:
         giftNote !== 'your requested note'
@@ -617,8 +620,11 @@ export async function handle_gift_request(ctx: ChatContext) {
   }
 
   if (targetOrderForGift) {
+    const lockedReason = targetOrderForGift.courierProcessedAt
+      ? 'has already been processed for courier handover'
+      : `is already ${targetOrderForGift.orderStatus}`;
     return finalizeReply({
-      reply: `Order #${targetOrderForGift.id} is already ${targetOrderForGift.orderStatus}, so I cannot add gift instructions to it. Please send an active order ID or place a new order.`,
+      reply: `Order #${targetOrderForGift.id} ${lockedReason}, so I cannot add gift instructions to it. Please send an active order ID or place a new order.`,
       orderId: targetOrderForGift.id,
       nextState: {
         ...clearPendingConversationState(state),

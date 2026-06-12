@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   OrderDrawer,
   OrderPipeline,
@@ -79,6 +80,7 @@ interface OrdersPageOrder extends Omit<OrderDrawerOrder, 'createdAt' | 'orderIte
   }[];
   courierShipments: {
     id: number;
+    batchId: number | null;
     provider: string;
     waybillId: string;
     providerOrderId: string | null;
@@ -365,7 +367,12 @@ export default function OrdersPageClient({
         title="Orders"
         subtitle={`${stats.total} total orders · Today's Revenue: Rs ${formatMoney(stats.revenueToday)}`}
         actions={
-          <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export</button>
+          <>
+            <Link className="btn btn-secondary" href="/orders/courier-batches">
+              RoyalExpress batches
+            </Link>
+            <button className="btn btn-secondary"><Icon d={ic.download} size={13} />Export</button>
+          </>
         }
       />
 

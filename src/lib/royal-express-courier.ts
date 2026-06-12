@@ -70,11 +70,19 @@ export interface RoyalExpressSettingsView {
 
 export interface SubmitRoyalExpressDeliveryForDispatchInput {
   orderId: number;
+  batchId?: number | null;
   actor?: { email?: string | null; name?: string | null } | null;
 }
 
 export interface RefreshRoyalExpressStatusInput {
   orderId: number;
+  actor?: { email?: string | null; name?: string | null } | null;
+}
+
+export interface ProcessRoyalExpressBatchInput {
+  orderIds: number[];
+  brand?: string | null;
+  cutoffAt: Date;
   actor?: { email?: string | null; name?: string | null } | null;
 }
 
@@ -529,7 +537,7 @@ async function findLatestRoyalExpressShipment(orderId: number) {
   });
 }
 
-async function createRoyalExpressDelivery(input: SubmitRoyalExpressDeliveryForDispatchInput) {
+export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDeliveryForDispatchInput) {
   const order = await prisma.order.findUnique({
     where: { id: input.orderId },
     include: {
@@ -635,6 +643,7 @@ async function createRoyalExpressDelivery(input: SubmitRoyalExpressDeliveryForDi
     const created = await tx.courierShipment.create({
       data: {
         orderId: order.id,
+        batchId: input.batchId ?? null,
         brand,
         provider: ROYALEXPRESS_PROVIDER,
         waybillId,
@@ -662,6 +671,8 @@ async function createRoyalExpressDelivery(input: SubmitRoyalExpressDeliveryForDi
       data: {
         trackingNumber: waybillId,
         courier: ROYALEXPRESS_COURIER_NAME,
+        courierProcessingStatus: 'processed',
+        courierProcessedAt: now,
       },
     });
 
@@ -670,7 +681,9 @@ async function createRoyalExpressDelivery(input: SubmitRoyalExpressDeliveryForDi
         orderId: order.id,
         fromStatus: order.orderStatus,
         toStatus: order.orderStatus,
-        note: `RoyalExpress delivery ${waybillId} created in Curfox.`,
+        note: input.batchId
+          ? `RoyalExpress batch #${input.batchId} created Curfox waybill ${waybillId}.`
+          : `RoyalExpress delivery ${waybillId} created in Curfox.`,
         trackingNumber: waybillId,
         courier: ROYALEXPRESS_COURIER_NAME,
         actorEmail: input.actor?.email ?? null,
@@ -691,11 +704,89 @@ export async function submitRoyalExpressDeliveryForDispatch(
   const existing = await findLatestRoyalExpressShipment(input.orderId);
   if (existing) return existing;
 
-  if (process.env.CHAT_TEST_MODE === '1') {
-    throw new OrderRequestError('RoyalExpress is active for this brand, but courier submission is disabled in chat test mode.', 409);
+  throw new OrderRequestError(
+    'RoyalExpress is active for this brand, but no waybill has been created yet. Process the RoyalExpress courier batch before dispatching this order.',
+    409,
+  );
+}
+
+export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchInput) {
+  const uniqueOrderIds = Array.from(new Set(input.orderIds.filter((id) => Number.isInteger(id) && id > 0)));
+  if (uniqueOrderIds.length === 0) {
+    throw new OrderRequestError('No eligible RoyalExpress orders were found for this cutoff.', 404);
   }
 
-  return createRoyalExpressDelivery(input);
+  if (process.env.CHAT_TEST_MODE === '1') {
+    throw new OrderRequestError('RoyalExpress batch processing is disabled in chat test mode.', 409);
+  }
+
+  const batch = await prisma.courierBatch.create({
+    data: {
+      provider: ROYALEXPRESS_PROVIDER,
+      brand: cleanOptionalText(input.brand),
+      status: 'submitting',
+      cutoffAt: input.cutoffAt,
+      totalOrders: uniqueOrderIds.length,
+      submittedAt: new Date(),
+      createdByEmail: input.actor?.email ?? null,
+      createdByName: input.actor?.name ?? null,
+    },
+  });
+
+  const successes: Array<{ orderId: number; waybillId: string }> = [];
+  const failures: Array<{ orderId: number; error: string }> = [];
+
+  for (const orderId of uniqueOrderIds) {
+    try {
+      const shipment = await createRoyalExpressDelivery({
+        orderId,
+        batchId: batch.id,
+        actor: input.actor,
+      });
+      successes.push({ orderId, waybillId: shipment.waybillId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push({ orderId, error: message });
+      await prisma.order.updateMany({
+        where: { id: orderId, courierProcessedAt: null },
+        data: { courierProcessingStatus: 'failed' },
+      });
+      await prisma.orderFulfillmentEvent.create({
+        data: {
+          orderId,
+          toStatus: 'confirmed',
+          note: `RoyalExpress batch #${batch.id} failed: ${message}`,
+          courier: ROYALEXPRESS_COURIER_NAME,
+          actorEmail: input.actor?.email ?? null,
+          actorName: input.actor?.name ?? null,
+        },
+      }).catch(() => undefined);
+    }
+  }
+
+  const status =
+    failures.length === 0
+      ? 'submitted'
+      : successes.length > 0
+        ? 'partial_failed'
+        : 'failed';
+
+  return prisma.courierBatch.update({
+    where: { id: batch.id },
+    data: {
+      status,
+      successCount: successes.length,
+      failureCount: failures.length,
+      rawResponse: compactPayload({ successes, failures }),
+      error: failures.length > 0 ? failures.map((failure) => `#${failure.orderId}: ${failure.error}`).join('\n') : null,
+    },
+    include: {
+      shipments: {
+        include: { order: { include: { customer: true, orderItems: { include: { product: true } } } } },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
 }
 
 export async function refreshRoyalExpressShipmentStatus(input: RefreshRoyalExpressStatusInput) {

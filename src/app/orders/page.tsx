@@ -201,6 +201,8 @@ export default async function OrdersPage() {
       deliveryDistrict: o.deliveryDistrict,
       trackingNumber: o.trackingNumber,
       courier: o.courier,
+      courierProcessingStatus: o.courierProcessingStatus,
+      courierProcessedAt: o.courierProcessedAt?.toISOString() ?? null,
       failureReason: o.failureReason,
       returnReason: o.returnReason,
       koombiyoCourier: o.brand
@@ -299,6 +301,7 @@ export default async function OrdersPage() {
       courierShipments: o.courierShipments.map((shipment) => ({
         id: shipment.id,
         provider: shipment.provider,
+        batchId: shipment.batchId,
         waybillId: shipment.waybillId,
         providerOrderId: shipment.providerOrderId,
         orderReference: shipment.orderReference,

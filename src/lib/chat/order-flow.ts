@@ -34,6 +34,7 @@ interface OrderLike {
   id: number;
   brand?: string | null;
   orderStatus: string;
+  courierProcessedAt?: Date | string | null;
   totalAmount: number;
   deliveryAddress?: string | null;
   deliveryStreetAddress?: string | null;

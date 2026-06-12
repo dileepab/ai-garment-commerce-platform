@@ -111,31 +111,55 @@ model Customer {
 }
 
 model Order {
-  id                    Int                      @id @default(autoincrement())
-  customerId            Int
-  customer              Customer                 @relation(fields: [customerId], references: [id])
-  brand                 String?
-  orderStatus           String                   @default("pending")
-  totalAmount           Float
-  paymentMethod         String?
-  deliveryAddress       String?
-  deliveryStreetAddress String?
-  deliveryCity          String?
-  deliveryDistrict      String?
-  giftWrap              Boolean                  @default(false)
-  giftNote              String?
-  trackingNumber        String?
-  courier               String?
-  failureReason         String?
-  returnReason          String?
-  createdAt             DateTime                 @default(now())
-  orderItems            OrderItem[]
-  supportEscalations    SupportEscalation[]
-  fulfillmentEvents     OrderFulfillmentEvent[]
-  courierShipments      CourierShipment[]
-  courierWebhookEvents  CourierWebhookEventLog[]
-  returnRequests        ReturnRequest[]          @relation("OriginalOrder")
-  replacedByRequests    ReturnRequest[]          @relation("ReplacementOrder")
+  id                      Int                      @id @default(autoincrement())
+  customerId              Int
+  customer                Customer                 @relation(fields: [customerId], references: [id])
+  brand                   String?
+  orderStatus             String                   @default("pending")
+  totalAmount             Float
+  paymentMethod           String?
+  deliveryAddress         String?
+  deliveryStreetAddress   String?
+  deliveryCity            String?
+  deliveryDistrict        String?
+  giftWrap                Boolean                  @default(false)
+  giftNote                String?
+  trackingNumber          String?
+  courier                 String?
+  courierProcessingStatus String                   @default("pending")
+  courierProcessedAt      DateTime?
+  failureReason           String?
+  returnReason            String?
+  createdAt               DateTime                 @default(now())
+  orderItems              OrderItem[]
+  supportEscalations      SupportEscalation[]
+  fulfillmentEvents       OrderFulfillmentEvent[]
+  courierShipments        CourierShipment[]
+  courierWebhookEvents    CourierWebhookEventLog[]
+  returnRequests          ReturnRequest[]          @relation("OriginalOrder")
+  replacedByRequests      ReturnRequest[]          @relation("ReplacementOrder")
+}
+
+model CourierBatch {
+  id             Int               @id @default(autoincrement())
+  provider       String
+  brand          String?
+  status         String            @default("draft")
+  cutoffAt       DateTime
+  totalOrders    Int               @default(0)
+  successCount   Int               @default(0)
+  failureCount   Int               @default(0)
+  rawResponse    String?
+  error          String?
+  submittedAt    DateTime?
+  createdByEmail String?
+  createdByName  String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  shipments      CourierShipment[]
+
+  @@index([provider, brand, cutoffAt])
+  @@index([provider, status, createdAt])
 }
 
 model OrderFulfillmentEvent {
@@ -426,9 +450,11 @@ model CourierIntegrationSetting {
 }
 
 model CourierShipment {
-  id                 Int       @id @default(autoincrement())
+  id                 Int           @id @default(autoincrement())
   orderId            Int
-  order              Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order              Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  batchId            Int?
+  batch              CourierBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
   brand              String?
   provider           String
   waybillId          String
@@ -442,18 +468,19 @@ model CourierShipment {
   description        String?
   specialNote        String?
   codAmount          Int?
-  courierStatus      String    @default("created")
+  courierStatus      String        @default("created")
   mappedStatus       String?
   rawResponse        String?
   lastSyncedAt       DateTime?
   submittedAt        DateTime?
   createdByEmail     String?
   createdByName      String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@unique([provider, waybillId])
   @@index([orderId, provider])
+  @@index([batchId])
   @@index([provider, courierStatus, updatedAt])
 }
 

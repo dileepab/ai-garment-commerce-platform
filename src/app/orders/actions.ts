@@ -20,15 +20,21 @@ import {
   submitKoombiyoDeliveryForDispatch,
 } from '@/lib/koombiyo-courier';
 import {
+  isRoyalExpressActiveForBrand,
+  processRoyalExpressBatch,
   refreshRoyalExpressShipmentStatus,
   ROYALEXPRESS_COURIER_DISPLAY_NAME,
   submitRoyalExpressDeliveryForDispatch,
 } from '@/lib/royal-express-courier';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
+import { getBrandLookupAliases } from '@/lib/brand-aliases';
 
 export interface OrderActionResult {
   success: boolean;
   error?: string;
+  batchId?: number;
+  processed?: number;
+  failed?: number;
 }
 
 export interface DispatchOrderInput {
@@ -55,6 +61,10 @@ export interface AssignKoombiyoWaybillActionInput {
   force?: boolean;
 }
 
+export interface RoyalExpressBatchActionState extends OrderActionResult {
+  message?: string;
+}
+
 async function assertOrderAccess(scope: UserScope, orderId: number) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -69,6 +79,15 @@ async function assertOrderAccess(scope: UserScope, orderId: number) {
 
 function actorFromScope(scope: UserScope) {
   return { email: scope.email ?? null, name: scope.name ?? null };
+}
+
+function parseSriLankaDateTimeLocal(value: string): Date {
+  const normalized = value.trim();
+  if (!normalized) return new Date();
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)) {
+    return new Date(normalized);
+  }
+  return new Date(`${normalized}:00+05:30`);
 }
 
 function notifyCancellation(
@@ -185,7 +204,7 @@ export async function dispatchOrder(
         ? KOOMBIYO_COURIER_DISPLAY_NAME
         : undefined;
     const courierNote = royalExpressShipment
-      ? `Sent packed order to RoyalExpress with waybill ${royalExpressShipment.waybillId}.`
+      ? `Dispatched with RoyalExpress waybill ${royalExpressShipment.waybillId}.`
       : koombiyoShipment
         ? `Sent packed order to Koombiyo with waybill ${koombiyoShipment.waybillId}.`
         : undefined;
@@ -267,7 +286,7 @@ export async function retryDispatch(
         ? KOOMBIYO_COURIER_DISPLAY_NAME
         : undefined;
     const courierNote = royalExpressShipment
-      ? `Retried RoyalExpress dispatch with waybill ${royalExpressShipment.waybillId}.`
+      ? `Retried dispatch with RoyalExpress waybill ${royalExpressShipment.waybillId}.`
       : koombiyoShipment
         ? `Retried Koombiyo dispatch with waybill ${koombiyoShipment.waybillId}.`
         : undefined;
@@ -492,6 +511,77 @@ export async function refreshRoyalExpressStatusAction(orderId: number): Promise<
 
     revalidatePath('/orders');
     return { success: true };
+  } catch (error) {
+    return toResult(error);
+  }
+}
+
+export async function processRoyalExpressBatchAction(
+  _prevState: RoyalExpressBatchActionState,
+  formData: FormData,
+): Promise<RoyalExpressBatchActionState> {
+  try {
+    const scope = await requireActionPermission('orders:update');
+    const brand = String(formData.get('brand') || '').trim();
+    const cutoffRaw = String(formData.get('cutoffAt') || '').trim();
+
+    if (!brand) {
+      return { success: false, error: 'Select a brand before processing RoyalExpress orders.' };
+    }
+    assertBrandAccess(scope, brand, 'order');
+    if (!(await isRoyalExpressActiveForBrand(brand))) {
+      return { success: false, error: `RoyalExpress is not active for ${brand}. Enable it in Settings first.` };
+    }
+
+    const cutoffAt = parseSriLankaDateTimeLocal(cutoffRaw);
+    if (Number.isNaN(cutoffAt.getTime())) {
+      return { success: false, error: 'Choose a valid cutoff date and time.' };
+    }
+
+    const aliases = getBrandLookupAliases(brand);
+    const eligibleOrders = await prisma.order.findMany({
+      where: {
+        brand: { in: aliases },
+        orderStatus: { in: ['confirmed', 'packing', 'packed'] },
+        createdAt: { lte: cutoffAt },
+        courierProcessedAt: null,
+        courierShipments: {
+          none: { provider: 'royalexpress' },
+        },
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (eligibleOrders.length === 0) {
+      return {
+        success: false,
+        error: `No confirmed, packing, or packed ${brand} orders are ready before this cutoff.`,
+      };
+    }
+
+    const batch = await processRoyalExpressBatch({
+      brand,
+      cutoffAt,
+      orderIds: eligibleOrders.map((order) => order.id),
+      actor: actorFromScope(scope),
+    });
+
+    revalidatePath('/orders');
+    revalidatePath('/orders/courier-batches');
+    revalidatePath(`/orders/courier-batches/${batch.id}/labels`);
+
+    return {
+      success: batch.failureCount === 0,
+      error:
+        batch.failureCount > 0
+          ? `Processed ${batch.successCount} order(s), but ${batch.failureCount} failed. Open the batch to review before handover.`
+          : undefined,
+      message: `RoyalExpress batch #${batch.id} created ${batch.successCount} waybill(s).`,
+      batchId: batch.id,
+      processed: batch.successCount,
+      failed: batch.failureCount,
+    };
   } catch (error) {
     return toResult(error);
   }
