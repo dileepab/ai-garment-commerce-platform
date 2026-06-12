@@ -27,6 +27,10 @@ const USE_TENANT_PATHS =
   CURFOX_API_STYLE === 'v2' ||
   CURFOX_BASE_URL.includes('v2-') ||
   /\/api$/i.test(CURFOX_BASE_URL);
+const CURFOX_CITY_LIST_PATH_OVERRIDE =
+  process.env.ROYALEXPRESS_CURFOX_CITY_LIST_PATH?.trim() ||
+  process.env.CURFOX_CITY_LIST_PATH?.trim() ||
+  '';
 const CURFOX_PATHS = {
   login: USE_TENANT_PATHS ? '/merchant/login' : '/api/public/merchant/login',
   userInfo: USE_TENANT_PATHS ? '/merchant/user/get-current' : '/api/public/merchant/user/get-current',
@@ -35,6 +39,7 @@ const CURFOX_PATHS = {
 };
 const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
   ? [
+      CURFOX_CITY_LIST_PATH_OVERRIDE,
       '/merchant/resources/city-list',
       '/merchant/resource/city-list',
       '/merchant/resources/cities',
@@ -45,8 +50,9 @@ const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
       '/api/public/merchant/resources/cities',
       '/api/public/merchant/resource/cities',
       '/api/public/merchant/city/list',
-    ]
+    ].filter(Boolean)
   : [
+      CURFOX_CITY_LIST_PATH_OVERRIDE,
       '/api/public/merchant/resources/city-list',
       '/api/public/merchant/resource/city-list',
       '/api/public/merchant/resources/cities',
@@ -57,7 +63,7 @@ const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
       '/merchant/resources/cities',
       '/merchant/resource/cities',
       '/merchant/city/list',
-    ];
+    ].filter(Boolean);
 
 type CurfoxResponseValue =
   | string
@@ -477,7 +483,13 @@ async function resolveRoyalExpressDestinationCityId(input: {
     deliveryDistrict: string | null;
   };
   fallbackCityId: string | null;
-}): Promise<{ cityId: string; source: 'city-list' | 'settings'; cityListPath?: string; attemptedCityListPaths?: string[] }> {
+}): Promise<{
+  cityId: string;
+  source: 'city-list' | 'settings';
+  cityListPath?: string;
+  attemptedCityListPaths?: string[];
+  warning?: string;
+}> {
   const city = normalizeCityText(input.order.deliveryCity);
   const district = normalizeCityText(input.order.deliveryDistrict);
   const address = normalizeCityText([
@@ -488,6 +500,7 @@ async function resolveRoyalExpressDestinationCityId(input: {
   ].filter(Boolean).join(' '));
 
   if (city || district || address) {
+    let cityListWarning: string | null = null;
     try {
       const cityList = await requestRoyalExpressCityList(input.token);
       const best = collectRecords(cityList.response)
@@ -510,9 +523,20 @@ async function resolveRoyalExpressDestinationCityId(input: {
         };
       }
     } catch (error) {
-      if (!input.fallbackCityId) {
+      if (input.fallbackCityId) {
+        cityListWarning = error instanceof Error ? error.message : String(error);
+      } else {
         throw error;
       }
+    }
+
+    if (input.fallbackCityId) {
+      return {
+        cityId: input.fallbackCityId,
+        source: 'settings',
+        attemptedCityListPaths: CURFOX_CITY_LIST_PATHS,
+        warning: cityListWarning || 'RoyalExpress city list did not match the customer city; used Settings fallback.',
+      };
     }
   }
 
