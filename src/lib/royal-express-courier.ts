@@ -6,6 +6,7 @@ import { getBrandLookupAliases } from '@/lib/brand-aliases';
 import { getDeliveryChargeForAddress } from '@/lib/order-draft/pricing';
 import { getMerchantSettings } from '@/lib/runtime-config';
 import type { CourierShipment } from '@prisma/client';
+import royalExpressCityList from '@/data/royalexpress-city-list.json';
 
 const ROYALEXPRESS_PROVIDER = 'royalexpress';
 const ROYALEXPRESS_COURIER_NAME = 'RoyalExpress';
@@ -86,6 +87,11 @@ interface ResolvedRoyalExpressCredentials {
   pickupAddressId: string;
   originCityId: string | null;
   defaultDestinationCityId: string | null;
+}
+
+interface RoyalExpressStaticCity {
+  id: number;
+  name: string;
 }
 
 export interface RoyalExpressSettingsView {
@@ -254,9 +260,16 @@ function stringifyCurfoxMessage(value: unknown): string {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    const message = record.message || record.error || record.errors || record.detail;
+    const message = record.message || record.error || record.detail;
+    const errors = record.errors;
+    if (message && errors) {
+      return `${stringifyCurfoxMessage(message)}: ${stringifyCurfoxMessage(errors)}`;
+    }
     if (message) {
       return stringifyCurfoxMessage(message);
+    }
+    if (errors) {
+      return stringifyCurfoxMessage(errors);
     }
   }
   try {
@@ -451,6 +464,34 @@ function scoreRoyalExpressCityRecord(
   return score;
 }
 
+function staticRoyalExpressCityToRecord(city: RoyalExpressStaticCity): Record<string, CurfoxResponseValue> {
+  return {
+    id: city.id,
+    name: city.name,
+    city_name: city.name,
+  };
+}
+
+function findBestRoyalExpressCityRecord(
+  records: Array<Record<string, CurfoxResponseValue>>,
+  target: {
+    city: string;
+    district: string;
+    address: string;
+  },
+) {
+  return records
+    .map((record) => ({
+      record,
+      cityId: getRoyalExpressCityId(record),
+      score: scoreRoyalExpressCityRecord(record, target),
+    }))
+    .filter((candidate): candidate is { record: Record<string, CurfoxResponseValue>; cityId: string; score: number } =>
+      Boolean(candidate.cityId && candidate.score > 0)
+    )
+    .sort((a, b) => b.score - a.score)[0] ?? null;
+}
+
 async function requestRoyalExpressCityList(token: string): Promise<{
   response: CurfoxResponseValue;
   path: string;
@@ -504,21 +545,26 @@ async function resolveRoyalExpressDestinationCityId(input: {
     input.order.deliveryCity,
     input.order.deliveryDistrict,
   ].filter(Boolean).join(' '));
+  const target = { city, district, address };
 
   if (city || district || address) {
+    const staticBest = findBestRoyalExpressCityRecord(
+      (royalExpressCityList as RoyalExpressStaticCity[]).map(staticRoyalExpressCityToRecord),
+      target,
+    );
+
+    if (staticBest?.cityId) {
+      return {
+        cityId: staticBest.cityId,
+        source: 'city-list',
+        cityListPath: 'local:royalexpress-city-list.json',
+      };
+    }
+
     let cityListWarning: string | null = null;
     try {
       const cityList = await requestRoyalExpressCityList(input.token);
-      const best = collectRecords(cityList.response)
-        .map((record) => ({
-          record,
-          cityId: getRoyalExpressCityId(record),
-          score: scoreRoyalExpressCityRecord(record, { city, district, address }),
-        }))
-        .filter((candidate): candidate is { record: Record<string, CurfoxResponseValue>; cityId: string; score: number } =>
-          Boolean(candidate.cityId && candidate.score > 0)
-        )
-        .sort((a, b) => b.score - a.score)[0];
+      const best = findBestRoyalExpressCityRecord(collectRecords(cityList.response), target);
 
       if (best?.cityId) {
         return {

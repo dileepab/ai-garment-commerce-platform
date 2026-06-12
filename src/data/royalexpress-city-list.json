@@ -1,0 +1,11450 @@
+[
+  {
+    "id": 1,
+    "name": "Agaliya"
+  },
+  {
+    "id": 2,
+    "name": "Ahungalla"
+  },
+  {
+    "id": 3,
+    "name": "Aluthwala"
+  },
+  {
+    "id": 4,
+    "name": "Ambalangoda"
+  },
+  {
+    "id": 5,
+    "name": "Ampegama"
+  },
+  {
+    "id": 6,
+    "name": "Amugoda"
+  },
+  {
+    "id": 7,
+    "name": "Balapitiya"
+  },
+  {
+    "id": 8,
+    "name": "Batapola"
+  },
+  {
+    "id": 9,
+    "name": "Benthota"
+  },
+  {
+    "id": 10,
+    "name": "Bentota"
+  },
+  {
+    "id": 11,
+    "name": "Ella Tanabaddegama"
+  },
+  {
+    "id": 12,
+    "name": "Elpitiya"
+  },
+  {
+    "id": 13,
+    "name": "Ethkandura"
+  },
+  {
+    "id": 14,
+    "name": "Ganegoda"
+  },
+  {
+    "id": 15,
+    "name": "Godahena"
+  },
+  {
+    "id": 16,
+    "name": "Gonagalpura"
+  },
+  {
+    "id": 17,
+    "name": "Haburugala"
+  },
+  {
+    "id": 18,
+    "name": "Hikkaduwa"
+  },
+  {
+    "id": 19,
+    "name": "Ihalahewessa"
+  },
+  {
+    "id": 20,
+    "name": "Induruwa"
+  },
+  {
+    "id": 21,
+    "name": "Kahaduwa"
+  },
+  {
+    "id": 22,
+    "name": "Kahawa"
+  },
+  {
+    "id": 23,
+    "name": "Karandeniya"
+  },
+  {
+    "id": 24,
+    "name": "Kosgoda"
+  },
+  {
+    "id": 25,
+    "name": "Kuleegoda"
+  },
+  {
+    "id": 26,
+    "name": "Mattaka"
+  },
+  {
+    "id": 27,
+    "name": "Meetiyagoda"
+  },
+  {
+    "id": 28,
+    "name": "Miriswatta ( Galle )"
+  },
+  {
+    "id": 29,
+    "name": "Nawadagala"
+  },
+  {
+    "id": 30,
+    "name": "Nindana"
+  },
+  {
+    "id": 31,
+    "name": "Pannimulla Panagoda"
+  },
+  {
+    "id": 32,
+    "name": "Pitigala"
+  },
+  {
+    "id": 33,
+    "name": "Porawagama"
+  },
+  {
+    "id": 34,
+    "name": "Rantotuwila"
+  },
+  {
+    "id": 35,
+    "name": "Talgaspe"
+  },
+  {
+    "id": 36,
+    "name": "Talgaswela"
+  },
+  {
+    "id": 37,
+    "name": "Telwatta"
+  },
+  {
+    "id": 38,
+    "name": "Thelwatte"
+  },
+  {
+    "id": 39,
+    "name": "Unenwitiya"
+  },
+  {
+    "id": 40,
+    "name": "Uragaha"
+  },
+  {
+    "id": 41,
+    "name": "Uragasmanhandiya"
+  },
+  {
+    "id": 42,
+    "name": "Warukandeniya"
+  },
+  {
+    "id": 43,
+    "name": "Watugedara"
+  },
+  {
+    "id": 44,
+    "name": "Weihena"
+  },
+  {
+    "id": 45,
+    "name": "Alokapura"
+  },
+  {
+    "id": 46,
+    "name": "Ambalantota"
+  },
+  {
+    "id": 47,
+    "name": "Angunakolapelessa"
+  },
+  {
+    "id": 48,
+    "name": "Angunakolawewa"
+  },
+  {
+    "id": 49,
+    "name": "Bandagiriya Colony"
+  },
+  {
+    "id": 50,
+    "name": "Barawakumbuka"
+  },
+  {
+    "id": 51,
+    "name": "Beragama"
+  },
+  {
+    "id": 52,
+    "name": "Bowalagama"
+  },
+  {
+    "id": 53,
+    "name": "Goda Koggalla"
+  },
+  {
+    "id": 54,
+    "name": "Gonnoruwa"
+  },
+  {
+    "id": 55,
+    "name": "Hakuruwela"
+  },
+  {
+    "id": 56,
+    "name": "Hambantota"
+  },
+  {
+    "id": 57,
+    "name": "Hambantota Town"
+  },
+  {
+    "id": 58,
+    "name": "Hungama"
+  },
+  {
+    "id": 59,
+    "name": "Iththademaliya"
+  },
+  {
+    "id": 60,
+    "name": "Kahandamodara"
+  },
+  {
+    "id": 61,
+    "name": "Lunama"
+  },
+  {
+    "id": 62,
+    "name": "Mamadala"
+  },
+  {
+    "id": 63,
+    "name": "Mayurapura"
+  },
+  {
+    "id": 64,
+    "name": "Medamulana"
+  },
+  {
+    "id": 65,
+    "name": "Mirijjawila"
+  },
+  {
+    "id": 66,
+    "name": "Mulkirigala"
+  },
+  {
+    "id": 67,
+    "name": "Netolpitiya"
+  },
+  {
+    "id": 68,
+    "name": "Ranna"
+  },
+  {
+    "id": 69,
+    "name": "Ru/Ridiyagama"
+  },
+  {
+    "id": 70,
+    "name": "Siribopura"
+  },
+  {
+    "id": 71,
+    "name": "Udamalala"
+  },
+  {
+    "id": 72,
+    "name": "Uswewa"
+  },
+  {
+    "id": 73,
+    "name": "Weeraketiya"
+  },
+  {
+    "id": 74,
+    "name": "Wekandawela"
+  },
+  {
+    "id": 75,
+    "name": "Weligatta"
+  },
+  {
+    "id": 76,
+    "name": "Addalaichenai"
+  },
+  {
+    "id": 77,
+    "name": "Akkaraipattu"
+  },
+  {
+    "id": 78,
+    "name": "Ampara"
+  },
+  {
+    "id": 79,
+    "name": "Aranthalawa"
+  },
+  {
+    "id": 80,
+    "name": "Bakkiella"
+  },
+  {
+    "id": 81,
+    "name": "Bakmitiyawa"
+  },
+  {
+    "id": 82,
+    "name": "Borapola"
+  },
+  {
+    "id": 83,
+    "name": "Central Camp"
+  },
+  {
+    "id": 84,
+    "name": "Dadayamtalawa"
+  },
+  {
+    "id": 85,
+    "name": "Damana"
+  },
+  {
+    "id": 86,
+    "name": "Deegawapiya"
+  },
+  {
+    "id": 87,
+    "name": "Devalahinda"
+  },
+  {
+    "id": 88,
+    "name": "Digamadulla Weeragoda"
+  },
+  {
+    "id": 89,
+    "name": "Dorakumbura"
+  },
+  {
+    "id": 90,
+    "name": "Galapitagala"
+  },
+  {
+    "id": 91,
+    "name": "Gonagolla"
+  },
+  {
+    "id": 92,
+    "name": "Harasgala"
+  },
+  {
+    "id": 93,
+    "name": "Hingurana"
+  },
+  {
+    "id": 94,
+    "name": "Inginiyagala"
+  },
+  {
+    "id": 95,
+    "name": "Kalmunai"
+  },
+  {
+    "id": 96,
+    "name": "Kannakipuram"
+  },
+  {
+    "id": 97,
+    "name": "Karativu"
+  },
+  {
+    "id": 98,
+    "name": "Kekirihena"
+  },
+  {
+    "id": 99,
+    "name": "Koknahara"
+  },
+  {
+    "id": 100,
+    "name": "Kolamanthalawa"
+  },
+  {
+    "id": 101,
+    "name": "Komari"
+  },
+  {
+    "id": 102,
+    "name": "Kosnara"
+  },
+  {
+    "id": 103,
+    "name": "Lahugala"
+  },
+  {
+    "id": 104,
+    "name": "Lmkkamam"
+  },
+  {
+    "id": 105,
+    "name": "Madawalalanda"
+  },
+  {
+    "id": 106,
+    "name": "Mahanagapura"
+  },
+  {
+    "id": 107,
+    "name": "Mahaoya"
+  },
+  {
+    "id": 108,
+    "name": "Malliyakadu"
+  },
+  {
+    "id": 109,
+    "name": "Malwatta"
+  },
+  {
+    "id": 110,
+    "name": "Mangalagama ( Maha oya Ampara )"
+  },
+  {
+    "id": 111,
+    "name": "Marathamunai"
+  },
+  {
+    "id": 112,
+    "name": "Mawanagama"
+  },
+  {
+    "id": 113,
+    "name": "Moragahapallama"
+  },
+  {
+    "id": 114,
+    "name": "Namaloya"
+  },
+  {
+    "id": 115,
+    "name": "Navithanveli"
+  },
+  {
+    "id": 116,
+    "name": "Nawagampura"
+  },
+  {
+    "id": 117,
+    "name": "Nawagiriyawa"
+  },
+  {
+    "id": 118,
+    "name": "Nintavur"
+  },
+  {
+    "id": 119,
+    "name": "Nugelanda"
+  },
+  {
+    "id": 120,
+    "name": "Nuwaragalathenna"
+  },
+  {
+    "id": 121,
+    "name": "Olivil"
+  },
+  {
+    "id": 122,
+    "name": "Oluvil"
+  },
+  {
+    "id": 123,
+    "name": "Paandiruppu"
+  },
+  {
+    "id": 124,
+    "name": "Pahalalanda"
+  },
+  {
+    "id": 125,
+    "name": "Palamunai (Ampara)"
+  },
+  {
+    "id": 126,
+    "name": "Palathuruwella"
+  },
+  {
+    "id": 127,
+    "name": "Panama"
+  },
+  {
+    "id": 128,
+    "name": "Pannalagama"
+  },
+  {
+    "id": 129,
+    "name": "Paragahakele"
+  },
+  {
+    "id": 130,
+    "name": "Periyaneelavanai"
+  },
+  {
+    "id": 131,
+    "name": "Piyangala"
+  },
+  {
+    "id": 132,
+    "name": "Pollebedda"
+  },
+  {
+    "id": 133,
+    "name": "Polwaga Janapadaya"
+  },
+  {
+    "id": 134,
+    "name": "Pottuvil"
+  },
+  {
+    "id": 135,
+    "name": "Pulukunawa"
+  },
+  {
+    "id": 136,
+    "name": "Pulungasmulla"
+  },
+  {
+    "id": 137,
+    "name": "Rajagalatenna"
+  },
+  {
+    "id": 138,
+    "name": "Rajagalathenna"
+  },
+  {
+    "id": 139,
+    "name": "Sainthamaruthu"
+  },
+  {
+    "id": 140,
+    "name": "Saithamarthu"
+  },
+  {
+    "id": 141,
+    "name": "Samanturai"
+  },
+  {
+    "id": 142,
+    "name": "Sammanthurai"
+  },
+  {
+    "id": 143,
+    "name": "Serankada"
+  },
+  {
+    "id": 144,
+    "name": "Siyambalawewa"
+  },
+  {
+    "id": 145,
+    "name": "Tempitiya"
+  },
+  {
+    "id": 146,
+    "name": "Thambiluvil"
+  },
+  {
+    "id": 147,
+    "name": "Thampiluvil"
+  },
+  {
+    "id": 148,
+    "name": "Thepelpola"
+  },
+  {
+    "id": 149,
+    "name": "Thirukkovil"
+  },
+  {
+    "id": 150,
+    "name": "Tirukovil"
+  },
+  {
+    "id": 151,
+    "name": "Uhana"
+  },
+  {
+    "id": 152,
+    "name": "Veeramunai 2"
+  },
+  {
+    "id": 153,
+    "name": "Wadinagala"
+  },
+  {
+    "id": 154,
+    "name": "Wanagamuwa"
+  },
+  {
+    "id": 155,
+    "name": "Werunketagoda"
+  },
+  {
+    "id": 156,
+    "name": "Ipalogama"
+  },
+  {
+    "id": 157,
+    "name": "Mahakanadarawa"
+  },
+  {
+    "id": 158,
+    "name": "Maneruwa"
+  },
+  {
+    "id": 159,
+    "name": "Telhiriyawa"
+  },
+  {
+    "id": 160,
+    "name": "Udunuwara Colony"
+  },
+  {
+    "id": 161,
+    "name": "Angamuwa"
+  },
+  {
+    "id": 162,
+    "name": "Anuradapura City"
+  },
+  {
+    "id": 163,
+    "name": "Anuradhapura"
+  },
+  {
+    "id": 164,
+    "name": "Awkana"
+  },
+  {
+    "id": 165,
+    "name": "Awukana"
+  },
+  {
+    "id": 166,
+    "name": "Bulnewa"
+  },
+  {
+    "id": 167,
+    "name": "Dematawewa"
+  },
+  {
+    "id": 168,
+    "name": "Devanampiyatissapura"
+  },
+  {
+    "id": 169,
+    "name": "Dutuwewa"
+  },
+  {
+    "id": 170,
+    "name": "Edagala"
+  },
+  {
+    "id": 171,
+    "name": "Elayapattuwa"
+  },
+  {
+    "id": 172,
+    "name": "Eppawala"
+  },
+  {
+    "id": 173,
+    "name": "Etawatunuwewa"
+  },
+  {
+    "id": 174,
+    "name": "Galadivulwewa"
+  },
+  {
+    "id": 175,
+    "name": "Galenbindunuwewa"
+  },
+  {
+    "id": 176,
+    "name": "Galkadawala"
+  },
+  {
+    "id": 177,
+    "name": "Galkulama"
+  },
+  {
+    "id": 178,
+    "name": "Galnewa"
+  },
+  {
+    "id": 179,
+    "name": "Gambirigaswewa"
+  },
+  {
+    "id": 180,
+    "name": "Gemunupura"
+  },
+  {
+    "id": 181,
+    "name": "Getalawa"
+  },
+  {
+    "id": 182,
+    "name": "Giribawa"
+  },
+  {
+    "id": 183,
+    "name": "Gnanikulama"
+  },
+  {
+    "id": 184,
+    "name": "Gonahaddenawa"
+  },
+  {
+    "id": 185,
+    "name": "Gonapathirawa"
+  },
+  {
+    "id": 186,
+    "name": "Hidogama"
+  },
+  {
+    "id": 187,
+    "name": "Hurigaswewa"
+  },
+  {
+    "id": 188,
+    "name": "Hurulunikawewa"
+  },
+  {
+    "id": 189,
+    "name": "Ihala Halmillewa"
+  },
+  {
+    "id": 190,
+    "name": "Ipologama"
+  },
+  {
+    "id": 191,
+    "name": "Jayasiripura"
+  },
+  {
+    "id": 192,
+    "name": "Kagama"
+  },
+  {
+    "id": 193,
+    "name": "Kahatagasdigiliya"
+  },
+  {
+    "id": 194,
+    "name": "Kalakarambewa"
+  },
+  {
+    "id": 195,
+    "name": "Kalankuttiya"
+  },
+  {
+    "id": 196,
+    "name": "Kalaoya"
+  },
+  {
+    "id": 197,
+    "name": "Kallanchiya"
+  },
+  {
+    "id": 198,
+    "name": "Karagahawewa"
+  },
+  {
+    "id": 199,
+    "name": "Kendewa"
+  },
+  {
+    "id": 200,
+    "name": "Kiralogama"
+  },
+  {
+    "id": 201,
+    "name": "Kurundankulama"
+  },
+  {
+    "id": 202,
+    "name": "Labunoruwa"
+  },
+  {
+    "id": 203,
+    "name": "Maha Elagamuwa"
+  },
+  {
+    "id": 204,
+    "name": "Mahabulankulama"
+  },
+  {
+    "id": 205,
+    "name": "Mahagalkadawala"
+  },
+  {
+    "id": 206,
+    "name": "Mahailluppallama"
+  },
+  {
+    "id": 207,
+    "name": "Mahapothana"
+  },
+  {
+    "id": 208,
+    "name": "Mahawilachchiya"
+  },
+  {
+    "id": 209,
+    "name": "Mailagaswewa"
+  },
+  {
+    "id": 210,
+    "name": "Malwanagama"
+  },
+  {
+    "id": 211,
+    "name": "Maradankadawala"
+  },
+  {
+    "id": 212,
+    "name": "Meegalawa"
+  },
+  {
+    "id": 213,
+    "name": "Megodawewa"
+  },
+  {
+    "id": 214,
+    "name": "Mihintale"
+  },
+  {
+    "id": 215,
+    "name": "Morakewa"
+  },
+  {
+    "id": 216,
+    "name": "Muriyakadawala"
+  },
+  {
+    "id": 217,
+    "name": "Nachchaduwa"
+  },
+  {
+    "id": 218,
+    "name": "Namalpura"
+  },
+  {
+    "id": 219,
+    "name": "Negampaha"
+  },
+  {
+    "id": 220,
+    "name": "Nochchiyagama"
+  },
+  {
+    "id": 221,
+    "name": "Padikaramaduwa"
+  },
+  {
+    "id": 222,
+    "name": "Pahala Halmillewa"
+  },
+  {
+    "id": 223,
+    "name": "Pahala Maragahawe"
+  },
+  {
+    "id": 224,
+    "name": "Pahalagama (Anuradhapura)"
+  },
+  {
+    "id": 225,
+    "name": "Pandukabayapura"
+  },
+  {
+    "id": 226,
+    "name": "Pandulagama"
+  },
+  {
+    "id": 227,
+    "name": "Parasangahawewa"
+  },
+  {
+    "id": 228,
+    "name": "Pemaduwa"
+  },
+  {
+    "id": 229,
+    "name": "Perakumpura"
+  },
+  {
+    "id": 230,
+    "name": "Perimiyankulama"
+  },
+  {
+    "id": 231,
+    "name": "Pihimbiyagolewa"
+  },
+  {
+    "id": 232,
+    "name": "Rajanganaya"
+  },
+  {
+    "id": 233,
+    "name": "Rajanganaya 5 Mail Post"
+  },
+  {
+    "id": 234,
+    "name": "Rambewa"
+  },
+  {
+    "id": 235,
+    "name": "Ranorawa"
+  },
+  {
+    "id": 236,
+    "name": "Ranpathwila"
+  },
+  {
+    "id": 237,
+    "name": "Saliya Asokapura"
+  },
+  {
+    "id": 238,
+    "name": "Saliyapura"
+  },
+  {
+    "id": 239,
+    "name": "Seeppukulama"
+  },
+  {
+    "id": 240,
+    "name": "Senapura"
+  },
+  {
+    "id": 241,
+    "name": "Siwalakulama"
+  },
+  {
+    "id": 242,
+    "name": "Siyambalewa"
+  },
+  {
+    "id": 243,
+    "name": "Solepura"
+  },
+  {
+    "id": 244,
+    "name": "Solewewa"
+  },
+  {
+    "id": 245,
+    "name": "Sravasthipura"
+  },
+  {
+    "id": 246,
+    "name": "Talawa"
+  },
+  {
+    "id": 247,
+    "name": "Vipattuwa"
+  },
+  {
+    "id": 248,
+    "name": "Tammennawa"
+  },
+  {
+    "id": 249,
+    "name": "Tantirimale"
+  },
+  {
+    "id": 250,
+    "name": "Thambuttegama"
+  },
+  {
+    "id": 251,
+    "name": "Tirappane"
+  },
+  {
+    "id": 252,
+    "name": "Upuldeniya"
+  },
+  {
+    "id": 253,
+    "name": "Usgala Siyabmalangamuwa"
+  },
+  {
+    "id": 254,
+    "name": "Uttimaduwa"
+  },
+  {
+    "id": 255,
+    "name": "Viharapalugama"
+  },
+  {
+    "id": 256,
+    "name": "Vijayapura"
+  },
+  {
+    "id": 257,
+    "name": "Wahamalgollewa"
+  },
+  {
+    "id": 258,
+    "name": "Walagambahuwa"
+  },
+  {
+    "id": 259,
+    "name": "Warawewa"
+  },
+  {
+    "id": 260,
+    "name": "Akarawita"
+  },
+  {
+    "id": 261,
+    "name": "Avissawella"
+  },
+  {
+    "id": 262,
+    "name": "Batugampola"
+  },
+  {
+    "id": 263,
+    "name": "Gatahetta"
+  },
+  {
+    "id": 264,
+    "name": "Hanwella"
+  },
+  {
+    "id": 265,
+    "name": "Hewainna"
+  },
+  {
+    "id": 266,
+    "name": "Kalatuwawa"
+  },
+  {
+    "id": 267,
+    "name": "Kaluaggala"
+  },
+  {
+    "id": 268,
+    "name": "Kapugoda"
+  },
+  {
+    "id": 269,
+    "name": "Kosgama"
+  },
+  {
+    "id": 270,
+    "name": "Mithirigala"
+  },
+  {
+    "id": 271,
+    "name": "Pugoda"
+  },
+  {
+    "id": 272,
+    "name": "Puwakpitiya"
+  },
+  {
+    "id": 273,
+    "name": "Tittapattara"
+  },
+  {
+    "id": 274,
+    "name": "Tummodara"
+  },
+  {
+    "id": 275,
+    "name": "Waga"
+  },
+  {
+    "id": 276,
+    "name": "Amitirigala"
+  },
+  {
+    "id": 277,
+    "name": "Atulugama ( Karawanella )"
+  },
+  {
+    "id": 278,
+    "name": "Bibila-Oya"
+  },
+  {
+    "id": 279,
+    "name": "Bopeththa"
+  },
+  {
+    "id": 280,
+    "name": "Boralankada ( Avissawella )"
+  },
+  {
+    "id": 281,
+    "name": "Deegala Junction"
+  },
+  {
+    "id": 282,
+    "name": "Dehiowita"
+  },
+  {
+    "id": 283,
+    "name": "Del-Oluva Junction"
+  },
+  {
+    "id": 284,
+    "name": "Deloluwa"
+  },
+  {
+    "id": 285,
+    "name": "Deraniyagala"
+  },
+  {
+    "id": 286,
+    "name": "Eheliyagoda"
+  },
+  {
+    "id": 287,
+    "name": "Garaagoda ( Avissawella )"
+  },
+  {
+    "id": 288,
+    "name": "Getahetta"
+  },
+  {
+    "id": 289,
+    "name": "Godagampola"
+  },
+  {
+    "id": 290,
+    "name": "Gomaduwa"
+  },
+  {
+    "id": 291,
+    "name": "Gonagaldeniya"
+  },
+  {
+    "id": 292,
+    "name": "Kahanavita Junction"
+  },
+  {
+    "id": 293,
+    "name": "Kahatagastenna ( Kegalle )"
+  },
+  {
+    "id": 294,
+    "name": "Karawanella"
+  },
+  {
+    "id": 295,
+    "name": "Kitulgala"
+  },
+  {
+    "id": 296,
+    "name": "Magammana"
+  },
+  {
+    "id": 297,
+    "name": "Malalpola"
+  },
+  {
+    "id": 298,
+    "name": "Maliboda"
+  },
+  {
+    "id": 299,
+    "name": "Minnana"
+  },
+  {
+    "id": 300,
+    "name": "Miyanawita"
+  },
+  {
+    "id": 301,
+    "name": "Moraliya"
+  },
+  {
+    "id": 302,
+    "name": "Noori"
+  },
+  {
+    "id": 303,
+    "name": "Pambegama"
+  },
+  {
+    "id": 304,
+    "name": "Parussella"
+  },
+  {
+    "id": 305,
+    "name": "Ruwanwella"
+  },
+  {
+    "id": 306,
+    "name": "Seepock (Avissawella)"
+  },
+  {
+    "id": 307,
+    "name": "Talduwa"
+  },
+  {
+    "id": 308,
+    "name": "Teligama"
+  },
+  {
+    "id": 309,
+    "name": "Uda Maliboda"
+  },
+  {
+    "id": 310,
+    "name": "Udabage"
+  },
+  {
+    "id": 311,
+    "name": "Vee-Oya"
+  },
+  {
+    "id": 312,
+    "name": "Waharaka"
+  },
+  {
+    "id": 313,
+    "name": "Wendala"
+  },
+  {
+    "id": 314,
+    "name": "Weragala"
+  },
+  {
+    "id": 315,
+    "name": "Yatiyantota"
+  },
+  {
+    "id": 316,
+    "name": "Akkarasiyaya"
+  },
+  {
+    "id": 317,
+    "name": "Ambagahawatta"
+  },
+  {
+    "id": 318,
+    "name": "Amunumulla"
+  },
+  {
+    "id": 319,
+    "name": "Arawa"
+  },
+  {
+    "id": 320,
+    "name": "Atakiriya"
+  },
+  {
+    "id": 321,
+    "name": "Badulla"
+  },
+  {
+    "id": 322,
+    "name": "Baduluoya"
+  },
+  {
+    "id": 323,
+    "name": "Ballaketuwa"
+  },
+  {
+    "id": 324,
+    "name": "Beramada"
+  },
+  {
+    "id": 325,
+    "name": "Bibilegama"
+  },
+  {
+    "id": 326,
+    "name": "Demodara"
+  },
+  {
+    "id": 327,
+    "name": "Egodawela"
+  },
+  {
+    "id": 328,
+    "name": "Galauda"
+  },
+  {
+    "id": 329,
+    "name": "Galedanda"
+  },
+  {
+    "id": 330,
+    "name": "Gamewela"
+  },
+  {
+    "id": 331,
+    "name": "Gawarawela"
+  },
+  {
+    "id": 332,
+    "name": "Godunna"
+  },
+  {
+    "id": 333,
+    "name": "Hali Ela"
+  },
+  {
+    "id": 334,
+    "name": "Helahalpe"
+  },
+  {
+    "id": 335,
+    "name": "Helapupula"
+  },
+  {
+    "id": 336,
+    "name": "Hingurukaduwa"
+  },
+  {
+    "id": 337,
+    "name": "Hopton"
+  },
+  {
+    "id": 338,
+    "name": "Jangulla"
+  },
+  {
+    "id": 339,
+    "name": "Kahataruppa"
+  },
+  {
+    "id": 340,
+    "name": "Kalugahakandura"
+  },
+  {
+    "id": 341,
+    "name": "Kandaketiya"
+  },
+  {
+    "id": 342,
+    "name": "Kandegedara"
+  },
+  {
+    "id": 343,
+    "name": "Kendagolla"
+  },
+  {
+    "id": 344,
+    "name": "Ketawatta"
+  },
+  {
+    "id": 345,
+    "name": "Kiriwanagama"
+  },
+  {
+    "id": 346,
+    "name": "Kotamuduna"
+  },
+  {
+    "id": 347,
+    "name": "Kuttiyagolla"
+  },
+  {
+    "id": 348,
+    "name": "Landewela"
+  },
+  {
+    "id": 349,
+    "name": "Liyangahawela"
+  },
+  {
+    "id": 350,
+    "name": "Lunugala"
+  },
+  {
+    "id": 351,
+    "name": "Madulsima"
+  },
+  {
+    "id": 352,
+    "name": "Malgoda"
+  },
+  {
+    "id": 353,
+    "name": "Maliyadda"
+  },
+  {
+    "id": 354,
+    "name": "Maussagolla"
+  },
+  {
+    "id": 355,
+    "name": "Meegahakiula"
+  },
+  {
+    "id": 356,
+    "name": "Meegakaiula"
+  },
+  {
+    "id": 357,
+    "name": "Metigahatenna"
+  },
+  {
+    "id": 358,
+    "name": "Miriyabedda"
+  },
+  {
+    "id": 359,
+    "name": "Miyanakandura"
+  },
+  {
+    "id": 360,
+    "name": "Namunukula"
+  },
+  {
+    "id": 361,
+    "name": "Narangala ( Badulla )"
+  },
+  {
+    "id": 362,
+    "name": "Nelumgama"
+  },
+  {
+    "id": 363,
+    "name": "Pahalagama (Badulla)"
+  },
+  {
+    "id": 364,
+    "name": "Pallekiruwa"
+  },
+  {
+    "id": 365,
+    "name": "Passara"
+  },
+  {
+    "id": 366,
+    "name": "Pathanewatta"
+  },
+  {
+    "id": 367,
+    "name": "Pelagahatenna"
+  },
+  {
+    "id": 368,
+    "name": "Pitamaruwa"
+  },
+  {
+    "id": 369,
+    "name": "Pitapola"
+  },
+  {
+    "id": 370,
+    "name": "Rilpola"
+  },
+  {
+    "id": 371,
+    "name": "Sirimalgoda"
+  },
+  {
+    "id": 372,
+    "name": "Soranathota"
+  },
+  {
+    "id": 373,
+    "name": "Spring Valley"
+  },
+  {
+    "id": 374,
+    "name": "Taldena"
+  },
+  {
+    "id": 375,
+    "name": "Tennepanguwa"
+  },
+  {
+    "id": 376,
+    "name": "Timbirigaspitiya"
+  },
+  {
+    "id": 377,
+    "name": "Uva Deegalla"
+  },
+  {
+    "id": 378,
+    "name": "Uva Karandagolla"
+  },
+  {
+    "id": 379,
+    "name": "Uva Tenna"
+  },
+  {
+    "id": 380,
+    "name": "Uva Uduwara"
+  },
+  {
+    "id": 381,
+    "name": "Allepola"
+  },
+  {
+    "id": 382,
+    "name": "Balangoda"
+  },
+  {
+    "id": 383,
+    "name": "Balangoda City"
+  },
+  {
+    "id": 384,
+    "name": "Bankiyawatta"
+  },
+  {
+    "id": 385,
+    "name": "Belihuloya"
+  },
+  {
+    "id": 386,
+    "name": "Dehigasthalawa"
+  },
+  {
+    "id": 387,
+    "name": "Galgoda"
+  },
+  {
+    "id": 388,
+    "name": "Gurubavilagama"
+  },
+  {
+    "id": 389,
+    "name": "Halpe Balangoda"
+  },
+  {
+    "id": 390,
+    "name": "Imbulpe"
+  },
+  {
+    "id": 391,
+    "name": "Kalthota"
+  },
+  {
+    "id": 392,
+    "name": "Kaltota"
+  },
+  {
+    "id": 393,
+    "name": "Kirimtithanna"
+  },
+  {
+    "id": 394,
+    "name": "Kotawehera Mankada"
+  },
+  {
+    "id": 395,
+    "name": "Kotaweheramankada"
+  },
+  {
+    "id": 396,
+    "name": "Mahawalatenna"
+  },
+  {
+    "id": 397,
+    "name": "Mahawelathanna"
+  },
+  {
+    "id": 398,
+    "name": "Mawela"
+  },
+  {
+    "id": 399,
+    "name": "Miris Waththa"
+  },
+  {
+    "id": 400,
+    "name": "Morahela"
+  },
+  {
+    "id": 401,
+    "name": "Pettigala"
+  },
+  {
+    "id": 402,
+    "name": "Rajawaka"
+  },
+  {
+    "id": 403,
+    "name": "Rathmalawinna"
+  },
+  {
+    "id": 404,
+    "name": "Udawela"
+  },
+  {
+    "id": 405,
+    "name": "Waligepola"
+  },
+  {
+    "id": 406,
+    "name": "Weligepola"
+  },
+  {
+    "id": 407,
+    "name": "Welioya [ Ratnapura ]"
+  },
+  {
+    "id": 408,
+    "name": "Welipothayaya"
+  },
+  {
+    "id": 409,
+    "name": "Wikiliya"
+  },
+  {
+    "id": 410,
+    "name": "Ambadandegama"
+  },
+  {
+    "id": 411,
+    "name": "Bandarawela"
+  },
+  {
+    "id": 412,
+    "name": "Beragala"
+  },
+  {
+    "id": 413,
+    "name": "Bowela"
+  },
+  {
+    "id": 414,
+    "name": "Diganatenna"
+  },
+  {
+    "id": 415,
+    "name": "Dikkapitiya"
+  },
+  {
+    "id": 416,
+    "name": "Diyatalawa"
+  },
+  {
+    "id": 417,
+    "name": "Dulgolla"
+  },
+  {
+    "id": 418,
+    "name": "Ella"
+  },
+  {
+    "id": 419,
+    "name": "Ettampitiya"
+  },
+  {
+    "id": 420,
+    "name": "Haldummulla"
+  },
+  {
+    "id": 421,
+    "name": "Hangunnawa"
+  },
+  {
+    "id": 422,
+    "name": "Haputale"
+  },
+  {
+    "id": 423,
+    "name": "Heeloya"
+  },
+  {
+    "id": 424,
+    "name": "Idalgashinna"
+  },
+  {
+    "id": 425,
+    "name": "Kalubululanda"
+  },
+  {
+    "id": 426,
+    "name": "Kalupahana"
+  },
+  {
+    "id": 427,
+    "name": "Kebillawela"
+  },
+  {
+    "id": 428,
+    "name": "Koslanda"
+  },
+  {
+    "id": 429,
+    "name": "Makulella"
+  },
+  {
+    "id": 430,
+    "name": "Mirahawatta"
+  },
+  {
+    "id": 431,
+    "name": "Nikapotha"
+  },
+  {
+    "id": 432,
+    "name": "Pattiyagedara"
+  },
+  {
+    "id": 433,
+    "name": "Puhulpola"
+  },
+  {
+    "id": 434,
+    "name": "Ratkarawwa"
+  },
+  {
+    "id": 435,
+    "name": "Soragune"
+  },
+  {
+    "id": 436,
+    "name": "Uduhawara"
+  },
+  {
+    "id": 437,
+    "name": "Ampilanthurai"
+  },
+  {
+    "id": 438,
+    "name": "Araipattai"
+  },
+  {
+    "id": 439,
+    "name": "Arasadiththivu"
+  },
+  {
+    "id": 440,
+    "name": "Arumugaththankudiyiruppu"
+  },
+  {
+    "id": 441,
+    "name": "Ayithiyamalai"
+  },
+  {
+    "id": 442,
+    "name": "Ayiththiyamalai"
+  },
+  {
+    "id": 443,
+    "name": "Batticaloa"
+  },
+  {
+    "id": 444,
+    "name": "Baykiella"
+  },
+  {
+    "id": 445,
+    "name": "Cheddipalayam"
+  },
+  {
+    "id": 446,
+    "name": "Chenkaladi"
+  },
+  {
+    "id": 447,
+    "name": "Chenkalady"
+  },
+  {
+    "id": 448,
+    "name": "Echchantheevu"
+  },
+  {
+    "id": 449,
+    "name": "Eravur"
+  },
+  {
+    "id": 450,
+    "name": "Eruvil"
+  },
+  {
+    "id": 451,
+    "name": "Kalkudah"
+  },
+  {
+    "id": 452,
+    "name": "Kallar"
+  },
+  {
+    "id": 453,
+    "name": "Kaluthavalai"
+  },
+  {
+    "id": 454,
+    "name": "Kaluwanchikudi"
+  },
+  {
+    "id": 455,
+    "name": "Kaluwankemy"
+  },
+  {
+    "id": 456,
+    "name": "Kannankudah"
+  },
+  {
+    "id": 457,
+    "name": "Kannankudha"
+  },
+  {
+    "id": 458,
+    "name": "Karadiyanaru"
+  },
+  {
+    "id": 459,
+    "name": "Karaiyakkanthivu"
+  },
+  {
+    "id": 460,
+    "name": "Karaveddi"
+  },
+  {
+    "id": 461,
+    "name": "Kathiraveli"
+  },
+  {
+    "id": 462,
+    "name": "Kattankudi"
+  },
+  {
+    "id": 463,
+    "name": "Kattankudy"
+  },
+  {
+    "id": 464,
+    "name": "Kayankeny"
+  },
+  {
+    "id": 465,
+    "name": "Kiran"
+  },
+  {
+    "id": 466,
+    "name": "Kirankulam"
+  },
+  {
+    "id": 467,
+    "name": "Kiththul"
+  },
+  {
+    "id": 468,
+    "name": "Knnnankudha"
+  },
+  {
+    "id": 469,
+    "name": "Koddaikallar"
+  },
+  {
+    "id": 470,
+    "name": "Kokkaddichcholai"
+  },
+  {
+    "id": 471,
+    "name": "Kommathurai"
+  },
+  {
+    "id": 472,
+    "name": "Korakkalliyamadu"
+  },
+  {
+    "id": 473,
+    "name": "Kurinchamunai"
+  },
+  {
+    "id": 474,
+    "name": "Kurukkalmadam"
+  },
+  {
+    "id": 475,
+    "name": "Kurumanvely"
+  },
+  {
+    "id": 476,
+    "name": "Mahilavedduvan"
+  },
+  {
+    "id": 477,
+    "name": "Makiladiththivu"
+  },
+  {
+    "id": 478,
+    "name": "Makiloor"
+  },
+  {
+    "id": 479,
+    "name": "Mamangam"
+  },
+  {
+    "id": 480,
+    "name": "Manchanthoduwai"
+  },
+  {
+    "id": 481,
+    "name": "Mandur"
+  },
+  {
+    "id": 482,
+    "name": "Mangadu"
+  },
+  {
+    "id": 483,
+    "name": "Mankerni"
+  },
+  {
+    "id": 484,
+    "name": "Manmunai"
+  },
+  {
+    "id": 485,
+    "name": "Marappalam"
+  },
+  {
+    "id": 486,
+    "name": "Mavadivempu"
+  },
+  {
+    "id": 487,
+    "name": "Meeravodai"
+  },
+  {
+    "id": 488,
+    "name": "Morakkoddanchenai"
+  },
+  {
+    "id": 489,
+    "name": "Munaiththivu"
+  },
+  {
+    "id": 490,
+    "name": "Murakottanchanai"
+  },
+  {
+    "id": 491,
+    "name": "Mylampavely"
+  },
+  {
+    "id": 492,
+    "name": "Navagirinagar"
+  },
+  {
+    "id": 493,
+    "name": "Navalady"
+  },
+  {
+    "id": 494,
+    "name": "Navatkadu"
+  },
+  {
+    "id": 495,
+    "name": "Nochchimunai"
+  },
+  {
+    "id": 496,
+    "name": "Oddamavadi"
+  },
+  {
+    "id": 497,
+    "name": "Onthachchimadam"
+  },
+  {
+    "id": 498,
+    "name": "Paddippalai"
+  },
+  {
+    "id": 499,
+    "name": "Paddiruppu"
+  },
+  {
+    "id": 500,
+    "name": "Palameenmadu"
+  },
+  {
+    "id": 501,
+    "name": "Palamunai (Batticoloa)"
+  },
+  {
+    "id": 502,
+    "name": "Palugamam"
+  },
+  {
+    "id": 503,
+    "name": "Pandariyavely"
+  },
+  {
+    "id": 504,
+    "name": "Panichankerny"
+  },
+  {
+    "id": 505,
+    "name": "Pankudaveli"
+  },
+  {
+    "id": 506,
+    "name": "Periyaporativu"
+  },
+  {
+    "id": 507,
+    "name": "Periyapullumalai"
+  },
+  {
+    "id": 508,
+    "name": "Pettalai"
+  },
+  {
+    "id": 509,
+    "name": "Pillaiyaradi"
+  },
+  {
+    "id": 510,
+    "name": "Porathivu"
+  },
+  {
+    "id": 511,
+    "name": "Priya Kallar"
+  },
+  {
+    "id": 512,
+    "name": "Punanai"
+  },
+  {
+    "id": 513,
+    "name": "Puthukkudigiruppu"
+  },
+  {
+    "id": 514,
+    "name": "Puthukkudigiruppu Valaichchenai"
+  },
+  {
+    "id": 515,
+    "name": "Puthur"
+  },
+  {
+    "id": 516,
+    "name": "Santhively"
+  },
+  {
+    "id": 517,
+    "name": "Sethukkudha"
+  },
+  {
+    "id": 518,
+    "name": "Siththandi"
+  },
+  {
+    "id": 519,
+    "name": "Thalankudha"
+  },
+  {
+    "id": 520,
+    "name": "Thandiyadi"
+  },
+  {
+    "id": 521,
+    "name": "Thannamunai"
+  },
+  {
+    "id": 522,
+    "name": "Thettathivu"
+  },
+  {
+    "id": 523,
+    "name": "Thettativu"
+  },
+  {
+    "id": 524,
+    "name": "Thikkodai"
+  },
+  {
+    "id": 525,
+    "name": "Thimilatheevu"
+  },
+  {
+    "id": 526,
+    "name": "Thiraimadu"
+  },
+  {
+    "id": 527,
+    "name": "Thirupalugamam"
+  },
+  {
+    "id": 528,
+    "name": "Thirupperumthurai"
+  },
+  {
+    "id": 529,
+    "name": "Thuraineelavanai"
+  },
+  {
+    "id": 530,
+    "name": "Unnichai"
+  },
+  {
+    "id": 531,
+    "name": "Unnichchai"
+  },
+  {
+    "id": 532,
+    "name": "Vaichchenai"
+  },
+  {
+    "id": 533,
+    "name": "Vakaneri"
+  },
+  {
+    "id": 534,
+    "name": "Vakarai"
+  },
+  {
+    "id": 535,
+    "name": "Valaichenai"
+  },
+  {
+    "id": 536,
+    "name": "Vantharumoolai"
+  },
+  {
+    "id": 537,
+    "name": "Vavunatheevu"
+  },
+  {
+    "id": 538,
+    "name": "Veechukalmunai"
+  },
+  {
+    "id": 539,
+    "name": "Vellavely"
+  },
+  {
+    "id": 540,
+    "name": "Adippala"
+  },
+  {
+    "id": 541,
+    "name": "Ambakandawila"
+  },
+  {
+    "id": 542,
+    "name": "Andigama"
+  },
+  {
+    "id": 543,
+    "name": "Angunawila"
+  },
+  {
+    "id": 544,
+    "name": "Arachchikattuwa"
+  },
+  {
+    "id": 545,
+    "name": "Bangadeniya"
+  },
+  {
+    "id": 546,
+    "name": "Battuluoya"
+  },
+  {
+    "id": 547,
+    "name": "Chilaw"
+  },
+  {
+    "id": 548,
+    "name": "Galmuruwa"
+  },
+  {
+    "id": 549,
+    "name": "Ilippadeniya"
+  },
+  {
+    "id": 550,
+    "name": "Iranavila"
+  },
+  {
+    "id": 551,
+    "name": "Kakkapalliya"
+  },
+  {
+    "id": 552,
+    "name": "Karawitagara"
+  },
+  {
+    "id": 553,
+    "name": "Kudawewa"
+  },
+  {
+    "id": 554,
+    "name": "Kumarakattuwa"
+  },
+  {
+    "id": 555,
+    "name": "Madampe(Puttalam)"
+  },
+  {
+    "id": 556,
+    "name": "Mahawewa"
+  },
+  {
+    "id": 557,
+    "name": "Mugunuwatawana"
+  },
+  {
+    "id": 558,
+    "name": "Mundalama"
+  },
+  {
+    "id": 559,
+    "name": "Mundel"
+  },
+  {
+    "id": 560,
+    "name": "Muttibandivila"
+  },
+  {
+    "id": 561,
+    "name": "Nalladarankattuwa"
+  },
+  {
+    "id": 562,
+    "name": "Pallama"
+  },
+  {
+    "id": 563,
+    "name": "Panirendawa"
+  },
+  {
+    "id": 564,
+    "name": "Rajakadaluwa"
+  },
+  {
+    "id": 565,
+    "name": "Serukele"
+  },
+  {
+    "id": 566,
+    "name": "Toduwawa"
+  },
+  {
+    "id": 567,
+    "name": "Udappuwa"
+  },
+  {
+    "id": 568,
+    "name": "Weerakodiyana"
+  },
+  {
+    "id": 569,
+    "name": "Wellarawa"
+  },
+  {
+    "id": 570,
+    "name": "Wijeyakatupotha"
+  },
+  {
+    "id": 571,
+    "name": "Wilpotha"
+  },
+  {
+    "id": 572,
+    "name": "Alahengama"
+  },
+  {
+    "id": 573,
+    "name": "Ambagaswewa"
+  },
+  {
+    "id": 574,
+    "name": "Ambanpola"
+  },
+  {
+    "id": 575,
+    "name": "Ataragalla"
+  },
+  {
+    "id": 576,
+    "name": "Awlegama"
+  },
+  {
+    "id": 577,
+    "name": "Awulegama"
+  },
+  {
+    "id": 578,
+    "name": "Balalla"
+  },
+  {
+    "id": 579,
+    "name": "Bamunugama"
+  },
+  {
+    "id": 580,
+    "name": "Boraluwewa"
+  },
+  {
+    "id": 581,
+    "name": "Braluwewa"
+  },
+  {
+    "id": 582,
+    "name": "Daladagama"
+  },
+  {
+    "id": 583,
+    "name": "Digannewa"
+  },
+  {
+    "id": 584,
+    "name": "Divullegoda"
+  },
+  {
+    "id": 585,
+    "name": "Ehetuwewa"
+  },
+  {
+    "id": 586,
+    "name": "Embogama"
+  },
+  {
+    "id": 587,
+    "name": "Galgamuwa"
+  },
+  {
+    "id": 588,
+    "name": "Galtenwewa"
+  },
+  {
+    "id": 589,
+    "name": "Heelogama"
+  },
+  {
+    "id": 590,
+    "name": "Hengamuwa"
+  },
+  {
+    "id": 591,
+    "name": "Hilogama"
+  },
+  {
+    "id": 592,
+    "name": "Hiriyala"
+  },
+  {
+    "id": 593,
+    "name": "Hulogedara"
+  },
+  {
+    "id": 594,
+    "name": "Inginimitiya"
+  },
+  {
+    "id": 595,
+    "name": "Kadigawa"
+  },
+  {
+    "id": 596,
+    "name": "Karambe"
+  },
+  {
+    "id": 597,
+    "name": "Kattapitiya"
+  },
+  {
+    "id": 598,
+    "name": "Kobeigane"
+  },
+  {
+    "id": 599,
+    "name": "Konwewa"
+  },
+  {
+    "id": 600,
+    "name": "Kotawehera"
+  },
+  {
+    "id": 601,
+    "name": "Kuda Katnoruwa"
+  },
+  {
+    "id": 602,
+    "name": "Kudakatnoruwa"
+  },
+  {
+    "id": 603,
+    "name": "Left Bank"
+  },
+  {
+    "id": 604,
+    "name": "Madagalla (Yapahuwa)"
+  },
+  {
+    "id": 605,
+    "name": "Maeliya"
+  },
+  {
+    "id": 606,
+    "name": "Mahagirilla"
+  },
+  {
+    "id": 607,
+    "name": "Mahananneriya Town ( Maho )"
+  },
+  {
+    "id": 608,
+    "name": "Mahawa"
+  },
+  {
+    "id": 609,
+    "name": "Maho"
+  },
+  {
+    "id": 610,
+    "name": "Makulpotha"
+  },
+  {
+    "id": 611,
+    "name": "Meewellawa"
+  },
+  {
+    "id": 612,
+    "name": "Minuwangete"
+  },
+  {
+    "id": 613,
+    "name": "Mirihanagama"
+  },
+  {
+    "id": 614,
+    "name": "Mirihanegama"
+  },
+  {
+    "id": 615,
+    "name": "Moragollagama"
+  },
+  {
+    "id": 616,
+    "name": "Nabadewa"
+  },
+  {
+    "id": 617,
+    "name": "Nagollagama"
+  },
+  {
+    "id": 618,
+    "name": "Nikaweratiya"
+  },
+  {
+    "id": 619,
+    "name": "Padeniya"
+  },
+  {
+    "id": 620,
+    "name": "Pahalagiribawa"
+  },
+  {
+    "id": 621,
+    "name": "Palukadawala"
+  },
+  {
+    "id": 622,
+    "name": "Polpitigama"
+  },
+  {
+    "id": 623,
+    "name": "Rambe"
+  },
+  {
+    "id": 624,
+    "name": "Ridibendiella"
+  },
+  {
+    "id": 625,
+    "name": "Sirisetagama"
+  },
+  {
+    "id": 626,
+    "name": "Siyambalangamuwa"
+  },
+  {
+    "id": 627,
+    "name": "Tambutta"
+  },
+  {
+    "id": 628,
+    "name": "Thalakolawewa"
+  },
+  {
+    "id": 629,
+    "name": "Thimbiriyawa"
+  },
+  {
+    "id": 630,
+    "name": "Walaswewa"
+  },
+  {
+    "id": 631,
+    "name": "Wannigama"
+  },
+  {
+    "id": 632,
+    "name": "Wannikudawewa"
+  },
+  {
+    "id": 633,
+    "name": "Wannilhalagama"
+  },
+  {
+    "id": 634,
+    "name": "Wannirasnayakapura"
+  },
+  {
+    "id": 635,
+    "name": "Wellawa Juncton"
+  },
+  {
+    "id": 636,
+    "name": "Yapahuwa"
+  },
+  {
+    "id": 637,
+    "name": "Akuramboda"
+  },
+  {
+    "id": 638,
+    "name": "Amuna"
+  },
+  {
+    "id": 639,
+    "name": "Andiyagala"
+  },
+  {
+    "id": 640,
+    "name": "Bakamuna"
+  },
+  {
+    "id": 641,
+    "name": "Beligamuwa"
+  },
+  {
+    "id": 642,
+    "name": "Dambulla"
+  },
+  {
+    "id": 643,
+    "name": "Dambulla City"
+  },
+  {
+    "id": 644,
+    "name": "Dewahuwa"
+  },
+  {
+    "id": 645,
+    "name": "Elahera"
+  },
+  {
+    "id": 646,
+    "name": "Elamalpotha"
+  },
+  {
+    "id": 647,
+    "name": "Galewela"
+  },
+  {
+    "id": 648,
+    "name": "Galkiriyagama"
+  },
+  {
+    "id": 649,
+    "name": "Galwela"
+  },
+  {
+    "id": 650,
+    "name": "Ganewalpola"
+  },
+  {
+    "id": 651,
+    "name": "Habarana"
+  },
+  {
+    "id": 652,
+    "name": "Hattota Amuna"
+  },
+  {
+    "id": 653,
+    "name": "Horiwila"
+  },
+  {
+    "id": 654,
+    "name": "Inamaluwa"
+  },
+  {
+    "id": 655,
+    "name": "Kalawedi Ulpotha"
+  },
+  {
+    "id": 656,
+    "name": "Kandalama"
+  },
+  {
+    "id": 657,
+    "name": "Kekirawa"
+  },
+  {
+    "id": 658,
+    "name": "Kibissa"
+  },
+  {
+    "id": 659,
+    "name": "Kitulhitiyawa"
+  },
+  {
+    "id": 660,
+    "name": "Kongahawela"
+  },
+  {
+    "id": 661,
+    "name": "Koongahawela"
+  },
+  {
+    "id": 662,
+    "name": "Lenadora"
+  },
+  {
+    "id": 663,
+    "name": "Madatugama"
+  },
+  {
+    "id": 664,
+    "name": "Madipola"
+  },
+  {
+    "id": 665,
+    "name": "Mananwatta"
+  },
+  {
+    "id": 666,
+    "name": "Maoya"
+  },
+  {
+    "id": 667,
+    "name": "Melipitiya"
+  },
+  {
+    "id": 668,
+    "name": "Naula"
+  },
+  {
+    "id": 669,
+    "name": "Opalgala"
+  },
+  {
+    "id": 670,
+    "name": "Palagala"
+  },
+  {
+    "id": 671,
+    "name": "Palugaswewa (Habarana)"
+  },
+  {
+    "id": 672,
+    "name": "Pannampitiya"
+  },
+  {
+    "id": 673,
+    "name": "Pubbogama"
+  },
+  {
+    "id": 674,
+    "name": "Sigiriya"
+  },
+  {
+    "id": 675,
+    "name": "Talagoda Junction"
+  },
+  {
+    "id": 676,
+    "name": "Thalakiriyagama"
+  },
+  {
+    "id": 677,
+    "name": "Thonigala"
+  },
+  {
+    "id": 678,
+    "name": "Vijithapura"
+  },
+  {
+    "id": 679,
+    "name": "Wahacotte"
+  },
+  {
+    "id": 680,
+    "name": "Wahakotte"
+  },
+  {
+    "id": 681,
+    "name": "Wewalawewa"
+  },
+  {
+    "id": 682,
+    "name": "Balaharuwa"
+  },
+  {
+    "id": 683,
+    "name": "Bulutota"
+  },
+  {
+    "id": 684,
+    "name": "Embilipitiya"
+  },
+  {
+    "id": 685,
+    "name": "Embilipitiya New Town"
+  },
+  {
+    "id": 686,
+    "name": "Gangulandeniya"
+  },
+  {
+    "id": 687,
+    "name": "Halvinna"
+  },
+  {
+    "id": 688,
+    "name": "Halwinna"
+  },
+  {
+    "id": 689,
+    "name": "Hambegamuwa"
+  },
+  {
+    "id": 690,
+    "name": "Horewelagoda"
+  },
+  {
+    "id": 691,
+    "name": "Ittakanda"
+  },
+  {
+    "id": 692,
+    "name": "Julampitiya"
+  },
+  {
+    "id": 693,
+    "name": "Kariyamaditta"
+  },
+  {
+    "id": 694,
+    "name": "Katuwana"
+  },
+  {
+    "id": 695,
+    "name": "Kella Junction"
+  },
+  {
+    "id": 696,
+    "name": "Kirama"
+  },
+  {
+    "id": 697,
+    "name": "Kiriibbanwewa"
+  },
+  {
+    "id": 698,
+    "name": "Kolambageara"
+  },
+  {
+    "id": 699,
+    "name": "Kolonna"
+  },
+  {
+    "id": 700,
+    "name": "Kudaoya ( Tanamalvila )"
+  },
+  {
+    "id": 701,
+    "name": "Mahagalwewa"
+  },
+  {
+    "id": 702,
+    "name": "Middeniya"
+  },
+  {
+    "id": 703,
+    "name": "Migahajandura"
+  },
+  {
+    "id": 704,
+    "name": "Mulendiyawala"
+  },
+  {
+    "id": 705,
+    "name": "Omalpe"
+  },
+  {
+    "id": 706,
+    "name": "Padalangala"
+  },
+  {
+    "id": 707,
+    "name": "Pallebedda"
+  },
+  {
+    "id": 708,
+    "name": "Panamura"
+  },
+  {
+    "id": 709,
+    "name": "Rammalawarapitiya"
+  },
+  {
+    "id": 710,
+    "name": "Ranmuduwewa"
+  },
+  {
+    "id": 711,
+    "name": "Ratmalwala"
+  },
+  {
+    "id": 712,
+    "name": "Sewanagala"
+  },
+  {
+    "id": 713,
+    "name": "Sooriyawewa Town"
+  },
+  {
+    "id": 714,
+    "name": "Suriara"
+  },
+  {
+    "id": 715,
+    "name": "Suriyakanda"
+  },
+  {
+    "id": 716,
+    "name": "Thanamalwila"
+  },
+  {
+    "id": 717,
+    "name": "Tunkama"
+  },
+  {
+    "id": 718,
+    "name": "Uda Gomadiya"
+  },
+  {
+    "id": 719,
+    "name": "Udawalawe"
+  },
+  {
+    "id": 720,
+    "name": "Vijeriya"
+  },
+  {
+    "id": 721,
+    "name": "Ahangama"
+  },
+  {
+    "id": 722,
+    "name": "Akmeemana"
+  },
+  {
+    "id": 723,
+    "name": "Anangoda"
+  },
+  {
+    "id": 724,
+    "name": "Angulugaha"
+  },
+  {
+    "id": 725,
+    "name": "Ankokkawala"
+  },
+  {
+    "id": 726,
+    "name": "Baddegama"
+  },
+  {
+    "id": 727,
+    "name": "Banagala"
+  },
+  {
+    "id": 728,
+    "name": "Boossa"
+  },
+  {
+    "id": 729,
+    "name": "Dikkumbura"
+  },
+  {
+    "id": 730,
+    "name": "Dodanduwa"
+  },
+  {
+    "id": 731,
+    "name": "Galle"
+  },
+  {
+    "id": 732,
+    "name": "Ginimellagaha"
+  },
+  {
+    "id": 733,
+    "name": "Gintota"
+  },
+  {
+    "id": 734,
+    "name": "Gonamulla Junction"
+  },
+  {
+    "id": 735,
+    "name": "Gonapinuwala"
+  },
+  {
+    "id": 736,
+    "name": "Habaraduwa"
+  },
+  {
+    "id": 737,
+    "name": "Halvitigala Colony"
+  },
+  {
+    "id": 738,
+    "name": "Hawpe"
+  },
+  {
+    "id": 739,
+    "name": "Hiyare"
+  },
+  {
+    "id": 740,
+    "name": "Ihala Walpola"
+  },
+  {
+    "id": 741,
+    "name": "Imaduwa"
+  },
+  {
+    "id": 742,
+    "name": "Kananke"
+  },
+  {
+    "id": 743,
+    "name": "Kananke Bazaar"
+  },
+  {
+    "id": 744,
+    "name": "Karagoda"
+  },
+  {
+    "id": 745,
+    "name": "Karapitiya"
+  },
+  {
+    "id": 746,
+    "name": "Kottawagama"
+  },
+  {
+    "id": 747,
+    "name": "Magedara"
+  },
+  {
+    "id": 748,
+    "name": "Mapalagama"
+  },
+  {
+    "id": 749,
+    "name": "Mapalagama Central"
+  },
+  {
+    "id": 750,
+    "name": "Meda-Keembiya"
+  },
+  {
+    "id": 751,
+    "name": "Nagoda (Galle)"
+  },
+  {
+    "id": 752,
+    "name": "Nakiyadeniya"
+  },
+  {
+    "id": 753,
+    "name": "Panangala"
+  },
+  {
+    "id": 754,
+    "name": "Parana Thanayamgoda"
+  },
+  {
+    "id": 755,
+    "name": "Pinnaduwa"
+  },
+  {
+    "id": 756,
+    "name": "Poddala"
+  },
+  {
+    "id": 757,
+    "name": "Ratgama"
+  },
+  {
+    "id": 758,
+    "name": "Talagampola"
+  },
+  {
+    "id": 759,
+    "name": "Talpe"
+  },
+  {
+    "id": 760,
+    "name": "Tiranagama"
+  },
+  {
+    "id": 761,
+    "name": "Udalamatta"
+  },
+  {
+    "id": 762,
+    "name": "Udugama"
+  },
+  {
+    "id": 763,
+    "name": "Uluvitike"
+  },
+  {
+    "id": 764,
+    "name": "Unawatuna"
+  },
+  {
+    "id": 765,
+    "name": "Wakwella"
+  },
+  {
+    "id": 766,
+    "name": "Walahanduwa"
+  },
+  {
+    "id": 767,
+    "name": "Wanchawela"
+  },
+  {
+    "id": 768,
+    "name": "Wanduramba"
+  },
+  {
+    "id": 769,
+    "name": "Yakkalamulla"
+  },
+  {
+    "id": 770,
+    "name": "Yatalamatta"
+  },
+  {
+    "id": 771,
+    "name": "Aludeniya"
+  },
+  {
+    "id": 772,
+    "name": "Atabage"
+  },
+  {
+    "id": 773,
+    "name": "Bambaragahaela"
+  },
+  {
+    "id": 774,
+    "name": "Batagolladeniya"
+  },
+  {
+    "id": 775,
+    "name": "Dekinda"
+  },
+  {
+    "id": 776,
+    "name": "Deltota"
+  },
+  {
+    "id": 777,
+    "name": "Dolosbage"
+  },
+  {
+    "id": 778,
+    "name": "Doluwa"
+  },
+  {
+    "id": 779,
+    "name": "Galaha"
+  },
+  {
+    "id": 780,
+    "name": "Gampola"
+  },
+  {
+    "id": 781,
+    "name": "Gelioya"
+  },
+  {
+    "id": 782,
+    "name": "Handessa"
+  },
+  {
+    "id": 783,
+    "name": "Hapugastalawa"
+  },
+  {
+    "id": 784,
+    "name": "Hindagala"
+  },
+  {
+    "id": 785,
+    "name": "Hodiyadeniya"
+  },
+  {
+    "id": 786,
+    "name": "Hondiyadeniya"
+  },
+  {
+    "id": 787,
+    "name": "Karandagolla"
+  },
+  {
+    "id": 788,
+    "name": "Leemagahakotuwa"
+  },
+  {
+    "id": 789,
+    "name": "Mahakanda"
+  },
+  {
+    "id": 790,
+    "name": "Mahamulgama"
+  },
+  {
+    "id": 791,
+    "name": "Mapakanda"
+  },
+  {
+    "id": 792,
+    "name": "Marymount Colony"
+  },
+  {
+    "id": 793,
+    "name": "Maswela"
+  },
+  {
+    "id": 794,
+    "name": "Mawatura"
+  },
+  {
+    "id": 795,
+    "name": "Meetalawa"
+  },
+  {
+    "id": 796,
+    "name": "Meethalawa"
+  },
+  {
+    "id": 797,
+    "name": "Muruthagahamulla"
+  },
+  {
+    "id": 798,
+    "name": "Nawalapitiya"
+  },
+  {
+    "id": 799,
+    "name": "Nillambe"
+  },
+  {
+    "id": 800,
+    "name": "Panideniya"
+  },
+  {
+    "id": 801,
+    "name": "Panwilatenna"
+  },
+  {
+    "id": 802,
+    "name": "Paradeka"
+  },
+  {
+    "id": 803,
+    "name": "Pasbage"
+  },
+  {
+    "id": 804,
+    "name": "Pattitalawa"
+  },
+  {
+    "id": 805,
+    "name": "Pattiya Watta"
+  },
+  {
+    "id": 806,
+    "name": "Pupuressa"
+  },
+  {
+    "id": 807,
+    "name": "Pussellawa"
+  },
+  {
+    "id": 808,
+    "name": "Rambukpitiya"
+  },
+  {
+    "id": 809,
+    "name": "Udahentenna"
+  },
+  {
+    "id": 810,
+    "name": "Udawatta"
+  },
+  {
+    "id": 811,
+    "name": "Ulapane"
+  },
+  {
+    "id": 812,
+    "name": "Velamboda"
+  },
+  {
+    "id": 813,
+    "name": "Wattappola (Kandy)"
+  },
+  {
+    "id": 814,
+    "name": "Welampoda"
+  },
+  {
+    "id": 815,
+    "name": "Weligalla"
+  },
+  {
+    "id": 816,
+    "name": "Weligampola"
+  },
+  {
+    "id": 817,
+    "name": "Ambagamuwa Udabulathgama"
+  },
+  {
+    "id": 818,
+    "name": "Bogawantalawa"
+  },
+  {
+    "id": 819,
+    "name": "Dagampitiya"
+  },
+  {
+    "id": 820,
+    "name": "Dikoya"
+  },
+  {
+    "id": 821,
+    "name": "Ginigathena"
+  },
+  {
+    "id": 822,
+    "name": "Hatton"
+  },
+  {
+    "id": 823,
+    "name": "Kotagala"
+  },
+  {
+    "id": 824,
+    "name": "Laxapana"
+  },
+  {
+    "id": 825,
+    "name": "Maskeliya"
+  },
+  {
+    "id": 826,
+    "name": "Morahenagama (Nuwaraeliya)"
+  },
+  {
+    "id": 827,
+    "name": "Nallathanniya"
+  },
+  {
+    "id": 828,
+    "name": "Norton"
+  },
+  {
+    "id": 829,
+    "name": "Norwood"
+  },
+  {
+    "id": 830,
+    "name": "Patana"
+  },
+  {
+    "id": 831,
+    "name": "Pathana"
+  },
+  {
+    "id": 832,
+    "name": "Pitawala (Nuwaraeliya)"
+  },
+  {
+    "id": 833,
+    "name": "Watawala"
+  },
+  {
+    "id": 834,
+    "name": "Widulipura"
+  },
+  {
+    "id": 835,
+    "name": "Anguruwatota"
+  },
+  {
+    "id": 836,
+    "name": "Atulugama"
+  },
+  {
+    "id": 837,
+    "name": "Bandaragama"
+  },
+  {
+    "id": 838,
+    "name": "Batagoda"
+  },
+  {
+    "id": 839,
+    "name": "Bolgoda Bandaragama"
+  },
+  {
+    "id": 840,
+    "name": "Bulathsinhala"
+  },
+  {
+    "id": 841,
+    "name": "Diyagama ( Kalutara )"
+  },
+  {
+    "id": 842,
+    "name": "Diyakada"
+  },
+  {
+    "id": 843,
+    "name": "Dobagoda"
+  },
+  {
+    "id": 844,
+    "name": "Galpatha (Kalutara)"
+  },
+  {
+    "id": 845,
+    "name": "Gonapola Junction"
+  },
+  {
+    "id": 846,
+    "name": "Govinna"
+  },
+  {
+    "id": 847,
+    "name": "Haltota"
+  },
+  {
+    "id": 848,
+    "name": "Handapangoda"
+  },
+  {
+    "id": 849,
+    "name": "Horana"
+  },
+  {
+    "id": 850,
+    "name": "Ingiriya"
+  },
+  {
+    "id": 851,
+    "name": "Kahathuduwa"
+  },
+  {
+    "id": 852,
+    "name": "Kananwila"
+  },
+  {
+    "id": 853,
+    "name": "Kindelpitiya"
+  },
+  {
+    "id": 854,
+    "name": "Koralaima"
+  },
+  {
+    "id": 855,
+    "name": "Kothalawala"
+  },
+  {
+    "id": 856,
+    "name": "Kuda Uduwa"
+  },
+  {
+    "id": 857,
+    "name": "Millaniya"
+  },
+  {
+    "id": 858,
+    "name": "Millewa"
+  },
+  {
+    "id": 859,
+    "name": "Moragahahena"
+  },
+  {
+    "id": 860,
+    "name": "Panagoda ( Horana )"
+  },
+  {
+    "id": 861,
+    "name": "Paragastota"
+  },
+  {
+    "id": 862,
+    "name": "Paragoda"
+  },
+  {
+    "id": 863,
+    "name": "Pathakada"
+  },
+  {
+    "id": 864,
+    "name": "Pokunuwita"
+  },
+  {
+    "id": 865,
+    "name": "Poruwadanda"
+  },
+  {
+    "id": 866,
+    "name": "Poruwedanda"
+  },
+  {
+    "id": 867,
+    "name": "Raigama"
+  },
+  {
+    "id": 868,
+    "name": "Rambukkana Bandaragama"
+  },
+  {
+    "id": 869,
+    "name": "Uduwara"
+  },
+  {
+    "id": 870,
+    "name": "Vidiyagoda"
+  },
+  {
+    "id": 871,
+    "name": "Walpita Horana"
+  },
+  {
+    "id": 872,
+    "name": "Welmilla Junction"
+  },
+  {
+    "id": 873,
+    "name": "Yatawara Junction"
+  },
+  {
+    "id": 874,
+    "name": "Achuveli"
+  },
+  {
+    "id": 875,
+    "name": "Alaveddi"
+  },
+  {
+    "id": 876,
+    "name": "Allappity"
+  },
+  {
+    "id": 877,
+    "name": "Ampan"
+  },
+  {
+    "id": 878,
+    "name": "Anaikottai"
+  },
+  {
+    "id": 879,
+    "name": "Analaitivu"
+  },
+  {
+    "id": 880,
+    "name": "Analathivu"
+  },
+  {
+    "id": 881,
+    "name": "Araly"
+  },
+  {
+    "id": 882,
+    "name": "Arasady"
+  },
+  {
+    "id": 883,
+    "name": "Arejalai"
+  },
+  {
+    "id": 884,
+    "name": "Atchuveli"
+  },
+  {
+    "id": 885,
+    "name": "Avarangal"
+  },
+  {
+    "id": 886,
+    "name": "Changanai"
+  },
+  {
+    "id": 887,
+    "name": "Chavakachcheri"
+  },
+  {
+    "id": 888,
+    "name": "Chavakacheri"
+  },
+  {
+    "id": 889,
+    "name": "Chulipuram."
+  },
+  {
+    "id": 890,
+    "name": "Chundukuli"
+  },
+  {
+    "id": 891,
+    "name": "Chunnagam"
+  },
+  {
+    "id": 892,
+    "name": "Chunnakam"
+  },
+  {
+    "id": 893,
+    "name": "Delf Island"
+  },
+  {
+    "id": 894,
+    "name": "Eirupalai"
+  },
+  {
+    "id": 895,
+    "name": "Inuvil"
+  },
+  {
+    "id": 896,
+    "name": "Jaffna"
+  },
+  {
+    "id": 897,
+    "name": "Jaffna Town"
+  },
+  {
+    "id": 898,
+    "name": "Kaithadi"
+  },
+  {
+    "id": 899,
+    "name": "Kaithady"
+  },
+  {
+    "id": 900,
+    "name": "Kalveyankadu"
+  },
+  {
+    "id": 901,
+    "name": "Kankeshanthurai"
+  },
+  {
+    "id": 902,
+    "name": "Kantharmadam"
+  },
+  {
+    "id": 903,
+    "name": "Karainagar"
+  },
+  {
+    "id": 904,
+    "name": "Karisal"
+  },
+  {
+    "id": 905,
+    "name": "Kayts"
+  },
+  {
+    "id": 906,
+    "name": "Keramakkodu"
+  },
+  {
+    "id": 907,
+    "name": "Kks"
+  },
+  {
+    "id": 908,
+    "name": "Koddadi"
+  },
+  {
+    "id": 909,
+    "name": "Kodikamam"
+  },
+  {
+    "id": 910,
+    "name": "Kokkuvil"
+  },
+  {
+    "id": 911,
+    "name": "Kolumputhurai"
+  },
+  {
+    "id": 912,
+    "name": "Kondavil"
+  },
+  {
+    "id": 913,
+    "name": "Kopai"
+  },
+  {
+    "id": 914,
+    "name": "Kopay"
+  },
+  {
+    "id": 915,
+    "name": "Kurunagar"
+  },
+  {
+    "id": 916,
+    "name": "Mallagam"
+  },
+  {
+    "id": 917,
+    "name": "Manatkadu"
+  },
+  {
+    "id": 918,
+    "name": "Manipai"
+  },
+  {
+    "id": 919,
+    "name": "Manipay"
+  },
+  {
+    "id": 920,
+    "name": "Maniyanthoddam"
+  },
+  {
+    "id": 921,
+    "name": "Mankumpan"
+  },
+  {
+    "id": 922,
+    "name": "Manthikai"
+  },
+  {
+    "id": 923,
+    "name": "Maruthanarmadam"
+  },
+  {
+    "id": 924,
+    "name": "Mathagal"
+  },
+  {
+    "id": 925,
+    "name": "Mayeliti"
+  },
+  {
+    "id": 926,
+    "name": "Meesalai"
+  },
+  {
+    "id": 927,
+    "name": "Mirusuvil"
+  },
+  {
+    "id": 928,
+    "name": "Mukamalai"
+  },
+  {
+    "id": 929,
+    "name": "Myliddy"
+  },
+  {
+    "id": 930,
+    "name": "Nagarkovil"
+  },
+  {
+    "id": 931,
+    "name": "Nainathivu"
+  },
+  {
+    "id": 932,
+    "name": "Nallur"
+  },
+  {
+    "id": 933,
+    "name": "Navaladi"
+  },
+  {
+    "id": 934,
+    "name": "Navanthurai"
+  },
+  {
+    "id": 935,
+    "name": "Neduntheevu"
+  },
+  {
+    "id": 936,
+    "name": "Neervely"
+  },
+  {
+    "id": 937,
+    "name": "Nelliady"
+  },
+  {
+    "id": 938,
+    "name": "Nelliyadi"
+  },
+  {
+    "id": 939,
+    "name": "Nunavil"
+  },
+  {
+    "id": 940,
+    "name": "Palai ( Jaffna )"
+  },
+  {
+    "id": 941,
+    "name": "Palali"
+  },
+  {
+    "id": 942,
+    "name": "Pandatharippu"
+  },
+  {
+    "id": 943,
+    "name": "Pashayoor"
+  },
+  {
+    "id": 944,
+    "name": "Point Pedro"
+  },
+  {
+    "id": 945,
+    "name": "Polikandi"
+  },
+  {
+    "id": 946,
+    "name": "Puloly"
+  },
+  {
+    "id": 947,
+    "name": "Punkudutheevu"
+  },
+  {
+    "id": 948,
+    "name": "Punkudutivu"
+  },
+  {
+    "id": 949,
+    "name": "Punnalaikadduvan"
+  },
+  {
+    "id": 950,
+    "name": "Puttur"
+  },
+  {
+    "id": 951,
+    "name": "Sandilipai"
+  },
+  {
+    "id": 952,
+    "name": "Sillalai"
+  },
+  {
+    "id": 953,
+    "name": "Sirrupity"
+  },
+  {
+    "id": 954,
+    "name": "Siththankeny"
+  },
+  {
+    "id": 955,
+    "name": "Thaiyeddy"
+  },
+  {
+    "id": 956,
+    "name": "Thellipali"
+  },
+  {
+    "id": 957,
+    "name": "Therunelveeli"
+  },
+  {
+    "id": 958,
+    "name": "Thikkam"
+  },
+  {
+    "id": 959,
+    "name": "Thirunelvely"
+  },
+  {
+    "id": 960,
+    "name": "Thondaimanaru"
+  },
+  {
+    "id": 961,
+    "name": "Thumpalai"
+  },
+  {
+    "id": 962,
+    "name": "Uduppity"
+  },
+  {
+    "id": 963,
+    "name": "Urumpirai"
+  },
+  {
+    "id": 964,
+    "name": "Vaddukoddai"
+  },
+  {
+    "id": 965,
+    "name": "Valvettithurai"
+  },
+  {
+    "id": 966,
+    "name": "Velanai"
+  },
+  {
+    "id": 967,
+    "name": "Velvettithurai"
+  },
+  {
+    "id": 968,
+    "name": "Batuwatta"
+  },
+  {
+    "id": 969,
+    "name": "Ganemulla"
+  },
+  {
+    "id": 970,
+    "name": "Gonawala"
+  },
+  {
+    "id": 971,
+    "name": "Heiyanthuduwa"
+  },
+  {
+    "id": 972,
+    "name": "Kadawatha"
+  },
+  {
+    "id": 973,
+    "name": "Kelaniya"
+  },
+  {
+    "id": 974,
+    "name": "Kiribathgoda"
+  },
+  {
+    "id": 975,
+    "name": "Kirillawala"
+  },
+  {
+    "id": 976,
+    "name": "Mabima"
+  },
+  {
+    "id": 977,
+    "name": "Makola"
+  },
+  {
+    "id": 978,
+    "name": "Mawaramandiya"
+  },
+  {
+    "id": 979,
+    "name": "Pethiyagoda Kelaniya"
+  },
+  {
+    "id": 980,
+    "name": "Ragama"
+  },
+  {
+    "id": 981,
+    "name": "Sapugaskanda"
+  },
+  {
+    "id": 982,
+    "name": "Siyambalape"
+  },
+  {
+    "id": 983,
+    "name": "Arangala"
+  },
+  {
+    "id": 984,
+    "name": "Bandarawatta"
+  },
+  {
+    "id": 985,
+    "name": "Biyagama"
+  },
+  {
+    "id": 986,
+    "name": "Biyagama Ipz"
+  },
+  {
+    "id": 987,
+    "name": "Biyagama Town"
+  },
+  {
+    "id": 988,
+    "name": "Dedigamuwa"
+  },
+  {
+    "id": 989,
+    "name": "Ihala Bomiriya"
+  },
+  {
+    "id": 990,
+    "name": "Jalthara ( Hanwella )"
+  },
+  {
+    "id": 991,
+    "name": "Kaduwela"
+  },
+  {
+    "id": 992,
+    "name": "Kalani Mulla"
+  },
+  {
+    "id": 993,
+    "name": "Korathota"
+  },
+  {
+    "id": 994,
+    "name": "Malwana"
+  },
+  {
+    "id": 995,
+    "name": "Nawagamuwa ( Kaduwela )"
+  },
+  {
+    "id": 996,
+    "name": "Pahala Bomiriya"
+  },
+  {
+    "id": 997,
+    "name": "Ranala"
+  },
+  {
+    "id": 998,
+    "name": "Thalahena ( Malabe )"
+  },
+  {
+    "id": 999,
+    "name": "Walgama ( Kaduwela )"
+  },
+  {
+    "id": 1000,
+    "name": "Yatihena ( Kaduwela )"
+  },
+  {
+    "id": 1001,
+    "name": "Angoda"
+  },
+  {
+    "id": 1002,
+    "name": "Gothatuwa"
+  },
+  {
+    "id": 1003,
+    "name": "Himbutana"
+  },
+  {
+    "id": 1004,
+    "name": "Kohilawatta ( Angoda )"
+  },
+  {
+    "id": 1005,
+    "name": "Koswatta Malabe"
+  },
+  {
+    "id": 1006,
+    "name": "Kotikawatta"
+  },
+  {
+    "id": 1007,
+    "name": "Malabe"
+  },
+  {
+    "id": 1008,
+    "name": "Mulleriyawa"
+  },
+  {
+    "id": 1009,
+    "name": "Mulleriyawa New Town"
+  },
+  {
+    "id": 1010,
+    "name": "Wellampitiya"
+  },
+  {
+    "id": 1011,
+    "name": "Akarella"
+  },
+  {
+    "id": 1012,
+    "name": "Alpitiya ( Ratnapura )"
+  },
+  {
+    "id": 1013,
+    "name": "Andana"
+  },
+  {
+    "id": 1014,
+    "name": "Atakalanpanna"
+  },
+  {
+    "id": 1015,
+    "name": "Bungiriya"
+  },
+  {
+    "id": 1016,
+    "name": "Gabbela"
+  },
+  {
+    "id": 1017,
+    "name": "Godakawela"
+  },
+  {
+    "id": 1018,
+    "name": "Hapugastenna"
+  },
+  {
+    "id": 1019,
+    "name": "Haupe"
+  },
+  {
+    "id": 1020,
+    "name": "Hiramadagama"
+  },
+  {
+    "id": 1021,
+    "name": "Hunuwala"
+  },
+  {
+    "id": 1022,
+    "name": "Kahawatta"
+  },
+  {
+    "id": 1023,
+    "name": "Kajugaswatta"
+  },
+  {
+    "id": 1024,
+    "name": "Liyanekkanda"
+  },
+  {
+    "id": 1025,
+    "name": "Madampe (Ratnapura)"
+  },
+  {
+    "id": 1026,
+    "name": "Makandura (Ratnapura)"
+  },
+  {
+    "id": 1027,
+    "name": "Minumthalawa"
+  },
+  {
+    "id": 1028,
+    "name": "Nawinnapinnakanda"
+  },
+  {
+    "id": 1029,
+    "name": "Opanayaka"
+  },
+  {
+    "id": 1030,
+    "name": "Pelmadulla"
+  },
+  {
+    "id": 1031,
+    "name": "Pothupitiya ( Ratnapura )"
+  },
+  {
+    "id": 1032,
+    "name": "Rakwana"
+  },
+  {
+    "id": 1033,
+    "name": "Rambuka"
+  },
+  {
+    "id": 1034,
+    "name": "Ranwala"
+  },
+  {
+    "id": 1035,
+    "name": "Thanabela"
+  },
+  {
+    "id": 1036,
+    "name": "Udaha Hawupe"
+  },
+  {
+    "id": 1037,
+    "name": "Udahaupe"
+  },
+  {
+    "id": 1038,
+    "name": "Udawela Opanayaka"
+  },
+  {
+    "id": 1039,
+    "name": "Agalawatta"
+  },
+  {
+    "id": 1040,
+    "name": "Alutgama"
+  },
+  {
+    "id": 1041,
+    "name": "Aluthgama ( Kalutara )"
+  },
+  {
+    "id": 1042,
+    "name": "Aluthgama ( Galle )"
+  },
+  {
+    "id": 1043,
+    "name": "Baduraliya"
+  },
+  {
+    "id": 1044,
+    "name": "Bellana"
+  },
+  {
+    "id": 1045,
+    "name": "Beruwala"
+  },
+  {
+    "id": 1046,
+    "name": "Bolossagama"
+  },
+  {
+    "id": 1047,
+    "name": "Bombuwala"
+  },
+  {
+    "id": 1048,
+    "name": "Boralugoda"
+  },
+  {
+    "id": 1049,
+    "name": "Danawala Thiniyawala"
+  },
+  {
+    "id": 1050,
+    "name": "Dharga Town"
+  },
+  {
+    "id": 1051,
+    "name": "Delmella"
+  },
+  {
+    "id": 1052,
+    "name": "Diwalakada"
+  },
+  {
+    "id": 1053,
+    "name": "Dodangoda"
+  },
+  {
+    "id": 1054,
+    "name": "Dombagoda"
+  },
+  {
+    "id": 1055,
+    "name": "Galmaththa"
+  },
+  {
+    "id": 1056,
+    "name": "Gamagoda"
+  },
+  {
+    "id": 1057,
+    "name": "Gurulubadda"
+  },
+  {
+    "id": 1058,
+    "name": "Halkandawila"
+  },
+  {
+    "id": 1059,
+    "name": "Halwala"
+  },
+  {
+    "id": 1060,
+    "name": "Halwatura"
+  },
+  {
+    "id": 1061,
+    "name": "Hedigalla Colony"
+  },
+  {
+    "id": 1062,
+    "name": "Ittapana"
+  },
+  {
+    "id": 1063,
+    "name": "Kahawala"
+  },
+  {
+    "id": 1064,
+    "name": "Kalawila Kiranthidiya"
+  },
+  {
+    "id": 1065,
+    "name": "Kalutara"
+  },
+  {
+    "id": 1066,
+    "name": "Kalutara South"
+  },
+  {
+    "id": 1067,
+    "name": "Kandanagama"
+  },
+  {
+    "id": 1068,
+    "name": "Katukurunda (Kalutara)"
+  },
+  {
+    "id": 1069,
+    "name": "Kehelwatta"
+  },
+  {
+    "id": 1070,
+    "name": "Kelinkanda"
+  },
+  {
+    "id": 1071,
+    "name": "Kitulgoda"
+  },
+  {
+    "id": 1072,
+    "name": "Koholana"
+  },
+  {
+    "id": 1073,
+    "name": "Lathpandura"
+  },
+  {
+    "id": 1074,
+    "name": "Latpadura"
+  },
+  {
+    "id": 1075,
+    "name": "Maggona"
+  },
+  {
+    "id": 1076,
+    "name": "Mahagama"
+  },
+  {
+    "id": 1077,
+    "name": "Mahakalupahana"
+  },
+  {
+    "id": 1078,
+    "name": "Matugama"
+  },
+  {
+    "id": 1079,
+    "name": "Meegahatenna"
+  },
+  {
+    "id": 1080,
+    "name": "Meegama"
+  },
+  {
+    "id": 1081,
+    "name": "Miwanapalana"
+  },
+  {
+    "id": 1082,
+    "name": "Molkawa"
+  },
+  {
+    "id": 1083,
+    "name": "Morapitiya"
+  },
+  {
+    "id": 1084,
+    "name": "Naboda"
+  },
+  {
+    "id": 1085,
+    "name": "Nagoda (Kalutara)"
+  },
+  {
+    "id": 1086,
+    "name": "Nawattuduwa"
+  },
+  {
+    "id": 1087,
+    "name": "Neboda"
+  },
+  {
+    "id": 1088,
+    "name": "Padagoda"
+  },
+  {
+    "id": 1089,
+    "name": "Pahalahewessa"
+  },
+  {
+    "id": 1090,
+    "name": "Paiyagala"
+  },
+  {
+    "id": 1091,
+    "name": "Pannila"
+  },
+  {
+    "id": 1092,
+    "name": "Paraigama"
+  },
+  {
+    "id": 1093,
+    "name": "Payagala"
+  },
+  {
+    "id": 1094,
+    "name": "Pelanda"
+  },
+  {
+    "id": 1095,
+    "name": "Pelawatta ( Matugama )"
+  },
+  {
+    "id": 1096,
+    "name": "Polgampola"
+  },
+  {
+    "id": 1097,
+    "name": "Remunagoda"
+  },
+  {
+    "id": 1098,
+    "name": "Thebuwana"
+  },
+  {
+    "id": 1099,
+    "name": "Utumgama"
+  },
+  {
+    "id": 1100,
+    "name": "Veyangalla"
+  },
+  {
+    "id": 1101,
+    "name": "Walagedara"
+  },
+  {
+    "id": 1102,
+    "name": "Walallawita"
+  },
+  {
+    "id": 1103,
+    "name": "Warakagoda"
+  },
+  {
+    "id": 1104,
+    "name": "Welipenna"
+  },
+  {
+    "id": 1105,
+    "name": "Yagirala"
+  },
+  {
+    "id": 1106,
+    "name": "Yatadolawatta"
+  },
+  {
+    "id": 1107,
+    "name": "Adikarigama"
+  },
+  {
+    "id": 1108,
+    "name": "Akurana"
+  },
+  {
+    "id": 1109,
+    "name": "Alawatugoda"
+  },
+  {
+    "id": 1110,
+    "name": "Alawatuwala"
+  },
+  {
+    "id": 1111,
+    "name": "Ambatenna"
+  },
+  {
+    "id": 1112,
+    "name": "Ampitiya"
+  },
+  {
+    "id": 1113,
+    "name": "Ankumbura"
+  },
+  {
+    "id": 1114,
+    "name": "Ataragallewa"
+  },
+  {
+    "id": 1115,
+    "name": "Batugoda"
+  },
+  {
+    "id": 1116,
+    "name": "Bawlana"
+  },
+  {
+    "id": 1117,
+    "name": "Danthure"
+  },
+  {
+    "id": 1118,
+    "name": "Digana"
+  },
+  {
+    "id": 1119,
+    "name": "Dolapihilla"
+  },
+  {
+    "id": 1120,
+    "name": "Doragamuwa"
+  },
+  {
+    "id": 1121,
+    "name": "Dunuwila"
+  },
+  {
+    "id": 1122,
+    "name": "Ekiriya"
+  },
+  {
+    "id": 1123,
+    "name": "Elkaduwa"
+  },
+  {
+    "id": 1124,
+    "name": "Etulgama"
+  },
+  {
+    "id": 1125,
+    "name": "Galaboda"
+  },
+  {
+    "id": 1126,
+    "name": "Galagedara (Kandy)"
+  },
+  {
+    "id": 1127,
+    "name": "Galhinna"
+  },
+  {
+    "id": 1128,
+    "name": "Gallellagama"
+  },
+  {
+    "id": 1129,
+    "name": "Gangala Puwakpitiya"
+  },
+  {
+    "id": 1130,
+    "name": "Godamunna"
+  },
+  {
+    "id": 1131,
+    "name": "Gomagoda"
+  },
+  {
+    "id": 1132,
+    "name": "Gonagantenna"
+  },
+  {
+    "id": 1133,
+    "name": "Gonawalapatana"
+  },
+  {
+    "id": 1134,
+    "name": "Gunnepana"
+  },
+  {
+    "id": 1135,
+    "name": "Gurudeniya"
+  },
+  {
+    "id": 1136,
+    "name": "Halloluwa"
+  },
+  {
+    "id": 1137,
+    "name": "Handaganawa"
+  },
+  {
+    "id": 1138,
+    "name": "Handawalapitiya"
+  },
+  {
+    "id": 1139,
+    "name": "Hanguranketha"
+  },
+  {
+    "id": 1140,
+    "name": "Harankahawa"
+  },
+  {
+    "id": 1141,
+    "name": "Hataraliyadda"
+  },
+  {
+    "id": 1142,
+    "name": "Hewaheta"
+  },
+  {
+    "id": 1143,
+    "name": "Ihala Kobbekaduwa"
+  },
+  {
+    "id": 1144,
+    "name": "Jambugahapitiya"
+  },
+  {
+    "id": 1145,
+    "name": "Kadugannawa"
+  },
+  {
+    "id": 1146,
+    "name": "Kahatagastenna ( Kandy )"
+  },
+  {
+    "id": 1147,
+    "name": "Kalugala"
+  },
+  {
+    "id": 1148,
+    "name": "Kandy"
+  },
+  {
+    "id": 1149,
+    "name": "Kapuliyadde"
+  },
+  {
+    "id": 1150,
+    "name": "Katugastota"
+  },
+  {
+    "id": 1151,
+    "name": "Kengalla"
+  },
+  {
+    "id": 1152,
+    "name": "Ketakumbura"
+  },
+  {
+    "id": 1153,
+    "name": "Ketawala Leula"
+  },
+  {
+    "id": 1154,
+    "name": "Kiribathkumbura"
+  },
+  {
+    "id": 1155,
+    "name": "Kobonila"
+  },
+  {
+    "id": 1156,
+    "name": "Kolabissa"
+  },
+  {
+    "id": 1157,
+    "name": "Kulugammana"
+  },
+  {
+    "id": 1158,
+    "name": "Kumbukkandura"
+  },
+  {
+    "id": 1159,
+    "name": "Kumburegama"
+  },
+  {
+    "id": 1160,
+    "name": "Kundasale"
+  },
+  {
+    "id": 1161,
+    "name": "Lunuketiya Maditta"
+  },
+  {
+    "id": 1162,
+    "name": "Madawala Bazaar"
+  },
+  {
+    "id": 1163,
+    "name": "Madulkele"
+  },
+  {
+    "id": 1164,
+    "name": "Mahadoraliyadda"
+  },
+  {
+    "id": 1165,
+    "name": "Mahamedagama"
+  },
+  {
+    "id": 1166,
+    "name": "Mailapitiya"
+  },
+  {
+    "id": 1167,
+    "name": "Makkanigama"
+  },
+  {
+    "id": 1168,
+    "name": "Makuldeniya"
+  },
+  {
+    "id": 1169,
+    "name": "Marassana"
+  },
+  {
+    "id": 1170,
+    "name": "Medamahanuwara"
+  },
+  {
+    "id": 1171,
+    "name": "Medawala Harispattuwa"
+  },
+  {
+    "id": 1172,
+    "name": "Megoda Kalugamuwa"
+  },
+  {
+    "id": 1173,
+    "name": "Menikdiwela"
+  },
+  {
+    "id": 1174,
+    "name": "Menikhinna"
+  },
+  {
+    "id": 1175,
+    "name": "Minigamuwa"
+  },
+  {
+    "id": 1176,
+    "name": "Murutalawa"
+  },
+  {
+    "id": 1177,
+    "name": "Muruthalawa"
+  },
+  {
+    "id": 1178,
+    "name": "Naranpanawa"
+  },
+  {
+    "id": 1179,
+    "name": "Nattarampotha"
+  },
+  {
+    "id": 1180,
+    "name": "Nugaliyadda"
+  },
+  {
+    "id": 1181,
+    "name": "Nugawela"
+  },
+  {
+    "id": 1182,
+    "name": "Pallebowala"
+  },
+  {
+    "id": 1183,
+    "name": "Pallekale"
+  },
+  {
+    "id": 1184,
+    "name": "Pallekotuwa"
+  },
+  {
+    "id": 1185,
+    "name": "Panvila"
+  },
+  {
+    "id": 1186,
+    "name": "Pattiyawatta"
+  },
+  {
+    "id": 1187,
+    "name": "Peradeniya"
+  },
+  {
+    "id": 1188,
+    "name": "Pilawala"
+  },
+  {
+    "id": 1189,
+    "name": "Pilimathalawa"
+  },
+  {
+    "id": 1190,
+    "name": "Poholiyadda"
+  },
+  {
+    "id": 1191,
+    "name": "Polgolla"
+  },
+  {
+    "id": 1192,
+    "name": "Pujapitiya"
+  },
+  {
+    "id": 1193,
+    "name": "Putuhapuwa"
+  },
+  {
+    "id": 1194,
+    "name": "Rajawella"
+  },
+  {
+    "id": 1195,
+    "name": "Rambukwella"
+  },
+  {
+    "id": 1196,
+    "name": "Rangala"
+  },
+  {
+    "id": 1197,
+    "name": "Rathukohodigala"
+  },
+  {
+    "id": 1198,
+    "name": "Rikillagaskada"
+  },
+  {
+    "id": 1199,
+    "name": "Sangarajapura"
+  },
+  {
+    "id": 1200,
+    "name": "Senarathwela"
+  },
+  {
+    "id": 1201,
+    "name": "Thalathuoya"
+  },
+  {
+    "id": 1202,
+    "name": "Teldeniya"
+  },
+  {
+    "id": 1203,
+    "name": "Tennekumbura"
+  },
+  {
+    "id": 1204,
+    "name": "Uda Peradeniya"
+  },
+  {
+    "id": 1205,
+    "name": "Udahingulwala"
+  },
+  {
+    "id": 1206,
+    "name": "Udatalawinna"
+  },
+  {
+    "id": 1207,
+    "name": "Udispattuwa"
+  },
+  {
+    "id": 1208,
+    "name": "Uduwa"
+  },
+  {
+    "id": 1209,
+    "name": "Uduwahinna"
+  },
+  {
+    "id": 1210,
+    "name": "Uduwela"
+  },
+  {
+    "id": 1211,
+    "name": "Unuwinna"
+  },
+  {
+    "id": 1212,
+    "name": "Vilanagama"
+  },
+  {
+    "id": 1213,
+    "name": "Walala"
+  },
+  {
+    "id": 1214,
+    "name": "Watagoda Harispattuwa"
+  },
+  {
+    "id": 1215,
+    "name": "Wattegama"
+  },
+  {
+    "id": 1216,
+    "name": "Wendaruwa"
+  },
+  {
+    "id": 1217,
+    "name": "Werapitya"
+  },
+  {
+    "id": 1218,
+    "name": "Werellagama"
+  },
+  {
+    "id": 1219,
+    "name": "Wettawa"
+  },
+  {
+    "id": 1220,
+    "name": "Wilanagama"
+  },
+  {
+    "id": 1221,
+    "name": "Yahalatenna"
+  },
+  {
+    "id": 1222,
+    "name": "Yatihalagala"
+  },
+  {
+    "id": 1223,
+    "name": "Aguruwella"
+  },
+  {
+    "id": 1224,
+    "name": "Alawatura"
+  },
+  {
+    "id": 1225,
+    "name": "Alawwa"
+  },
+  {
+    "id": 1226,
+    "name": "Algama (Kegalle)"
+  },
+  {
+    "id": 1227,
+    "name": "Alutnuwara"
+  },
+  {
+    "id": 1228,
+    "name": "Ambalakanda"
+  },
+  {
+    "id": 1229,
+    "name": "Ambepussa"
+  },
+  {
+    "id": 1230,
+    "name": "Ambulugala"
+  },
+  {
+    "id": 1231,
+    "name": "Ampagala"
+  },
+  {
+    "id": 1232,
+    "name": "Anhettigama"
+  },
+  {
+    "id": 1233,
+    "name": "Aragoda"
+  },
+  {
+    "id": 1234,
+    "name": "Aranayaka"
+  },
+  {
+    "id": 1235,
+    "name": "Aruggammana"
+  },
+  {
+    "id": 1236,
+    "name": "Atale"
+  },
+  {
+    "id": 1237,
+    "name": "Balana"
+  },
+  {
+    "id": 1238,
+    "name": "Bandawa"
+  },
+  {
+    "id": 1239,
+    "name": "Batuwita"
+  },
+  {
+    "id": 1240,
+    "name": "Beligala(Sab)"
+  },
+  {
+    "id": 1241,
+    "name": "Berannawa"
+  },
+  {
+    "id": 1242,
+    "name": "Bopitiya (Kegalle)"
+  },
+  {
+    "id": 1243,
+    "name": "Boralankada"
+  },
+  {
+    "id": 1244,
+    "name": "Bossella"
+  },
+  {
+    "id": 1245,
+    "name": "Bujjomuwa"
+  },
+  {
+    "id": 1246,
+    "name": "Bulathkohupitiya"
+  },
+  {
+    "id": 1247,
+    "name": "Damunupola"
+  },
+  {
+    "id": 1248,
+    "name": "Debathgama"
+  },
+  {
+    "id": 1249,
+    "name": "Dedugala"
+  },
+  {
+    "id": 1250,
+    "name": "Dedunupitiya"
+  },
+  {
+    "id": 1251,
+    "name": "Deewala Pallegama"
+  },
+  {
+    "id": 1252,
+    "name": "Deldeniya"
+  },
+  {
+    "id": 1253,
+    "name": "Dewalegama"
+  },
+  {
+    "id": 1254,
+    "name": "Dewanagala"
+  },
+  {
+    "id": 1255,
+    "name": "Dombemada"
+  },
+  {
+    "id": 1256,
+    "name": "Dorawaka"
+  },
+  {
+    "id": 1257,
+    "name": "Dunumala"
+  },
+  {
+    "id": 1258,
+    "name": "Galapitamada"
+  },
+  {
+    "id": 1259,
+    "name": "Galatara"
+  },
+  {
+    "id": 1260,
+    "name": "Galigamuwa Town"
+  },
+  {
+    "id": 1261,
+    "name": "Galpatha(Kegalle)"
+  },
+  {
+    "id": 1262,
+    "name": "Ganthuna"
+  },
+  {
+    "id": 1263,
+    "name": "Gantuna"
+  },
+  {
+    "id": 1264,
+    "name": "Godawela"
+  },
+  {
+    "id": 1265,
+    "name": "Gonagala"
+  },
+  {
+    "id": 1266,
+    "name": "Hakahinna"
+  },
+  {
+    "id": 1267,
+    "name": "Hakbellawaka"
+  },
+  {
+    "id": 1268,
+    "name": "Helamada"
+  },
+  {
+    "id": 1269,
+    "name": "Hemmatagama"
+  },
+  {
+    "id": 1270,
+    "name": "Hettimulla"
+  },
+  {
+    "id": 1271,
+    "name": "Hewadiwela"
+  },
+  {
+    "id": 1272,
+    "name": "Hingula"
+  },
+  {
+    "id": 1273,
+    "name": "Hinguralakanda"
+  },
+  {
+    "id": 1274,
+    "name": "Hiriwadunna"
+  },
+  {
+    "id": 1275,
+    "name": "Humbuluwa"
+  },
+  {
+    "id": 1276,
+    "name": "Imbulana"
+  },
+  {
+    "id": 1277,
+    "name": "Imbulgasdeniya"
+  },
+  {
+    "id": 1278,
+    "name": "Iriyagolla"
+  },
+  {
+    "id": 1279,
+    "name": "Kabagamuwa"
+  },
+  {
+    "id": 1280,
+    "name": "Kannattota"
+  },
+  {
+    "id": 1281,
+    "name": "Kegalle"
+  },
+  {
+    "id": 1282,
+    "name": "Kehelpannala"
+  },
+  {
+    "id": 1283,
+    "name": "Keppitiwalana"
+  },
+  {
+    "id": 1284,
+    "name": "Kondeniya"
+  },
+  {
+    "id": 1285,
+    "name": "Kotiyakumbura"
+  },
+  {
+    "id": 1286,
+    "name": "Lewangama"
+  },
+  {
+    "id": 1287,
+    "name": "Mahapallegama"
+  },
+  {
+    "id": 1288,
+    "name": "Maharachchimulla"
+  },
+  {
+    "id": 1289,
+    "name": "Maharangalla"
+  },
+  {
+    "id": 1290,
+    "name": "Makehelwala"
+  },
+  {
+    "id": 1291,
+    "name": "Malmaduwa"
+  },
+  {
+    "id": 1292,
+    "name": "Matikubura"
+  },
+  {
+    "id": 1293,
+    "name": "Mawanella"
+  },
+  {
+    "id": 1294,
+    "name": "Metikumbura"
+  },
+  {
+    "id": 1295,
+    "name": "Migastenna Sabara"
+  },
+  {
+    "id": 1296,
+    "name": "Molagoda"
+  },
+  {
+    "id": 1297,
+    "name": "Morontota"
+  },
+  {
+    "id": 1298,
+    "name": "Nawatalwatta"
+  },
+  {
+    "id": 1299,
+    "name": "Nelumdeniya"
+  },
+  {
+    "id": 1300,
+    "name": "Nelundeniya"
+  },
+  {
+    "id": 1301,
+    "name": "Niyadurupola"
+  },
+  {
+    "id": 1302,
+    "name": "Panaliya"
+  },
+  {
+    "id": 1303,
+    "name": "Parape"
+  },
+  {
+    "id": 1304,
+    "name": "Pattampitiya"
+  },
+  {
+    "id": 1305,
+    "name": "Pitagaldeniya"
+  },
+  {
+    "id": 1306,
+    "name": "Polgahawela"
+  },
+  {
+    "id": 1307,
+    "name": "Pothukoladeniya"
+  },
+  {
+    "id": 1308,
+    "name": "Rambukkana"
+  },
+  {
+    "id": 1309,
+    "name": "Seaforth Colony"
+  },
+  {
+    "id": 1310,
+    "name": "Talawattegedara"
+  },
+  {
+    "id": 1311,
+    "name": "Talgaspitiya"
+  },
+  {
+    "id": 1312,
+    "name": "Tholangamuwa"
+  },
+  {
+    "id": 1313,
+    "name": "Thotawella"
+  },
+  {
+    "id": 1314,
+    "name": "Tulhiriya"
+  },
+  {
+    "id": 1315,
+    "name": "Tuntota"
+  },
+  {
+    "id": 1316,
+    "name": "Udagaldeniya"
+  },
+  {
+    "id": 1317,
+    "name": "Udapotha"
+  },
+  {
+    "id": 1318,
+    "name": "Udugoda"
+  },
+  {
+    "id": 1319,
+    "name": "Udumulla"
+  },
+  {
+    "id": 1320,
+    "name": "Undugoda"
+  },
+  {
+    "id": 1321,
+    "name": "Ussapitiya"
+  },
+  {
+    "id": 1322,
+    "name": "Wahakula"
+  },
+  {
+    "id": 1323,
+    "name": "Walakumbura"
+  },
+  {
+    "id": 1324,
+    "name": "Warakapola"
+  },
+  {
+    "id": 1325,
+    "name": "Watura"
+  },
+  {
+    "id": 1326,
+    "name": "Weeoya"
+  },
+  {
+    "id": 1327,
+    "name": "Wegalla"
+  },
+  {
+    "id": 1328,
+    "name": "Welihelatenna"
+  },
+  {
+    "id": 1329,
+    "name": "Yatagama"
+  },
+  {
+    "id": 1330,
+    "name": "Yatapana"
+  },
+  {
+    "id": 1331,
+    "name": "Yatigaloluwa"
+  },
+  {
+    "id": 1332,
+    "name": "Yattogoda"
+  },
+  {
+    "id": 1333,
+    "name": "Aaliyavalai"
+  },
+  {
+    "id": 1334,
+    "name": "Akkaravan Kulam"
+  },
+  {
+    "id": 1335,
+    "name": "Akkarayan Kulam"
+  },
+  {
+    "id": 1336,
+    "name": "Alampil"
+  },
+  {
+    "id": 1337,
+    "name": "Ambalkulam"
+  },
+  {
+    "id": 1338,
+    "name": "Ampalaperumal Kulam"
+  },
+  {
+    "id": 1339,
+    "name": "Anairavu"
+  },
+  {
+    "id": 1340,
+    "name": "Anaivilnthan"
+  },
+  {
+    "id": 1341,
+    "name": "Ananthampannai"
+  },
+  {
+    "id": 1342,
+    "name": "Barathipuram"
+  },
+  {
+    "id": 1343,
+    "name": "Champianpattu"
+  },
+  {
+    "id": 1344,
+    "name": "Chempianpattu"
+  },
+  {
+    "id": 1345,
+    "name": "Chundikulam"
+  },
+  {
+    "id": 1346,
+    "name": "D5"
+  },
+  {
+    "id": 1347,
+    "name": "D-5 Unit"
+  },
+  {
+    "id": 1348,
+    "name": "D6"
+  },
+  {
+    "id": 1349,
+    "name": "D7"
+  },
+  {
+    "id": 1350,
+    "name": "Elephantpass"
+  },
+  {
+    "id": 1351,
+    "name": "Eranaimadu"
+  },
+  {
+    "id": 1352,
+    "name": "Iranaimadu"
+  },
+  {
+    "id": 1353,
+    "name": "Iyakachchi"
+  },
+  {
+    "id": 1354,
+    "name": "Iyyakachchi"
+  },
+  {
+    "id": 1355,
+    "name": "Jenthinagar"
+  },
+  {
+    "id": 1356,
+    "name": "Jepuram"
+  },
+  {
+    "id": 1357,
+    "name": "Jeyanthinagar North"
+  },
+  {
+    "id": 1358,
+    "name": "Jeyanthinagar South"
+  },
+  {
+    "id": 1359,
+    "name": "Kachcheriyady"
+  },
+  {
+    "id": 1360,
+    "name": "Kaddaykadu"
+  },
+  {
+    "id": 1361,
+    "name": "Kaddukkulam"
+  },
+  {
+    "id": 1362,
+    "name": "Kalvilankulam"
+  },
+  {
+    "id": 1363,
+    "name": "Kanagampigaikulam"
+  },
+  {
+    "id": 1364,
+    "name": "Kanagampikaikulam"
+  },
+  {
+    "id": 1365,
+    "name": "Kanagapuram"
+  },
+  {
+    "id": 1366,
+    "name": "Kanchipuram"
+  },
+  {
+    "id": 1367,
+    "name": "Kandavalai"
+  },
+  {
+    "id": 1368,
+    "name": "Kaneshapuram"
+  },
+  {
+    "id": 1369,
+    "name": "Kannan Kovilady"
+  },
+  {
+    "id": 1370,
+    "name": "Karadippokku"
+  },
+  {
+    "id": 1371,
+    "name": "Karipaddamurippu"
+  },
+  {
+    "id": 1372,
+    "name": "Kattaikadu"
+  },
+  {
+    "id": 1373,
+    "name": "Kilinochchi Town"
+  },
+  {
+    "id": 1374,
+    "name": "Killuvilankulam"
+  },
+  {
+    "id": 1375,
+    "name": "Kiramiya Vistharipputhiddam"
+  },
+  {
+    "id": 1376,
+    "name": "Kirishnapuram"
+  },
+  {
+    "id": 1377,
+    "name": "Kokkavil"
+  },
+  {
+    "id": 1378,
+    "name": "Koklai"
+  },
+  {
+    "id": 1379,
+    "name": "Kooddakaddikulam"
+  },
+  {
+    "id": 1380,
+    "name": "Korakkankadhu"
+  },
+  {
+    "id": 1381,
+    "name": "Koramoddai"
+  },
+  {
+    "id": 1382,
+    "name": "Kovavil"
+  },
+  {
+    "id": 1383,
+    "name": "Kudimaththi"
+  },
+  {
+    "id": 1384,
+    "name": "Kumarapuram"
+  },
+  {
+    "id": 1385,
+    "name": "Kunsupparanthan"
+  },
+  {
+    "id": 1386,
+    "name": "Magalirthiddam"
+  },
+  {
+    "id": 1387,
+    "name": "Malayalapuram"
+  },
+  {
+    "id": 1388,
+    "name": "Mallavi"
+  },
+  {
+    "id": 1389,
+    "name": "Mankulam"
+  },
+  {
+    "id": 1390,
+    "name": "Marudankeny"
+  },
+  {
+    "id": 1391,
+    "name": "Maruthanagar"
+  },
+  {
+    "id": 1392,
+    "name": "Mukaththuvaram"
+  },
+  {
+    "id": 1393,
+    "name": "Mulankavil"
+  },
+  {
+    "id": 1394,
+    "name": "Mullaitivu"
+  },
+  {
+    "id": 1395,
+    "name": "Mullativu"
+  },
+  {
+    "id": 1396,
+    "name": "Mullijan"
+  },
+  {
+    "id": 1397,
+    "name": "Mullijavalai"
+  },
+  {
+    "id": 1398,
+    "name": "Murasumoddai"
+  },
+  {
+    "id": 1399,
+    "name": "Murippu"
+  },
+  {
+    "id": 1400,
+    "name": "Murukandy"
+  },
+  {
+    "id": 1401,
+    "name": "Naddankandal"
+  },
+  {
+    "id": 1402,
+    "name": "Naddnkandal"
+  },
+  {
+    "id": 1403,
+    "name": "Navatkoddiyan"
+  },
+  {
+    "id": 1404,
+    "name": "Nayaru"
+  },
+  {
+    "id": 1405,
+    "name": "Nivil"
+  },
+  {
+    "id": 1406,
+    "name": "Oddisuddan"
+  },
+  {
+    "id": 1407,
+    "name": "Olimadu"
+  },
+  {
+    "id": 1408,
+    "name": "Pachchipalai"
+  },
+  {
+    "id": 1409,
+    "name": "Palai ( Kilinochchi )"
+  },
+  {
+    "id": 1410,
+    "name": "Pandiankulam"
+  },
+  {
+    "id": 1411,
+    "name": "Pannankandy"
+  },
+  {
+    "id": 1412,
+    "name": "Panrimoddai"
+  },
+  {
+    "id": 1413,
+    "name": "Paranthan"
+  },
+  {
+    "id": 1414,
+    "name": "Paranthan Town"
+  },
+  {
+    "id": 1415,
+    "name": "Paranthankuda Kumarikuda"
+  },
+  {
+    "id": 1416,
+    "name": "Paravippanchan"
+  },
+  {
+    "id": 1417,
+    "name": "Periyathivu"
+  },
+  {
+    "id": 1418,
+    "name": "Pillaimadam"
+  },
+  {
+    "id": 1419,
+    "name": "Poonagary"
+  },
+  {
+    "id": 1420,
+    "name": "Poonakary"
+  },
+  {
+    "id": 1421,
+    "name": "Porikkadavai"
+  },
+  {
+    "id": 1422,
+    "name": "Punarin"
+  },
+  {
+    "id": 1423,
+    "name": "Pungavanam Junction"
+  },
+  {
+    "id": 1424,
+    "name": "Puthukudiruppu"
+  },
+  {
+    "id": 1425,
+    "name": "Puthukudiyiruppu"
+  },
+  {
+    "id": 1426,
+    "name": "Ramanathankamam"
+  },
+  {
+    "id": 1427,
+    "name": "Rasayanapuram"
+  },
+  {
+    "id": 1428,
+    "name": "Raththinapuram"
+  },
+  {
+    "id": 1429,
+    "name": "Raththnapuram"
+  },
+  {
+    "id": 1430,
+    "name": "Ratnampannai"
+  },
+  {
+    "id": 1431,
+    "name": "Sakthipuram (Ellukkadu)"
+  },
+  {
+    "id": 1432,
+    "name": "Santhapuram"
+  },
+  {
+    "id": 1433,
+    "name": "Scheme I"
+  },
+  {
+    "id": 1434,
+    "name": "Scheme Ii"
+  },
+  {
+    "id": 1435,
+    "name": "Selvanagar"
+  },
+  {
+    "id": 1436,
+    "name": "Serugan"
+  },
+  {
+    "id": 1437,
+    "name": "Sevis Road"
+  },
+  {
+    "id": 1438,
+    "name": "Silvapuram"
+  },
+  {
+    "id": 1439,
+    "name": "Sivapuram (Kilinochchi)"
+  },
+  {
+    "id": 1440,
+    "name": "Skanthapuram"
+  },
+  {
+    "id": 1441,
+    "name": "Thadduvankoddy"
+  },
+  {
+    "id": 1442,
+    "name": "Thalaiady"
+  },
+  {
+    "id": 1443,
+    "name": "Thalayadi"
+  },
+  {
+    "id": 1444,
+    "name": "Thaneeroottu"
+  },
+  {
+    "id": 1445,
+    "name": "Tharmapuram"
+  },
+  {
+    "id": 1446,
+    "name": "Theniyankulam"
+  },
+  {
+    "id": 1447,
+    "name": "Thennampillai Farm"
+  },
+  {
+    "id": 1448,
+    "name": "Thevipuram"
+  },
+  {
+    "id": 1449,
+    "name": "Thimelamadam"
+  },
+  {
+    "id": 1450,
+    "name": "Thirunagar"
+  },
+  {
+    "id": 1451,
+    "name": "Thirunagar North"
+  },
+  {
+    "id": 1452,
+    "name": "Thirunagar South"
+  },
+  {
+    "id": 1453,
+    "name": "Thiruvaiyaru 1St Unit"
+  },
+  {
+    "id": 1454,
+    "name": "Thiruvaiyaru 3"
+  },
+  {
+    "id": 1455,
+    "name": "Thiruvaiyaru West"
+  },
+  {
+    "id": 1456,
+    "name": "Thiruyaijar"
+  },
+  {
+    "id": 1457,
+    "name": "Thiruyaru"
+  },
+  {
+    "id": 1458,
+    "name": "Thondamanagar"
+  },
+  {
+    "id": 1459,
+    "name": "Thunukkai"
+  },
+  {
+    "id": 1460,
+    "name": "Udaiyarkaddu"
+  },
+  {
+    "id": 1461,
+    "name": "Uduthurai"
+  },
+  {
+    "id": 1462,
+    "name": "Ulakkaiyanthivu"
+  },
+  {
+    "id": 1463,
+    "name": "Umaiyalpuram"
+  },
+  {
+    "id": 1464,
+    "name": "Uppalam"
+  },
+  {
+    "id": 1465,
+    "name": "Upparu"
+  },
+  {
+    "id": 1466,
+    "name": "Uriyan West"
+  },
+  {
+    "id": 1467,
+    "name": "Uruthirapuram D-8"
+  },
+  {
+    "id": 1468,
+    "name": "Uruthirapurisvaram"
+  },
+  {
+    "id": 1469,
+    "name": "Uthayanagar"
+  },
+  {
+    "id": 1470,
+    "name": "Uttupulam"
+  },
+  {
+    "id": 1471,
+    "name": "Vaddakachchi"
+  },
+  {
+    "id": 1472,
+    "name": "Vallipunam"
+  },
+  {
+    "id": 1473,
+    "name": "Vannery"
+  },
+  {
+    "id": 1474,
+    "name": "Vattapalai"
+  },
+  {
+    "id": 1475,
+    "name": "Vavunikulam"
+  },
+  {
+    "id": 1476,
+    "name": "Veddukkaddai"
+  },
+  {
+    "id": 1477,
+    "name": "Vilavodai"
+  },
+  {
+    "id": 1478,
+    "name": "Vilsan Road"
+  },
+  {
+    "id": 1479,
+    "name": "Vinajagapuram"
+  },
+  {
+    "id": 1480,
+    "name": "Visuvamadu"
+  },
+  {
+    "id": 1481,
+    "name": "Visvamadu"
+  },
+  {
+    "id": 1482,
+    "name": "Vivwgananthanagar"
+  },
+  {
+    "id": 1483,
+    "name": "Colombo 03"
+  },
+  {
+    "id": 1484,
+    "name": "Colombo 04"
+  },
+  {
+    "id": 1485,
+    "name": "Colombo 05"
+  },
+  {
+    "id": 1486,
+    "name": "Colombo 06"
+  },
+  {
+    "id": 1487,
+    "name": "Narahenpita"
+  },
+  {
+    "id": 1488,
+    "name": "Attidiya"
+  },
+  {
+    "id": 1489,
+    "name": "Bellantara"
+  },
+  {
+    "id": 1490,
+    "name": "Boralesgamuwa"
+  },
+  {
+    "id": 1491,
+    "name": "Dehiwala"
+  },
+  {
+    "id": 1492,
+    "name": "Delkanda"
+  },
+  {
+    "id": 1493,
+    "name": "Embuldeniya"
+  },
+  {
+    "id": 1494,
+    "name": "Ethul Kotte"
+  },
+  {
+    "id": 1495,
+    "name": "Gangodawila"
+  },
+  {
+    "id": 1496,
+    "name": "Gongodawila"
+  },
+  {
+    "id": 1497,
+    "name": "Kalubowila"
+  },
+  {
+    "id": 1498,
+    "name": "Karagampitiya"
+  },
+  {
+    "id": 1499,
+    "name": "Kohuwala"
+  },
+  {
+    "id": 1500,
+    "name": "Kotte"
+  },
+  {
+    "id": 1501,
+    "name": "Madiwela"
+  },
+  {
+    "id": 1502,
+    "name": "Maharagama"
+  },
+  {
+    "id": 1503,
+    "name": "Mount Lavinia"
+  },
+  {
+    "id": 1504,
+    "name": "Nawala"
+  },
+  {
+    "id": 1505,
+    "name": "Nugegoda"
+  },
+  {
+    "id": 1506,
+    "name": "Pita Kotte"
+  },
+  {
+    "id": 1507,
+    "name": "Polhengoda"
+  },
+  {
+    "id": 1508,
+    "name": "Sri Jayawardenepura"
+  },
+  {
+    "id": 1509,
+    "name": "Wijerama"
+  },
+  {
+    "id": 1510,
+    "name": "Athurugiriya"
+  },
+  {
+    "id": 1511,
+    "name": "Diyagama (Homagama)"
+  },
+  {
+    "id": 1512,
+    "name": "Godagama (Homagama)"
+  },
+  {
+    "id": 1513,
+    "name": "Habarakada"
+  },
+  {
+    "id": 1514,
+    "name": "Hiripitiya (Homagama )"
+  },
+  {
+    "id": 1515,
+    "name": "Hiripitiya (Kottawa)"
+  },
+  {
+    "id": 1516,
+    "name": "Hokandara"
+  },
+  {
+    "id": 1517,
+    "name": "Homagama"
+  },
+  {
+    "id": 1518,
+    "name": "Kiriwattuduwa"
+  },
+  {
+    "id": 1519,
+    "name": "Kottawa"
+  },
+  {
+    "id": 1520,
+    "name": "Mattegoda"
+  },
+  {
+    "id": 1521,
+    "name": "Meegoda"
+  },
+  {
+    "id": 1522,
+    "name": "Panagoda ( Homagama )"
+  },
+  {
+    "id": 1523,
+    "name": "Pannipitiya"
+  },
+  {
+    "id": 1524,
+    "name": "Pitipana Homagama"
+  },
+  {
+    "id": 1525,
+    "name": "Rukmale"
+  },
+  {
+    "id": 1526,
+    "name": "Rukmalgama"
+  },
+  {
+    "id": 1527,
+    "name": "Battaramulla"
+  },
+  {
+    "id": 1528,
+    "name": "Battaramulla Koswatta"
+  },
+  {
+    "id": 1529,
+    "name": "Pelawatta ( Battaramulla )"
+  },
+  {
+    "id": 1530,
+    "name": "Thalawathugoda"
+  },
+  {
+    "id": 1531,
+    "name": "Alahitiyawa"
+  },
+  {
+    "id": 1532,
+    "name": "Anukkane"
+  },
+  {
+    "id": 1533,
+    "name": "Bammanna"
+  },
+  {
+    "id": 1534,
+    "name": "Barampola"
+  },
+  {
+    "id": 1535,
+    "name": "Bingiriya"
+  },
+  {
+    "id": 1536,
+    "name": "Bogamulla"
+  },
+  {
+    "id": 1537,
+    "name": "Bowaththa"
+  },
+  {
+    "id": 1538,
+    "name": "Dangolla"
+  },
+  {
+    "id": 1539,
+    "name": "Deegalla"
+  },
+  {
+    "id": 1540,
+    "name": "Dekirikewa"
+  },
+  {
+    "id": 1541,
+    "name": "Detawa,Narammala"
+  },
+  {
+    "id": 1542,
+    "name": "Dummalasuriya"
+  },
+  {
+    "id": 1543,
+    "name": "Etungahakotuwa"
+  },
+  {
+    "id": 1544,
+    "name": "Galhemulla"
+  },
+  {
+    "id": 1545,
+    "name": "Giratalana"
+  },
+  {
+    "id": 1546,
+    "name": "Girathalana"
+  },
+  {
+    "id": 1547,
+    "name": "Halmillawewa"
+  },
+  {
+    "id": 1548,
+    "name": "Hettipola (Kurunegala)"
+  },
+  {
+    "id": 1549,
+    "name": "Hiruwalpola"
+  },
+  {
+    "id": 1550,
+    "name": "Hlmillawewa"
+  },
+  {
+    "id": 1551,
+    "name": "Horambawa"
+  },
+  {
+    "id": 1552,
+    "name": "Horathapola"
+  },
+  {
+    "id": 1553,
+    "name": "Horombawa"
+  },
+  {
+    "id": 1554,
+    "name": "Ihala Gomugomuwa"
+  },
+  {
+    "id": 1555,
+    "name": "Ihala Kadigamuwa"
+  },
+  {
+    "id": 1556,
+    "name": "Ilippugamuwa"
+  },
+  {
+    "id": 1557,
+    "name": "Ilukhena"
+  },
+  {
+    "id": 1558,
+    "name": "Kadahapola"
+  },
+  {
+    "id": 1559,
+    "name": "Kadigamuwa"
+  },
+  {
+    "id": 1560,
+    "name": "Kakunugoolla"
+  },
+  {
+    "id": 1561,
+    "name": "Kamburugoda"
+  },
+  {
+    "id": 1562,
+    "name": "Karagahagedara"
+  },
+  {
+    "id": 1563,
+    "name": "Karagahagedara,Narammala"
+  },
+  {
+    "id": 1564,
+    "name": "Katupota"
+  },
+  {
+    "id": 1565,
+    "name": "Kawdumunna"
+  },
+  {
+    "id": 1566,
+    "name": "Kirimetiyawa"
+  },
+  {
+    "id": 1567,
+    "name": "Kirindawa"
+  },
+  {
+    "id": 1568,
+    "name": "Kithalawa"
+  },
+  {
+    "id": 1569,
+    "name": "Kosdeniya"
+  },
+  {
+    "id": 1570,
+    "name": "Kuliyapitiya"
+  },
+  {
+    "id": 1571,
+    "name": "Llukhena"
+  },
+  {
+    "id": 1572,
+    "name": "Lukhena"
+  },
+  {
+    "id": 1573,
+    "name": "Madakumburumulla"
+  },
+  {
+    "id": 1574,
+    "name": "Magulagama"
+  },
+  {
+    "id": 1575,
+    "name": "Malagane"
+  },
+  {
+    "id": 1576,
+    "name": "Mandapola"
+  },
+  {
+    "id": 1577,
+    "name": "Moonamaldeniya"
+  },
+  {
+    "id": 1578,
+    "name": "Moragane"
+  },
+  {
+    "id": 1579,
+    "name": "Munamaldeniya"
+  },
+  {
+    "id": 1580,
+    "name": "Muruthenge"
+  },
+  {
+    "id": 1581,
+    "name": "Nagollagoda"
+  },
+  {
+    "id": 1582,
+    "name": "Nakkawatta"
+  },
+  {
+    "id": 1583,
+    "name": "Narangala ( Kuliyapitiya )"
+  },
+  {
+    "id": 1584,
+    "name": "Nawasigawatha"
+  },
+  {
+    "id": 1585,
+    "name": "Padiwela"
+  },
+  {
+    "id": 1586,
+    "name": "Pahamune"
+  },
+  {
+    "id": 1587,
+    "name": "Panawita,Narammala"
+  },
+  {
+    "id": 1588,
+    "name": "Panduwasnuwara"
+  },
+  {
+    "id": 1589,
+    "name": "Pihimbiya Ratmale"
+  },
+  {
+    "id": 1590,
+    "name": "Siyabalagaskotuwa"
+  },
+  {
+    "id": 1591,
+    "name": "Sunandapura"
+  },
+  {
+    "id": 1592,
+    "name": "Thalahitimulla"
+  },
+  {
+    "id": 1593,
+    "name": "Tharana Udawela"
+  },
+  {
+    "id": 1594,
+    "name": "Thisogama"
+  },
+  {
+    "id": 1595,
+    "name": "Tisogama (kuliyapitiya)"
+  },
+  {
+    "id": 1596,
+    "name": "Tuttiripitigama"
+  },
+  {
+    "id": 1597,
+    "name": "Udubaddawa"
+  },
+  {
+    "id": 1598,
+    "name": "Wadumunnegedara"
+  },
+  {
+    "id": 1599,
+    "name": "Walakumburumulla"
+  },
+  {
+    "id": 1600,
+    "name": "Weerapokuna"
+  },
+  {
+    "id": 1601,
+    "name": "Welawa Juncton"
+  },
+  {
+    "id": 1602,
+    "name": "Welipennagahamulla"
+  },
+  {
+    "id": 1603,
+    "name": "Wewagama"
+  },
+  {
+    "id": 1604,
+    "name": "Yakwila"
+  },
+  {
+    "id": 1605,
+    "name": "Narammala"
+  },
+  {
+    "id": 1606,
+    "name": "Dambadeniya"
+  },
+  {
+    "id": 1607,
+    "name": "Giriulla"
+  },
+  {
+    "id": 1608,
+    "name": "Ambakote"
+  },
+  {
+    "id": 1609,
+    "name": "Anhandiya"
+  },
+  {
+    "id": 1610,
+    "name": "Baladora"
+  },
+  {
+    "id": 1611,
+    "name": "Bamunukotuwa"
+  },
+  {
+    "id": 1612,
+    "name": "Bandara Koswatta"
+  },
+  {
+    "id": 1613,
+    "name": "Boyagane"
+  },
+  {
+    "id": 1614,
+    "name": "Buluwala"
+  },
+  {
+    "id": 1615,
+    "name": "Deekirikewa"
+  },
+  {
+    "id": 1616,
+    "name": "Delwita"
+  },
+  {
+    "id": 1617,
+    "name": "Lenawa"
+  },
+  {
+    "id": 1618,
+    "name": "Demataluwa"
+  },
+  {
+    "id": 1619,
+    "name": "Diddeniya"
+  },
+  {
+    "id": 1620,
+    "name": "Dodangaslanda"
+  },
+  {
+    "id": 1621,
+    "name": "Doratiyawa"
+  },
+  {
+    "id": 1622,
+    "name": "Ganewatta"
+  },
+  {
+    "id": 1623,
+    "name": "Gatulawa"
+  },
+  {
+    "id": 1624,
+    "name": "Gokaralla"
+  },
+  {
+    "id": 1625,
+    "name": "Madagalla (Ibbagamuwa)"
+  },
+  {
+    "id": 1626,
+    "name": "Hamillakotuwa"
+  },
+  {
+    "id": 1627,
+    "name": "Henagamuwa"
+  },
+  {
+    "id": 1628,
+    "name": "Hindagolla"
+  },
+  {
+    "id": 1629,
+    "name": "Hiriyala Lenawa"
+  },
+  {
+    "id": 1630,
+    "name": "Hulugalla"
+  },
+  {
+    "id": 1631,
+    "name": "Hunupola"
+  },
+  {
+    "id": 1632,
+    "name": "Ibbagamuwa"
+  },
+  {
+    "id": 1633,
+    "name": "Indulgodakanda"
+  },
+  {
+    "id": 1634,
+    "name": "Inguruwatta"
+  },
+  {
+    "id": 1635,
+    "name": "Ithanawatta"
+  },
+  {
+    "id": 1636,
+    "name": "Kahapathwala"
+  },
+  {
+    "id": 1637,
+    "name": "Kalugamuwa"
+  },
+  {
+    "id": 1638,
+    "name": "Kanadeniyawala"
+  },
+  {
+    "id": 1639,
+    "name": "Kanattewewa"
+  },
+  {
+    "id": 1640,
+    "name": "Katiyawa"
+  },
+  {
+    "id": 1641,
+    "name": "Kekunagolla"
+  },
+  {
+    "id": 1642,
+    "name": "Kimbulwanaoya"
+  },
+  {
+    "id": 1643,
+    "name": "Kirindigalla"
+  },
+  {
+    "id": 1644,
+    "name": "Kohilagedara"
+  },
+  {
+    "id": 1645,
+    "name": "Kosgolla"
+  },
+  {
+    "id": 1646,
+    "name": "Kudagalgamuwa"
+  },
+  {
+    "id": 1647,
+    "name": "Kumbukgeta"
+  },
+  {
+    "id": 1648,
+    "name": "Kumbukwewa"
+  },
+  {
+    "id": 1649,
+    "name": "Kurunegala"
+  },
+  {
+    "id": 1650,
+    "name": "Pangolla (Ibbagamuwa)"
+  },
+  {
+    "id": 1651,
+    "name": "Lonahettiya"
+  },
+  {
+    "id": 1652,
+    "name": "Madahapola"
+  },
+  {
+    "id": 1653,
+    "name": "Maduragoda"
+  },
+  {
+    "id": 1654,
+    "name": "Mahamukalanyaya"
+  },
+  {
+    "id": 1655,
+    "name": "Makulewa"
+  },
+  {
+    "id": 1656,
+    "name": "Makulwewa"
+  },
+  {
+    "id": 1657,
+    "name": "Mallawapitiya"
+  },
+  {
+    "id": 1658,
+    "name": "Maspotha"
+  },
+  {
+    "id": 1659,
+    "name": "Mawathagama"
+  },
+  {
+    "id": 1660,
+    "name": "Medivawa"
+  },
+  {
+    "id": 1661,
+    "name": "Meetanwala"
+  },
+  {
+    "id": 1662,
+    "name": "Melsiripura"
+  },
+  {
+    "id": 1663,
+    "name": "Minhettiya"
+  },
+  {
+    "id": 1664,
+    "name": "Morathiha"
+  },
+  {
+    "id": 1665,
+    "name": "Nelliya"
+  },
+  {
+    "id": 1666,
+    "name": "Nikadalupotha"
+  },
+  {
+    "id": 1667,
+    "name": "Panadaragama"
+  },
+  {
+    "id": 1668,
+    "name": "Panagamuwa"
+  },
+  {
+    "id": 1669,
+    "name": "Panliyadda"
+  },
+  {
+    "id": 1670,
+    "name": "Pansiyagama"
+  },
+  {
+    "id": 1671,
+    "name": "Panwewa"
+  },
+  {
+    "id": 1672,
+    "name": "Periyakadneluwa"
+  },
+  {
+    "id": 1673,
+    "name": "Pihimbuwa"
+  },
+  {
+    "id": 1674,
+    "name": "Pilessa"
+  },
+  {
+    "id": 1675,
+    "name": "Pothuhera"
+  },
+  {
+    "id": 1676,
+    "name": "Puswelitenna"
+  },
+  {
+    "id": 1677,
+    "name": "Ridigama"
+  },
+  {
+    "id": 1678,
+    "name": "Thalwita"
+  },
+  {
+    "id": 1679,
+    "name": "Thambagalla"
+  },
+  {
+    "id": 1680,
+    "name": "Thorayaya"
+  },
+  {
+    "id": 1681,
+    "name": "Uhumiya"
+  },
+  {
+    "id": 1682,
+    "name": "Ulpotha Pallekele"
+  },
+  {
+    "id": 1683,
+    "name": "Wadakada"
+  },
+  {
+    "id": 1684,
+    "name": "Wariyapola"
+  },
+  {
+    "id": 1685,
+    "name": "Watuwatta"
+  },
+  {
+    "id": 1686,
+    "name": "Wellagala"
+  },
+  {
+    "id": 1687,
+    "name": "Wellawa"
+  },
+  {
+    "id": 1688,
+    "name": "Wennoruwa"
+  },
+  {
+    "id": 1689,
+    "name": "Weuda"
+  },
+  {
+    "id": 1690,
+    "name": "Withikuliya"
+  },
+  {
+    "id": 1691,
+    "name": "Yakadapotha"
+  },
+  {
+    "id": 1692,
+    "name": "Aluketiyawa"
+  },
+  {
+    "id": 1693,
+    "name": "Aluttaramma"
+  },
+  {
+    "id": 1694,
+    "name": "Ambagahapelessa"
+  },
+  {
+    "id": 1695,
+    "name": "Arawakumbura"
+  },
+  {
+    "id": 1696,
+    "name": "Arawatta"
+  },
+  {
+    "id": 1697,
+    "name": "Bakinigahawela"
+  },
+  {
+    "id": 1698,
+    "name": "Barawardhana Oya"
+  },
+  {
+    "id": 1699,
+    "name": "Bathalayaya"
+  },
+  {
+    "id": 1700,
+    "name": "Batumulla"
+  },
+  {
+    "id": 1701,
+    "name": "Bibile"
+  },
+  {
+    "id": 1702,
+    "name": "Bopana"
+  },
+  {
+    "id": 1703,
+    "name": "Dambana"
+  },
+  {
+    "id": 1704,
+    "name": "Devagiriya"
+  },
+  {
+    "id": 1705,
+    "name": "Divulapelessa"
+  },
+  {
+    "id": 1706,
+    "name": "Diyakobala"
+  },
+  {
+    "id": 1707,
+    "name": "Galporuyaya"
+  },
+  {
+    "id": 1708,
+    "name": "Girandurukotte"
+  },
+  {
+    "id": 1709,
+    "name": "Hadungamuwa"
+  },
+  {
+    "id": 1710,
+    "name": "Handungamuwa"
+  },
+  {
+    "id": 1711,
+    "name": "Hasalaka"
+  },
+  {
+    "id": 1712,
+    "name": "Hebarawa"
+  },
+  {
+    "id": 1713,
+    "name": "Hettipola (Matale)"
+  },
+  {
+    "id": 1714,
+    "name": "Hunnasgiriya"
+  },
+  {
+    "id": 1715,
+    "name": "Kahataliyadda"
+  },
+  {
+    "id": 1716,
+    "name": "Keselpotha"
+  },
+  {
+    "id": 1717,
+    "name": "Kolongoda"
+  },
+  {
+    "id": 1718,
+    "name": "Kuruwitenna"
+  },
+  {
+    "id": 1719,
+    "name": "Laggala"
+  },
+  {
+    "id": 1720,
+    "name": "Laggala Pallegama"
+  },
+  {
+    "id": 1721,
+    "name": "Lllagolla"
+  },
+  {
+    "id": 1722,
+    "name": "Ma Oya Kalugaga"
+  },
+  {
+    "id": 1723,
+    "name": "Madugalla"
+  },
+  {
+    "id": 1724,
+    "name": "Mahiyanganaya"
+  },
+  {
+    "id": 1725,
+    "name": "Mapakadawewa"
+  },
+  {
+    "id": 1726,
+    "name": "Maraka"
+  },
+  {
+    "id": 1727,
+    "name": "Medagama Bibila (Badulla District)"
+  },
+  {
+    "id": 1728,
+    "name": "Meemure"
+  },
+  {
+    "id": 1729,
+    "name": "Mimure"
+  },
+  {
+    "id": 1730,
+    "name": "Minipe"
+  },
+  {
+    "id": 1731,
+    "name": "Nugagolla"
+  },
+  {
+    "id": 1732,
+    "name": "Nuwaragala"
+  },
+  {
+    "id": 1733,
+    "name": "Pahalarathkinda"
+  },
+  {
+    "id": 1734,
+    "name": "Pallegama"
+  },
+  {
+    "id": 1735,
+    "name": "Randenigala"
+  },
+  {
+    "id": 1736,
+    "name": "Rantembe"
+  },
+  {
+    "id": 1737,
+    "name": "Ridimaliyadda"
+  },
+  {
+    "id": 1738,
+    "name": "Sorabora Colony"
+  },
+  {
+    "id": 1739,
+    "name": "Ududumbara"
+  },
+  {
+    "id": 1740,
+    "name": "Ulpothagama"
+  },
+  {
+    "id": 1741,
+    "name": "Uraniya"
+  },
+  {
+    "id": 1742,
+    "name": "Uva Tissapura"
+  },
+  {
+    "id": 1743,
+    "name": "Weragantota"
+  },
+  {
+    "id": 1744,
+    "name": "Wilgamuwa"
+  },
+  {
+    "id": 1745,
+    "name": "Damanewela"
+  },
+  {
+    "id": 1746,
+    "name": "Dehiattakandiya"
+  },
+  {
+    "id": 1747,
+    "name": "Nawamedagama"
+  },
+  {
+    "id": 1748,
+    "name": "Padiyatalawa"
+  },
+  {
+    "id": 1749,
+    "name": "Padiyattalawa"
+  },
+  {
+    "id": 1750,
+    "name": "Adampan"
+  },
+  {
+    "id": 1751,
+    "name": "Arippu"
+  },
+  {
+    "id": 1752,
+    "name": "Athimottai"
+  },
+  {
+    "id": 1753,
+    "name": "Chilavathurai"
+  },
+  {
+    "id": 1754,
+    "name": "Elupakadavi"
+  },
+  {
+    "id": 1755,
+    "name": "Erukalampitty"
+  },
+  {
+    "id": 1756,
+    "name": "Erukkalampiddy"
+  },
+  {
+    "id": 1757,
+    "name": "Iluppakadawai"
+  },
+  {
+    "id": 1758,
+    "name": "Irukalmpity"
+  },
+  {
+    "id": 1759,
+    "name": "Kadaiadampan"
+  },
+  {
+    "id": 1760,
+    "name": "Kalliady"
+  },
+  {
+    "id": 1761,
+    "name": "Llluppaikadavai"
+  },
+  {
+    "id": 1762,
+    "name": "Madhu Church"
+  },
+  {
+    "id": 1763,
+    "name": "Mannar"
+  },
+  {
+    "id": 1764,
+    "name": "Mannarr"
+  },
+  {
+    "id": 1765,
+    "name": "Marichchi Kaddi"
+  },
+  {
+    "id": 1766,
+    "name": "Murunkan"
+  },
+  {
+    "id": 1767,
+    "name": "Nanattan"
+  },
+  {
+    "id": 1768,
+    "name": "Palampiddy"
+  },
+  {
+    "id": 1769,
+    "name": "Periyakunchikulam"
+  },
+  {
+    "id": 1770,
+    "name": "Periyamadhu"
+  },
+  {
+    "id": 1771,
+    "name": "Periyamadu"
+  },
+  {
+    "id": 1772,
+    "name": "Pesalai"
+  },
+  {
+    "id": 1773,
+    "name": "Pudukudiruppu (Mannar)"
+  },
+  {
+    "id": 1774,
+    "name": "Sialavathurai"
+  },
+  {
+    "id": 1775,
+    "name": "Silavathurai"
+  },
+  {
+    "id": 1776,
+    "name": "Talaimannar"
+  },
+  {
+    "id": 1777,
+    "name": "Thalaimanna"
+  },
+  {
+    "id": 1778,
+    "name": "Thalaimannar"
+  },
+  {
+    "id": 1779,
+    "name": "Uyilankulam"
+  },
+  {
+    "id": 1780,
+    "name": "Vangalai"
+  },
+  {
+    "id": 1781,
+    "name": "Vankalai"
+  },
+  {
+    "id": 1782,
+    "name": "Vattakandal"
+  },
+  {
+    "id": 1783,
+    "name": "Vellankulam"
+  },
+  {
+    "id": 1784,
+    "name": "Vidalthativu"
+  },
+  {
+    "id": 1785,
+    "name": "Colombo 01"
+  },
+  {
+    "id": 1786,
+    "name": "Colombo 02"
+  },
+  {
+    "id": 1787,
+    "name": "Colombo 07"
+  },
+  {
+    "id": 1788,
+    "name": "Colombo 08"
+  },
+  {
+    "id": 1789,
+    "name": "Colombo 09"
+  },
+  {
+    "id": 1790,
+    "name": "Colombo 10"
+  },
+  {
+    "id": 1791,
+    "name": "Colombo 11"
+  },
+  {
+    "id": 1792,
+    "name": "Colombo 12"
+  },
+  {
+    "id": 1793,
+    "name": "Colombo 13"
+  },
+  {
+    "id": 1794,
+    "name": "Colombo 14"
+  },
+  {
+    "id": 1795,
+    "name": "Colombo 15"
+  },
+  {
+    "id": 1796,
+    "name": "Grandpass"
+  },
+  {
+    "id": 1797,
+    "name": "Kotahena"
+  },
+  {
+    "id": 1798,
+    "name": "Panchikawatta"
+  },
+  {
+    "id": 1799,
+    "name": "Slave Island"
+  },
+  {
+    "id": 1800,
+    "name": "Kolonnawa"
+  },
+  {
+    "id": 1801,
+    "name": "Orugodawatta"
+  },
+  {
+    "id": 1802,
+    "name": "Rajagiriya"
+  },
+  {
+    "id": 1803,
+    "name": "Aluvihara"
+  },
+  {
+    "id": 1804,
+    "name": "Alwatta"
+  },
+  {
+    "id": 1805,
+    "name": "Ambana"
+  },
+  {
+    "id": 1806,
+    "name": "Bambaragaswewa"
+  },
+  {
+    "id": 1807,
+    "name": "Dankanda"
+  },
+  {
+    "id": 1808,
+    "name": "Dullawa"
+  },
+  {
+    "id": 1809,
+    "name": "Dullewa"
+  },
+  {
+    "id": 1810,
+    "name": "Dunkolawatta"
+  },
+  {
+    "id": 1811,
+    "name": "Dunuwilapitiya"
+  },
+  {
+    "id": 1812,
+    "name": "Elwala"
+  },
+  {
+    "id": 1813,
+    "name": "Erawula Junction"
+  },
+  {
+    "id": 1814,
+    "name": "Etanawala"
+  },
+  {
+    "id": 1815,
+    "name": "Gammaduwa"
+  },
+  {
+    "id": 1816,
+    "name": "Imbulgolla"
+  },
+  {
+    "id": 1817,
+    "name": "Kaikawala"
+  },
+  {
+    "id": 1818,
+    "name": "Kaludawela"
+  },
+  {
+    "id": 1819,
+    "name": "Kalundawa"
+  },
+  {
+    "id": 1820,
+    "name": "Kande Nuwara"
+  },
+  {
+    "id": 1821,
+    "name": "Karagahinna"
+  },
+  {
+    "id": 1822,
+    "name": "Katudeniya"
+  },
+  {
+    "id": 1823,
+    "name": "Kavudupelella"
+  },
+  {
+    "id": 1824,
+    "name": "Kawatayamuna"
+  },
+  {
+    "id": 1825,
+    "name": "Kiwula"
+  },
+  {
+    "id": 1826,
+    "name": "Kottuwe Gedara"
+  },
+  {
+    "id": 1827,
+    "name": "Kula"
+  },
+  {
+    "id": 1828,
+    "name": "Kumbiyangoda"
+  },
+  {
+    "id": 1829,
+    "name": "Laliamba"
+  },
+  {
+    "id": 1830,
+    "name": "Lauambay"
+  },
+  {
+    "id": 1831,
+    "name": "Leliambe"
+  },
+  {
+    "id": 1832,
+    "name": "Lllukkumbura"
+  },
+  {
+    "id": 1833,
+    "name": "Madabadda"
+  },
+  {
+    "id": 1834,
+    "name": "Madawala Ulpotha"
+  },
+  {
+    "id": 1835,
+    "name": "Madipila"
+  },
+  {
+    "id": 1836,
+    "name": "Mahawela"
+  },
+  {
+    "id": 1837,
+    "name": "Matalapitiya"
+  },
+  {
+    "id": 1838,
+    "name": "Matale"
+  },
+  {
+    "id": 1839,
+    "name": "Mattihakka"
+  },
+  {
+    "id": 1840,
+    "name": "Metihakka"
+  },
+  {
+    "id": 1841,
+    "name": "Millawana"
+  },
+  {
+    "id": 1842,
+    "name": "Muwandeniya"
+  },
+  {
+    "id": 1843,
+    "name": "Nalanda"
+  },
+  {
+    "id": 1844,
+    "name": "North Matale"
+  },
+  {
+    "id": 1845,
+    "name": "Ovilikanda"
+  },
+  {
+    "id": 1846,
+    "name": "Palapathwela"
+  },
+  {
+    "id": 1847,
+    "name": "Pallepola"
+  },
+  {
+    "id": 1848,
+    "name": "Perakanatta"
+  },
+  {
+    "id": 1849,
+    "name": "Pubbiliya"
+  },
+  {
+    "id": 1850,
+    "name": "Purijala"
+  },
+  {
+    "id": 1851,
+    "name": "Ranamuregama"
+  },
+  {
+    "id": 1852,
+    "name": "Rattota"
+  },
+  {
+    "id": 1853,
+    "name": "Selagama"
+  },
+  {
+    "id": 1854,
+    "name": "Udasgiriya"
+  },
+  {
+    "id": 1855,
+    "name": "Udatenna"
+  },
+  {
+    "id": 1856,
+    "name": "Ukuwela"
+  },
+  {
+    "id": 1857,
+    "name": "Ulpath Madawela"
+  },
+  {
+    "id": 1858,
+    "name": "Walawela"
+  },
+  {
+    "id": 1859,
+    "name": "Warakamura"
+  },
+  {
+    "id": 1860,
+    "name": "Wehigala"
+  },
+  {
+    "id": 1861,
+    "name": "Welangahawatte"
+  },
+  {
+    "id": 1862,
+    "name": "Yatawatta"
+  },
+  {
+    "id": 1863,
+    "name": "Akuressa"
+  },
+  {
+    "id": 1864,
+    "name": "Alapaladeniya"
+  },
+  {
+    "id": 1865,
+    "name": "Amalagoda"
+  },
+  {
+    "id": 1866,
+    "name": "Aparekka"
+  },
+  {
+    "id": 1867,
+    "name": "Athu Aela"
+  },
+  {
+    "id": 1868,
+    "name": "Athuraliya"
+  },
+  {
+    "id": 1869,
+    "name": "Bangama"
+  },
+  {
+    "id": 1870,
+    "name": "Beliatta"
+  },
+  {
+    "id": 1871,
+    "name": "Bengamuwa"
+  },
+  {
+    "id": 1872,
+    "name": "Beralapanathara"
+  },
+  {
+    "id": 1873,
+    "name": "Bopagoda"
+  },
+  {
+    "id": 1874,
+    "name": "Dampahala"
+  },
+  {
+    "id": 1875,
+    "name": "Dampella"
+  },
+  {
+    "id": 1876,
+    "name": "Deegala Lenama"
+  },
+  {
+    "id": 1877,
+    "name": "Dehigaspe"
+  },
+  {
+    "id": 1878,
+    "name": "Deiyandara"
+  },
+  {
+    "id": 1879,
+    "name": "Dellawa"
+  },
+  {
+    "id": 1880,
+    "name": "Denagama"
+  },
+  {
+    "id": 1881,
+    "name": "Denipitiya"
+  },
+  {
+    "id": 1882,
+    "name": "Deniyaya"
+  },
+  {
+    "id": 1883,
+    "name": "Derangala"
+  },
+  {
+    "id": 1884,
+    "name": "Devinuwara"
+  },
+  {
+    "id": 1885,
+    "name": "Dikwella"
+  },
+  {
+    "id": 1886,
+    "name": "Diyadawa"
+  },
+  {
+    "id": 1887,
+    "name": "Diyagaha"
+  },
+  {
+    "id": 1888,
+    "name": "Diyalape"
+  },
+  {
+    "id": 1889,
+    "name": "Elgiriya"
+  },
+  {
+    "id": 1890,
+    "name": "Gandara"
+  },
+  {
+    "id": 1891,
+    "name": "Getamanna"
+  },
+  {
+    "id": 1892,
+    "name": "Godapiti tenna"
+  },
+  {
+    "id": 1893,
+    "name": "Godapitiya"
+  },
+  {
+    "id": 1894,
+    "name": "Gomilamawarala"
+  },
+  {
+    "id": 1895,
+    "name": "Gorakawela"
+  },
+  {
+    "id": 1896,
+    "name": "Hakmana"
+  },
+  {
+    "id": 1897,
+    "name": "Handugala"
+  },
+  {
+    "id": 1898,
+    "name": "Hiniduma"
+  },
+  {
+    "id": 1899,
+    "name": "Horapawita"
+  },
+  {
+    "id": 1900,
+    "name": "Hulandola"
+  },
+  {
+    "id": 1901,
+    "name": "Ihala Beligalla"
+  },
+  {
+    "id": 1902,
+    "name": "Kalubowitiyana"
+  },
+  {
+    "id": 1903,
+    "name": "Kamburugamuwa"
+  },
+  {
+    "id": 1904,
+    "name": "Kamburupitiya"
+  },
+  {
+    "id": 1905,
+    "name": "Kanduruwana"
+  },
+  {
+    "id": 1906,
+    "name": "Kapugama"
+  },
+  {
+    "id": 1907,
+    "name": "Karagoda Uyangoda"
+  },
+  {
+    "id": 1908,
+    "name": "Karaputugala"
+  },
+  {
+    "id": 1909,
+    "name": "Karatota"
+  },
+  {
+    "id": 1910,
+    "name": "Kekanadurra"
+  },
+  {
+    "id": 1911,
+    "name": "Ketanvila"
+  },
+  {
+    "id": 1912,
+    "name": "Kiriwaldola"
+  },
+  {
+    "id": 1913,
+    "name": "Kiriweldola"
+  },
+  {
+    "id": 1914,
+    "name": "Kiriwelkele"
+  },
+  {
+    "id": 1915,
+    "name": "Kiyaduwa"
+  },
+  {
+    "id": 1916,
+    "name": "Kodikaragoda"
+  },
+  {
+    "id": 1917,
+    "name": "Kolawenigama"
+  },
+  {
+    "id": 1918,
+    "name": "Kotapola"
+  },
+  {
+    "id": 1919,
+    "name": "Kottegoda (Matara)"
+  },
+  {
+    "id": 1920,
+    "name": "Lankagama"
+  },
+  {
+    "id": 1921,
+    "name": "Makandura (Matara)"
+  },
+  {
+    "id": 1922,
+    "name": "Malgalla Talangalla"
+  },
+  {
+    "id": 1923,
+    "name": "Maliduwa"
+  },
+  {
+    "id": 1924,
+    "name": "Malpradahnalla"
+  },
+  {
+    "id": 1925,
+    "name": "Maraba"
+  },
+  {
+    "id": 1926,
+    "name": "Maramba"
+  },
+  {
+    "id": 1927,
+    "name": "Matara"
+  },
+  {
+    "id": 1928,
+    "name": "Mediripitiya"
+  },
+  {
+    "id": 1929,
+    "name": "Midigama"
+  },
+  {
+    "id": 1930,
+    "name": "Miella"
+  },
+  {
+    "id": 1931,
+    "name": "Mirissa"
+  },
+  {
+    "id": 1932,
+    "name": "Modarawana"
+  },
+  {
+    "id": 1933,
+    "name": "Moragala Kirillapone"
+  },
+  {
+    "id": 1934,
+    "name": "Morawaka (Deniyaya)"
+  },
+  {
+    "id": 1935,
+    "name": "Mulatiyana Junction"
+  },
+  {
+    "id": 1936,
+    "name": "Nadugala"
+  },
+  {
+    "id": 1937,
+    "name": "Naimana"
+  },
+  {
+    "id": 1938,
+    "name": "Nakulugamuwa"
+  },
+  {
+    "id": 1939,
+    "name": "Narawelpita"
+  },
+  {
+    "id": 1940,
+    "name": "Neluwa ( Morawaka )"
+  },
+  {
+    "id": 1941,
+    "name": "Nihiluwa"
+  },
+  {
+    "id": 1942,
+    "name": "Pahala Millawa"
+  },
+  {
+    "id": 1943,
+    "name": "Palatuwa"
+  },
+  {
+    "id": 1944,
+    "name": "Pallegama Matara"
+  },
+  {
+    "id": 1945,
+    "name": "Pallekanda"
+  },
+  {
+    "id": 1946,
+    "name": "Paraduwa"
+  },
+  {
+    "id": 1947,
+    "name": "Paragala"
+  },
+  {
+    "id": 1948,
+    "name": "Parapamulla"
+  },
+  {
+    "id": 1949,
+    "name": "Pasgoda"
+  },
+  {
+    "id": 1950,
+    "name": "Penetiyana"
+  },
+  {
+    "id": 1951,
+    "name": "Pitabeddara"
+  },
+  {
+    "id": 1952,
+    "name": "Poraba"
+  },
+  {
+    "id": 1953,
+    "name": "Porathota"
+  },
+  {
+    "id": 1954,
+    "name": "Pothdeniya"
+  },
+  {
+    "id": 1955,
+    "name": "Puhulwella"
+  },
+  {
+    "id": 1956,
+    "name": "Radawela"
+  },
+  {
+    "id": 1957,
+    "name": "Ransegoda"
+  },
+  {
+    "id": 1958,
+    "name": "Ratmale (Matara)"
+  },
+  {
+    "id": 1959,
+    "name": "Rotumba"
+  },
+  {
+    "id": 1960,
+    "name": "Siyabalagoda"
+  },
+  {
+    "id": 1961,
+    "name": "Siyambalagoda"
+  },
+  {
+    "id": 1962,
+    "name": "Sultanagoda"
+  },
+  {
+    "id": 1963,
+    "name": "Tangalla"
+  },
+  {
+    "id": 1964,
+    "name": "Thawalama"
+  },
+  {
+    "id": 1965,
+    "name": "Thelijjawila"
+  },
+  {
+    "id": 1966,
+    "name": "Thihagoda"
+  },
+  {
+    "id": 1967,
+    "name": "Ullinduwawa"
+  },
+  {
+    "id": 1968,
+    "name": "Urubokka"
+  },
+  {
+    "id": 1969,
+    "name": "Urugamuwa"
+  },
+  {
+    "id": 1970,
+    "name": "Urumutta"
+  },
+  {
+    "id": 1971,
+    "name": "Viharahena"
+  },
+  {
+    "id": 1972,
+    "name": "Vitharandeniya"
+  },
+  {
+    "id": 1973,
+    "name": "Walakanda"
+  },
+  {
+    "id": 1974,
+    "name": "Walasgala"
+  },
+  {
+    "id": 1975,
+    "name": "Walasmulla"
+  },
+  {
+    "id": 1976,
+    "name": "Waralla"
+  },
+  {
+    "id": 1977,
+    "name": "Weligama"
+  },
+  {
+    "id": 1978,
+    "name": "Weliwa"
+  },
+  {
+    "id": 1979,
+    "name": "Wilpita"
+  },
+  {
+    "id": 1980,
+    "name": "Yatigala"
+  },
+  {
+    "id": 1981,
+    "name": "Yatiyana (Matara)"
+  },
+  {
+    "id": 1982,
+    "name": "Alawala"
+  },
+  {
+    "id": 1983,
+    "name": "Attanagalla"
+  },
+  {
+    "id": 1984,
+    "name": "Badalgama"
+  },
+  {
+    "id": 1985,
+    "name": "Banduragoda"
+  },
+  {
+    "id": 1986,
+    "name": "Bokalagama"
+  },
+  {
+    "id": 1987,
+    "name": "Danowita"
+  },
+  {
+    "id": 1988,
+    "name": "Debahera"
+  },
+  {
+    "id": 1989,
+    "name": "Delwagura"
+  },
+  {
+    "id": 1990,
+    "name": "Divulapitiya"
+  },
+  {
+    "id": 1991,
+    "name": "Divuldeniya"
+  },
+  {
+    "id": 1992,
+    "name": "Dunagaha"
+  },
+  {
+    "id": 1993,
+    "name": "Ellakkala"
+  },
+  {
+    "id": 1994,
+    "name": "Essella"
+  },
+  {
+    "id": 1995,
+    "name": "Halpe Mirgama"
+  },
+  {
+    "id": 1996,
+    "name": "Hunumulla"
+  },
+  {
+    "id": 1997,
+    "name": "Kahatowita"
+  },
+  {
+    "id": 1998,
+    "name": "Kaleliya"
+  },
+  {
+    "id": 1999,
+    "name": "Kitalawalana"
+  },
+  {
+    "id": 2000,
+    "name": "Kitulwala"
+  },
+  {
+    "id": 2001,
+    "name": "Kotadeniyawa"
+  },
+  {
+    "id": 2002,
+    "name": "Kumbaloluwa"
+  },
+  {
+    "id": 2003,
+    "name": "Loluwagoda"
+  },
+  {
+    "id": 2004,
+    "name": "Mabodale"
+  },
+  {
+    "id": 2005,
+    "name": "Marandagahamula"
+  },
+  {
+    "id": 2006,
+    "name": "Mellawagedara"
+  },
+  {
+    "id": 2007,
+    "name": "Mirigama"
+  },
+  {
+    "id": 2008,
+    "name": "Muddaragama"
+  },
+  {
+    "id": 2009,
+    "name": "Nawana"
+  },
+  {
+    "id": 2010,
+    "name": "Nittambuwa"
+  },
+  {
+    "id": 2011,
+    "name": "Pallewela"
+  },
+  {
+    "id": 2012,
+    "name": "Pamunuwatta"
+  },
+  {
+    "id": 2013,
+    "name": "Pasyala"
+  },
+  {
+    "id": 2014,
+    "name": "Radawadunna"
+  },
+  {
+    "id": 2015,
+    "name": "Ruggahawila"
+  },
+  {
+    "id": 2016,
+    "name": "Veyangoda"
+  },
+  {
+    "id": 2017,
+    "name": "Walpita"
+  },
+  {
+    "id": 2018,
+    "name": "Wathupitiwala"
+  },
+  {
+    "id": 2019,
+    "name": "Watinapaha"
+  },
+  {
+    "id": 2020,
+    "name": "Weweldeniya"
+  },
+  {
+    "id": 2021,
+    "name": "Algama (Gampaha)"
+  },
+  {
+    "id": 2022,
+    "name": "Bopitiya (Kurunegala)"
+  },
+  {
+    "id": 2023,
+    "name": "Elabadagama"
+  },
+  {
+    "id": 2024,
+    "name": "Elibichchiya"
+  },
+  {
+    "id": 2025,
+    "name": "Godigamuwa"
+  },
+  {
+    "id": 2026,
+    "name": "Ihala Katugampala"
+  },
+  {
+    "id": 2027,
+    "name": "Kelaniyamulla (Kuliyapitiya)"
+  },
+  {
+    "id": 2028,
+    "name": "Ku Bopitiya"
+  },
+  {
+    "id": 2029,
+    "name": "Labbala"
+  },
+  {
+    "id": 2030,
+    "name": "Metiyagane"
+  },
+  {
+    "id": 2031,
+    "name": "Narangoda"
+  },
+  {
+    "id": 2032,
+    "name": "Pannala"
+  },
+  {
+    "id": 2033,
+    "name": "Xxx Not Function"
+  },
+  {
+    "id": 2034,
+    "name": "Ayiwela"
+  },
+  {
+    "id": 2035,
+    "name": "Badalkumbura"
+  },
+  {
+    "id": 2036,
+    "name": "Baduluwela"
+  },
+  {
+    "id": 2037,
+    "name": "Buddama"
+  },
+  {
+    "id": 2038,
+    "name": "Buttala"
+  },
+  {
+    "id": 2039,
+    "name": "Dambagalla"
+  },
+  {
+    "id": 2040,
+    "name": "Dombagahawela"
+  },
+  {
+    "id": 2041,
+    "name": "Ekamutugama"
+  },
+  {
+    "id": 2042,
+    "name": "Ekiriyankumbura"
+  },
+  {
+    "id": 2043,
+    "name": "Ethimalewewa"
+  },
+  {
+    "id": 2044,
+    "name": "Ettiliwewa"
+  },
+  {
+    "id": 2045,
+    "name": "Galabedda"
+  },
+  {
+    "id": 2046,
+    "name": "Hulandawa"
+  },
+  {
+    "id": 2047,
+    "name": "Kandaudapanguwa"
+  },
+  {
+    "id": 2048,
+    "name": "Kandawinna"
+  },
+  {
+    "id": 2049,
+    "name": "Kotagama"
+  },
+  {
+    "id": 2050,
+    "name": "Kotiyagala"
+  },
+  {
+    "id": 2051,
+    "name": "Kumbukkana"
+  },
+  {
+    "id": 2052,
+    "name": "Mahagama Colony"
+  },
+  {
+    "id": 2053,
+    "name": "Marawa"
+  },
+  {
+    "id": 2054,
+    "name": "Mariarawa"
+  },
+  {
+    "id": 2055,
+    "name": "Medagama (Monaragala)"
+  },
+  {
+    "id": 2056,
+    "name": "Monaragala"
+  },
+  {
+    "id": 2057,
+    "name": "Moretuwegama"
+  },
+  {
+    "id": 2058,
+    "name": "Nakkala"
+  },
+  {
+    "id": 2059,
+    "name": "Nannapurawa"
+  },
+  {
+    "id": 2060,
+    "name": "Nelliyadda"
+  },
+  {
+    "id": 2061,
+    "name": "Nilgala"
+  },
+  {
+    "id": 2062,
+    "name": "Obbegoda"
+  },
+  {
+    "id": 2063,
+    "name": "Okkampitiya"
+  },
+  {
+    "id": 2064,
+    "name": "Pangura"
+  },
+  {
+    "id": 2065,
+    "name": "Pitakumbura"
+  },
+  {
+    "id": 2066,
+    "name": "Randeniya"
+  },
+  {
+    "id": 2067,
+    "name": "Ruwalwela"
+  },
+  {
+    "id": 2068,
+    "name": "Sirigala"
+  },
+  {
+    "id": 2069,
+    "name": "Siyambalagune"
+  },
+  {
+    "id": 2070,
+    "name": "Siyambalanduwa"
+  },
+  {
+    "id": 2071,
+    "name": "Uva Gangodagama"
+  },
+  {
+    "id": 2072,
+    "name": "Uva Kudaoya"
+  },
+  {
+    "id": 2073,
+    "name": "Uva Mawelagama"
+  },
+  {
+    "id": 2074,
+    "name": "Uva Pelwatta"
+  },
+  {
+    "id": 2075,
+    "name": "Warunagama"
+  },
+  {
+    "id": 2076,
+    "name": "Wedikumbura"
+  },
+  {
+    "id": 2077,
+    "name": "Weherayaya Handapanagala"
+  },
+  {
+    "id": 2078,
+    "name": "Wellawaya"
+  },
+  {
+    "id": 2079,
+    "name": "Wilaoya"
+  },
+  {
+    "id": 2080,
+    "name": "Yudaganawa"
+  },
+  {
+    "id": 2081,
+    "name": "Hulannuge"
+  },
+  {
+    "id": 2082,
+    "name": "Kudaoya ( Buttala )"
+  },
+  {
+    "id": 2083,
+    "name": "Adiambalama ( Negombo )"
+  },
+  {
+    "id": 2084,
+    "name": "Akaragama"
+  },
+  {
+    "id": 2085,
+    "name": "Andiambalama"
+  },
+  {
+    "id": 2086,
+    "name": "Dagonna"
+  },
+  {
+    "id": 2087,
+    "name": "Demanhandiya"
+  },
+  {
+    "id": 2088,
+    "name": "Hinatiyana Madawala"
+  },
+  {
+    "id": 2089,
+    "name": "Ihala Madampella"
+  },
+  {
+    "id": 2090,
+    "name": "Katana"
+  },
+  {
+    "id": 2091,
+    "name": "Katunayake"
+  },
+  {
+    "id": 2092,
+    "name": "Katunayake Air Force Camp"
+  },
+  {
+    "id": 2093,
+    "name": "Katunayake(Ftz)"
+  },
+  {
+    "id": 2094,
+    "name": "Katuwellegama"
+  },
+  {
+    "id": 2095,
+    "name": "Kimbulapitiya"
+  },
+  {
+    "id": 2096,
+    "name": "Kochchikade"
+  },
+  {
+    "id": 2097,
+    "name": "Kochchikade ( Gampaha District )"
+  },
+  {
+    "id": 2098,
+    "name": "Kotugoda"
+  },
+  {
+    "id": 2099,
+    "name": "Negombo"
+  },
+  {
+    "id": 2100,
+    "name": "Niwandama"
+  },
+  {
+    "id": 2101,
+    "name": "Pamunugama"
+  },
+  {
+    "id": 2102,
+    "name": "Peelawattha(Negombo)"
+  },
+  {
+    "id": 2103,
+    "name": "Raddolugama"
+  },
+  {
+    "id": 2104,
+    "name": "Raddolugama ( Gampaha District )"
+  },
+  {
+    "id": 2105,
+    "name": "Seeduwa"
+  },
+  {
+    "id": 2106,
+    "name": "Talahena"
+  },
+  {
+    "id": 2107,
+    "name": "Thalahena ( Negombo )"
+  },
+  {
+    "id": 2108,
+    "name": "Thimbirigaskatuwa"
+  },
+  {
+    "id": 2109,
+    "name": "Wegowwa"
+  },
+  {
+    "id": 2110,
+    "name": "Yatiyana (Gampaha)"
+  },
+  {
+    "id": 2111,
+    "name": "Pitipana Negombo"
+  },
+  {
+    "id": 2112,
+    "name": "Opatha Katugoda"
+  },
+  {
+    "id": 2113,
+    "name": "Agarapathana"
+  },
+  {
+    "id": 2114,
+    "name": "Ambagasdowa"
+  },
+  {
+    "id": 2115,
+    "name": "Ambewela"
+  },
+  {
+    "id": 2116,
+    "name": "Bambarapana"
+  },
+  {
+    "id": 2117,
+    "name": "Bogahakumbura"
+  },
+  {
+    "id": 2118,
+    "name": "Bopattalawa"
+  },
+  {
+    "id": 2119,
+    "name": "Boragas"
+  },
+  {
+    "id": 2120,
+    "name": "Boralanda"
+  },
+  {
+    "id": 2121,
+    "name": "Dayagama Bazaar"
+  },
+  {
+    "id": 2122,
+    "name": "Dimbulana"
+  },
+  {
+    "id": 2123,
+    "name": "Elamulla"
+  },
+  {
+    "id": 2124,
+    "name": "Gurutalawa"
+  },
+  {
+    "id": 2125,
+    "name": "Haggala"
+  },
+  {
+    "id": 2126,
+    "name": "Halgranoya"
+  },
+  {
+    "id": 2127,
+    "name": "Hewanakumbura"
+  },
+  {
+    "id": 2128,
+    "name": "Kalabulanda"
+  },
+  {
+    "id": 2129,
+    "name": "Kandapola"
+  },
+  {
+    "id": 2130,
+    "name": "Kandepuhulpola"
+  },
+  {
+    "id": 2131,
+    "name": "Katukitula"
+  },
+  {
+    "id": 2132,
+    "name": "Keerthi Bandarapura"
+  },
+  {
+    "id": 2133,
+    "name": "Keppetipola"
+  },
+  {
+    "id": 2134,
+    "name": "Kotmale"
+  },
+  {
+    "id": 2135,
+    "name": "Labukele"
+  },
+  {
+    "id": 2136,
+    "name": "Lindula"
+  },
+  {
+    "id": 2137,
+    "name": "Lunuwatta"
+  },
+  {
+    "id": 2138,
+    "name": "Madovita"
+  },
+  {
+    "id": 2139,
+    "name": "Mandaram Nuwara"
+  },
+  {
+    "id": 2140,
+    "name": "Maspanna"
+  },
+  {
+    "id": 2141,
+    "name": "Maturata"
+  },
+  {
+    "id": 2142,
+    "name": "Medawela Udukinda"
+  },
+  {
+    "id": 2143,
+    "name": "Medawelagama"
+  },
+  {
+    "id": 2144,
+    "name": "Mipilimana"
+  },
+  {
+    "id": 2145,
+    "name": "Nanuoya"
+  },
+  {
+    "id": 2146,
+    "name": "Nildandahinna"
+  },
+  {
+    "id": 2147,
+    "name": "Nugatalawa"
+  },
+  {
+    "id": 2148,
+    "name": "Nuwara Eliya"
+  },
+  {
+    "id": 2149,
+    "name": "Ohiya"
+  },
+  {
+    "id": 2150,
+    "name": "Padiyapelella"
+  },
+  {
+    "id": 2151,
+    "name": "Perawella"
+  },
+  {
+    "id": 2152,
+    "name": "Pundaluoya"
+  },
+  {
+    "id": 2153,
+    "name": "Ramboda"
+  },
+  {
+    "id": 2154,
+    "name": "Rozella"
+  },
+  {
+    "id": 2155,
+    "name": "Ruwaneliya"
+  },
+  {
+    "id": 2156,
+    "name": "Silmiyapura"
+  },
+  {
+    "id": 2157,
+    "name": "Talawakele"
+  },
+  {
+    "id": 2158,
+    "name": "Tawalantenna"
+  },
+  {
+    "id": 2159,
+    "name": "Teripeha"
+  },
+  {
+    "id": 2160,
+    "name": "Udapussallawa"
+  },
+  {
+    "id": 2161,
+    "name": "Udupussellawa"
+  },
+  {
+    "id": 2162,
+    "name": "Uvaparanagama"
+  },
+  {
+    "id": 2163,
+    "name": "Walapane"
+  },
+  {
+    "id": 2164,
+    "name": "Watagoda"
+  },
+  {
+    "id": 2165,
+    "name": "Welimada"
+  },
+  {
+    "id": 2166,
+    "name": "Angampitiya ( Padukka )"
+  },
+  {
+    "id": 2167,
+    "name": "Atigala"
+  },
+  {
+    "id": 2168,
+    "name": "Batewela"
+  },
+  {
+    "id": 2169,
+    "name": "Bope"
+  },
+  {
+    "id": 2170,
+    "name": "Galagedara (Padukka)"
+  },
+  {
+    "id": 2171,
+    "name": "Ihala Bope"
+  },
+  {
+    "id": 2172,
+    "name": "Mawathgama ( Padukka )"
+  },
+  {
+    "id": 2173,
+    "name": "Meepe"
+  },
+  {
+    "id": 2174,
+    "name": "Hadapangoda"
+  },
+  {
+    "id": 2175,
+    "name": "Padukka"
+  },
+  {
+    "id": 2176,
+    "name": "Pahala Bope"
+  },
+  {
+    "id": 2177,
+    "name": "Watareka (Padukka)"
+  },
+  {
+    "id": 2178,
+    "name": "Pallimulla"
+  },
+  {
+    "id": 2179,
+    "name": "Pothupitiya ( Wadduwa )"
+  },
+  {
+    "id": 2180,
+    "name": "Horethuduwa"
+  },
+  {
+    "id": 2181,
+    "name": "Koralawella"
+  },
+  {
+    "id": 2182,
+    "name": "Alubomulla"
+  },
+  {
+    "id": 2183,
+    "name": "Arukgoda"
+  },
+  {
+    "id": 2184,
+    "name": "Bekkegama"
+  },
+  {
+    "id": 2185,
+    "name": "Digbedda"
+  },
+  {
+    "id": 2186,
+    "name": "Eluwila"
+  },
+  {
+    "id": 2187,
+    "name": "Gorakana"
+  },
+  {
+    "id": 2188,
+    "name": "Henamulla"
+  },
+  {
+    "id": 2189,
+    "name": "Hirana"
+  },
+  {
+    "id": 2190,
+    "name": "Kaludewala"
+  },
+  {
+    "id": 2191,
+    "name": "Keselwatta"
+  },
+  {
+    "id": 2192,
+    "name": "Kiriberiya"
+  },
+  {
+    "id": 2193,
+    "name": "Madupitiya"
+  },
+  {
+    "id": 2194,
+    "name": "Malamulla"
+  },
+  {
+    "id": 2195,
+    "name": "Moravinna"
+  },
+  {
+    "id": 2196,
+    "name": "Morenthuduwa"
+  },
+  {
+    "id": 2197,
+    "name": "Morontuduwa"
+  },
+  {
+    "id": 2198,
+    "name": "Nalluruwa"
+  },
+  {
+    "id": 2199,
+    "name": "Naranpitiya"
+  },
+  {
+    "id": 2200,
+    "name": "Niwdawa"
+  },
+  {
+    "id": 2201,
+    "name": "Panadura"
+  },
+  {
+    "id": 2202,
+    "name": "Paraththa"
+  },
+  {
+    "id": 2203,
+    "name": "Pinwatta"
+  },
+  {
+    "id": 2204,
+    "name": "Thalpitiya"
+  },
+  {
+    "id": 2205,
+    "name": "Thanthirimulla"
+  },
+  {
+    "id": 2206,
+    "name": "Thotawatta"
+  },
+  {
+    "id": 2207,
+    "name": "Wadduwa"
+  },
+  {
+    "id": 2208,
+    "name": "Walana"
+  },
+  {
+    "id": 2209,
+    "name": "Walapala"
+  },
+  {
+    "id": 2210,
+    "name": "Wanduranmulla"
+  },
+  {
+    "id": 2211,
+    "name": "Waskaduwa"
+  },
+  {
+    "id": 2212,
+    "name": "Wattalpola (Kalutara)"
+  },
+  {
+    "id": 2213,
+    "name": "Wekada"
+  },
+  {
+    "id": 2214,
+    "name": "Werawatta"
+  },
+  {
+    "id": 2215,
+    "name": "Polgasowita"
+  },
+  {
+    "id": 2216,
+    "name": "Dampe"
+  },
+  {
+    "id": 2217,
+    "name": "Kahapola"
+  },
+  {
+    "id": 2218,
+    "name": "Wewala ( Piliyandala )"
+  },
+  {
+    "id": 2219,
+    "name": "Thumbowila"
+  },
+  {
+    "id": 2220,
+    "name": "Halpita ( Kesbewa )"
+  },
+  {
+    "id": 2221,
+    "name": "Rawathawatta"
+  },
+  {
+    "id": 2222,
+    "name": "Wethara"
+  },
+  {
+    "id": 2223,
+    "name": "Welmilla"
+  },
+  {
+    "id": 2224,
+    "name": "Angulana"
+  },
+  {
+    "id": 2225,
+    "name": "Bokundara"
+  },
+  {
+    "id": 2226,
+    "name": "Borupana Rathmalana"
+  },
+  {
+    "id": 2227,
+    "name": "Deltara"
+  },
+  {
+    "id": 2228,
+    "name": "Kaldemulla ( Rathmalana )"
+  },
+  {
+    "id": 2229,
+    "name": "Kesbewa"
+  },
+  {
+    "id": 2230,
+    "name": "Madapatha"
+  },
+  {
+    "id": 2231,
+    "name": "Miriswatta ( Piliyandala )"
+  },
+  {
+    "id": 2232,
+    "name": "Moratumulla"
+  },
+  {
+    "id": 2233,
+    "name": "Moratuwa"
+  },
+  {
+    "id": 2234,
+    "name": "Piliyandala"
+  },
+  {
+    "id": 2235,
+    "name": "Siddamulla"
+  },
+  {
+    "id": 2236,
+    "name": "Ratmalana"
+  },
+  {
+    "id": 2237,
+    "name": "Thelawala ( Rathmalana )"
+  },
+  {
+    "id": 2238,
+    "name": "Alutwewa"
+  },
+  {
+    "id": 2239,
+    "name": "Ambatalawa"
+  },
+  {
+    "id": 2240,
+    "name": "Aralaganwila"
+  },
+  {
+    "id": 2241,
+    "name": "Aselapura"
+  },
+  {
+    "id": 2242,
+    "name": "Attanakadawala"
+  },
+  {
+    "id": 2243,
+    "name": "Dalukana"
+  },
+  {
+    "id": 2244,
+    "name": "Damminna"
+  },
+  {
+    "id": 2245,
+    "name": "Dewagala"
+  },
+  {
+    "id": 2246,
+    "name": "Dimbulagala"
+  },
+  {
+    "id": 2247,
+    "name": "Divulankadawala"
+  },
+  {
+    "id": 2248,
+    "name": "Divuldamana"
+  },
+  {
+    "id": 2249,
+    "name": "Diyabeduma"
+  },
+  {
+    "id": 2250,
+    "name": "Diyasenpura"
+  },
+  {
+    "id": 2251,
+    "name": "Doragala"
+  },
+  {
+    "id": 2252,
+    "name": "Dunukedeniya"
+  },
+  {
+    "id": 2253,
+    "name": "Ellewewa"
+  },
+  {
+    "id": 2254,
+    "name": "Galamuna"
+  },
+  {
+    "id": 2255,
+    "name": "Galoya Junction"
+  },
+  {
+    "id": 2256,
+    "name": "Giritale"
+  },
+  {
+    "id": 2257,
+    "name": "Gonakele"
+  },
+  {
+    "id": 2258,
+    "name": "Hangarapitiya"
+  },
+  {
+    "id": 2259,
+    "name": "Hansayapalama"
+  },
+  {
+    "id": 2260,
+    "name": "Harangalagama"
+  },
+  {
+    "id": 2261,
+    "name": "Harasbedda"
+  },
+  {
+    "id": 2262,
+    "name": "Hedunuwewa"
+  },
+  {
+    "id": 2263,
+    "name": "Hingurakdamana"
+  },
+  {
+    "id": 2264,
+    "name": "Hingurakgoda"
+  },
+  {
+    "id": 2265,
+    "name": "Hitigegama"
+  },
+  {
+    "id": 2266,
+    "name": "Jayanthipura"
+  },
+  {
+    "id": 2267,
+    "name": "Kalaganwatta"
+  },
+  {
+    "id": 2268,
+    "name": "Kalingaela"
+  },
+  {
+    "id": 2269,
+    "name": "Kalukele Badanagala"
+  },
+  {
+    "id": 2270,
+    "name": "Kashyapapura"
+  },
+  {
+    "id": 2271,
+    "name": "Kawudulla"
+  },
+  {
+    "id": 2272,
+    "name": "Kawuduluwewa Stagell"
+  },
+  {
+    "id": 2273,
+    "name": "Kelanigama"
+  },
+  {
+    "id": 2274,
+    "name": "Ketaboola"
+  },
+  {
+    "id": 2275,
+    "name": "Kottapitiya"
+  },
+  {
+    "id": 2276,
+    "name": "Kottellena"
+  },
+  {
+    "id": 2277,
+    "name": "Kumaragama"
+  },
+  {
+    "id": 2278,
+    "name": "Kumbalgamuwa"
+  },
+  {
+    "id": 2279,
+    "name": "Kumbukwela"
+  },
+  {
+    "id": 2280,
+    "name": "Kurupanawela"
+  },
+  {
+    "id": 2281,
+    "name": "Lakshauyana"
+  },
+  {
+    "id": 2282,
+    "name": "Madulla"
+  },
+  {
+    "id": 2283,
+    "name": "Maduruoya"
+  },
+  {
+    "id": 2284,
+    "name": "Maha Ambagaswewa"
+  },
+  {
+    "id": 2285,
+    "name": "Mahatalakolawewa"
+  },
+  {
+    "id": 2286,
+    "name": "Mahawela Sinhapura"
+  },
+  {
+    "id": 2287,
+    "name": "Maldeniya (Polonnaruwa)"
+  },
+  {
+    "id": 2288,
+    "name": "Mampitiya"
+  },
+  {
+    "id": 2289,
+    "name": "Medirigiriya"
+  },
+  {
+    "id": 2290,
+    "name": "Meegaswewa"
+  },
+  {
+    "id": 2291,
+    "name": "Minneriya"
+  },
+  {
+    "id": 2292,
+    "name": "Mipanawa"
+  },
+  {
+    "id": 2293,
+    "name": "Morahenagama (Polonnaruwa)"
+  },
+  {
+    "id": 2294,
+    "name": "Munwatta"
+  },
+  {
+    "id": 2295,
+    "name": "Mutugala"
+  },
+  {
+    "id": 2296,
+    "name": "Nawasenapura"
+  },
+  {
+    "id": 2297,
+    "name": "Nawathispane"
+  },
+  {
+    "id": 2298,
+    "name": "Nayapana Janapadaya"
+  },
+  {
+    "id": 2299,
+    "name": "Nelumwewa"
+  },
+  {
+    "id": 2300,
+    "name": "Nissanka Uyana"
+  },
+  {
+    "id": 2301,
+    "name": "Onegama"
+  },
+  {
+    "id": 2302,
+    "name": "Orubendi Siyambalawa"
+  },
+  {
+    "id": 2303,
+    "name": "Palugasdamana"
+  },
+  {
+    "id": 2304,
+    "name": "Parakrama samudraya"
+  },
+  {
+    "id": 2305,
+    "name": "Pelatiyawa"
+  },
+  {
+    "id": 2306,
+    "name": "Pimburattewa"
+  },
+  {
+    "id": 2307,
+    "name": "Pitawala (Polonnaruwa)"
+  },
+  {
+    "id": 2308,
+    "name": "Polonnaruwa"
+  },
+  {
+    "id": 2309,
+    "name": "Pulastigama"
+  },
+  {
+    "id": 2310,
+    "name": "Rupaha"
+  },
+  {
+    "id": 2311,
+    "name": "Santhipura"
+  },
+  {
+    "id": 2312,
+    "name": "Sevanapitiya"
+  },
+  {
+    "id": 2313,
+    "name": "Sinhagama"
+  },
+  {
+    "id": 2314,
+    "name": "Siripura"
+  },
+  {
+    "id": 2315,
+    "name": "Sungavila"
+  },
+  {
+    "id": 2316,
+    "name": "Talpotha"
+  },
+  {
+    "id": 2317,
+    "name": "Tamankaduwa"
+  },
+  {
+    "id": 2318,
+    "name": "Tambala"
+  },
+  {
+    "id": 2319,
+    "name": "Thalpotha"
+  },
+  {
+    "id": 2320,
+    "name": "Udamadura"
+  },
+  {
+    "id": 2321,
+    "name": "Unagalavehera"
+  },
+  {
+    "id": 2322,
+    "name": "Welikanda"
+  },
+  {
+    "id": 2323,
+    "name": "Wijayabapura"
+  },
+  {
+    "id": 2324,
+    "name": "Wijebahukanda"
+  },
+  {
+    "id": 2325,
+    "name": "Yodaela"
+  },
+  {
+    "id": 2326,
+    "name": "Kaduruwela"
+  },
+  {
+    "id": 2327,
+    "name": "Anamaduwa"
+  },
+  {
+    "id": 2328,
+    "name": "Attawilluwa"
+  },
+  {
+    "id": 2329,
+    "name": "Baranankattuwa"
+  },
+  {
+    "id": 2330,
+    "name": "Eluwankulama"
+  },
+  {
+    "id": 2331,
+    "name": "Ettale"
+  },
+  {
+    "id": 2332,
+    "name": "Gallewa"
+  },
+  {
+    "id": 2333,
+    "name": "Ihala Puliyankulama"
+  },
+  {
+    "id": 2334,
+    "name": "Ismailpuram"
+  },
+  {
+    "id": 2335,
+    "name": "Kalladiya"
+  },
+  {
+    "id": 2336,
+    "name": "Kalpitiya"
+  },
+  {
+    "id": 2337,
+    "name": "Kandakuliya"
+  },
+  {
+    "id": 2338,
+    "name": "Karativponparappi"
+  },
+  {
+    "id": 2339,
+    "name": "Karuwalagaswewa"
+  },
+  {
+    "id": 2340,
+    "name": "Kottantivu"
+  },
+  {
+    "id": 2341,
+    "name": "Kottukachchiya"
+  },
+  {
+    "id": 2342,
+    "name": "Kuratihena"
+  },
+  {
+    "id": 2343,
+    "name": "Kurinjanpitiya"
+  },
+  {
+    "id": 2344,
+    "name": "Kuruketiyawa"
+  },
+  {
+    "id": 2345,
+    "name": "Madurankuliya"
+  },
+  {
+    "id": 2346,
+    "name": "Mahakumbukkadawala"
+  },
+  {
+    "id": 2347,
+    "name": "Mahananneriya Palugolla"
+  },
+  {
+    "id": 2348,
+    "name": "Mahauswewa"
+  },
+  {
+    "id": 2349,
+    "name": "Mampuri"
+  },
+  {
+    "id": 2350,
+    "name": "Mangalaeliya"
+  },
+  {
+    "id": 2351,
+    "name": "Monnekulama"
+  },
+  {
+    "id": 2352,
+    "name": "Mudalakkuliya"
+  },
+  {
+    "id": 2353,
+    "name": "Mukkutoduwawa"
+  },
+  {
+    "id": 2354,
+    "name": "Nawagattegama"
+  },
+  {
+    "id": 2355,
+    "name": "Norachcholai"
+  },
+  {
+    "id": 2356,
+    "name": "Palaviya"
+  },
+  {
+    "id": 2357,
+    "name": "Palliwasalturai"
+  },
+  {
+    "id": 2358,
+    "name": "Puttalam"
+  },
+  {
+    "id": 2359,
+    "name": "Puttalam Cement Factory"
+  },
+  {
+    "id": 2360,
+    "name": "Saliyawewa Junction"
+  },
+  {
+    "id": 2361,
+    "name": "Sirambiadiya"
+  },
+  {
+    "id": 2362,
+    "name": "Siyambalagashene"
+  },
+  {
+    "id": 2363,
+    "name": "Thabbowa"
+  },
+  {
+    "id": 2364,
+    "name": "Talawila Church"
+  },
+  {
+    "id": 2365,
+    "name": "Vanathawilluwa"
+  },
+  {
+    "id": 2366,
+    "name": "Wanathawilluwa"
+  },
+  {
+    "id": 2367,
+    "name": "Kirimundalama"
+  },
+  {
+    "id": 2368,
+    "name": "Arapola"
+  },
+  {
+    "id": 2369,
+    "name": "Ayagama"
+  },
+  {
+    "id": 2370,
+    "name": "Baduwatta"
+  },
+  {
+    "id": 2371,
+    "name": "Batatota"
+  },
+  {
+    "id": 2372,
+    "name": "Bolthumbe"
+  },
+  {
+    "id": 2373,
+    "name": "Bomluwageaina"
+  },
+  {
+    "id": 2374,
+    "name": "Bulugahapitiya"
+  },
+  {
+    "id": 2375,
+    "name": "Dambuluwana"
+  },
+  {
+    "id": 2376,
+    "name": "Daugala"
+  },
+  {
+    "id": 2377,
+    "name": "Dela"
+  },
+  {
+    "id": 2378,
+    "name": "Delwala"
+  },
+  {
+    "id": 2379,
+    "name": "Demuwatha"
+  },
+  {
+    "id": 2380,
+    "name": "Dodampe"
+  },
+  {
+    "id": 2381,
+    "name": "Doloswalakanda"
+  },
+  {
+    "id": 2382,
+    "name": "Dumbara Manana"
+  },
+  {
+    "id": 2383,
+    "name": "Elapatha"
+  },
+  {
+    "id": 2384,
+    "name": "Ellagawa"
+  },
+  {
+    "id": 2385,
+    "name": "Ellaulla"
+  },
+  {
+    "id": 2386,
+    "name": "Ellawala"
+  },
+  {
+    "id": 2387,
+    "name": "Eratna"
+  },
+  {
+    "id": 2388,
+    "name": "Erepola"
+  },
+  {
+    "id": 2389,
+    "name": "Gallella"
+  },
+  {
+    "id": 2390,
+    "name": "Gangeyaya"
+  },
+  {
+    "id": 2391,
+    "name": "Gawaragiriya"
+  },
+  {
+    "id": 2392,
+    "name": "Gillimale"
+  },
+  {
+    "id": 2393,
+    "name": "Godigamuwa [Ratnapura]"
+  },
+  {
+    "id": 2394,
+    "name": "Gurubewilagama"
+  },
+  {
+    "id": 2395,
+    "name": "Handagiriya"
+  },
+  {
+    "id": 2396,
+    "name": "Hatangala"
+  },
+  {
+    "id": 2397,
+    "name": "Hatarabage"
+  },
+  {
+    "id": 2398,
+    "name": "Hidellana"
+  },
+  {
+    "id": 2399,
+    "name": "Ihalagama"
+  },
+  {
+    "id": 2400,
+    "name": "Kahangama"
+  },
+  {
+    "id": 2401,
+    "name": "Kalawana"
+  },
+  {
+    "id": 2402,
+    "name": "Karandana"
+  },
+  {
+    "id": 2403,
+    "name": "Karangoda"
+  },
+  {
+    "id": 2404,
+    "name": "Kiriella"
+  },
+  {
+    "id": 2405,
+    "name": "Kolombugama"
+  },
+  {
+    "id": 2406,
+    "name": "Kudawa"
+  },
+  {
+    "id": 2407,
+    "name": "Kuruwita"
+  },
+  {
+    "id": 2408,
+    "name": "Lellopitiya"
+  },
+  {
+    "id": 2409,
+    "name": "Lmbulpe"
+  },
+  {
+    "id": 2410,
+    "name": "Madalagama"
+  },
+  {
+    "id": 2411,
+    "name": "Malwala Junction"
+  },
+  {
+    "id": 2412,
+    "name": "Marapana"
+  },
+  {
+    "id": 2413,
+    "name": "Matuwagalagama"
+  },
+  {
+    "id": 2414,
+    "name": "Medagalatur"
+  },
+  {
+    "id": 2415,
+    "name": "Meddekanda"
+  },
+  {
+    "id": 2416,
+    "name": "Minipura Dumbara"
+  },
+  {
+    "id": 2417,
+    "name": "Mitipola"
+  },
+  {
+    "id": 2418,
+    "name": "Moragala"
+  },
+  {
+    "id": 2419,
+    "name": "Mulgama"
+  },
+  {
+    "id": 2420,
+    "name": "Napawela"
+  },
+  {
+    "id": 2421,
+    "name": "Nawalakanda"
+  },
+  {
+    "id": 2422,
+    "name": "Niralagama"
+  },
+  {
+    "id": 2423,
+    "name": "Nivithigala"
+  },
+  {
+    "id": 2424,
+    "name": "Paleegala"
+  },
+  {
+    "id": 2425,
+    "name": "Pambagolla"
+  },
+  {
+    "id": 2426,
+    "name": "Panapitiya"
+  },
+  {
+    "id": 2427,
+    "name": "Panapola"
+  },
+  {
+    "id": 2428,
+    "name": "Panawala"
+  },
+  {
+    "id": 2429,
+    "name": "Parakaduwa"
+  },
+  {
+    "id": 2430,
+    "name": "Pebotuwa"
+  },
+  {
+    "id": 2431,
+    "name": "Pimbura"
+  },
+  {
+    "id": 2432,
+    "name": "Pinnawala (Balangoda)"
+  },
+  {
+    "id": 2433,
+    "name": "Rassagala"
+  },
+  {
+    "id": 2434,
+    "name": "Ratna Hangamuwa"
+  },
+  {
+    "id": 2435,
+    "name": "Ratnapura"
+  },
+  {
+    "id": 2436,
+    "name": "Samanalawewa"
+  },
+  {
+    "id": 2437,
+    "name": "Sri Palabaddala"
+  },
+  {
+    "id": 2438,
+    "name": "Sudagala"
+  },
+  {
+    "id": 2439,
+    "name": "Talakolahinna"
+  },
+  {
+    "id": 2440,
+    "name": "Tanjantenna"
+  },
+  {
+    "id": 2441,
+    "name": "Teppanawa"
+  },
+  {
+    "id": 2442,
+    "name": "Thalavitiya"
+  },
+  {
+    "id": 2443,
+    "name": "Thoranakada"
+  },
+  {
+    "id": 2444,
+    "name": "Udakarawita"
+  },
+  {
+    "id": 2445,
+    "name": "Udaniriella"
+  },
+  {
+    "id": 2446,
+    "name": "Veddagala"
+  },
+  {
+    "id": 2447,
+    "name": "Waleboda"
+  },
+  {
+    "id": 2448,
+    "name": "Watapotha"
+  },
+  {
+    "id": 2449,
+    "name": "Waturawa"
+  },
+  {
+    "id": 2450,
+    "name": "Welipathayaya"
+  },
+  {
+    "id": 2451,
+    "name": "Wewelwatta"
+  },
+  {
+    "id": 2452,
+    "name": "Beraligala"
+  },
+  {
+    "id": 2453,
+    "name": "Debarawewa"
+  },
+  {
+    "id": 2454,
+    "name": "Detagamuwa"
+  },
+  {
+    "id": 2455,
+    "name": "Ikkapallama"
+  },
+  {
+    "id": 2456,
+    "name": "Julpallama"
+  },
+  {
+    "id": 2457,
+    "name": "Kawantissapura"
+  },
+  {
+    "id": 2458,
+    "name": "Mahasenpura (Hambantota)"
+  },
+  {
+    "id": 2459,
+    "name": "Nedigamvila"
+  },
+  {
+    "id": 2460,
+    "name": "Pannegamuwa"
+  },
+  {
+    "id": 2461,
+    "name": "Ranawarunawa"
+  },
+  {
+    "id": 2462,
+    "name": "Ranminitenna"
+  },
+  {
+    "id": 2463,
+    "name": "Situlpawwa"
+  },
+  {
+    "id": 2464,
+    "name": "Uduvila (Hambantota)"
+  },
+  {
+    "id": 2465,
+    "name": "Yodhakanndiya"
+  },
+  {
+    "id": 2466,
+    "name": "Beralihela"
+  },
+  {
+    "id": 2467,
+    "name": "Bundala"
+  },
+  {
+    "id": 2468,
+    "name": "Ellagala"
+  },
+  {
+    "id": 2469,
+    "name": "Gonagamuwa Uduwila"
+  },
+  {
+    "id": 2470,
+    "name": "Kataragama"
+  },
+  {
+    "id": 2471,
+    "name": "Kirinda"
+  },
+  {
+    "id": 2472,
+    "name": "Lunugamwehera"
+  },
+  {
+    "id": 2473,
+    "name": "Magama"
+  },
+  {
+    "id": 2474,
+    "name": "Padawgama"
+  },
+  {
+    "id": 2475,
+    "name": "Pahala Andarawewa"
+  },
+  {
+    "id": 2476,
+    "name": "Ranakeliya"
+  },
+  {
+    "id": 2477,
+    "name": "Sella Kataragama"
+  },
+  {
+    "id": 2478,
+    "name": "Tissamaharama"
+  },
+  {
+    "id": 2479,
+    "name": "Udamattala"
+  },
+  {
+    "id": 2480,
+    "name": "Weerawila"
+  },
+  {
+    "id": 2481,
+    "name": "Weerawila Newtown"
+  },
+  {
+    "id": 2482,
+    "name": "Agbopura"
+  },
+  {
+    "id": 2483,
+    "name": "Bakmeegama"
+  },
+  {
+    "id": 2484,
+    "name": "Buckmigama"
+  },
+  {
+    "id": 2485,
+    "name": "Chinabay"
+  },
+  {
+    "id": 2486,
+    "name": "Dehiwatte"
+  },
+  {
+    "id": 2487,
+    "name": "Echchilampattai"
+  },
+  {
+    "id": 2488,
+    "name": "Galmetiyawa"
+  },
+  {
+    "id": 2489,
+    "name": "Gomarankadawala"
+  },
+  {
+    "id": 2490,
+    "name": "Kaddaiparichchan"
+  },
+  {
+    "id": 2491,
+    "name": "Kanniya"
+  },
+  {
+    "id": 2492,
+    "name": "Kantalai"
+  },
+  {
+    "id": 2493,
+    "name": "Kantalai Sugar Factory"
+  },
+  {
+    "id": 2494,
+    "name": "Kanthale"
+  },
+  {
+    "id": 2495,
+    "name": "Kiliveddy"
+  },
+  {
+    "id": 2496,
+    "name": "Kinniya"
+  },
+  {
+    "id": 2497,
+    "name": "Kuchchaveli"
+  },
+  {
+    "id": 2498,
+    "name": "Kumburupiddy"
+  },
+  {
+    "id": 2499,
+    "name": "Kurinchakemy"
+  },
+  {
+    "id": 2500,
+    "name": "Lankapatuna"
+  },
+  {
+    "id": 2501,
+    "name": "Mahadivulwewa"
+  },
+  {
+    "id": 2502,
+    "name": "Maharugiramam"
+  },
+  {
+    "id": 2503,
+    "name": "Mallikativu"
+  },
+  {
+    "id": 2504,
+    "name": "Maradankalla"
+  },
+  {
+    "id": 2505,
+    "name": "Mawadichenai"
+  },
+  {
+    "id": 2506,
+    "name": "Mollipothana"
+  },
+  {
+    "id": 2507,
+    "name": "Mullipothana"
+  },
+  {
+    "id": 2508,
+    "name": "Mulpothanai"
+  },
+  {
+    "id": 2509,
+    "name": "Mutur"
+  },
+  {
+    "id": 2510,
+    "name": "Neelapola"
+  },
+  {
+    "id": 2511,
+    "name": "Nilaveli"
+  },
+  {
+    "id": 2512,
+    "name": "Pankulam"
+  },
+  {
+    "id": 2513,
+    "name": "Pulmoddai"
+  },
+  {
+    "id": 2514,
+    "name": "Rottawewa"
+  },
+  {
+    "id": 2515,
+    "name": "Sampaltivu"
+  },
+  {
+    "id": 2516,
+    "name": "Sampur"
+  },
+  {
+    "id": 2517,
+    "name": "Serunuwara"
+  },
+  {
+    "id": 2518,
+    "name": "Seruwila"
+  },
+  {
+    "id": 2519,
+    "name": "Sirajnagar"
+  },
+  {
+    "id": 2520,
+    "name": "Somapura"
+  },
+  {
+    "id": 2521,
+    "name": "Tampalakamam"
+  },
+  {
+    "id": 2522,
+    "name": "Thampalagamam"
+  },
+  {
+    "id": 2523,
+    "name": "Tiriyayi"
+  },
+  {
+    "id": 2524,
+    "name": "Toppur"
+  },
+  {
+    "id": 2525,
+    "name": "Trincomalee"
+  },
+  {
+    "id": 2526,
+    "name": "Uppuvali"
+  },
+  {
+    "id": 2527,
+    "name": "Vellamanal"
+  },
+  {
+    "id": 2528,
+    "name": "Waddakachchi"
+  },
+  {
+    "id": 2529,
+    "name": "Wanela"
+  },
+  {
+    "id": 2530,
+    "name": "Kapugallawa"
+  },
+  {
+    "id": 2531,
+    "name": "Mulkiriyawa"
+  },
+  {
+    "id": 2532,
+    "name": "Parangiyawadiya"
+  },
+  {
+    "id": 2533,
+    "name": "Bogahawewa"
+  },
+  {
+    "id": 2534,
+    "name": "Etaweeragollewa"
+  },
+  {
+    "id": 2535,
+    "name": "Halmillawetiya"
+  },
+  {
+    "id": 2536,
+    "name": "Horawpatana"
+  },
+  {
+    "id": 2537,
+    "name": "Kahatagollewa"
+  },
+  {
+    "id": 2538,
+    "name": "Kebithigollewa"
+  },
+  {
+    "id": 2539,
+    "name": "Kirigalwewa"
+  },
+  {
+    "id": 2540,
+    "name": "Mahasenpura (Anuradhapura)"
+  },
+  {
+    "id": 2541,
+    "name": "Medawachchiya"
+  },
+  {
+    "id": 2542,
+    "name": "Padavi Maithripura"
+  },
+  {
+    "id": 2543,
+    "name": "Padavi Parakramapura ( Anuradhapura )"
+  },
+  {
+    "id": 2544,
+    "name": "Padavi Sripura ( Trincomalee Branch )"
+  },
+  {
+    "id": 2545,
+    "name": "Padavi Sritissapura"
+  },
+  {
+    "id": 2546,
+    "name": "Padaviya"
+  },
+  {
+    "id": 2547,
+    "name": "Parakumpura"
+  },
+  {
+    "id": 2548,
+    "name": "Punewa"
+  },
+  {
+    "id": 2549,
+    "name": "Rathmalgahawewa"
+  },
+  {
+    "id": 2550,
+    "name": "Tittagonewa"
+  },
+  {
+    "id": 2551,
+    "name": "Wahalkada"
+  },
+  {
+    "id": 2552,
+    "name": "Walahaviddawewa"
+  },
+  {
+    "id": 2553,
+    "name": "Welimuwapotana"
+  },
+  {
+    "id": 2554,
+    "name": "Ahatugaswewa Walioya"
+  },
+  {
+    "id": 2555,
+    "name": "Allawewa Kebithigollawa"
+  },
+  {
+    "id": 2556,
+    "name": "Asikkulam"
+  },
+  {
+    "id": 2557,
+    "name": "Attakada"
+  },
+  {
+    "id": 2558,
+    "name": "Ausadapitya Vavuniya"
+  },
+  {
+    "id": 2559,
+    "name": "Ayyathigewewa Kabithigollewa"
+  },
+  {
+    "id": 2560,
+    "name": "Balayawewa Padaviya"
+  },
+  {
+    "id": 2561,
+    "name": "Bogahawewa Padaviya"
+  },
+  {
+    "id": 2562,
+    "name": "Bogaswawa"
+  },
+  {
+    "id": 2563,
+    "name": "Etaweeragollawa Medawachchiya"
+  },
+  {
+    "id": 2564,
+    "name": "Gonuhaddenawewa Kebithigollawa"
+  },
+  {
+    "id": 2565,
+    "name": "Halmillawetiya Kebithigollewa"
+  },
+  {
+    "id": 2566,
+    "name": "Herathhalmillawa Kebithigollawa"
+  },
+  {
+    "id": 2567,
+    "name": "Isinbassagala Medawachchiya"
+  },
+  {
+    "id": 2568,
+    "name": "Janakapura Welioya Mullaitivu"
+  },
+  {
+    "id": 2569,
+    "name": "Jayanthiyawewa Sripura Padaviya"
+  },
+  {
+    "id": 2570,
+    "name": "Kahtagollewa Kebitgollewa"
+  },
+  {
+    "id": 2571,
+    "name": "Kalpe Morakwa Horowpothana"
+  },
+  {
+    "id": 2572,
+    "name": "Kalyanipura Welioya"
+  },
+  {
+    "id": 2573,
+    "name": "Kanakarajankulam"
+  },
+  {
+    "id": 2574,
+    "name": "Kapugollawa Horowpothana"
+  },
+  {
+    "id": 2575,
+    "name": "Katpakapuram"
+  },
+  {
+    "id": 2576,
+    "name": "Kiribbanwewa Welioya"
+  },
+  {
+    "id": 2577,
+    "name": "Kirigalwewa Medawachchiya"
+  },
+  {
+    "id": 2578,
+    "name": "Kiulekada Kebithgollewa"
+  },
+  {
+    "id": 2579,
+    "name": "Kovilkulam"
+  },
+  {
+    "id": 2580,
+    "name": "Kurulugama Kabathigollawa"
+  },
+  {
+    "id": 2581,
+    "name": "Kurumankadu"
+  },
+  {
+    "id": 2582,
+    "name": "Lunu Watulewa Kebithigollewa"
+  },
+  {
+    "id": 2583,
+    "name": "Mahakachchakodiya Vavuniya"
+  },
+  {
+    "id": 2584,
+    "name": "Mahanetiyawa Kebithigollewa"
+  },
+  {
+    "id": 2585,
+    "name": "Maharambaikulam"
+  },
+  {
+    "id": 2586,
+    "name": "Mamailkulam"
+  },
+  {
+    "id": 2587,
+    "name": "Maradankawadawala Horowpothana"
+  },
+  {
+    "id": 2588,
+    "name": "Morakewa Horowpothana"
+  },
+  {
+    "id": 2589,
+    "name": "Muslim Attaweerawe Kebithigollewa"
+  },
+  {
+    "id": 2590,
+    "name": "Nambakada Prangiyawadiya Horowpothana"
+  },
+  {
+    "id": 2591,
+    "name": "Nedunkeny"
+  },
+  {
+    "id": 2592,
+    "name": "Nelukkulam"
+  },
+  {
+    "id": 2593,
+    "name": "Nika Wewa Dakuna Welioya"
+  },
+  {
+    "id": 2594,
+    "name": "Nikawewa Horowpothana"
+  },
+  {
+    "id": 2595,
+    "name": "Omanthi"
+  },
+  {
+    "id": 2596,
+    "name": "Padavi Parakramapura ( Vavuniya )"
+  },
+  {
+    "id": 2597,
+    "name": "Padavi Sri Tissapura ( Trincomalee )"
+  },
+  {
+    "id": 2598,
+    "name": "Padavi Sri Tissapura ( Vavuniya )"
+  },
+  {
+    "id": 2599,
+    "name": "Padavi Sripura ( Vavuniya )"
+  },
+  {
+    "id": 2600,
+    "name": "Padaviya Sri Thissapura"
+  },
+  {
+    "id": 2601,
+    "name": "Pambaimadu"
+  },
+  {
+    "id": 2602,
+    "name": "Pandarikulam"
+  },
+  {
+    "id": 2603,
+    "name": "Pihimbiyagollawa Madawachchiya"
+  },
+  {
+    "id": 2604,
+    "name": "Puliyankulam"
+  },
+  {
+    "id": 2605,
+    "name": "Pulmuda Road Mahasenapura Padaviya"
+  },
+  {
+    "id": 2606,
+    "name": "Punawa"
+  },
+  {
+    "id": 2607,
+    "name": "Puvasankulam"
+  },
+  {
+    "id": 2608,
+    "name": "Ralapanawa Horowpothana"
+  },
+  {
+    "id": 2609,
+    "name": "Rathmal gahawewa"
+  },
+  {
+    "id": 2610,
+    "name": "Ratmale (Vavuniya)"
+  },
+  {
+    "id": 2611,
+    "name": "Rotawewa Horowpothana"
+  },
+  {
+    "id": 2612,
+    "name": "Salambailulam"
+  },
+  {
+    "id": 2613,
+    "name": "Sampathnuwara Walioya"
+  },
+  {
+    "id": 2614,
+    "name": "Sangilikandarawa Madawachchiya"
+  },
+  {
+    "id": 2615,
+    "name": "Settekkulam"
+  },
+  {
+    "id": 2616,
+    "name": "Singala Anganochchjaya Medawachchiya"
+  },
+  {
+    "id": 2617,
+    "name": "Sithamparapuram"
+  },
+  {
+    "id": 2618,
+    "name": "Sivapuram (Vavuniya)"
+  },
+  {
+    "id": 2619,
+    "name": "Thalikulam"
+  },
+  {
+    "id": 2620,
+    "name": "Thiththagonewe Kabithigollewa"
+  },
+  {
+    "id": 2621,
+    "name": "Vavuniya"
+  },
+  {
+    "id": 2622,
+    "name": "Veppankulam"
+  },
+  {
+    "id": 2623,
+    "name": "Wahalkada Kebithigollawa"
+  },
+  {
+    "id": 2624,
+    "name": "Wahamalgollawa Madawachchiya"
+  },
+  {
+    "id": 2625,
+    "name": "Welimupothana Horowpothana"
+  },
+  {
+    "id": 2626,
+    "name": "Welioya Project"
+  },
+  {
+    "id": 2627,
+    "name": "Yakawewa Madawachchiya"
+  },
+  {
+    "id": 2628,
+    "name": "Bopitiya (Je-ela)"
+  },
+  {
+    "id": 2629,
+    "name": "Dikkovita"
+  },
+  {
+    "id": 2630,
+    "name": "Ekala"
+  },
+  {
+    "id": 2631,
+    "name": "Enderamulla"
+  },
+  {
+    "id": 2632,
+    "name": "Hekitta"
+  },
+  {
+    "id": 2633,
+    "name": "Hunupitiya"
+  },
+  {
+    "id": 2634,
+    "name": "Ja Ela"
+  },
+  {
+    "id": 2635,
+    "name": "Je - Ela ( Gampaha District )"
+  },
+  {
+    "id": 2636,
+    "name": "Kandana"
+  },
+  {
+    "id": 2637,
+    "name": "Kerawalapitiya"
+  },
+  {
+    "id": 2638,
+    "name": "Mabola"
+  },
+  {
+    "id": 2639,
+    "name": "Mahabage"
+  },
+  {
+    "id": 2640,
+    "name": "Nagoda (Gampaha)"
+  },
+  {
+    "id": 2641,
+    "name": "Peliyagoda"
+  },
+  {
+    "id": 2642,
+    "name": "Peralanda"
+  },
+  {
+    "id": 2643,
+    "name": "Polpithimukulana"
+  },
+  {
+    "id": 2644,
+    "name": "Uswetakeiyawa"
+  },
+  {
+    "id": 2645,
+    "name": "Walpola (Wp)"
+  },
+  {
+    "id": 2646,
+    "name": "Wattala"
+  },
+  {
+    "id": 2647,
+    "name": "Welisara"
+  },
+  {
+    "id": 2648,
+    "name": "Bujjampola"
+  },
+  {
+    "id": 2649,
+    "name": "Dankotuwa"
+  },
+  {
+    "id": 2650,
+    "name": "Daraluwa"
+  },
+  {
+    "id": 2651,
+    "name": "Dunkannawa"
+  },
+  {
+    "id": 2652,
+    "name": "Dunumadalawa"
+  },
+  {
+    "id": 2653,
+    "name": "Gonawila"
+  },
+  {
+    "id": 2654,
+    "name": "Gonawila ( Makandura )"
+  },
+  {
+    "id": 2655,
+    "name": "Hewana,Welipennagahamula"
+  },
+  {
+    "id": 2656,
+    "name": "Ihala Kottaramulla"
+  },
+  {
+    "id": 2657,
+    "name": "Katuneriya"
+  },
+  {
+    "id": 2658,
+    "name": "Koswatta North ( Wennappuwa )"
+  },
+  {
+    "id": 2659,
+    "name": "Lihiriyagama"
+  },
+  {
+    "id": 2660,
+    "name": "Lunuwila"
+  },
+  {
+    "id": 2661,
+    "name": "Makadura (Kurunegala)"
+  },
+  {
+    "id": 2662,
+    "name": "Makandura (Kurunegala)"
+  },
+  {
+    "id": 2663,
+    "name": "Marawila"
+  },
+  {
+    "id": 2664,
+    "name": "Muhudukatuwa"
+  },
+  {
+    "id": 2665,
+    "name": "Nainamadama"
+  },
+  {
+    "id": 2666,
+    "name": "Naththandiya"
+  },
+  {
+    "id": 2667,
+    "name": "Nattandiya"
+  },
+  {
+    "id": 2668,
+    "name": "Pothuwatawana"
+  },
+  {
+    "id": 2669,
+    "name": "Sadalankawa"
+  },
+  {
+    "id": 2670,
+    "name": "Sandalankawa"
+  },
+  {
+    "id": 2671,
+    "name": "Waikkal"
+  },
+  {
+    "id": 2672,
+    "name": "Wathugahamulla"
+  },
+  {
+    "id": 2673,
+    "name": "Watugahamulla"
+  },
+  {
+    "id": 2674,
+    "name": "Welipanagahamulla"
+  },
+  {
+    "id": 2675,
+    "name": "Welpalla"
+  },
+  {
+    "id": 2676,
+    "name": "Wennappuwa"
+  },
+  {
+    "id": 2677,
+    "name": "Yogiyana"
+  },
+  {
+    "id": 2678,
+    "name": "Ambagaspitiya"
+  },
+  {
+    "id": 2679,
+    "name": "Belummahara"
+  },
+  {
+    "id": 2680,
+    "name": "Bemmulla"
+  },
+  {
+    "id": 2681,
+    "name": "Bollete (Wp)"
+  },
+  {
+    "id": 2682,
+    "name": "Bopagama"
+  },
+  {
+    "id": 2683,
+    "name": "Buthpitiya"
+  },
+  {
+    "id": 2684,
+    "name": "Dekatana"
+  },
+  {
+    "id": 2685,
+    "name": "Delgoda"
+  },
+  {
+    "id": 2686,
+    "name": "Demalagama"
+  },
+  {
+    "id": 2687,
+    "name": "Dewalapola"
+  },
+  {
+    "id": 2688,
+    "name": "Dompe"
+  },
+  {
+    "id": 2689,
+    "name": "Gampaha"
+  },
+  {
+    "id": 2690,
+    "name": "Henegama"
+  },
+  {
+    "id": 2691,
+    "name": "Hiswella"
+  },
+  {
+    "id": 2692,
+    "name": "Horampella"
+  },
+  {
+    "id": 2693,
+    "name": "Imbulgoda"
+  },
+  {
+    "id": 2694,
+    "name": "Kalagedihena"
+  },
+  {
+    "id": 2695,
+    "name": "Kirindiwela"
+  },
+  {
+    "id": 2696,
+    "name": "Lunugama"
+  },
+  {
+    "id": 2697,
+    "name": "Madelgamuwa"
+  },
+  {
+    "id": 2698,
+    "name": "Makewita"
+  },
+  {
+    "id": 2699,
+    "name": "Mandawala"
+  },
+  {
+    "id": 2700,
+    "name": "Minuwangoda"
+  },
+  {
+    "id": 2701,
+    "name": "Miriswatta ( Gampaha )"
+  },
+  {
+    "id": 2702,
+    "name": "Mudungoda"
+  },
+  {
+    "id": 2703,
+    "name": "Naranwala"
+  },
+  {
+    "id": 2704,
+    "name": "Nedungamuwa"
+  },
+  {
+    "id": 2705,
+    "name": "Nikahetikanda"
+  },
+  {
+    "id": 2706,
+    "name": "Nilpanagoda"
+  },
+  {
+    "id": 2707,
+    "name": "Pepiliyawala"
+  },
+  {
+    "id": 2708,
+    "name": "Pethiyagoda Gampaha"
+  },
+  {
+    "id": 2709,
+    "name": "Radavana"
+  },
+  {
+    "id": 2710,
+    "name": "Radawana"
+  },
+  {
+    "id": 2711,
+    "name": "Thihariya"
+  },
+  {
+    "id": 2712,
+    "name": "Udathuthiripitiya"
+  },
+  {
+    "id": 2713,
+    "name": "Udugampola"
+  },
+  {
+    "id": 2714,
+    "name": "Uggalboda"
+  },
+  {
+    "id": 2715,
+    "name": "Urapola"
+  },
+  {
+    "id": 2716,
+    "name": "Walgammulla"
+  },
+  {
+    "id": 2717,
+    "name": "Wanaluwewa"
+  },
+  {
+    "id": 2718,
+    "name": "Wathurugama"
+  },
+  {
+    "id": 2719,
+    "name": "Weboda"
+  },
+  {
+    "id": 2720,
+    "name": "Weliweriya"
+  },
+  {
+    "id": 2721,
+    "name": "Yakkala"
+  },
+  {
+    "id": 2722,
+    "name": "neluwa ( Galle )"
+  },
+  {
+    "id": 2723,
+    "name": "kallady"
+  },
+  {
+    "id": 2724,
+    "name": "kothalawala (  Kaduwela )"
+  },
+  {
+    "id": 2725,
+    "name": "millawa ( Kurunegala )"
+  },
+  {
+    "id": 2726,
+    "name": "Bibila"
+  },
+  {
+    "id": 2727,
+    "name": "Vadamarachchi east vettilaikkerni"
+  },
+  {
+    "id": 2728,
+    "name": "Ratnapuram ( kilinochchi )"
+  },
+  {
+    "id": 2729,
+    "name": "Arugam Bay"
+  },
+  {
+    "id": 2730,
+    "name": "aluthoya (aralaganwila)"
+  },
+  {
+    "id": 2731,
+    "name": "CRM"
+  },
+  {
+    "id": 2732,
+    "name": "CRM (Agent)"
+  },
+  {
+    "id": 2733,
+    "name": "Bakinikawela (Monaragala)"
+  },
+  {
+    "id": 2734,
+    "name": "Aiwela (bibila monaragala)"
+  },
+  {
+    "id": 2735,
+    "name": "Kogala"
+  },
+  {
+    "id": 2736,
+    "name": "Mirihana"
+  },
+  {
+    "id": 2737,
+    "name": "Pinnawala ( Rambukkana )"
+  },
+  {
+    "id": 2738,
+    "name": "Ragala (nuwara eliya)"
+  },
+  {
+    "id": 2739,
+    "name": "Godagama (Matara)"
+  },
+  {
+    "id": 2740,
+    "name": "Dediwala Waskaduwa (Kaluthara)"
+  },
+  {
+    "id": 2741,
+    "name": "Ridiyagama (Kurunegala)"
+  },
+  {
+    "id": 2742,
+    "name": "Pellawatta (Minuwangoda) Negombo"
+  },
+  {
+    "id": 2743,
+    "name": "Mahara (kadawatha)"
+  },
+  {
+    "id": 2744,
+    "name": "mabodala Minuwangoda (Mirigama Branch)"
+  },
+  {
+    "id": 2745,
+    "name": "Yanthampalawa"
+  },
+  {
+    "id": 2746,
+    "name": "Maldeniya (Nuwara Eliya)"
+  },
+  {
+    "id": 2747,
+    "name": "Maruthamunai"
+  },
+  {
+    "id": 2748,
+    "name": "Leyland handiya"
+  },
+  {
+    "id": 2749,
+    "name": "Embulgama (Panagoda)"
+  },
+  {
+    "id": 2750,
+    "name": "Lengala"
+  },
+  {
+    "id": 2751,
+    "name": "Wadiyamankada"
+  },
+  {
+    "id": 2752,
+    "name": "Deheragoda"
+  },
+  {
+    "id": 2753,
+    "name": "aluthoya (Habarana)"
+  },
+  {
+    "id": 2754,
+    "name": "Kalapaluwawa Rajagiriya"
+  },
+  {
+    "id": 2755,
+    "name": "Katukurunda (Ratmalana)"
+  },
+  {
+    "id": 2756,
+    "name": "Katukurunda (Panadura)"
+  },
+  {
+    "id": 2757,
+    "name": "Ethnawala"
+  },
+  {
+    "id": 2758,
+    "name": "Uduwaka"
+  },
+  {
+    "id": 2759,
+    "name": "Algama"
+  },
+  {
+    "id": 2760,
+    "name": "Dummaladeniya"
+  },
+  {
+    "id": 2761,
+    "name": "Harispattuwa"
+  },
+  {
+    "id": 2762,
+    "name": "Duthaya Department"
+  },
+  {
+    "id": 2763,
+    "name": "Return Department Colombo Warehouse"
+  },
+  {
+    "id": 2764,
+    "name": "Origin Warehouse"
+  },
+  {
+    "id": 2765,
+    "name": "Wattappola"
+  },
+  {
+    "id": 2766,
+    "name": "Daulagala"
+  },
+  {
+    "id": 2767,
+    "name": "Hela Halpe Bandarawela"
+  },
+  {
+    "id": 2768,
+    "name": "Nelligahamulla (Dunagaha)"
+  },
+  {
+    "id": 2769,
+    "name": "Nawimana"
+  },
+  {
+    "id": 2770,
+    "name": "Nelsonpura"
+  },
+  {
+    "id": 2771,
+    "name": "Nithiyapuri"
+  },
+  {
+    "id": 2772,
+    "name": "Nupe"
+  },
+  {
+    "id": 2773,
+    "name": "Nuwaragam Palatha"
+  },
+  {
+    "id": 2774,
+    "name": "Omanthai"
+  },
+  {
+    "id": 2775,
+    "name": "Opatha (Galle)"
+  },
+  {
+    "id": 2776,
+    "name": "Orrs Hill"
+  },
+  {
+    "id": 2777,
+    "name": "Owitigala"
+  },
+  {
+    "id": 2778,
+    "name": "Palaiyoothu"
+  },
+  {
+    "id": 2779,
+    "name": "Pamburana"
+  },
+  {
+    "id": 2780,
+    "name": "Poonagala"
+  },
+  {
+    "id": 2781,
+    "name": "Pothuwila"
+  },
+  {
+    "id": 2782,
+    "name": "Puliyanthivu"
+  },
+  {
+    "id": 2783,
+    "name": "Pohaddaramulla"
+  },
+  {
+    "id": 2784,
+    "name": "Radella"
+  },
+  {
+    "id": 2785,
+    "name": "Rantotuvila"
+  },
+  {
+    "id": 2786,
+    "name": "Rideemaliyadda"
+  },
+  {
+    "id": 2787,
+    "name": "Sadathenna"
+  },
+  {
+    "id": 2788,
+    "name": "Samudragama"
+  },
+  {
+    "id": 2789,
+    "name": "Serupita"
+  },
+  {
+    "id": 2790,
+    "name": "Sirisethagama"
+  },
+  {
+    "id": 2791,
+    "name": "Siyambalagamuwa (Anurdhapura)"
+  },
+  {
+    "id": 2792,
+    "name": "Soranathota"
+  },
+  {
+    "id": 2793,
+    "name": "Pussalamankada"
+  },
+  {
+    "id": 2794,
+    "name": "Tabbowa"
+  },
+  {
+    "id": 2795,
+    "name": "Tangalle"
+  },
+  {
+    "id": 2796,
+    "name": "Thalgaswala"
+  },
+  {
+    "id": 2797,
+    "name": "Thanthirimale"
+  },
+  {
+    "id": 2798,
+    "name": "Thudawa"
+  },
+  {
+    "id": 2799,
+    "name": "Thudugala"
+  },
+  {
+    "id": 2800,
+    "name": "Uppaveli"
+  },
+  {
+    "id": 2801,
+    "name": "Uriyawa"
+  },
+  {
+    "id": 2802,
+    "name": "Uyanwatta"
+  },
+  {
+    "id": 2803,
+    "name": "Walgama"
+  },
+  {
+    "id": 2804,
+    "name": "Welihinda"
+  },
+  {
+    "id": 2805,
+    "name": "Wewatta"
+  },
+  {
+    "id": 2806,
+    "name": "Aggona"
+  },
+  {
+    "id": 2807,
+    "name": "Aladeniya"
+  },
+  {
+    "id": 2808,
+    "name": "Aruppola"
+  },
+  {
+    "id": 2809,
+    "name": "manampitiya"
+  },
+  {
+    "id": 2810,
+    "name": "Polommaruwa (Matara)"
+  },
+  {
+    "id": 2811,
+    "name": "Akuranboda"
+  },
+  {
+    "id": 2812,
+    "name": "Nagahpola"
+  },
+  {
+    "id": 2813,
+    "name": "Wahara"
+  },
+  {
+    "id": 2814,
+    "name": "Talakiriyawa"
+  },
+  {
+    "id": 2815,
+    "name": "Kirioruwa (Dambulla)"
+  },
+  {
+    "id": 2816,
+    "name": "Kobbawahara"
+  },
+  {
+    "id": 2817,
+    "name": "Koholanwela"
+  },
+  {
+    "id": 2818,
+    "name": "Mahailuppallama"
+  },
+  {
+    "id": 2819,
+    "name": "Galoya"
+  },
+  {
+    "id": 2820,
+    "name": "Hatares Kotuwa"
+  },
+  {
+    "id": 2821,
+    "name": "Singhagama"
+  },
+  {
+    "id": 2822,
+    "name": "Watadeniya"
+  },
+  {
+    "id": 2823,
+    "name": "Poththapitiya"
+  },
+  {
+    "id": 2824,
+    "name": "Wathurakumbura"
+  },
+  {
+    "id": 2825,
+    "name": "Meegalewa"
+  },
+  {
+    "id": 2826,
+    "name": "Ganethenna"
+  },
+  {
+    "id": 2827,
+    "name": "Pallemadawara"
+  },
+  {
+    "id": 2828,
+    "name": "Molligoda (Kadugannawa)"
+  },
+  {
+    "id": 2829,
+    "name": "Pahala Kadugannawa"
+  },
+  {
+    "id": 2830,
+    "name": "Hingula ganethenna"
+  },
+  {
+    "id": 2831,
+    "name": "Polpithigama"
+  },
+  {
+    "id": 2832,
+    "name": "Hettiyawala"
+  },
+  {
+    "id": 2833,
+    "name": "Dedduwala"
+  },
+  {
+    "id": 2834,
+    "name": "Galagama"
+  },
+  {
+    "id": 2835,
+    "name": "Kudawella"
+  },
+  {
+    "id": 2836,
+    "name": "Pallaththara"
+  },
+  {
+    "id": 2837,
+    "name": "Okewela"
+  },
+  {
+    "id": 2838,
+    "name": "Mukirigala"
+  },
+  {
+    "id": 2839,
+    "name": "Wekandawala"
+  },
+  {
+    "id": 2840,
+    "name": "pallekele"
+  },
+  {
+    "id": 2841,
+    "name": "Kowinna"
+  },
+  {
+    "id": 2842,
+    "name": "Matale Handiya"
+  },
+  {
+    "id": 2843,
+    "name": "omaragolla"
+  },
+  {
+    "id": 2844,
+    "name": "Otthappuwa"
+  },
+  {
+    "id": 2845,
+    "name": "Hikkaduwa town"
+  },
+  {
+    "id": 2846,
+    "name": "Morawaka  (Kegalle)"
+  },
+  {
+    "id": 2847,
+    "name": "Dandugama"
+  },
+  {
+    "id": 2848,
+    "name": "Kelanimulla"
+  },
+  {
+    "id": 2849,
+    "name": "return Dep Colombo"
+  },
+  {
+    "id": 2850,
+    "name": "Amandoluwa"
+  },
+  {
+    "id": 2851,
+    "name": "Godigomuwa"
+  },
+  {
+    "id": 2852,
+    "name": "Pinnagolla"
+  },
+  {
+    "id": 2853,
+    "name": "Kandangoda"
+  },
+  {
+    "id": 2854,
+    "name": "Galpanawa"
+  },
+  {
+    "id": 2855,
+    "name": "Berathuduwa"
+  },
+  {
+    "id": 2856,
+    "name": "Sinigama"
+  },
+  {
+    "id": 2857,
+    "name": "Beranthuduwa"
+  },
+  {
+    "id": 2858,
+    "name": "Parakandeniya"
+  },
+  {
+    "id": 2859,
+    "name": "Kadangoda"
+  },
+  {
+    "id": 2860,
+    "name": "Colombo Return Warehouse"
+  },
+  {
+    "id": 2861,
+    "name": "Colombo Metropolitan"
+  },
+  {
+    "id": 2862,
+    "name": "Kottegoda (Matale)"
+  }
+]
