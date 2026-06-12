@@ -32,12 +32,29 @@ const CURFOX_CITY_LIST_PATH_OVERRIDE =
   process.env.ROYALEXPRESS_CURFOX_CITY_LIST_PATH?.trim() ||
   process.env.CURFOX_CITY_LIST_PATH?.trim() ||
   '';
+const CURFOX_ORDER_BULK_PATH_OVERRIDE =
+  process.env.ROYALEXPRESS_CURFOX_ORDER_BULK_PATH?.trim() ||
+  process.env.CURFOX_ORDER_BULK_PATH?.trim() ||
+  '';
 const CURFOX_PATHS = {
   login: USE_TENANT_PATHS ? '/merchant/login' : '/api/public/merchant/login',
   userInfo: USE_TENANT_PATHS ? '/merchant/user/get-current' : '/api/public/merchant/user/get-current',
   orderSingle: USE_TENANT_PATHS ? '/merchant/order/single' : '/api/public/merchant/order/single',
   trackingInfo: USE_TENANT_PATHS ? '/merchant/order/tracking-info' : '/api/public/merchant/order/tracking-info',
 };
+const CURFOX_ORDER_BULK_PATHS = USE_TENANT_PATHS
+  ? [
+      CURFOX_ORDER_BULK_PATH_OVERRIDE,
+      '/merchant/order/bulk',
+      '/api/merchant/order/bulk',
+      '/api/public/merchant/order/bulk',
+    ].filter(Boolean)
+  : [
+      CURFOX_ORDER_BULK_PATH_OVERRIDE,
+      '/api/public/merchant/order/bulk',
+      '/api/merchant/order/bulk',
+      '/merchant/order/bulk',
+    ].filter(Boolean);
 const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
   ? [
       CURFOX_CITY_LIST_PATH_OVERRIDE,
@@ -113,6 +130,7 @@ interface ResolvedRoyalExpressCredentials {
   pickupAddressId: string;
   originCityId: string | null;
   originCityName: string | null;
+  originStateName: string | null;
   senderAddress: string | null;
   defaultDestinationCityId: string | null;
 }
@@ -397,6 +415,32 @@ function extractWaybillId(value: CurfoxResponseValue): string | null {
   return null;
 }
 
+function extractWaybillIds(value: CurfoxResponseValue): string[] {
+  const waybills: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (valueToPush?: string | null) => {
+    const cleaned = cleanOptionalText(valueToPush);
+    if (!cleaned || seen.has(cleaned)) return;
+    seen.add(cleaned);
+    waybills.push(cleaned);
+  };
+
+  for (const record of collectRecords(value)) {
+    push(extractWaybillId(record));
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string' || typeof item === 'number') {
+        push(String(item));
+      }
+    }
+  }
+
+  return waybills;
+}
+
 function extractProviderOrderId(value: CurfoxResponseValue): string | null {
   return extractFirstMatchingString(value, [
     'order_id',
@@ -406,6 +450,20 @@ function extractProviderOrderId(value: CurfoxResponseValue): string | null {
     'orderNo',
     'reference',
     'merchant_order_id',
+  ]);
+}
+
+function getRoyalExpressOrderReference(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'order_no',
+    'orderNo',
+    'merchant_order_no',
+    'merchantOrderNo',
+    'merchant_order_id',
+    'merchantOrderId',
+    'reference',
+    'order_reference',
+    'orderReference',
   ]);
 }
 
@@ -467,6 +525,24 @@ function getRoyalExpressOriginCityName(record: Record<string, CurfoxResponseValu
     'city',
     'pickup_city',
     'pickupCity',
+  ]);
+}
+
+function getRoyalExpressOriginStateName(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'origin_state_name',
+    'originStateName',
+    'state_name',
+    'stateName',
+    'district_name',
+    'districtName',
+    'province_name',
+    'provinceName',
+    'region',
+    'pickup_state',
+    'pickupState',
+    'pickup_district',
+    'pickupDistrict',
   ]);
 }
 
@@ -617,14 +693,16 @@ function inferOriginCityNameFromText(value?: string | null): string | null {
   return cleanOptionalText(parts.at(-1));
 }
 
-async function resolveRoyalExpressOriginCityName(input: {
+async function resolveRoyalExpressOriginLocation(input: {
   token: string;
   businessId: string;
   pickupAddressId: string;
   configuredOriginCityName: string | null;
+  configuredOriginStateName: string | null;
   senderAddress: string | null;
 }): Promise<{
   originCityName: string;
+  originStateName: string;
   source: 'business-address' | 'settings' | 'sender-address';
   addressListPath?: string;
   attemptedAddressListPaths?: string[];
@@ -637,19 +715,26 @@ async function resolveRoyalExpressOriginCityName(input: {
         record,
         id: getRoyalExpressPickupAddressId(record),
         cityName: getRoyalExpressOriginCityName(record),
+        stateName: getRoyalExpressOriginStateName(record),
         addressText: getRoyalExpressAddressText(record),
       }))
-      .filter((record) => record.id || record.cityName || record.addressText);
+      .filter((record) => record.id || record.cityName || record.stateName || record.addressText);
     const matched =
       records.find((record) => record.id === input.pickupAddressId) ||
       (records.length === 1 ? records[0] : null);
     const cityName =
       cleanOptionalText(matched?.cityName) ||
       inferOriginCityNameFromText(matched?.addressText);
+    const stateName =
+      cleanOptionalText(matched?.stateName) ||
+      input.configuredOriginStateName ||
+      cleanOptionalText(matched?.cityName) ||
+      cityName;
 
     if (cityName) {
       return {
         originCityName: cityName,
+        originStateName: stateName || cityName,
         source: 'business-address',
         addressListPath: addressList.path,
         attemptedAddressListPaths: addressList.attemptedPaths,
@@ -662,6 +747,7 @@ async function resolveRoyalExpressOriginCityName(input: {
     if (fallback) {
       return {
         originCityName: fallback,
+        originStateName: input.configuredOriginStateName || fallback,
         source: input.configuredOriginCityName ? 'settings' : 'sender-address',
         attemptedAddressListPaths: CURFOX_BUSINESS_ADDRESS_PATHS(input.businessId),
         warning: error instanceof Error ? error.message : String(error),
@@ -674,6 +760,7 @@ async function resolveRoyalExpressOriginCityName(input: {
   if (configured) {
     return {
       originCityName: configured,
+      originStateName: input.configuredOriginStateName || configured,
       source: 'settings',
       attemptedAddressListPaths: CURFOX_BUSINESS_ADDRESS_PATHS(input.businessId),
       warning: 'RoyalExpress pickup address list did not include an origin city name; using configured origin city name.',
@@ -684,6 +771,7 @@ async function resolveRoyalExpressOriginCityName(input: {
   if (inferred) {
     return {
       originCityName: inferred,
+      originStateName: input.configuredOriginStateName || inferred,
       source: 'sender-address',
       attemptedAddressListPaths: CURFOX_BUSINESS_ADDRESS_PATHS(input.businessId),
       warning: 'RoyalExpress pickup address list did not include an origin city name; inferred it from sender address.',
@@ -823,6 +911,42 @@ async function requestRoyalExpressCityList(token: string): Promise<{
   );
 }
 
+async function requestRoyalExpressBulkOrder(
+  token: string,
+  payload: unknown,
+): Promise<{
+  response: CurfoxResponseValue;
+  path: string;
+  attemptedPaths: string[];
+}> {
+  const errors: string[] = [];
+
+  for (const path of CURFOX_ORDER_BULK_PATHS) {
+    try {
+      return {
+        response: await requestCurfoxJson(path, {
+          method: 'POST',
+          token,
+          body: payload,
+        }),
+        path,
+        attemptedPaths: CURFOX_ORDER_BULK_PATHS,
+      };
+    } catch (error) {
+      if (error instanceof OrderRequestError && error.status === 404) {
+        errors.push(path);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new OrderRequestError(
+    `RoyalExpress Curfox bulk order endpoint was not found. Tried: ${errors.join(', ') || CURFOX_ORDER_BULK_PATHS.join(', ')}.`,
+    502,
+  );
+}
+
 async function resolveRoyalExpressDestinationCityId(input: {
   token: string;
   order: {
@@ -904,6 +1028,127 @@ async function resolveRoyalExpressDestinationCityId(input: {
   );
 }
 
+function stripRoyalExpressCityQualifier(value: string): string {
+  return value.replace(/\s*\([^)]+\)\s*$/, '').trim();
+}
+
+function getRoyalExpressCityQualifier(value?: string | null): string | null {
+  const match = cleanOptionalText(value)?.match(/\(([^)]+)\)\s*$/);
+  return cleanOptionalText(match?.[1]);
+}
+
+async function resolveRoyalExpressDestinationLocation(input: {
+  token: string;
+  order: {
+    deliveryAddress: string | null;
+    deliveryStreetAddress: string | null;
+    deliveryCity: string | null;
+    deliveryDistrict: string | null;
+  };
+  fallbackCityId: string | null;
+}): Promise<{
+  cityId: string | null;
+  cityName: string;
+  stateName: string;
+  source: 'city-list' | 'order-address' | 'settings';
+  cityListPath?: string;
+  attemptedCityListPaths?: string[];
+  warning?: string;
+}> {
+  const city = normalizeCityText(input.order.deliveryCity);
+  const district = normalizeCityText(input.order.deliveryDistrict);
+  const address = normalizeCityText([
+    input.order.deliveryStreetAddress,
+    input.order.deliveryAddress,
+    input.order.deliveryCity,
+    input.order.deliveryDistrict,
+  ].filter(Boolean).join(' '));
+  const target = { city, district, address };
+  const orderCityName = cleanOptionalText(input.order.deliveryCity);
+  const orderStateName = cleanOptionalText(input.order.deliveryDistrict);
+
+  if (city || district || address) {
+    const staticBest = findBestRoyalExpressCityRecord(
+      (royalExpressCityList as RoyalExpressStaticCity[]).map(staticRoyalExpressCityToRecord),
+      target,
+    );
+
+    if (staticBest?.cityId) {
+      const matchedCityName = getRoyalExpressCityName(staticBest.record);
+      const cityName = stripRoyalExpressCityQualifier(matchedCityName || orderCityName || '');
+      const stateName =
+        orderStateName ||
+        getRoyalExpressDistrictName(staticBest.record) ||
+        getRoyalExpressCityQualifier(matchedCityName) ||
+        cityName;
+
+      if (cityName && stateName) {
+        return {
+          cityId: staticBest.cityId,
+          cityName,
+          stateName,
+          source: 'city-list',
+          cityListPath: 'local:royalexpress-city-list.json',
+        };
+      }
+    }
+
+    let cityListWarning: string | null = null;
+    try {
+      const cityList = await requestRoyalExpressCityList(input.token);
+      const best = findBestRoyalExpressCityRecord(collectRecords(cityList.response), target);
+
+      if (best?.cityId) {
+        const matchedCityName = getRoyalExpressCityName(best.record);
+        const cityName = stripRoyalExpressCityQualifier(matchedCityName || orderCityName || '');
+        const stateName =
+          orderStateName ||
+          getRoyalExpressDistrictName(best.record) ||
+          getRoyalExpressCityQualifier(matchedCityName) ||
+          cityName;
+
+        if (cityName && stateName) {
+          return {
+            cityId: best.cityId,
+            cityName,
+            stateName,
+            source: 'city-list',
+            cityListPath: cityList.path,
+            attemptedCityListPaths: cityList.attemptedPaths,
+          };
+        }
+      }
+    } catch (error) {
+      cityListWarning = error instanceof Error ? error.message : String(error);
+    }
+
+    if (orderCityName && orderStateName) {
+      return {
+        cityId: input.fallbackCityId,
+        cityName: orderCityName,
+        stateName: orderStateName,
+        source: 'order-address',
+        attemptedCityListPaths: CURFOX_CITY_LIST_PATHS,
+        warning: cityListWarning || 'RoyalExpress city list did not match the customer city; using order city and district names.',
+      };
+    }
+  }
+
+  if (orderCityName && orderStateName) {
+    return {
+      cityId: input.fallbackCityId,
+      cityName: orderCityName,
+      stateName: orderStateName,
+      source: 'order-address',
+    };
+  }
+
+  throw new OrderRequestError(
+    `RoyalExpress destination city/state names could not be matched for ${input.order.deliveryCity || input.order.deliveryDistrict || 'this address'}. Add delivery city and district before processing the RoyalExpress batch.`,
+    409,
+  );
+}
+
 async function requestCurfoxJson(
   path: string,
   options: {
@@ -970,6 +1215,11 @@ async function resolveRoyalExpressCredentials(brand: string): Promise<ResolvedRo
     getEnvCredential(brand, 'ORIGIN_CITY_NAME') ||
     getEnvCredential(brand, 'ORIGIN_CITY') ||
     inferOriginCityNameFromText(record?.senderAddress);
+  const originStateName =
+    getEnvCredential(brand, 'ORIGIN_STATE_NAME') ||
+    getEnvCredential(brand, 'ORIGIN_STATE') ||
+    getEnvCredential(brand, 'ORIGIN_DISTRICT_NAME') ||
+    getEnvCredential(brand, 'ORIGIN_DISTRICT');
   const senderAddress = cleanOptionalText(record?.senderAddress) || getEnvCredential(brand, 'SENDER_ADDRESS');
   const defaultDestinationCityId =
     cleanOptionalText(record?.defaultReceiverCityId) || getEnvCredential(brand, 'DEFAULT_DESTINATION_CITY_ID');
@@ -991,6 +1241,7 @@ async function resolveRoyalExpressCredentials(brand: string): Promise<ResolvedRo
     pickupAddressId,
     originCityId,
     originCityName,
+    originStateName,
     senderAddress,
     defaultDestinationCityId,
   };
@@ -1153,11 +1404,12 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
     configuredBusinessId: credentials.merchantBusinessId,
     brand,
   });
-  const originCity = await resolveRoyalExpressOriginCityName({
+  const originCity = await resolveRoyalExpressOriginLocation({
     token,
     businessId: merchantBusiness.businessId,
     pickupAddressId: credentials.pickupAddressId,
     configuredOriginCityName: credentials.originCityName,
+    configuredOriginStateName: credentials.originStateName,
     senderAddress: credentials.senderAddress,
   });
   const destinationCity = await resolveRoyalExpressDestinationCityId({
@@ -1325,32 +1577,292 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
 
   const successes: Array<{ orderId: number; waybillId: string }> = [];
   const failures: Array<{ orderId: number; error: string }> = [];
-
-  for (const orderId of uniqueOrderIds) {
-    try {
-      const shipment = await createRoyalExpressDelivery({
+  let batchRawResponse: unknown = null;
+  const recordFailure = async (orderId: number, message: string) => {
+    failures.push({ orderId, error: message });
+    await prisma.order.updateMany({
+      where: { id: orderId, courierProcessedAt: null },
+      data: { courierProcessingStatus: 'failed' },
+    });
+    await prisma.orderFulfillmentEvent.create({
+      data: {
         orderId,
-        batchId: batch.id,
-        actor: input.actor,
+        toStatus: 'confirmed',
+        note: `RoyalExpress batch #${batch.id} failed: ${message}`,
+        courier: ROYALEXPRESS_COURIER_NAME,
+        actorEmail: input.actor?.email ?? null,
+        actorName: input.actor?.name ?? null,
+      },
+    }).catch(() => undefined);
+  };
+
+  const orders = await prisma.order.findMany({
+    where: { id: { in: uniqueOrderIds } },
+    include: {
+      customer: true,
+      orderItems: { include: { product: true } },
+      courierShipments: {
+        where: { provider: ROYALEXPRESS_PROVIDER },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+  const orderedOrders = uniqueOrderIds.map((orderId) => orderById.get(orderId)).filter(Boolean);
+  const batchBrand = cleanOptionalText(input.brand) || cleanOptionalText(orderedOrders[0]?.brand);
+
+  if (!batchBrand) {
+    for (const orderId of uniqueOrderIds) {
+      await recordFailure(orderId, 'This order does not have a brand, so a brand courier account cannot be selected.');
+    }
+  } else {
+    const settings = await findRoyalExpressSettingsRecord(batchBrand);
+
+    if (!settings?.isActive) {
+      for (const orderId of uniqueOrderIds) {
+        await recordFailure(orderId, `RoyalExpress is not active for ${batchBrand}. Enable it in Settings first.`);
+      }
+    } else {
+      try {
+      const credentials = await resolveRoyalExpressCredentials(batchBrand);
+      const token = await loginRoyalExpress(batchBrand, credentials);
+      const merchantBusiness = await resolveRoyalExpressMerchantBusinessId({
+        token,
+        configuredBusinessId: credentials.merchantBusinessId,
+        brand: batchBrand,
       });
-      successes.push({ orderId, waybillId: shipment.waybillId });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      failures.push({ orderId, error: message });
-      await prisma.order.updateMany({
-        where: { id: orderId, courierProcessedAt: null },
-        data: { courierProcessingStatus: 'failed' },
+      const originLocation = await resolveRoyalExpressOriginLocation({
+        token,
+        businessId: merchantBusiness.businessId,
+        pickupAddressId: credentials.pickupAddressId,
+        configuredOriginCityName: credentials.originCityName,
+        configuredOriginStateName: credentials.originStateName,
+        senderAddress: credentials.senderAddress,
       });
-      await prisma.orderFulfillmentEvent.create({
-        data: {
-          orderId,
-          toStatus: 'confirmed',
-          note: `RoyalExpress batch #${batch.id} failed: ${message}`,
-          courier: ROYALEXPRESS_COURIER_NAME,
-          actorEmail: input.actor?.email ?? null,
-          actorName: input.actor?.name ?? null,
-        },
-      }).catch(() => undefined);
+      const preparedOrders: Array<{
+        order: (typeof orders)[number];
+        orderReference: string;
+        customerAddress: string;
+        destination: Awaited<ReturnType<typeof resolveRoyalExpressDestinationLocation>>;
+        description: string;
+        specialNote: string;
+        amounts: Awaited<ReturnType<typeof resolveRoyalExpressAmounts>>;
+        requestRow: Record<string, string | number | null>;
+      }> = [];
+
+      for (const orderId of uniqueOrderIds) {
+        const order = orderById.get(orderId);
+        if (!order) {
+          await recordFailure(orderId, `Order #${orderId} was not found.`);
+          continue;
+        }
+
+        const duplicate = order.courierShipments[0];
+        if (duplicate) {
+          await recordFailure(orderId, `Order #${orderId} already has RoyalExpress waybill ${duplicate.waybillId}.`);
+          continue;
+        }
+
+        if (!order.customer.phone?.trim()) {
+          await recordFailure(orderId, 'Customer phone is required to create a RoyalExpress delivery.');
+          continue;
+        }
+
+        const customerAddress = buildRoyalExpressAddress(order);
+        if (!customerAddress) {
+          await recordFailure(orderId, 'Delivery address is required to create a RoyalExpress delivery.');
+          continue;
+        }
+
+        try {
+          const destination = await resolveRoyalExpressDestinationLocation({
+            token,
+            order,
+            fallbackCityId: credentials.defaultDestinationCityId,
+          });
+          const orderReference = `ORD-${order.id}`;
+          const description = buildOrderDescription(order);
+          const specialNote = buildSpecialNote(order.id, batchBrand);
+          const amounts = await resolveRoyalExpressAmounts(order);
+          const requestRow = {
+            waybill_number: '',
+            order_no: orderReference,
+            customer_name: order.customer.name,
+            customer_address: customerAddress,
+            customer_phone: order.customer.phone,
+            customer_secondary_phone: null,
+            customer_email: null,
+            destination_city_name: destination.cityName,
+            destination_state_name: destination.stateName,
+            cod: amounts.codAmount,
+            description,
+            weight: 1,
+            remark: specialNote,
+          };
+
+          preparedOrders.push({
+            order,
+            orderReference,
+            customerAddress,
+            destination,
+            description,
+            specialNote,
+            amounts,
+            requestRow,
+          });
+        } catch (error) {
+          await recordFailure(orderId, error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      if (preparedOrders.length > 0) {
+        const payload = {
+          general_data: {
+            merchant_business_id: merchantBusiness.businessId,
+            origin_city_name: originLocation.originCityName,
+            origin_state_name: originLocation.originStateName,
+          },
+          order_data: preparedOrders.map((order) => order.requestRow),
+        };
+
+        try {
+          const bulkOrder = await requestRoyalExpressBulkOrder(token, payload);
+          const responseRecords = collectRecords(bulkOrder.response);
+          const responseWaybills = extractWaybillIds(bulkOrder.response);
+          const usedWaybills = new Set<string>();
+          const createdShipments: CourierShipment[] = [];
+
+          for (let index = 0; index < preparedOrders.length; index += 1) {
+            const prepared = preparedOrders[index];
+            const matchingRecord = responseRecords.find(
+              (record) => getRoyalExpressOrderReference(record) === prepared.orderReference,
+            );
+            const fallbackWaybill = responseWaybills.find((waybill) => !usedWaybills.has(waybill));
+            const waybillId = (matchingRecord ? extractWaybillId(matchingRecord) : null) || fallbackWaybill;
+
+            if (!waybillId) {
+              await recordFailure(
+                prepared.order.id,
+                `RoyalExpress created the bulk Curfox order but did not return a waybill number for ${prepared.orderReference}: ${stringifyCurfoxMessage(matchingRecord || bulkOrder.response)}`,
+              );
+              continue;
+            }
+
+            usedWaybills.add(waybillId);
+            const responseForOrder = matchingRecord || bulkOrder.response;
+            const courierStatus = extractStatus(responseForOrder) || extractStatus(bulkOrder.response) || 'submitted';
+            const mappedStatus: FulfillmentStatus = mapCourierStatus(ROYALEXPRESS_PROVIDER, courierStatus);
+            const now = new Date();
+            const created = await prisma.$transaction(async (tx) => {
+              const shipment = await tx.courierShipment.create({
+                data: {
+                  orderId: prepared.order.id,
+                  batchId: batch.id,
+                  brand: batchBrand,
+                  provider: ROYALEXPRESS_PROVIDER,
+                  waybillId,
+                  providerOrderId: extractProviderOrderId(responseForOrder),
+                  orderReference: prepared.orderReference,
+                  receiverName: prepared.order.customer.name,
+                  receiverStreet: prepared.customerAddress,
+                  receiverCityId: prepared.destination.cityId || prepared.destination.cityName,
+                  receiverPhone: prepared.order.customer.phone,
+                  description: prepared.description,
+                  specialNote: prepared.specialNote,
+                  codAmount: prepared.amounts.codAmount,
+                  courierStatus,
+                  mappedStatus,
+                  rawResponse: compactPayload({
+                    request: {
+                      general_data: payload.general_data,
+                      order_data: [prepared.requestRow],
+                    },
+                    response: responseForOrder,
+                    bulkResponsePath: bulkOrder.path,
+                    amounts: prepared.amounts,
+                    destination: prepared.destination,
+                    merchantBusiness,
+                    originLocation,
+                  }),
+                  submittedAt: now,
+                  lastSyncedAt: now,
+                  createdByEmail: input.actor?.email ?? null,
+                  createdByName: input.actor?.name ?? null,
+                },
+              });
+
+              await tx.order.update({
+                where: { id: prepared.order.id },
+                data: {
+                  trackingNumber: waybillId,
+                  courier: ROYALEXPRESS_COURIER_NAME,
+                  courierProcessingStatus: 'processed',
+                  courierProcessedAt: now,
+                },
+              });
+
+              await tx.orderFulfillmentEvent.create({
+                data: {
+                  orderId: prepared.order.id,
+                  fromStatus: prepared.order.orderStatus,
+                  toStatus: prepared.order.orderStatus,
+                  note: `RoyalExpress batch #${batch.id} created Curfox waybill ${waybillId}.`,
+                  trackingNumber: waybillId,
+                  courier: ROYALEXPRESS_COURIER_NAME,
+                  actorEmail: input.actor?.email ?? null,
+                  actorName: input.actor?.name ?? null,
+                },
+              });
+
+              return shipment;
+            });
+
+            createdShipments.push(created);
+            successes.push({ orderId: prepared.order.id, waybillId });
+          }
+
+          if (preparedOrders.length > 0 && createdShipments.length === 0 && failures.length === 0) {
+            for (const prepared of preparedOrders) {
+              await recordFailure(
+                prepared.order.id,
+                `RoyalExpress bulk response did not include any usable waybill numbers: ${stringifyCurfoxMessage(bulkOrder.response)}`,
+              );
+            }
+          }
+
+          batchRawResponse = {
+            request: payload,
+            response: bulkOrder.response,
+            path: bulkOrder.path,
+            attemptedPaths: bulkOrder.attemptedPaths,
+            successes,
+            failures,
+            merchantBusiness,
+            originLocation,
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          batchRawResponse = {
+            request: payload,
+            error: message,
+            successes,
+            failures,
+            merchantBusiness,
+            originLocation,
+          };
+          for (const prepared of preparedOrders) {
+            await recordFailure(prepared.order.id, message);
+          }
+        }
+      }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        batchRawResponse = { error: message, successes, failures };
+        for (const orderId of uniqueOrderIds) {
+          await recordFailure(orderId, message);
+        }
+      }
     }
   }
 
@@ -1367,7 +1879,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
       status,
       successCount: successes.length,
       failureCount: failures.length,
-      rawResponse: compactPayload({ successes, failures }),
+      rawResponse: compactPayload(batchRawResponse || { successes, failures }),
       error: failures.length > 0 ? failures.map((failure) => `#${failure.orderId}: ${failure.error}`).join('\n') : null,
     },
     include: {
