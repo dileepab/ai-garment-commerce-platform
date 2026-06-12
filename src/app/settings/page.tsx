@@ -613,7 +613,7 @@ function RoyalExpressCourierSettingsPanel({
           name="royalExpressDefaultDestinationCityId"
           value={settings.defaultDestinationCityId}
           disabled={!canManage}
-          placeholder="Curfox city ID for receiver destination"
+          placeholder="Fallback Curfox city ID if city list matching fails"
         />
         <label style={fieldStyle}>
           <span style={labelStyle}>Credential source</span>

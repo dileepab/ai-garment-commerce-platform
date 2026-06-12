@@ -32,6 +32,7 @@ const CURFOX_PATHS = {
   userInfo: USE_TENANT_PATHS ? '/merchant/user/get-current' : '/api/public/merchant/user/get-current',
   orderSingle: USE_TENANT_PATHS ? '/merchant/order/single' : '/api/public/merchant/order/single',
   trackingInfo: USE_TENANT_PATHS ? '/merchant/order/tracking-info' : '/api/public/merchant/order/tracking-info',
+  cityList: USE_TENANT_PATHS ? '/merchant/resources/city-list' : '/api/public/merchant/resources/city-list',
 };
 
 type CurfoxResponseValue =
@@ -344,6 +345,129 @@ function extractStatus(value: CurfoxResponseValue): string | null {
   ]);
 }
 
+function normalizeCityText(value?: string | null): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getRoyalExpressCityId(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'city_id',
+    'cityId',
+    'destination_city_id',
+    'destinationCityId',
+    'id',
+    'value',
+  ]);
+}
+
+function getRoyalExpressCityName(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'city_name',
+    'cityName',
+    'name',
+    'city',
+    'label',
+    'text',
+  ]);
+}
+
+function getRoyalExpressDistrictName(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'district_name',
+    'districtName',
+    'district',
+    'state_name',
+    'stateName',
+    'province_name',
+    'provinceName',
+    'region',
+  ]);
+}
+
+function scoreRoyalExpressCityRecord(
+  record: Record<string, CurfoxResponseValue>,
+  target: {
+    city: string;
+    district: string;
+    address: string;
+  },
+): number {
+  const id = getRoyalExpressCityId(record);
+  const cityName = normalizeCityText(getRoyalExpressCityName(record));
+  if (!id || !cityName) return 0;
+
+  const districtName = normalizeCityText(getRoyalExpressDistrictName(record));
+  let score = 0;
+
+  if (target.city && cityName === target.city) score += 100;
+  else if (target.city && cityName.includes(target.city)) score += 70;
+  else if (target.city && target.city.includes(cityName)) score += 50;
+  else if (target.address && target.address.includes(cityName)) score += 35;
+
+  if (target.district && districtName === target.district) score += 35;
+  else if (target.district && districtName.includes(target.district)) score += 20;
+  else if (target.district && target.address.includes(districtName)) score += 10;
+
+  return score;
+}
+
+async function resolveRoyalExpressDestinationCityId(input: {
+  token: string;
+  order: {
+    deliveryAddress: string | null;
+    deliveryStreetAddress: string | null;
+    deliveryCity: string | null;
+    deliveryDistrict: string | null;
+  };
+  fallbackCityId: string | null;
+}): Promise<{ cityId: string; source: 'city-list' | 'settings' }> {
+  const city = normalizeCityText(input.order.deliveryCity);
+  const district = normalizeCityText(input.order.deliveryDistrict);
+  const address = normalizeCityText([
+    input.order.deliveryStreetAddress,
+    input.order.deliveryAddress,
+    input.order.deliveryCity,
+    input.order.deliveryDistrict,
+  ].filter(Boolean).join(' '));
+
+  if (city || district || address) {
+    try {
+      const response = await requestCurfoxJson(CURFOX_PATHS.cityList, { token: input.token });
+      const best = collectRecords(response)
+        .map((record) => ({
+          record,
+          cityId: getRoyalExpressCityId(record),
+          score: scoreRoyalExpressCityRecord(record, { city, district, address }),
+        }))
+        .filter((candidate): candidate is { record: Record<string, CurfoxResponseValue>; cityId: string; score: number } =>
+          Boolean(candidate.cityId && candidate.score > 0)
+        )
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (best?.cityId) {
+        return { cityId: best.cityId, source: 'city-list' };
+      }
+    } catch (error) {
+      if (!input.fallbackCityId) {
+        throw error;
+      }
+    }
+  }
+
+  if (input.fallbackCityId) {
+    return { cityId: input.fallbackCityId, source: 'settings' };
+  }
+
+  throw new OrderRequestError(
+    `RoyalExpress destination city ID could not be matched for ${input.order.deliveryCity || input.order.deliveryDistrict || 'this address'}. Check the Curfox city list or add a default destination city ID in Settings before processing the RoyalExpress batch.`,
+    409,
+  );
+}
+
 async function requestCurfoxJson(
   path: string,
   options: {
@@ -580,15 +704,13 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
   }
 
   const credentials = await resolveRoyalExpressCredentials(brand);
-  const destinationCityId = credentials.defaultDestinationCityId;
-  if (!destinationCityId) {
-    throw new OrderRequestError(
-      `RoyalExpress destination city ID is not configured for ${brand}. Add the Curfox destination city ID in Settings before processing the RoyalExpress batch.`,
-      409,
-    );
-  }
-
   const token = await loginRoyalExpress(brand, credentials);
+  const destinationCity = await resolveRoyalExpressDestinationCityId({
+    token,
+    order,
+    fallbackCityId: credentials.defaultDestinationCityId,
+  });
+  const destinationCityId = destinationCity.cityId;
   const orderReference = `ORD-${order.id}`;
   const description = buildOrderDescription(order);
   const specialNote = buildSpecialNote(order.id, brand);
@@ -658,7 +780,7 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
         codAmount: amounts.codAmount,
         courierStatus,
         mappedStatus,
-        rawResponse: compactPayload({ request: payload, response, amounts }),
+        rawResponse: compactPayload({ request: payload, response, amounts, destinationCity }),
         submittedAt: now,
         lastSyncedAt: now,
         createdByEmail: input.actor?.email ?? null,
