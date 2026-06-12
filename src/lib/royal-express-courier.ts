@@ -32,8 +32,32 @@ const CURFOX_PATHS = {
   userInfo: USE_TENANT_PATHS ? '/merchant/user/get-current' : '/api/public/merchant/user/get-current',
   orderSingle: USE_TENANT_PATHS ? '/merchant/order/single' : '/api/public/merchant/order/single',
   trackingInfo: USE_TENANT_PATHS ? '/merchant/order/tracking-info' : '/api/public/merchant/order/tracking-info',
-  cityList: USE_TENANT_PATHS ? '/merchant/resources/city-list' : '/api/public/merchant/resources/city-list',
 };
+const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
+  ? [
+      '/merchant/resources/city-list',
+      '/merchant/resource/city-list',
+      '/merchant/resources/cities',
+      '/merchant/resource/cities',
+      '/merchant/city/list',
+      '/api/public/merchant/resources/city-list',
+      '/api/public/merchant/resource/city-list',
+      '/api/public/merchant/resources/cities',
+      '/api/public/merchant/resource/cities',
+      '/api/public/merchant/city/list',
+    ]
+  : [
+      '/api/public/merchant/resources/city-list',
+      '/api/public/merchant/resource/city-list',
+      '/api/public/merchant/resources/cities',
+      '/api/public/merchant/resource/cities',
+      '/api/public/merchant/city/list',
+      '/merchant/resources/city-list',
+      '/merchant/resource/city-list',
+      '/merchant/resources/cities',
+      '/merchant/resource/cities',
+      '/merchant/city/list',
+    ];
 
 type CurfoxResponseValue =
   | string
@@ -415,6 +439,35 @@ function scoreRoyalExpressCityRecord(
   return score;
 }
 
+async function requestRoyalExpressCityList(token: string): Promise<{
+  response: CurfoxResponseValue;
+  path: string;
+  attemptedPaths: string[];
+}> {
+  const errors: string[] = [];
+
+  for (const path of CURFOX_CITY_LIST_PATHS) {
+    try {
+      return {
+        response: await requestCurfoxJson(path, { token }),
+        path,
+        attemptedPaths: CURFOX_CITY_LIST_PATHS,
+      };
+    } catch (error) {
+      if (error instanceof OrderRequestError && error.status === 404) {
+        errors.push(path);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new OrderRequestError(
+    `RoyalExpress Curfox city list endpoint was not found. Tried: ${errors.join(', ') || CURFOX_CITY_LIST_PATHS.join(', ')}.`,
+    502,
+  );
+}
+
 async function resolveRoyalExpressDestinationCityId(input: {
   token: string;
   order: {
@@ -424,7 +477,7 @@ async function resolveRoyalExpressDestinationCityId(input: {
     deliveryDistrict: string | null;
   };
   fallbackCityId: string | null;
-}): Promise<{ cityId: string; source: 'city-list' | 'settings' }> {
+}): Promise<{ cityId: string; source: 'city-list' | 'settings'; cityListPath?: string; attemptedCityListPaths?: string[] }> {
   const city = normalizeCityText(input.order.deliveryCity);
   const district = normalizeCityText(input.order.deliveryDistrict);
   const address = normalizeCityText([
@@ -436,8 +489,8 @@ async function resolveRoyalExpressDestinationCityId(input: {
 
   if (city || district || address) {
     try {
-      const response = await requestCurfoxJson(CURFOX_PATHS.cityList, { token: input.token });
-      const best = collectRecords(response)
+      const cityList = await requestRoyalExpressCityList(input.token);
+      const best = collectRecords(cityList.response)
         .map((record) => ({
           record,
           cityId: getRoyalExpressCityId(record),
@@ -449,7 +502,12 @@ async function resolveRoyalExpressDestinationCityId(input: {
         .sort((a, b) => b.score - a.score)[0];
 
       if (best?.cityId) {
-        return { cityId: best.cityId, source: 'city-list' };
+        return {
+          cityId: best.cityId,
+          source: 'city-list',
+          cityListPath: cityList.path,
+          attemptedCityListPaths: cityList.attemptedPaths,
+        };
       }
     } catch (error) {
       if (!input.fallbackCityId) {
