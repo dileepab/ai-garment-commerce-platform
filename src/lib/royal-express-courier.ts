@@ -40,11 +40,14 @@ const CURFOX_PATHS = {
 const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
   ? [
       CURFOX_CITY_LIST_PATH_OVERRIDE,
+      '/merchant/resource/city-list?noPaginationNoFilter',
       '/merchant/resources/city-list',
       '/merchant/resource/city-list',
       '/merchant/resources/cities',
       '/merchant/resource/cities',
       '/merchant/city/list',
+      '/api/merchant/resource/city-list?noPaginationNoFilter',
+      '/api/merchant/resource/city-list',
       '/api/public/merchant/resources/city-list',
       '/api/public/merchant/resource/city-list',
       '/api/public/merchant/resources/cities',
@@ -53,11 +56,14 @@ const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
     ].filter(Boolean)
   : [
       CURFOX_CITY_LIST_PATH_OVERRIDE,
+      '/api/merchant/resource/city-list?noPaginationNoFilter',
+      '/api/merchant/resource/city-list',
       '/api/public/merchant/resources/city-list',
       '/api/public/merchant/resource/city-list',
       '/api/public/merchant/resources/cities',
       '/api/public/merchant/resource/cities',
       '/api/public/merchant/city/list',
+      '/merchant/resource/city-list?noPaginationNoFilter',
       '/merchant/resources/city-list',
       '/merchant/resource/city-list',
       '/merchant/resources/cities',
