@@ -77,8 +77,8 @@ export function RoyalExpressBatchForm({
             alignItems: 'center',
           }}
         >
-          <span>{state.message || state.error}</span>
-          {state.batchId && (
+          <span>{state.error || state.message}</span>
+          {state.batchId && (state.processed ?? 0) > 0 && (
             <Link className="btn btn-secondary" style={{ fontSize: 11 }} href={`/orders/courier-batches/${state.batchId}/labels`}>
               Print labels
             </Link>

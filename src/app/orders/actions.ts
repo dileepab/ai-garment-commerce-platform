@@ -575,9 +575,12 @@ export async function processRoyalExpressBatchAction(
       success: batch.failureCount === 0,
       error:
         batch.failureCount > 0
-          ? `Processed ${batch.successCount} order(s), but ${batch.failureCount} failed. Open the batch to review before handover.`
+          ? `RoyalExpress batch #${batch.id} processed ${batch.successCount} order(s), but ${batch.failureCount} failed. Review the batch errors before trying again.`
           : undefined,
-      message: `RoyalExpress batch #${batch.id} created ${batch.successCount} waybill(s).`,
+      message:
+        batch.failureCount === 0
+          ? `RoyalExpress batch #${batch.id} created ${batch.successCount} waybill(s).`
+          : undefined,
       batchId: batch.id,
       processed: batch.successCount,
       failed: batch.failureCount,

@@ -112,6 +112,7 @@ export default async function CourierBatchesPage() {
                 <th>Cutoff</th>
                 <th>Waybills</th>
                 <th>Failed</th>
+                <th>Errors</th>
                 <th></th>
               </tr>
             </thead>
@@ -124,6 +125,24 @@ export default async function CourierBatchesPage() {
                   <td suppressHydrationWarning>{batch.cutoffAt.toLocaleString('en-LK', { timeZone: 'Asia/Colombo' })}</td>
                   <td>{batch.successCount}</td>
                   <td>{batch.failureCount}</td>
+                  <td style={{ maxWidth: 520 }}>
+                    {batch.error ? (
+                      <pre
+                        style={{
+                          color: '#8B2020',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 11,
+                          lineHeight: 1.4,
+                          margin: 0,
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {batch.error}
+                      </pre>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--color-fg-3)' }}>-</span>
+                    )}
+                  </td>
                   <td style={{ textAlign: 'right' }}>
                     {batch.shipments.length > 0 ? (
                       <Link className="btn btn-secondary" style={{ fontSize: 11 }} href={`/orders/courier-batches/${batch.id}/labels`}>
@@ -137,7 +156,7 @@ export default async function CourierBatchesPage() {
               ))}
               {recentBatches.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '32px 0', color: 'var(--color-fg-3)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '32px 0', color: 'var(--color-fg-3)' }}>
                     No RoyalExpress batches yet.
                   </td>
                 </tr>
