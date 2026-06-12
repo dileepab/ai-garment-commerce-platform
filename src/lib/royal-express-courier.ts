@@ -71,6 +71,22 @@ const CURFOX_CITY_LIST_PATHS = USE_TENANT_PATHS
       '/merchant/resource/cities',
       '/merchant/city/list',
     ].filter(Boolean);
+const CURFOX_BUSINESS_LIST_PATHS = USE_TENANT_PATHS
+  ? [
+      '/merchant/resource/business-list',
+      '/merchant/resources/business-list',
+      '/api/merchant/resource/business-list',
+      '/api/merchant/resources/business-list',
+    ]
+  : [
+      '/api/merchant/resource/business-list',
+      '/api/merchant/resources/business-list',
+      '/merchant/resource/business-list',
+      '/merchant/resources/business-list',
+    ];
+const SEND_ROYALEXPRESS_ORIGIN_CITY_ID =
+  process.env.ROYALEXPRESS_SEND_ORIGIN_CITY_ID?.trim() === '1' ||
+  process.env.CURFOX_SEND_ORIGIN_CITY_ID?.trim() === '1';
 
 type CurfoxResponseValue =
   | string
@@ -392,6 +408,117 @@ function extractStatus(value: CurfoxResponseValue): string | null {
     'currentStatus',
     'state',
   ]);
+}
+
+function getRoyalExpressBusinessId(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'merchant_business_id',
+    'merchantBusinessId',
+    'business_id',
+    'businessId',
+    'id',
+    'value',
+  ]);
+}
+
+function getRoyalExpressBusinessName(record: Record<string, CurfoxResponseValue>): string | null {
+  return getRecordString(record, [
+    'business_name',
+    'businessName',
+    'name',
+    'merchant_name',
+    'merchantName',
+    'label',
+    'text',
+  ]);
+}
+
+async function requestRoyalExpressBusinessList(token: string): Promise<{
+  response: CurfoxResponseValue;
+  path: string;
+  attemptedPaths: string[];
+}> {
+  const errors: string[] = [];
+
+  for (const path of CURFOX_BUSINESS_LIST_PATHS) {
+    try {
+      return {
+        response: await requestCurfoxJson(path, { token }),
+        path,
+        attemptedPaths: CURFOX_BUSINESS_LIST_PATHS,
+      };
+    } catch (error) {
+      if (error instanceof OrderRequestError && error.status === 404) {
+        errors.push(path);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new OrderRequestError(
+    `RoyalExpress Curfox business list endpoint was not found. Tried: ${errors.join(', ') || CURFOX_BUSINESS_LIST_PATHS.join(', ')}.`,
+    502,
+  );
+}
+
+async function resolveRoyalExpressMerchantBusinessId(input: {
+  token: string;
+  configuredBusinessId: string;
+  brand: string;
+}): Promise<{
+  businessId: string;
+  source: 'business-list' | 'settings';
+  businessListPath?: string;
+  attemptedBusinessListPaths?: string[];
+  warning?: string;
+}> {
+  try {
+    const businessList = await requestRoyalExpressBusinessList(input.token);
+    const records = collectRecords(businessList.response)
+      .map((record) => ({
+        record,
+        id: getRoyalExpressBusinessId(record),
+        name: getRoyalExpressBusinessName(record),
+      }))
+      .filter((record): record is { record: Record<string, CurfoxResponseValue>; id: string; name: string | null } =>
+        Boolean(record.id)
+      );
+    const configured = records.find((record) => record.id === input.configuredBusinessId);
+    const brandText = normalizeCityText(input.brand);
+    const named =
+      records.find((record) => normalizeCityText(record.name) === brandText) ||
+      records.find((record) => normalizeCityText(record.name) === 'deez') ||
+      records.find((record) => record.name);
+    const selected = configured || (records.length === 1 ? records[0] : named);
+
+    if (selected) {
+      return {
+        businessId: selected.id,
+        source: 'business-list',
+        businessListPath: businessList.path,
+        attemptedBusinessListPaths: businessList.attemptedPaths,
+        warning:
+          selected.id !== input.configuredBusinessId
+            ? `Configured merchant business ID ${input.configuredBusinessId} was not in Curfox business-list; using ${selected.id}${selected.name ? ` (${selected.name})` : ''}.`
+            : undefined,
+      };
+    }
+  } catch (error) {
+    return {
+      businessId: input.configuredBusinessId,
+      source: 'settings',
+      attemptedBusinessListPaths: CURFOX_BUSINESS_LIST_PATHS,
+      warning: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  return {
+    businessId: input.configuredBusinessId,
+    source: 'settings',
+    attemptedBusinessListPaths: CURFOX_BUSINESS_LIST_PATHS,
+    warning: 'RoyalExpress business list did not contain a usable business id; using Settings value.',
+  };
 }
 
 function normalizeCityText(value?: string | null): string {
@@ -839,6 +966,11 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
 
   const credentials = await resolveRoyalExpressCredentials(brand);
   const token = await loginRoyalExpress(brand, credentials);
+  const merchantBusiness = await resolveRoyalExpressMerchantBusinessId({
+    token,
+    configuredBusinessId: credentials.merchantBusinessId,
+    brand,
+  });
   const destinationCity = await resolveRoyalExpressDestinationCityId({
     token,
     order,
@@ -850,11 +982,11 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
   const specialNote = buildSpecialNote(order.id, brand);
   const amounts = await resolveRoyalExpressAmounts(order);
   const generalData: Record<string, string> = {
-    merchant_business_id: credentials.merchantBusinessId,
+    merchant_business_id: merchantBusiness.businessId,
     pickup_address_id: credentials.pickupAddressId,
   };
 
-  if (credentials.originCityId) {
+  if (credentials.originCityId && SEND_ROYALEXPRESS_ORIGIN_CITY_ID) {
     generalData.origin_city_id = credentials.originCityId;
   }
 
@@ -914,7 +1046,17 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
         codAmount: amounts.codAmount,
         courierStatus,
         mappedStatus,
-        rawResponse: compactPayload({ request: payload, response, amounts, destinationCity }),
+        rawResponse: compactPayload({
+          request: payload,
+          response,
+          amounts,
+          destinationCity,
+          merchantBusiness,
+          omittedOriginCityId:
+            credentials.originCityId && !SEND_ROYALEXPRESS_ORIGIN_CITY_ID
+              ? credentials.originCityId
+              : null,
+        }),
         submittedAt: now,
         lastSyncedAt: now,
         createdByEmail: input.actor?.email ?? null,
