@@ -1598,6 +1598,41 @@ async function main() {
         },
       },
       {
+        name: 'Self-service name update edits active order before dispatch',
+        senderId: buildSender(runId, 'self-service-name'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Self Service Wrong Name',
+          '12 Main Street, Bingiriya, Kurunegala',
+          '0771003032',
+          'yes correct',
+          'yes correct',
+          'can we edit the name',
+          'Name: BMD Balasuriya',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[6].bot, [
+            'Sure - please send the new name, delivery address, or phone number for order #',
+          ], 'Self-service name update prompt');
+          assertIncludes(transcript[7].bot, [
+            'I have updated order #',
+            'Name: BMD Balasuriya',
+          ], 'Self-service name update reply');
+
+          const { customer, latestOrder } = await getLatestOrderForSender(senderId);
+          assert(latestOrder, 'Expected an order for the self-service name update test.');
+          assert(
+            customer?.name === 'BMD Balasuriya',
+            `Expected customer name to update, received ${String(customer?.name)}.`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+          });
+          assert(!escalation, 'Did not expect support escalation for an eligible name update.');
+        },
+      },
+      {
         name: 'Tracking status reply includes courier details when available',
         senderId: buildSender(runId, 'tracking-status'),
         messages: [

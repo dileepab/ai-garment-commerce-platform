@@ -301,7 +301,7 @@ export function buildHeuristicAction(
   }
 
   if (
-    /\b(?:change|update|correct|edit)\b.*\b(?:delivery address|address|phone|contact number|mobile number|mobile|delivery details)\b/.test(
+    /\b(?:change|update|correct|edit)\b.*\b(?:customer name|contact name|delivery name|name|delivery address|address|phone|contact number|mobile number|mobile|delivery details)\b/.test(
       normalized
     )
   ) {

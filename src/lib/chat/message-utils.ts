@@ -302,7 +302,7 @@ export function looksLikeQuantityUpdateRequest(message: string): boolean {
 export function looksLikeOrderContactUpdateRequest(message: string): boolean {
   const normalized = normalizeText(message);
 
-  return /\b(change|update|correct|edit)\b.*\b(delivery address|address|phone|contact number|mobile number|mobile|delivery details)\b/.test(
+  return /\b(change|update|correct|edit)\b.*\b(customer name|contact name|delivery name|name|delivery address|address|phone|contact number|mobile number|mobile|delivery details)\b/.test(
     normalized
   );
 }

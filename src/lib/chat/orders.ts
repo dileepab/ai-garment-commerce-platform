@@ -256,6 +256,7 @@ async function findRecentMatchingOrderForDraft(customerId: number, draft: Resolv
 async function updateOrderContactDetails(params: {
   orderId: number;
   customerId: number;
+  name?: string | null;
   address?: string | null;
   streetAddress?: string | null;
   city?: string | null;
@@ -281,11 +282,12 @@ async function updateOrderContactDetails(params: {
       });
     }
 
-    if (params.phone) {
+    if (params.name || params.phone) {
       await tx.customer.update({
         where: { id: params.customerId },
         data: {
-          phone: params.phone,
+          ...(params.name ? { name: params.name } : {}),
+          ...(params.phone ? { phone: params.phone } : {}),
         },
       });
     }
@@ -1111,20 +1113,9 @@ export async function handle_update_order_contact(ctx: ChatContext) {
     });
   }
 
-  if (requestedName) {
-    return escalateToSupport(
-      'human_request',
-      targetOrder.id,
-      `I can update the delivery address or phone number in chat, but name changes need our team to verify them. ${buildSupportContactLineFromConfig(
-        ctx.settings.support,
-        { orderId: targetOrder.id }
-      )} I have also flagged this for a team follow-up.`
-    );
-  }
-
-  if (!requestedAddress && !requestedPhone) {
+  if (!requestedName && !requestedAddress && !requestedPhone) {
     return finalizeReply({
-      reply: `Sure - please send the new delivery address or phone number for order #${targetOrder.id}.`,
+      reply: `Sure - please send the new name, delivery address, or phone number for order #${targetOrder.id}.`,
       orderId: targetOrder.id,
       nextState: {
         ...clearPendingConversationState(state),
@@ -1152,6 +1143,7 @@ export async function handle_update_order_contact(ctx: ChatContext) {
   const updatedOrder = await updateOrderContactDetails({
     orderId: targetOrder.id,
     customerId: customer.id,
+    name: requestedName || null,
     address: requestedAddress || null,
     streetAddress: requestedStreetAddress || null,
     city: requestedCity || null,
@@ -1162,6 +1154,7 @@ export async function handle_update_order_contact(ctx: ChatContext) {
   return finalizeReply({
     reply: buildOrderContactUpdateSuccessReply({
       orderId: updatedOrder.id,
+      name: requestedName ? updatedOrder.customer.name : null,
       address: requestedAddress ? updatedOrder.deliveryAddress : null,
       phone: requestedPhone ? updatedOrder.customer.phone : null,
     }),

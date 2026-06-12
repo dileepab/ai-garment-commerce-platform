@@ -242,11 +242,13 @@ export function buildQuantityUpdateSuccessReply(
 
 export function buildOrderContactUpdateSuccessReply(params: {
   orderId: number;
+  name?: string | null;
   address?: string | null;
   phone?: string | null;
 }): string {
   return [
     `I have updated order #${params.orderId}.`,
+    params.name ? `Name: ${params.name}` : '',
     params.address ? `Address: ${params.address}` : '',
     params.phone ? `Phone Number: ${params.phone}` : '',
   ].filter(Boolean).join('\n');
