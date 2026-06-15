@@ -706,6 +706,93 @@ async function resolveRoyalExpressMerchantBusinessId(input: {
   };
 }
 
+async function resolveRoyalExpressPickupAddressId(input: {
+  token: string;
+  businessId: string;
+  configuredPickupAddressId: string;
+  senderAddress: string | null;
+}): Promise<{
+  pickupAddressId: string;
+  source: 'business-address' | 'settings';
+  addressListPath?: string;
+  attemptedAddressListPaths?: string[];
+  warning?: string;
+}> {
+  const configured = input.configuredPickupAddressId;
+  const configuredText = normalizeCityText(configured);
+  const senderText = normalizeCityText(input.senderAddress);
+
+  try {
+    const addressList = await requestRoyalExpressBusinessAddressList(input.token, input.businessId);
+    const records = collectRecords(addressList.response)
+      .map((record) => ({
+        record,
+        id: getRoyalExpressPickupAddressId(record),
+        addressText: getRoyalExpressAddressText(record),
+      }))
+      .filter((record): record is { record: Record<string, CurfoxResponseValue>; id: string; addressText: string | null } =>
+        Boolean(record.id)
+      );
+    const selected =
+      records.find((record) => record.id === configured) ||
+      records.find((record) => {
+        const addressText = normalizeCityText(record.addressText);
+        return Boolean(
+          configuredText &&
+            addressText &&
+            (addressText.includes(configuredText) || configuredText.includes(addressText)),
+        );
+      }) ||
+      records.find((record) => {
+        const addressText = normalizeCityText(record.addressText);
+        return Boolean(
+          senderText &&
+            addressText &&
+            (addressText.includes(senderText) || senderText.includes(addressText)),
+        );
+      }) ||
+      (records.length === 1 ? records[0] : null);
+
+    if (selected?.id) {
+      return {
+        pickupAddressId: selected.id,
+        source: 'business-address',
+        addressListPath: addressList.path,
+        attemptedAddressListPaths: addressList.attemptedPaths,
+        warning:
+          selected.id !== configured
+            ? `Configured pickup address value ${configured} was not a Curfox pickup address ID; using ${selected.id}.`
+            : undefined,
+      };
+    }
+
+    if (/^\d+$/.test(configured)) {
+      return {
+        pickupAddressId: configured,
+        source: 'settings',
+        addressListPath: addressList.path,
+        attemptedAddressListPaths: addressList.attemptedPaths,
+        warning: 'RoyalExpress pickup address list did not contain the configured ID; using Settings value.',
+      };
+    }
+  } catch (error) {
+    if (/^\d+$/.test(configured)) {
+      return {
+        pickupAddressId: configured,
+        source: 'settings',
+        attemptedAddressListPaths: CURFOX_BUSINESS_ADDRESS_PATHS(input.businessId),
+        warning: error instanceof Error ? error.message : String(error),
+      };
+    }
+    throw error;
+  }
+
+  throw new OrderRequestError(
+    `RoyalExpress pickup address ID could not be resolved from Curfox for configured value "${configured}". Put the Curfox pickup address ID in Settings, or make sure the pickup address exists in the RoyalExpress merchant portal.`,
+    409,
+  );
+}
+
 function inferOriginCityNameFromText(value?: string | null): string | null {
   const cleaned = cleanOptionalText(value);
   if (!cleaned) return null;
@@ -1592,6 +1679,12 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
         configuredBusinessId: credentials.merchantBusinessId,
         brand: batchBrand,
       });
+      const pickupAddress = await resolveRoyalExpressPickupAddressId({
+        token,
+        businessId: merchantBusiness.businessId,
+        configuredPickupAddressId: credentials.pickupAddressId,
+        senderAddress: credentials.senderAddress,
+      });
       const preparedOrders: Array<{
         order: (typeof orders)[number];
         orderReference: string;
@@ -1675,7 +1768,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
         const payload = {
           general_data: {
             merchant_business_id: toCurfoxIdValue(merchantBusiness.businessId),
-            pickup_address_id: toCurfoxIdValue(credentials.pickupAddressId),
+            pickup_address_id: toCurfoxIdValue(pickupAddress.pickupAddressId),
           },
           order_data: preparedOrders.map((order) => order.requestRow),
         };
@@ -1737,6 +1830,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
                     amounts: prepared.amounts,
                     destination: prepared.destination,
                     merchantBusiness,
+                    pickupAddress,
                   }),
                   submittedAt: now,
                   lastSyncedAt: now,
@@ -1792,6 +1886,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
             successes,
             failures,
             merchantBusiness,
+            pickupAddress,
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -1801,6 +1896,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
             successes,
             failures,
             merchantBusiness,
+            pickupAddress,
           };
           for (const prepared of preparedOrders) {
             await recordFailure(prepared.order.id, message);
