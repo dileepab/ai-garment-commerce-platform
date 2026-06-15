@@ -185,6 +185,11 @@ function cleanSecret(value?: string | null): string | null {
   return cleaned ? cleaned : null;
 }
 
+function toCurfoxIdValue(value: string): string | number {
+  const cleaned = value.trim();
+  return /^\d+$/.test(cleaned) ? Number(cleaned) : cleaned;
+}
+
 function brandEnvKey(brand: string): string {
   return brand.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 }
@@ -430,12 +435,33 @@ function extractWaybillIds(value: CurfoxResponseValue): string[] {
     push(extractWaybillId(record));
   }
 
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (typeof item === 'string' || typeof item === 'number') {
-        push(String(item));
+  const pushNestedPrimitives = (item: CurfoxResponseValue) => {
+    if (Array.isArray(item)) {
+      for (const child of item) {
+        pushNestedPrimitives(child);
       }
+      return;
     }
+
+    if (isRecord(item)) {
+      for (const child of Object.values(item)) {
+        pushNestedPrimitives(child);
+      }
+      return;
+    }
+
+    if (typeof item === 'string' || typeof item === 'number') {
+      push(String(item));
+    }
+  };
+
+  if (isRecord(value)) {
+    const nestedArray = value.data || value.orders || value.waybills || value.waybill_numbers;
+    if (Array.isArray(nestedArray)) {
+      pushNestedPrimitives(nestedArray);
+    }
+  } else {
+    pushNestedPrimitives(value);
   }
 
   return waybills;
@@ -1028,127 +1054,6 @@ async function resolveRoyalExpressDestinationCityId(input: {
   );
 }
 
-function stripRoyalExpressCityQualifier(value: string): string {
-  return value.replace(/\s*\([^)]+\)\s*$/, '').trim();
-}
-
-function getRoyalExpressCityQualifier(value?: string | null): string | null {
-  const match = cleanOptionalText(value)?.match(/\(([^)]+)\)\s*$/);
-  return cleanOptionalText(match?.[1]);
-}
-
-async function resolveRoyalExpressDestinationLocation(input: {
-  token: string;
-  order: {
-    deliveryAddress: string | null;
-    deliveryStreetAddress: string | null;
-    deliveryCity: string | null;
-    deliveryDistrict: string | null;
-  };
-  fallbackCityId: string | null;
-}): Promise<{
-  cityId: string | null;
-  cityName: string;
-  stateName: string;
-  source: 'city-list' | 'order-address' | 'settings';
-  cityListPath?: string;
-  attemptedCityListPaths?: string[];
-  warning?: string;
-}> {
-  const city = normalizeCityText(input.order.deliveryCity);
-  const district = normalizeCityText(input.order.deliveryDistrict);
-  const address = normalizeCityText([
-    input.order.deliveryStreetAddress,
-    input.order.deliveryAddress,
-    input.order.deliveryCity,
-    input.order.deliveryDistrict,
-  ].filter(Boolean).join(' '));
-  const target = { city, district, address };
-  const orderCityName = cleanOptionalText(input.order.deliveryCity);
-  const orderStateName = cleanOptionalText(input.order.deliveryDistrict);
-
-  if (city || district || address) {
-    const staticBest = findBestRoyalExpressCityRecord(
-      (royalExpressCityList as RoyalExpressStaticCity[]).map(staticRoyalExpressCityToRecord),
-      target,
-    );
-
-    if (staticBest?.cityId) {
-      const matchedCityName = getRoyalExpressCityName(staticBest.record);
-      const cityName = stripRoyalExpressCityQualifier(matchedCityName || orderCityName || '');
-      const stateName =
-        orderStateName ||
-        getRoyalExpressDistrictName(staticBest.record) ||
-        getRoyalExpressCityQualifier(matchedCityName) ||
-        cityName;
-
-      if (cityName && stateName) {
-        return {
-          cityId: staticBest.cityId,
-          cityName,
-          stateName,
-          source: 'city-list',
-          cityListPath: 'local:royalexpress-city-list.json',
-        };
-      }
-    }
-
-    let cityListWarning: string | null = null;
-    try {
-      const cityList = await requestRoyalExpressCityList(input.token);
-      const best = findBestRoyalExpressCityRecord(collectRecords(cityList.response), target);
-
-      if (best?.cityId) {
-        const matchedCityName = getRoyalExpressCityName(best.record);
-        const cityName = stripRoyalExpressCityQualifier(matchedCityName || orderCityName || '');
-        const stateName =
-          orderStateName ||
-          getRoyalExpressDistrictName(best.record) ||
-          getRoyalExpressCityQualifier(matchedCityName) ||
-          cityName;
-
-        if (cityName && stateName) {
-          return {
-            cityId: best.cityId,
-            cityName,
-            stateName,
-            source: 'city-list',
-            cityListPath: cityList.path,
-            attemptedCityListPaths: cityList.attemptedPaths,
-          };
-        }
-      }
-    } catch (error) {
-      cityListWarning = error instanceof Error ? error.message : String(error);
-    }
-
-    if (orderCityName && orderStateName) {
-      return {
-        cityId: input.fallbackCityId,
-        cityName: orderCityName,
-        stateName: orderStateName,
-        source: 'order-address',
-        attemptedCityListPaths: CURFOX_CITY_LIST_PATHS,
-        warning: cityListWarning || 'RoyalExpress city list did not match the customer city; using order city and district names.',
-      };
-    }
-  }
-
-  if (orderCityName && orderStateName) {
-    return {
-      cityId: input.fallbackCityId,
-      cityName: orderCityName,
-      stateName: orderStateName,
-      source: 'order-address',
-    };
-  }
-
-  throw new OrderRequestError(
-    `RoyalExpress destination city/state names could not be matched for ${input.order.deliveryCity || input.order.deliveryDistrict || 'this address'}. Add delivery city and district before processing the RoyalExpress batch.`,
-    409,
-  );
-}
-
 async function requestCurfoxJson(
   path: string,
   options: {
@@ -1632,23 +1537,15 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
         configuredBusinessId: credentials.merchantBusinessId,
         brand: batchBrand,
       });
-      const originLocation = await resolveRoyalExpressOriginLocation({
-        token,
-        businessId: merchantBusiness.businessId,
-        pickupAddressId: credentials.pickupAddressId,
-        configuredOriginCityName: credentials.originCityName,
-        configuredOriginStateName: credentials.originStateName,
-        senderAddress: credentials.senderAddress,
-      });
       const preparedOrders: Array<{
         order: (typeof orders)[number];
         orderReference: string;
         customerAddress: string;
-        destination: Awaited<ReturnType<typeof resolveRoyalExpressDestinationLocation>>;
+        destination: Awaited<ReturnType<typeof resolveRoyalExpressDestinationCityId>>;
         description: string;
         specialNote: string;
         amounts: Awaited<ReturnType<typeof resolveRoyalExpressAmounts>>;
-        requestRow: Record<string, string | number | null>;
+        requestRow: Record<string, string | number | boolean | null>;
       }> = [];
 
       for (const orderId of uniqueOrderIds) {
@@ -1676,7 +1573,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
         }
 
         try {
-          const destination = await resolveRoyalExpressDestinationLocation({
+          const destination = await resolveRoyalExpressDestinationCityId({
             token,
             order,
             fallbackCityId: credentials.defaultDestinationCityId,
@@ -1686,19 +1583,22 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
           const specialNote = buildSpecialNote(order.id, batchBrand);
           const amounts = await resolveRoyalExpressAmounts(order);
           const requestRow = {
-            waybill_number: '',
             order_no: orderReference,
             customer_name: order.customer.name,
             customer_address: customerAddress,
             customer_phone: order.customer.phone,
-            customer_secondary_phone: null,
-            customer_email: null,
-            destination_city_name: destination.cityName,
-            destination_state_name: destination.stateName,
-            cod: amounts.codAmount,
+            customer_secondary_phone: '',
+            customer_email: '',
+            destination_city_id: toCurfoxIdValue(destination.cityId),
+            cod: String(amounts.codAmount),
+            weight: '1',
             description,
-            weight: 1,
             remark: specialNote,
+            typingtimer: null,
+            isMaxWeight: false,
+            validationState: null,
+            validationMessage: '',
+            maxWeightError: null,
           };
 
           preparedOrders.push({
@@ -1719,9 +1619,8 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
       if (preparedOrders.length > 0) {
         const payload = {
           general_data: {
-            merchant_business_id: merchantBusiness.businessId,
-            origin_city_name: originLocation.originCityName,
-            origin_state_name: originLocation.originStateName,
+            merchant_business_id: toCurfoxIdValue(merchantBusiness.businessId),
+            pickup_address_id: toCurfoxIdValue(credentials.pickupAddressId),
           },
           order_data: preparedOrders.map((order) => order.requestRow),
         };
@@ -1766,7 +1665,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
                   orderReference: prepared.orderReference,
                   receiverName: prepared.order.customer.name,
                   receiverStreet: prepared.customerAddress,
-                  receiverCityId: prepared.destination.cityId || prepared.destination.cityName,
+                  receiverCityId: prepared.destination.cityId,
                   receiverPhone: prepared.order.customer.phone,
                   description: prepared.description,
                   specialNote: prepared.specialNote,
@@ -1783,7 +1682,6 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
                     amounts: prepared.amounts,
                     destination: prepared.destination,
                     merchantBusiness,
-                    originLocation,
                   }),
                   submittedAt: now,
                   lastSyncedAt: now,
@@ -1839,7 +1737,6 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
             successes,
             failures,
             merchantBusiness,
-            originLocation,
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -1849,7 +1746,6 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
             successes,
             failures,
             merchantBusiness,
-            originLocation,
           };
           for (const prepared of preparedOrders) {
             await recordFailure(prepared.order.id, message);
