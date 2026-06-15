@@ -1787,8 +1787,6 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
 
         if (credentials.originCityId && SEND_ROYALEXPRESS_ORIGIN_CITY_ID) {
           generalData.origin_city_id = toCurfoxIdValue(credentials.originCityId);
-        } else {
-          generalData.origin_city_name = originLocation.originCityName;
         }
 
         const payload = {
