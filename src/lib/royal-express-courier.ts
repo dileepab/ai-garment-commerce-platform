@@ -719,6 +719,13 @@ async function resolveRoyalExpressPickupAddressId(input: {
   warning?: string;
 }> {
   const configured = input.configuredPickupAddressId;
+  if (/^\d+$/.test(configured)) {
+    return {
+      pickupAddressId: configured,
+      source: 'settings',
+    };
+  }
+
   const configuredText = normalizeCityText(configured);
   const senderText = normalizeCityText(input.senderAddress);
 
