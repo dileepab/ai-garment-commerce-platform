@@ -949,12 +949,25 @@ async function requestRoyalExpressBulkOrder(
 
   for (const path of CURFOX_ORDER_BULK_PATHS) {
     try {
+      console.log(JSON.stringify({
+        level: 'info',
+        msg: 'royalexpress_bulk_request',
+        path,
+        payload: summarizeRoyalExpressBulkPayload(payload),
+      }));
+      const response = await requestCurfoxJson(path, {
+        method: 'POST',
+        token,
+        body: payload,
+      });
+      console.log(JSON.stringify({
+        level: 'info',
+        msg: 'royalexpress_bulk_response',
+        path,
+        response: summarizeCurfoxResponse(response),
+      }));
       return {
-        response: await requestCurfoxJson(path, {
-          method: 'POST',
-          token,
-          body: payload,
-        }),
+        response,
         path,
         attemptedPaths: CURFOX_ORDER_BULK_PATHS,
       };
@@ -963,6 +976,13 @@ async function requestRoyalExpressBulkOrder(
         errors.push(path);
         continue;
       }
+      console.error(JSON.stringify({
+        level: 'error',
+        msg: 'royalexpress_bulk_failed',
+        path,
+        payload: summarizeRoyalExpressBulkPayload(payload),
+        error: error instanceof Error ? error.message : String(error),
+      }));
       throw error;
     }
   }
@@ -971,6 +991,41 @@ async function requestRoyalExpressBulkOrder(
     `RoyalExpress Curfox bulk order endpoint was not found. Tried: ${errors.join(', ') || CURFOX_ORDER_BULK_PATHS.join(', ')}.`,
     502,
   );
+}
+
+function summarizeRoyalExpressBulkPayload(payload: unknown) {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as {
+    general_data?: Record<string, unknown>;
+    order_data?: Array<Record<string, unknown>>;
+  };
+  const firstOrder = record.order_data?.[0] || null;
+
+  return {
+    general_data: record.general_data || null,
+    order_count: record.order_data?.length || 0,
+    first_order_keys: firstOrder ? Object.keys(firstOrder) : [],
+    first_order_field_types: firstOrder
+      ? Object.fromEntries(Object.entries(firstOrder).map(([key, value]) => [key, value === null ? 'null' : typeof value]))
+      : null,
+    order_refs: record.order_data
+      ?.map((order) => (typeof order.order_no === 'string' || typeof order.order_no === 'number' ? String(order.order_no) : null))
+      .filter(Boolean)
+      .slice(0, 25) || [],
+  };
+}
+
+function summarizeCurfoxResponse(response: CurfoxResponseValue) {
+  if (!response || typeof response !== 'object') return response;
+  const responseRecord = response as Record<string, CurfoxResponseValue>;
+
+  return {
+    message: responseRecord.message || responseRecord.error || null,
+    dataType: Array.isArray(responseRecord.data) ? 'array' : typeof responseRecord.data,
+    dataCount: Array.isArray(responseRecord.data) ? responseRecord.data.length : null,
+    waybillCount: extractWaybillIds(response).length,
+    status: extractStatus(response),
+  };
 }
 
 async function resolveRoyalExpressDestinationCityId(input: {

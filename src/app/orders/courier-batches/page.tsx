@@ -24,6 +24,39 @@ function parseSriLankaDateTimeLocal(value: string) {
   return new Date(`${value}:00+05:30`);
 }
 
+function redactRoyalExpressDebug(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactRoyalExpressDebug);
+  if (!value || typeof value !== 'object') return value;
+
+  const sensitiveKeys = new Set([
+    'customer_name',
+    'customer_address',
+    'customer_phone',
+    'customer_secondary_phone',
+    'customer_email',
+    'receiverName',
+    'receiverStreet',
+    'receiverPhone',
+  ]);
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [
+      key,
+      sensitiveKeys.has(key) && entry ? '[redacted]' : redactRoyalExpressDebug(entry),
+    ]),
+  );
+}
+
+function formatRoyalExpressDebug(rawResponse?: string | null) {
+  if (!rawResponse) return null;
+
+  try {
+    return JSON.stringify(redactRoyalExpressDebug(JSON.parse(rawResponse)), null, 2);
+  } catch {
+    return rawResponse;
+  }
+}
+
 export default async function CourierBatchesPage() {
   const scope = await requirePagePermission('orders:view');
   const defaultCutoff = sriLankaNoonDateTimeLocal();
@@ -127,18 +160,45 @@ export default async function CourierBatchesPage() {
                   <td>{batch.failureCount}</td>
                   <td style={{ maxWidth: 520 }}>
                     {batch.error ? (
-                      <pre
-                        style={{
-                          color: '#8B2020',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 11,
-                          lineHeight: 1.4,
-                          margin: 0,
-                          whiteSpace: 'pre-wrap',
-                        }}
-                      >
-                        {batch.error}
-                      </pre>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <pre
+                          style={{
+                            color: '#8B2020',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 11,
+                            lineHeight: 1.4,
+                            margin: 0,
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {batch.error}
+                        </pre>
+                        {formatRoyalExpressDebug(batch.rawResponse) ? (
+                          <details>
+                            <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--color-fg-3)' }}>
+                              Debug request/response
+                            </summary>
+                            <pre
+                              style={{
+                                background: '#F7F5F0',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 6,
+                                color: 'var(--color-fg)',
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 10,
+                                lineHeight: 1.4,
+                                margin: '6px 0 0',
+                                maxHeight: 260,
+                                overflow: 'auto',
+                                padding: 10,
+                                whiteSpace: 'pre-wrap',
+                              }}
+                            >
+                              {formatRoyalExpressDebug(batch.rawResponse)}
+                            </pre>
+                          </details>
+                        ) : null}
+                      </div>
                     ) : (
                       <span style={{ fontSize: 12, color: 'var(--color-fg-3)' }}>-</span>
                     )}
