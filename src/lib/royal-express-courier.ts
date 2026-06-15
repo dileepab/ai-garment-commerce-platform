@@ -1685,6 +1685,14 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
         configuredPickupAddressId: credentials.pickupAddressId,
         senderAddress: credentials.senderAddress,
       });
+      const originLocation = await resolveRoyalExpressOriginLocation({
+        token,
+        businessId: merchantBusiness.businessId,
+        pickupAddressId: pickupAddress.pickupAddressId,
+        configuredOriginCityName: credentials.originCityName,
+        configuredOriginStateName: credentials.originStateName,
+        senderAddress: credentials.senderAddress,
+      });
       const preparedOrders: Array<{
         order: (typeof orders)[number];
         orderReference: string;
@@ -1765,11 +1773,19 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
       }
 
       if (preparedOrders.length > 0) {
+        const generalData: Record<string, string | number> = {
+          merchant_business_id: toCurfoxIdValue(merchantBusiness.businessId),
+          pickup_address_id: toCurfoxIdValue(pickupAddress.pickupAddressId),
+        };
+
+        if (credentials.originCityId && SEND_ROYALEXPRESS_ORIGIN_CITY_ID) {
+          generalData.origin_city_id = toCurfoxIdValue(credentials.originCityId);
+        } else {
+          generalData.origin_city_name = originLocation.originCityName;
+        }
+
         const payload = {
-          general_data: {
-            merchant_business_id: toCurfoxIdValue(merchantBusiness.businessId),
-            pickup_address_id: toCurfoxIdValue(pickupAddress.pickupAddressId),
-          },
+          general_data: generalData,
           order_data: preparedOrders.map((order) => order.requestRow),
         };
 
@@ -1831,6 +1847,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
                     destination: prepared.destination,
                     merchantBusiness,
                     pickupAddress,
+                    originLocation,
                   }),
                   submittedAt: now,
                   lastSyncedAt: now,
@@ -1887,6 +1904,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
             failures,
             merchantBusiness,
             pickupAddress,
+            originLocation,
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -1897,6 +1915,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
             failures,
             merchantBusiness,
             pickupAddress,
+            originLocation,
           };
           for (const prepared of preparedOrders) {
             await recordFailure(prepared.order.id, message);
