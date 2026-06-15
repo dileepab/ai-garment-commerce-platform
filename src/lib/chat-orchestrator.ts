@@ -430,10 +430,28 @@ export async function routeCustomerMessage(
     {}
   );
 
+  // Resolve the product the shopper is viewing on the storefront (sent as
+  // pageContext) to a catalog entry. Storefront slugs are `${slugify(name)}-${id}`,
+  // so the trailing id is the most reliable key; fall back to the title.
+  const viewedSlug = input.pageContext?.product?.slug ?? null;
+  const viewedSlugId = viewedSlug ? Number(viewedSlug.match(/-(\d+)$/)?.[1]) : NaN;
+  const viewedTitle = input.pageContext?.product?.title ?? null;
+  const currentProductName =
+    (Number.isFinite(viewedSlugId)
+      ? products.find((product) => product.id === viewedSlugId)?.name
+      : undefined) ??
+    (viewedTitle
+      ? products.find(
+          (product) => product.name.toLowerCase() === viewedTitle.toLowerCase()
+        )?.name
+      : undefined) ??
+    null;
+
   const aiAction =
     (await routeCustomerMessageWithAi({
       brand: brandFilter,
       currentMessage: input.currentMessage,
+      currentProductName,
       pendingStep: state.pendingStep,
       knownContact: baseContact,
       lastReferencedOrderId: state.lastReferencedOrderId,

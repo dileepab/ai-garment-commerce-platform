@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { routeCustomerMessage } from '@/lib/chat-orchestrator';
 import { getErrorMessage } from '@/lib/error-message';
+import type { CustomerPageContext } from '@/lib/chat/contracts';
 
 interface StorefrontChatRequest {
   message?: string;
@@ -9,6 +10,7 @@ interface StorefrontChatRequest {
   channel?: string;
   brand?: string;
   customerName?: string;
+  pageContext?: CustomerPageContext | null;
 }
 
 const BRAND_SLUG_TO_PLATFORM: Record<string, string> = {
@@ -72,6 +74,7 @@ export async function POST(request: Request) {
       currentMessage: message,
       brand: normalizeBrand(data.brand),
       customerName: data.customerName?.trim() || undefined,
+      pageContext: data.pageContext ?? null,
     });
 
     return NextResponse.json({

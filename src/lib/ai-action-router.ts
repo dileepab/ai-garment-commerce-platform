@@ -121,11 +121,12 @@ export async function routeCustomerMessageWithAi(
 ): Promise<AiRoutedAction | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   const shouldUseHeuristicFallback = process.env.CHAT_TEST_MODE === '1' || !apiKey;
-  const heuristicProduct = findProductByMessage(
-    input.products,
-    input.currentMessage,
-    input.recentMessages
-  );
+  const heuristicProduct =
+    findProductByMessage(input.products, input.currentMessage, input.recentMessages) ||
+    // Fall back to the product the shopper is viewing on the storefront.
+    (input.currentProductName
+      ? input.products.find((product) => product.name === input.currentProductName) ?? null
+      : null);
 
   if (shouldUseHeuristicFallback) {
     logInfo('AI Router', 'Using heuristic route fallback.', {

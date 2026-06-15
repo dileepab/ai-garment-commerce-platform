@@ -82,6 +82,9 @@ export interface RouterInput {
   }>;
   products: RouterProductContext[];
   imageUrl?: string;
+  /** Catalog name of the product the shopper is currently viewing on the
+   *  storefront, so referential messages ("this item") resolve to it. */
+  currentProductName?: string | null;
 }
 
 export interface ModelError {

@@ -41,7 +41,11 @@ Known contact:
 
 Available catalog:
 ${products || '- No products available'}
-
+${
+  input.currentProductName
+    ? `\nThe customer is currently viewing this product page on the website: "${input.currentProductName}".\nIf their message refers to "this", "this item", "this one", "it", or otherwise points at the product they are looking at without naming a different one, treat "${input.currentProductName}" as the product (set productName to it).\n`
+    : ''
+}
 Recent conversation:
 ${chatHistory || '- No recent messages'}
 
