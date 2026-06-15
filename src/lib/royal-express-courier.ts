@@ -111,10 +111,6 @@ const CURFOX_BUSINESS_ADDRESS_PATHS = (businessId: string) =>
         `/api/merchant/business/${businessId}/addresses/list?concat=true`,
         `/merchant/business/${businessId}/addresses/list?concat=true`,
       ];
-const SEND_ROYALEXPRESS_ORIGIN_CITY_ID =
-  process.env.ROYALEXPRESS_SEND_ORIGIN_CITY_ID?.trim() === '1' ||
-  process.env.CURFOX_SEND_ORIGIN_CITY_ID?.trim() === '1';
-
 type CurfoxResponseValue =
   | string
   | number
@@ -1481,7 +1477,7 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
     pickup_address_id: credentials.pickupAddressId,
   };
 
-  if (credentials.originCityId && SEND_ROYALEXPRESS_ORIGIN_CITY_ID) {
+  if (credentials.originCityId) {
     generalData.origin_city_id = credentials.originCityId;
   } else {
     generalData.origin_city_name = originCity.originCityName;
@@ -1550,10 +1546,7 @@ export async function createRoyalExpressDelivery(input: SubmitRoyalExpressDelive
           destinationCity,
           merchantBusiness,
           originCity,
-          omittedOriginCityId:
-            credentials.originCityId && !SEND_ROYALEXPRESS_ORIGIN_CITY_ID
-              ? credentials.originCityId
-              : null,
+          omittedOriginCityId: null,
         }),
         submittedAt: now,
         lastSyncedAt: now,
@@ -1785,7 +1778,7 @@ export async function processRoyalExpressBatch(input: ProcessRoyalExpressBatchIn
           pickup_address_id: toCurfoxIdValue(pickupAddress.pickupAddressId),
         };
 
-        if (credentials.originCityId && SEND_ROYALEXPRESS_ORIGIN_CITY_ID) {
+        if (credentials.originCityId) {
           generalData.origin_city_id = toCurfoxIdValue(credentials.originCityId);
         } else {
           generalData.origin_city_name = originLocation.originCityName;
