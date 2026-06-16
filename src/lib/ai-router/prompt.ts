@@ -43,7 +43,7 @@ Available catalog:
 ${products || '- No products available'}
 ${
   input.currentProductName
-    ? `\nThe customer is currently viewing this product page on the website: "${input.currentProductName}".\nIf their message refers to "this", "this item", "this one", "it", or otherwise points at the product they are looking at without naming a different one, treat "${input.currentProductName}" as the product (set productName to it).\n`
+    ? `\nThe customer is currently viewing this product on the website: "${input.currentProductName}".\nWhen the message points at the item on screen with a demonstrative — "this", "this item", "this one", "it", or "this <garment>" such as "this dress" or "this top" — it refers to "${input.currentProductName}", even if the customer's word for the garment differs from its catalog name. In that case set productName to "${input.currentProductName}", route by the customer's intent (place_order, product_question, size_chart, etc.), and always refer to it by its catalog name "${input.currentProductName}". Do not treat such a message as a request for a different product type and do not use catalog_list for it.\nOnly choose a different product or catalog_list when the customer clearly asks about something other than the item they are viewing (names another product, or asks what else is available).\n`
     : ''
 }
 Recent conversation:
