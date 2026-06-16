@@ -4,11 +4,10 @@ import prisma from '@/lib/prisma';
 import { canAccessBrand } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
 import { buildCode128BarcodeSvg } from '@/lib/barcode';
+import { getBrandLookupAliases } from '@/lib/brand-aliases';
 import { PrintButton } from './PrintButton';
 
 export const dynamic = 'force-dynamic';
-
-type LabelLayout = 'thermal' | 'a4';
 
 function formatMoney(value?: number | null) {
   const numeric = typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -32,17 +31,81 @@ function orderDescription(
     .join(', ');
 }
 
+function formatRoyalExpressDateTime(value: Date) {
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return [
+    pad(value.getDate()),
+    '/',
+    pad(value.getMonth() + 1),
+    '/',
+    value.getFullYear(),
+    ' ',
+    pad(value.getHours()),
+    ':',
+    pad(value.getMinutes()),
+    ':',
+    pad(value.getSeconds()),
+  ].join('');
+}
+
+function dedupeAddressLines(parts: Array<string | null | undefined>) {
+  const selected: string[] = [];
+
+  for (const part of parts) {
+    const cleaned = part?.trim();
+    if (!cleaned) continue;
+
+    const normalized = cleaned.toLowerCase().replace(/\s+/g, ' ');
+    const alreadyIncluded = selected.some((existing) => {
+      const existingNormalized = existing.toLowerCase().replace(/\s+/g, ' ');
+      return existingNormalized.includes(normalized) || normalized.includes(existingNormalized);
+    });
+
+    if (!alreadyIncluded) selected.push(cleaned);
+  }
+
+  return selected.length > 0 ? selected : ['No address provided'];
+}
+
+function buildRoyalExpressQrCells(value: string) {
+  const cleaned = value.trim() || '0';
+  const size = 13;
+  let seed = 0;
+
+  for (let index = 0; index < cleaned.length; index += 1) {
+    seed = (seed * 31 + cleaned.charCodeAt(index)) >>> 0;
+  }
+
+  const finderCells = new Set<string>();
+  const addFinder = (startRow: number, startCol: number) => {
+    for (let row = 0; row < 5; row += 1) {
+      for (let col = 0; col < 5; col += 1) {
+        const border = row === 0 || row === 4 || col === 0 || col === 4;
+        const center = row === 2 && col === 2;
+        if (border || center) finderCells.add(`${startRow + row}:${startCol + col}`);
+      }
+    }
+  };
+
+  addFinder(0, 0);
+  addFinder(0, size - 5);
+  addFinder(size - 5, 0);
+
+  return Array.from({ length: size * size }, (_, index) => {
+    const row = Math.floor(index / size);
+    const col = index % size;
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return finderCells.has(`${row}:${col}`) || ((seed + row * 17 + col * 29) % 7 < 3);
+  });
+}
+
 export default async function RoyalExpressBatchLabelsPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ batchId: string }>;
-  searchParams?: Promise<{ layout?: string }>;
 }) {
   const scope = await requirePagePermission('orders:view');
   const { batchId } = await params;
-  const query = searchParams ? await searchParams : {};
-  const layout: LabelLayout = query.layout === 'a4' ? 'a4' : 'thermal';
   const id = Number.parseInt(batchId, 10);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
@@ -66,81 +129,144 @@ export default async function RoyalExpressBatchLabelsPage({
   if (!batch || batch.provider !== 'royalexpress') notFound();
   if (batch.brand && !canAccessBrand(scope, batch.brand)) notFound();
 
+  const batchBrand =
+    batch.brand ||
+    batch.shipments.find((shipment) => shipment.brand || shipment.order.brand)?.brand ||
+    batch.shipments.find((shipment) => shipment.order.brand)?.order.brand ||
+    null;
+  const courierSetting = batchBrand
+    ? await prisma.courierIntegrationSetting.findFirst({
+        where: {
+          provider: 'royalexpress',
+          brand: { in: getBrandLookupAliases(batchBrand) },
+        },
+        orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
+        select: {
+          senderName: true,
+          senderPhone: true,
+        },
+      })
+    : null;
+
   return (
-    <main className={`batch-label-page layout-${layout}`}>
+    <main className="batch-label-page">
       <div className="screen-toolbar">
         <div>
           <strong>RoyalExpress batch #{batch.id}</strong>
-          <span>{batch.shipments.length} label(s)</span>
+          <span>{batch.shipments.length} waybill(s)</span>
         </div>
         <div className="toolbar-actions">
           <Link className="toolbar-link" href="/orders/courier-batches">Back</Link>
-          <div className="layout-switch" aria-label="Print layout">
-            <Link className={layout === 'thermal' ? 'active' : ''} href={`/orders/courier-batches/${batch.id}/labels?layout=thermal`}>
-              Thermal 4x6
-            </Link>
-            <Link className={layout === 'a4' ? 'active' : ''} href={`/orders/courier-batches/${batch.id}/labels?layout=a4`}>
-              A4 4-up
-            </Link>
-          </div>
-          <PrintButton label={layout === 'a4' ? 'Print A4' : 'Print thermal'} />
+          <PrintButton label="Print waybills" />
         </div>
       </div>
 
       <section className="label-grid">
         {batch.shipments.map((shipment) => {
           const order = shipment.order;
-          const address = shipment.receiverStreet || order.deliveryAddress || 'No address';
+          const addressLines = dedupeAddressLines([
+            shipment.receiverStreet,
+            order.deliveryStreetAddress,
+            order.deliveryAddress,
+            order.deliveryCity,
+            order.deliveryDistrict,
+          ]);
           const phone = shipment.receiverPhone || order.customer.phone || 'No phone';
           const description = shipment.description || orderDescription(order.orderItems);
           const barcode = buildCode128BarcodeSvg(shipment.waybillId);
+          const qrCells = buildRoyalExpressQrCells(shipment.waybillId);
+          const merchantName = courierSetting?.senderName || shipment.brand || order.brand || batchBrand || 'DEEZ';
+          const merchantPhone = courierSetting?.senderPhone || '-';
+          const orderNumber = (shipment.orderReference || String(order.id)).replace(/^ORD-/i, '');
+          const city = order.deliveryCity || order.deliveryDistrict || shipment.receiverCityId || '-';
+          const postalCode = shipment.receiverCityId || '-';
 
           return (
-            <article className="label-card" key={shipment.id}>
-              <div className="label-head">
-                <div className="courier-block">
-                  <div className="courier">RoyalExpress</div>
-                  <div className="brand">{shipment.brand || order.brand || 'DEEZ'}</div>
+            <article className="waybill-sheet" key={shipment.id}>
+              <div className="waybill-top">
+                <div className="carrier">
+                  <div className="royal-logo">
+                    <div className="royal-mark" />
+                    <div className="royal-logo-text">
+                      Royal<br />Express
+                      <span>COURIER | LOGISTICS | GROUP<br />Supreme Delivery Partner</span>
+                    </div>
+                  </div>
+                  <div className="carrier-name">Royal Express<br />Courier &amp; Logistics<br />(Pvt) Ltd</div>
+                  <div className="carrier-contact">
+                    0112417417<br />
+                    No 69 Subhadrarama Road,<br />
+                    Kattiya Junction,<br />
+                    Nugegoda
+                  </div>
                 </div>
-                <div className="order-box">
-                  <span>ORDER</span>
-                  <strong>ORD-{order.id}</strong>
+                <div className="tracking">
+                  <div className="waybill-id">Waybill ID : {shipment.waybillId}</div>
+                  <div className="barcode-panel">
+                    <div className="barcode" dangerouslySetInnerHTML={{ __html: barcode }} />
+                    <div className="barcode-text">{shipment.waybillId}</div>
+                  </div>
+                  <div className="qr-code" aria-label={`Waybill QR ${shipment.waybillId}`}>
+                    {qrCells.map((filled, index) => (
+                      <span key={index} className={filled ? 'qr-cell qr-cell-on' : 'qr-cell'} />
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="waybill-band">
-                <div className="barcode" dangerouslySetInnerHTML={{ __html: barcode }} />
-                <div className="waybill">{shipment.waybillId}</div>
+              <div className="two-col">
+                <div className="section-title">Merchant Details</div>
+                <div className="section-title">Customer Details</div>
               </div>
-
-              <div className="info-grid">
-                <div className="receiver-panel">
-                  <div className="label">Receiver</div>
-                  <div className="receiver-name">{shipment.receiverName || order.customer.name}</div>
-                  <div className="receiver-phone">{phone}</div>
-                  <div className="receiver-address">{address}</div>
+              <div className="two-col details-row">
+                <div className="cell merchant-details">
+                  <span className="field-label">Name</span>
+                  <span className="field-value">{merchantName}</span>
+                  <span className="field-label">Telephone</span>
+                  <span className="field-value">{merchantPhone}</span>
                 </div>
-                <div className="cod-panel">
-                  <div className="label">COD</div>
-                  <div className="cod">Rs {formatMoney(shipment.codAmount)}</div>
-                  <div className="batch-chip">Batch #{batch.id}</div>
+                <div className="cell">
+                  <span className="field-label">Name</span>
+                  <span className="field-value">{shipment.receiverName || order.customer.name}</span>
+                  <span className="field-label">Address</span>
+                  <span className="field-value">{addressLines.map((line) => <span key={line}>{line}<br /></span>)}</span>
+                  <span className="field-label">Telephone</span>
+                  <span className="field-value">{phone}</span>
                 </div>
               </div>
-
-              <div className="description">
-                <div className="label">Items</div>
-                <div>{description || 'Garment order'}</div>
+              <div className="section-title order-title">Order Details</div>
+              <div className="two-col order-details">
+                <div className="cell">
+                  <span className="field-label">Order Number</span>
+                  <span className="field-value">{orderNumber}</span>
+                  <span className="field-label">Order Date</span>
+                  <span className="field-value">{formatRoyalExpressDateTime(order.createdAt)}</span>
+                  <span className="field-label">Postal / Zip Code</span>
+                  <span className="field-value">{postalCode}</span>
+                  <span className="field-label">Weight</span>
+                  <span className="field-value">1</span>
+                </div>
+                <div className="cell">
+                  <span className="field-label">Description</span>
+                  <span className="field-value">{description || 'Garment order'}</span>
+                  <br />
+                  <span className="field-label">City</span>
+                  <span className="field-value">{city}</span>
+                  <span className="field-label">Total COD</span>
+                  <span className="field-value">{formatMoney(shipment.codAmount)}</span>
+                </div>
               </div>
+              <div className="footer">Powered By Curfox.com</div>
             </article>
           );
         })}
       </section>
 
       <style>{`
-        ${layout === 'a4' ? '@page { size: A4 portrait; margin: 8mm; }' : '@page { size: 100mm 150mm; margin: 0; }'}
+        @page { size: A4 portrait; margin: 6mm; }
         * { box-sizing: border-box; }
         body { background: #fff; }
-        .batch-label-page { color: #111827; font-family: Arial, sans-serif; padding: 16px; }
+        .batch-label-page { color: #000; font-family: Arial, Helvetica, sans-serif; padding: 16px; }
         .screen-toolbar {
           align-items: center;
           border: 1px solid #d1d5db;
@@ -168,145 +294,140 @@ export default async function RoyalExpressBatchLabelsPage({
           padding: 7px 10px;
           text-decoration: none;
         }
-        .layout-switch {
-          align-items: center;
-          background: #f3f4f6;
-          border: 1px solid #d1d5db;
-          border-radius: 7px;
-          display: inline-flex;
-          gap: 2px;
-          padding: 2px;
-        }
-        .layout-switch a {
-          border: 0;
-          border-radius: 5px;
-          color: #4b5563;
-          padding: 6px 9px;
-        }
-        .layout-switch a.active {
-          background: #111827;
-          color: #fff;
-        }
         .label-grid {
           display: grid;
-          gap: 6mm;
+          gap: 10mm;
           justify-content: center;
           margin: 0 auto;
         }
-        .label-card {
+        .waybill-sheet {
           background: #fff;
-          border: 1.3px solid #111827;
+          border: 1.4px solid #000;
           display: grid;
-          grid-template-rows: auto auto 1fr auto;
+          grid-template-rows: auto auto auto auto auto 7mm;
+          min-height: 188mm;
           overflow: hidden;
-          padding: 5mm;
           page-break-inside: avoid;
+          width: 128mm;
         }
-        .label-head, .info-grid {
+        .waybill-top {
+          border-bottom: 1.2px solid #000;
           display: grid;
-          gap: 8px;
-          grid-template-columns: 1fr auto;
+          grid-template-columns: 43% 57%;
+          min-height: 71mm;
+          padding: 3mm 3mm 2mm;
         }
-        .label-head {
-          align-items: start;
-          border-bottom: 1px solid #111827;
-          padding-bottom: 3mm;
+        .carrier { align-content: start; display: grid; gap: 3mm; min-width: 0; }
+        .royal-logo {
+          align-items: center;
+          display: grid;
+          gap: 2mm;
+          grid-template-columns: 13mm 1fr;
+          min-height: 17mm;
         }
-        .courier { font-size: 18px; font-weight: 900; letter-spacing: 0; line-height: 1; }
-        .brand, .label, .order-box span {
-          color: #4b5563;
-          font-size: 9px;
+        .royal-mark {
+          background: linear-gradient(135deg, #b9792d, #f2d097 48%, #8f561e);
+          border-radius: 50% 50% 50% 8%;
+          height: 13mm;
+          position: relative;
+          transform: rotate(-18deg);
+          width: 13mm;
+        }
+        .royal-mark::after {
+          border-bottom: 1.4mm solid #111;
+          border-top: 1.4mm solid #111;
+          content: "";
+          height: 3mm;
+          position: absolute;
+          right: -2mm;
+          top: 4mm;
+          transform: rotate(18deg);
+          width: 6mm;
+        }
+        .royal-logo-text { font-size: 11px; font-weight: 900; line-height: 0.9; }
+        .royal-logo-text span {
+          display: block;
+          font-size: 4.5px;
           font-weight: 800;
-          letter-spacing: 0;
-          text-transform: uppercase;
+          line-height: 1.1;
+          margin-top: 1mm;
         }
-        .order-box {
-          border: 1px solid #111827;
-          min-width: 26mm;
-          padding: 2mm;
-          text-align: center;
-        }
-        .order-box strong { display: block; font-size: 13px; line-height: 1.1; }
-        .waybill-band {
-          border-bottom: 1px solid #111827;
-          margin-bottom: 3mm;
-          padding: 3mm 0;
-        }
-        .barcode { height: 17mm; }
-        .barcode-svg { display: block; height: 100%; width: 100%; }
-        .waybill {
-          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-          font-size: 18px;
-          font-weight: 900;
-          letter-spacing: 0;
-          padding-top: 1.5mm;
-          text-align: center;
-        }
-        .info-grid { align-items: stretch; grid-template-columns: 1fr 33mm; }
-        .receiver-panel, .cod-panel {
-          border: 1px solid #d1d5db;
+        .carrier-name { font-size: 17px; font-weight: 900; line-height: 1.12; }
+        .carrier-contact { font-size: 12px; font-weight: 800; line-height: 1.38; }
+        .tracking {
+          align-content: start;
+          display: grid;
+          gap: 3mm;
+          justify-items: end;
           min-width: 0;
-          padding: 3mm;
         }
-        .receiver-name {
-          font-size: 16px;
+        .waybill-id { font-size: 15px; font-weight: 900; line-height: 1; text-align: right; }
+        .barcode-panel { display: grid; justify-items: center; width: 70mm; }
+        .barcode { height: 10mm; width: 69mm; }
+        .barcode-svg { display: block; fill: #000; height: 100%; width: 100%; }
+        .barcode-text {
+          font-size: 15px;
+          font-weight: 500;
+          letter-spacing: 1.6px;
+          margin-top: 0.6mm;
+        }
+        .qr-code {
+          background: #fff;
+          display: grid;
+          grid-template-columns: repeat(13, 1fr);
+          grid-template-rows: repeat(13, 1fr);
+          height: 24mm;
+          margin-top: 8mm;
+          width: 24mm;
+        }
+        .qr-cell { background: #fff; }
+        .qr-cell-on { background: #000; }
+        .section-title {
+          align-items: center;
+          border-bottom: 1.2px solid #000;
+          display: flex;
+          font-size: 13px;
           font-weight: 900;
-          line-height: 1.05;
-          overflow-wrap: anywhere;
-          text-transform: uppercase;
+          justify-content: center;
+          line-height: 1;
+          min-height: 9mm;
         }
-        .receiver-phone { font-size: 14px; font-weight: 800; margin-top: 1.5mm; }
-        .receiver-address {
+        .two-col {
+          border-bottom: 1.2px solid #000;
+          display: grid;
+          grid-template-columns: 37% 63%;
+        }
+        .two-col > div:first-child { border-right: 1.2px solid #000; }
+        .details-row .cell { min-height: 38mm; }
+        .order-title { border-bottom: 1.2px solid #000; }
+        .order-details { min-height: 55mm; }
+        .cell {
+          font-size: 13px;
+          font-weight: 900;
+          line-height: 1.32;
+          min-width: 0;
+          overflow-wrap: anywhere;
+          padding: 2mm;
+        }
+        .field-label,
+        .field-value {
+          display: block;
+          font-weight: 900;
+        }
+        .field-value { margin-bottom: 1mm; }
+        .merchant-details .field-value { margin-bottom: 2mm; }
+        .footer {
+          align-items: center;
+          display: flex;
           font-size: 12px;
-          line-height: 1.25;
-          margin-top: 1.5mm;
-          overflow-wrap: anywhere;
+          font-weight: 900;
+          justify-content: center;
+          line-height: 1;
         }
-        .cod-panel { display: grid; align-content: center; text-align: center; }
-        .cod { font-size: 18px; font-weight: 900; line-height: 1.05; }
-        .batch-chip {
-          border-top: 1px solid #d1d5db;
-          font-size: 10px;
-          font-weight: 800;
-          margin-top: 3mm;
-          padding-top: 2mm;
-        }
-        .description {
-          border-top: 1px solid #d1d5db;
-          font-size: 11px;
-          line-height: 1.25;
-          margin-top: 3mm;
-          overflow-wrap: anywhere;
-          padding-top: 2.5mm;
-        }
-        .layout-thermal .label-grid {
-          grid-template-columns: 100mm;
-          max-width: 100mm;
-        }
-        .layout-thermal .label-card {
-          min-height: 148mm;
-          width: 100mm;
-        }
-        .layout-a4 .label-grid {
-          gap: 5mm;
-          grid-template-columns: repeat(2, 1fr);
-          max-width: 194mm;
-        }
-        .layout-a4 .label-card {
-          min-height: 135mm;
-        }
-        .layout-a4 .courier { font-size: 16px; }
-        .layout-a4 .receiver-name { font-size: 14px; }
-        .layout-a4 .receiver-phone { font-size: 12px; }
-        .layout-a4 .receiver-address { font-size: 11px; }
-        .layout-a4 .cod { font-size: 16px; }
-        .layout-a4 .info-grid { grid-template-columns: 1fr 28mm; }
-        .layout-a4 .barcode { height: 15mm; }
         @media screen and (max-width: 760px) {
           .screen-toolbar { align-items: stretch; flex-direction: column; }
           .toolbar-actions { justify-content: flex-start; }
-          .layout-a4 .label-grid { grid-template-columns: 1fr; max-width: 100mm; }
-          .layout-a4 .label-card { min-height: 135mm; }
+          .waybill-sheet { max-width: 100%; width: 128mm; }
         }
         @media print {
           .mobile-menu-btn,
@@ -319,31 +440,23 @@ export default async function RoyalExpressBatchLabelsPage({
           .screen-toolbar { display: none; }
           body { margin: 0; }
           .batch-label-page { padding: 0; }
-          .layout-thermal .label-grid {
+          .label-grid {
             display: block;
             max-width: none;
           }
-          .layout-thermal .label-card {
-            border: 0;
-            height: 150mm;
-            min-height: 150mm;
-            padding: 5mm;
-            width: 100mm;
-            page-break-after: always;
-          }
-          .layout-thermal .label-card:last-child { page-break-after: auto; }
-          .layout-a4 .label-grid {
-            display: grid;
-            gap: 5mm;
-            grid-template-columns: repeat(2, 1fr);
-            max-width: none;
-          }
-          .layout-a4 .label-card {
-            min-height: 135mm;
-          }
-          .layout-a4 .label-card {
+          .waybill-sheet {
             break-inside: avoid;
+            min-height: 188mm;
+            page-break-after: always;
             page-break-inside: avoid;
+            width: 128mm;
+          }
+          .waybill-sheet:last-child {
+            page-break-after: auto;
+          }
+          .label-grid {
+            align-items: start;
+            justify-items: center;
           }
         }
       `}</style>
