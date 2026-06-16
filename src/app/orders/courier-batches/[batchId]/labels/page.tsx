@@ -309,6 +309,13 @@ export default async function RoyalExpressBatchLabelsPage({
           .layout-a4 .label-card { min-height: 135mm; }
         }
         @media print {
+          .mobile-menu-btn,
+          .sidebar-overlay,
+          .sidebar-nav,
+          .sidebar-close-btn {
+            display: none !important;
+            visibility: hidden !important;
+          }
           .screen-toolbar { display: none; }
           body { margin: 0; }
           .batch-label-page { padding: 0; }
