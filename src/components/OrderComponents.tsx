@@ -472,42 +472,18 @@ function printRoyalExpressWaybill(order: OrderDrawerOrder, shipment: OrderCourie
       min-width: 0;
     }
     .royal-logo {
-      display: grid;
-      grid-template-columns: 13mm 1fr;
+      width: 38mm;
+      height: 21mm;
+      display: flex;
       align-items: center;
-      gap: 2mm;
-      min-height: 17mm;
     }
-    .royal-mark {
-      width: 13mm;
-      height: 13mm;
-      border-radius: 50% 50% 50% 8%;
-      background: linear-gradient(135deg, #b9792d, #f2d097 48%, #8f561e);
-      transform: rotate(-18deg);
-      position: relative;
-    }
-    .royal-mark::after {
-      content: "";
-      position: absolute;
-      right: -2mm;
-      top: 4mm;
-      width: 6mm;
-      height: 3mm;
-      border-top: 1.4mm solid #111;
-      border-bottom: 1.4mm solid #111;
-      transform: rotate(18deg);
-    }
-    .royal-logo-text {
-      font-size: 11px;
-      line-height: 0.9;
-      font-weight: 900;
-    }
-    .royal-logo-text span {
+    .royal-logo img {
+      width: 38mm;
+      height: auto;
+      max-height: 21mm;
+      object-fit: contain;
+      object-position: left center;
       display: block;
-      font-size: 4.5px;
-      line-height: 1.1;
-      font-weight: 800;
-      margin-top: 1mm;
     }
     .carrier-name {
       font-size: 17px;
@@ -619,8 +595,7 @@ function printRoyalExpressWaybill(order: OrderDrawerOrder, shipment: OrderCourie
       <div class="top">
         <div class="carrier">
           <div class="royal-logo">
-            <div class="royal-mark"></div>
-            <div class="royal-logo-text">Royal<br />Express<span>COURIER | LOGISTICS | GROUP<br />Supreme Delivery Partner</span></div>
+            <img src="/royal-express-logo.png" alt="Royal Express" />
           </div>
           <div class="carrier-name">Royal Express<br />Courier &amp; Logistics<br />(Pvt) Ltd</div>
           <div class="carrier-contact">

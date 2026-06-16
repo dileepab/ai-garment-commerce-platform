@@ -186,11 +186,8 @@ export default async function RoyalExpressBatchLabelsPage({
               <div className="waybill-top">
                 <div className="carrier">
                   <div className="royal-logo">
-                    <div className="royal-mark" />
-                    <div className="royal-logo-text">
-                      Royal<br />Express
-                      <span>COURIER | LOGISTICS | GROUP<br />Supreme Delivery Partner</span>
-                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/royal-express-logo.png" alt="Royal Express" />
                   </div>
                   <div className="carrier-name">Royal Express<br />Courier &amp; Logistics<br />(Pvt) Ltd</div>
                   <div className="carrier-contact">
@@ -320,37 +317,17 @@ export default async function RoyalExpressBatchLabelsPage({
         .carrier { align-content: start; display: grid; gap: 3mm; min-width: 0; }
         .royal-logo {
           align-items: center;
-          display: grid;
-          gap: 2mm;
-          grid-template-columns: 13mm 1fr;
-          min-height: 17mm;
+          display: flex;
+          height: 21mm;
+          width: 38mm;
         }
-        .royal-mark {
-          background: linear-gradient(135deg, #b9792d, #f2d097 48%, #8f561e);
-          border-radius: 50% 50% 50% 8%;
-          height: 13mm;
-          position: relative;
-          transform: rotate(-18deg);
-          width: 13mm;
-        }
-        .royal-mark::after {
-          border-bottom: 1.4mm solid #111;
-          border-top: 1.4mm solid #111;
-          content: "";
-          height: 3mm;
-          position: absolute;
-          right: -2mm;
-          top: 4mm;
-          transform: rotate(18deg);
-          width: 6mm;
-        }
-        .royal-logo-text { font-size: 11px; font-weight: 900; line-height: 0.9; }
-        .royal-logo-text span {
+        .royal-logo img {
           display: block;
-          font-size: 4.5px;
-          font-weight: 800;
-          line-height: 1.1;
-          margin-top: 1mm;
+          height: auto;
+          max-height: 21mm;
+          object-fit: contain;
+          object-position: left center;
+          width: 38mm;
         }
         .carrier-name { font-size: 17px; font-weight: 900; line-height: 1.12; }
         .carrier-contact { font-size: 12px; font-weight: 800; line-height: 1.38; }
