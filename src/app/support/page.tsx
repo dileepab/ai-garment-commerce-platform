@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
 import { canScope } from '@/lib/access-control';
-import { getSelectedBrandScopedWhere } from '@/lib/brand-context';
+import { getSelectedBrandScopedWhere, normalizeSelectedBrand } from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import SupportPageClient from './SupportPageClient';
 import {
@@ -125,10 +125,11 @@ export default async function SupportPage({
   };
 
   return (
-    <SupportPageClient 
+    <SupportPageClient
       initialEscalations={processedEscalations}
       stats={stats}
       canReply={canScope(scope, 'support:reply')}
+      selectedBrand={normalizeSelectedBrand(brand)}
     />
   );
 }

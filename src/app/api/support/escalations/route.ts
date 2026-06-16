@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getBrandScopedWhere } from '@/lib/access-control';
+import { getSelectedBrandScopedWhere } from '@/lib/brand-context';
 import { accessDeniedResponse, isAuthorizationError, requireApiPermission } from '@/lib/authz';
 import {
   formatSupportDate,
@@ -11,11 +11,13 @@ import type { SupportStats, SupportThread } from '@/app/support/types';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const scope = await requireApiPermission('support:view');
+    const { searchParams } = new URL(request.url);
+    const brandWhere = getSelectedBrandScopedWhere(scope, searchParams.get('brand'));
     const escalations = await prisma.supportEscalation.findMany({
-      where: getBrandScopedWhere(scope),
+      where: brandWhere,
       include: {
         customer: true,
         order: true,
@@ -28,7 +30,7 @@ export async function GET() {
       escalations.map(async (escalation) => {
         const recentOrders = await prisma.order.findMany({
           where: {
-            ...getBrandScopedWhere(scope),
+            ...brandWhere,
             ...(escalation.customerId
               ? { customerId: escalation.customerId }
               : escalation.orderId

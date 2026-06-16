@@ -11,6 +11,7 @@ import {
   SUPPORT_THREAD_POLL_MS,
 } from './format';
 import { updateEscalationWorkflowAction } from './actions';
+import { BRAND_QUERY_PARAM } from '@/lib/brand-context';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -56,6 +57,7 @@ interface SupportPageClientProps {
   initialEscalations: SupportThread[];
   stats: SupportStats;
   canReply: boolean;
+  selectedBrand: string | null;
 }
 
 type SupportFilter = "all" | "active" | "resolved";
@@ -205,7 +207,7 @@ function SupportQuickActions({ escalation, canReply }: { escalation: SupportThre
   );
 }
 
-export default function SupportPageClient({ initialEscalations, stats, canReply }: SupportPageClientProps) {
+export default function SupportPageClient({ initialEscalations, stats, canReply, selectedBrand }: SupportPageClientProps) {
   const [escalations, setEscalations] = useState(initialEscalations);
   const [liveStats, setLiveStats] = useState(stats);
   const [search, setSearch] = useState("");
@@ -252,9 +254,15 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
   useEffect(() => {
     let cancelled = false;
 
+    // Keep the live poll scoped to the globally selected brand so it does not
+    // re-introduce other brands' escalations on top of the brand-filtered render.
+    const query = selectedBrand
+      ? `?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
+      : '';
+
     const refreshInbox = async () => {
       try {
-        const response = await fetch('/api/support/escalations', { cache: 'no-store' });
+        const response = await fetch(`/api/support/escalations${query}`, { cache: 'no-store' });
         const payload = (await response.json()) as SupportInboxResponse;
 
         if (cancelled || !response.ok || !payload.success || !payload.data) return;
@@ -275,7 +283,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply 
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [selectedBrand]);
 
   const channelOptions = useMemo(() => {
     const set = new Set<string>();
