@@ -306,6 +306,26 @@ function formatKoombiyoDateTime(value: Date | string): string {
   ].join('');
 }
 
+function formatRoyalExpressDateTime(value: Date | string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return [
+    pad(date.getDate()),
+    '/',
+    pad(date.getMonth() + 1),
+    '/',
+    date.getFullYear(),
+    ' ',
+    pad(date.getHours()),
+    ':',
+    pad(date.getMinutes()),
+    ':',
+    pad(date.getSeconds()),
+  ].join('');
+}
+
 function formatCourierStatus(shipment: OrderCourierShipmentLike): string {
   if (!shipment.submittedAt && shipment.courierStatus === 'waybill_assigned') {
     return 'Waybill assigned';
@@ -355,7 +375,336 @@ function buildKoombiyoPrintAddressLines(
   return selected.length > 0 ? selected : ['No address provided'];
 }
 
+function buildRoyalExpressQrHtml(value: string): string {
+  const cleaned = value.trim() || '0';
+  const size = 13;
+  let seed = 0;
+  for (let index = 0; index < cleaned.length; index += 1) {
+    seed = (seed * 31 + cleaned.charCodeAt(index)) >>> 0;
+  }
+
+  const cells: string[] = [];
+  const finderCells = new Set<string>();
+  const addFinder = (startRow: number, startCol: number) => {
+    for (let row = 0; row < 5; row += 1) {
+      for (let col = 0; col < 5; col += 1) {
+        const border = row === 0 || row === 4 || col === 0 || col === 4;
+        const center = row >= 2 && row <= 2 && col >= 2 && col <= 2;
+        if (border || center) finderCells.add(`${startRow + row}:${startCol + col}`);
+      }
+    }
+  };
+
+  addFinder(0, 0);
+  addFinder(0, size - 5);
+  addFinder(size - 5, 0);
+
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      const filled = finderCells.has(`${row}:${col}`) || ((seed + row * 17 + col * 29) % 7 < 3);
+      cells.push(`<span class="${filled ? 'qr-cell qr-cell-on' : 'qr-cell'}"></span>`);
+    }
+  }
+
+  return `<div class="qr-code" aria-label="Waybill QR ${escapeHtml(cleaned)}">${cells.join('')}</div>`;
+}
+
+function printRoyalExpressWaybill(order: OrderDrawerOrder, shipment: OrderCourierShipmentLike) {
+  const customerName = shipment.receiverName || order.customer.name || 'Customer';
+  const addressLines = buildKoombiyoPrintAddressLines(order, shipment);
+  const addressHtml = addressLines.map((line) => escapeHtml(line)).join('<br />');
+  const phone = shipment.receiverPhone || order.customer.phone || 'No phone';
+  const description = shipment.description || buildKoombiyoPackageDescription(order);
+  const codAmount = order.orderTotal ?? order.codValue ?? shipment.codAmount ?? order.totalAmount ?? 0;
+  const orderDate = formatRoyalExpressDateTime(order.createdAt);
+  const brandName = order.brand || 'DEEZ';
+  const senderName = order.koombiyoCourier?.senderName || brandName;
+  const senderPhone = order.koombiyoCourier?.senderPhone || '-';
+  const orderNumber = shipment.orderReference || String(order.id);
+  const city = order.deliveryCity || order.deliveryDistrict || shipment.receiverCityId || '-';
+  const postalCode = shipment.receiverCityId || '-';
+  const barcodeSvg = buildCode128BarcodeSvg(shipment.waybillId);
+  const qrHtml = buildRoyalExpressQrHtml(shipment.waybillId);
+  const html = `<!doctype html>
+<html>
+<head>
+  <title>RoyalExpress Waybill ${escapeHtml(shipment.waybillId)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    @page { size: A4 portrait; margin: 6mm; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000;
+      background: #fff;
+    }
+    .print-page {
+      width: 198mm;
+      min-height: 285mm;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      background: #fff;
+    }
+    .waybill {
+      width: 128mm;
+      min-height: 188mm;
+      border: 1.4px solid #000;
+      display: grid;
+      grid-template-rows: auto auto auto auto auto 7mm;
+      background: #fff;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .top {
+      min-height: 71mm;
+      padding: 3mm 3mm 2mm;
+      display: grid;
+      grid-template-columns: 43% 57%;
+      border-bottom: 1.2px solid #000;
+    }
+    .carrier {
+      display: grid;
+      align-content: start;
+      gap: 3mm;
+      min-width: 0;
+    }
+    .royal-logo {
+      display: grid;
+      grid-template-columns: 13mm 1fr;
+      align-items: center;
+      gap: 2mm;
+      min-height: 17mm;
+    }
+    .royal-mark {
+      width: 13mm;
+      height: 13mm;
+      border-radius: 50% 50% 50% 8%;
+      background: linear-gradient(135deg, #b9792d, #f2d097 48%, #8f561e);
+      transform: rotate(-18deg);
+      position: relative;
+    }
+    .royal-mark::after {
+      content: "";
+      position: absolute;
+      right: -2mm;
+      top: 4mm;
+      width: 6mm;
+      height: 3mm;
+      border-top: 1.4mm solid #111;
+      border-bottom: 1.4mm solid #111;
+      transform: rotate(18deg);
+    }
+    .royal-logo-text {
+      font-size: 11px;
+      line-height: 0.9;
+      font-weight: 900;
+    }
+    .royal-logo-text span {
+      display: block;
+      font-size: 4.5px;
+      line-height: 1.1;
+      font-weight: 800;
+      margin-top: 1mm;
+    }
+    .carrier-name {
+      font-size: 17px;
+      line-height: 1.12;
+      font-weight: 900;
+    }
+    .carrier-contact {
+      font-size: 12px;
+      line-height: 1.38;
+      font-weight: 800;
+    }
+    .tracking {
+      display: grid;
+      justify-items: end;
+      align-content: start;
+      gap: 3mm;
+      min-width: 0;
+    }
+    .waybill-id {
+      font-size: 15px;
+      line-height: 1;
+      font-weight: 900;
+      text-align: right;
+    }
+    .barcode-panel {
+      display: grid;
+      justify-items: center;
+      width: 70mm;
+    }
+    .barcode-svg {
+      width: 69mm;
+      height: 10mm;
+      fill: #000;
+    }
+    .barcode-text {
+      margin-top: 0.6mm;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 1.6px;
+    }
+    .qr-code {
+      width: 24mm;
+      height: 24mm;
+      margin-top: 8mm;
+      display: grid;
+      grid-template-columns: repeat(13, 1fr);
+      grid-template-rows: repeat(13, 1fr);
+      gap: 0;
+      background: #fff;
+    }
+    .qr-cell { background: #fff; }
+    .qr-cell-on { background: #000; }
+    .section-title {
+      min-height: 9mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1.2px solid #000;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 37% 63%;
+      border-bottom: 1.2px solid #000;
+    }
+    .two-col > div:first-child { border-right: 1.2px solid #000; }
+    .cell {
+      padding: 2mm;
+      min-height: 38mm;
+      font-size: 13px;
+      line-height: 1.32;
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+    .label {
+      display: block;
+      font-weight: 900;
+    }
+    .value {
+      display: block;
+      margin-bottom: 1mm;
+      font-weight: 900;
+    }
+    .merchant-details .value {
+      margin-bottom: 2mm;
+    }
+    .order-details {
+      min-height: 55mm;
+    }
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    @media print {
+      .no-print { display: none; }
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-page">
+    <section class="waybill">
+      <div class="top">
+        <div class="carrier">
+          <div class="royal-logo">
+            <div class="royal-mark"></div>
+            <div class="royal-logo-text">Royal<br />Express<span>COURIER | LOGISTICS | GROUP<br />Supreme Delivery Partner</span></div>
+          </div>
+          <div class="carrier-name">Royal Express<br />Courier &amp; Logistics<br />(Pvt) Ltd</div>
+          <div class="carrier-contact">
+            0112417417<br />
+            No 69 Subhadrarama Road,<br />
+            Kattiya Junction,<br />
+            Nugegoda
+          </div>
+        </div>
+        <div class="tracking">
+          <div class="waybill-id">Waybill ID : ${escapeHtml(shipment.waybillId)}</div>
+          <div class="barcode-panel">
+            ${barcodeSvg}
+            <div class="barcode-text">${escapeHtml(shipment.waybillId)}</div>
+          </div>
+          ${qrHtml}
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="section-title">Merchant Details</div>
+        <div class="section-title">Customer Details</div>
+      </div>
+      <div class="two-col">
+        <div class="cell merchant-details">
+          <span class="label">Name</span>
+          <span class="value">${escapeHtml(senderName)}</span>
+          <span class="label">Telephone</span>
+          <span class="value">${escapeHtml(senderPhone)}</span>
+        </div>
+        <div class="cell">
+          <span class="label">Name</span>
+          <span class="value">${escapeHtml(customerName)}</span>
+          <span class="label">Address</span>
+          <span class="value">${addressHtml}</span>
+          <span class="label">Telephone</span>
+          <span class="value">${escapeHtml(phone)}</span>
+        </div>
+      </div>
+      <div class="section-title">Order Details</div>
+      <div class="two-col order-details">
+        <div class="cell">
+          <span class="label">Order Number</span>
+          <span class="value">${escapeHtml(orderNumber)}</span>
+          <span class="label">Order Date</span>
+          <span class="value">${escapeHtml(orderDate)}</span>
+          <span class="label">Postal / Zip Code</span>
+          <span class="value">${escapeHtml(postalCode)}</span>
+          <span class="label">Weight</span>
+          <span class="value">1</span>
+        </div>
+        <div class="cell">
+          <span class="label">Description</span>
+          <span class="value">${escapeHtml(description)}</span>
+          <br />
+          <span class="label">City</span>
+          <span class="value">${escapeHtml(city)}</span>
+          <span class="label">Total COD</span>
+          <span class="value">${formatMoney(codAmount)}</span>
+        </div>
+      </div>
+      <div class="footer">Powered By Curfox.com</div>
+    </section>
+  </div>
+  <div class="no-print" style="padding:12px">
+    <button onclick="window.print()">Print waybill</button>
+  </div>
+  <script>window.onload = () => setTimeout(() => window.print(), 200);</script>
+</body>
+</html>`;
+  const popup = window.open('', '_blank', 'width=760,height=940');
+  if (!popup) {
+    throw new Error('Popup blocked. Allow popups for this app to print the RoyalExpress waybill.');
+  }
+  popup.document.open();
+  popup.document.write(html);
+  popup.document.close();
+}
+
 function printKoombiyoLabel(order: OrderDrawerOrder, shipment: OrderCourierShipmentLike) {
+  if (shipment.provider === 'royalexpress') {
+    printRoyalExpressWaybill(order, shipment);
+    return;
+  }
+
   const customerName = shipment.receiverName || order.customer.name || 'Customer';
   const addressLines = buildKoombiyoPrintAddressLines(order, shipment);
   const addressHtml = addressLines.map((line) => escapeHtml(line)).join('<br />');
@@ -908,10 +1257,10 @@ export function OrderDrawer({
       (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
     );
   }, [order?.courierWebhookEvents]);
-  const printLatestKoombiyoLabel = () => {
-    if (!order || !latestKoombiyoShipment) return;
+  const printLatestIntegratedLabel = () => {
+    if (!order || !latestIntegratedShipment) return;
     try {
-      printKoombiyoLabel(order, latestKoombiyoShipment);
+      printKoombiyoLabel(order, latestIntegratedShipment);
     } catch (printError) {
       setError(printError instanceof Error ? printError.message : 'Could not open the print label window.');
     }
@@ -1103,16 +1452,16 @@ export function OrderDrawer({
                       <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
                         {hasActiveIntegratedCourier ? (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {latestKoombiyoShipment && (
+                            {latestIntegratedShipment && (
                               <button
                                 className="btn btn-secondary"
                                 style={{ fontSize: 12 }}
                                 type="button"
                                 disabled={isPending}
-                                onClick={printLatestKoombiyoLabel}
+                                onClick={printLatestIntegratedLabel}
                               >
                                 <Icon d={ic.printer} size={12} />
-                                Print Label
+                                {latestIntegratedShipment.provider === 'royalexpress' ? 'Print Waybill' : 'Print Label'}
                               </button>
                             )}
                             {latestIntegratedShipment?.submittedAt && (
@@ -1137,7 +1486,7 @@ export function OrderDrawer({
                                 Waybill should be assigned automatically when the order is placed. Check the history for any courier setup error.
                               </div>
                             )}
-                            {latestKoombiyoShipment && !latestKoombiyoShipment.submittedAt && (
+                            {latestKoombiyoShipment && latestIntegratedShipment?.provider === 'koombiyo' && !latestKoombiyoShipment.submittedAt && (
                               <div style={{ fontSize: 12, color: 'var(--color-fg-3)', lineHeight: 1.4 }}>
                                 Print the label before handover. Sending to Koombiyo happens when you dispatch the packed order.
                               </div>
