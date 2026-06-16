@@ -3,8 +3,9 @@ import prisma from '@/lib/prisma';
 import {
   canAccessBrand,
   describeScope,
-  getBrandScopedWhere,
 } from '@/lib/access-control';
+import { brandsMatch } from '@/lib/brand-aliases';
+import { getSelectedBrandScopedWhere, resolveSelectedBrand } from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import {
   getBrandChannelConfigView,
@@ -185,9 +186,15 @@ function ReadinessItem({
   );
 }
 
-export default async function MetaStatusPage() {
+export default async function MetaStatusPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('settings:view');
-  const brandWhere = getBrandScopedWhere(scope);
+  const { brand: brandParam } = await searchParams;
+  const selectedBrand = resolveSelectedBrand(scope, brandParam);
+  const brandWhere = getSelectedBrandScopedWhere(scope, brandParam);
   const [settingsRows, channelRows, productBrands, postBrands, creativeBrands] = await Promise.all([
     prisma.merchantSettings.findMany({ select: { brand: true } }),
     prisma.brandChannelConfig.findMany({ select: { brand: true } }),
@@ -195,13 +202,19 @@ export default async function MetaStatusPage() {
     prisma.socialPost.findMany({ distinct: ['brand'], select: { brand: true } }),
     prisma.generatedCreative.findMany({ distinct: ['brand'], select: { brand: true } }),
   ]);
-  const brandNames = uniqueBrands([
+  const accessibleBrands = uniqueBrands([
     ...settingsRows.map((row) => row.brand),
     ...channelRows.map((row) => row.brand),
     ...productBrands.map((row) => row.brand),
     ...postBrands.map((row) => row.brand),
     ...creativeBrands.map((row) => row.brand),
   ]).filter((brand) => canAccessBrand(scope, brand));
+  // Focus on the globally selected brand when one is set; otherwise show all.
+  const matchedBrands = selectedBrand
+    ? accessibleBrands.filter((brand) => brandsMatch(brand, selectedBrand))
+    : accessibleBrands;
+  const brandNames =
+    selectedBrand && matchedBrands.length === 0 ? [selectedBrand] : matchedBrands;
 
   const now = new Date();
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);

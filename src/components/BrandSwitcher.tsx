@@ -323,7 +323,11 @@ export default function BrandSwitcher({
           <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '6px 4px' }} />
 
           <Link
-            href="/settings"
+            href={
+              selectedBrand
+                ? `/settings?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
+                : '/settings'
+            }
             onClick={() => setOpen(false)}
             style={{
               display: 'flex',

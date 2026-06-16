@@ -34,7 +34,8 @@ import {
   getRoyalExpressSettingsView,
   type RoyalExpressSettingsView,
 } from '@/lib/royal-express-courier';
-import { getBrandLookupAliases, normalizeBrandKey } from '@/lib/brand-aliases';
+import { brandsMatch, getBrandLookupAliases, normalizeBrandKey } from '@/lib/brand-aliases';
+import { BRAND_QUERY_PARAM, resolveSelectedBrand } from '@/lib/brand-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -965,8 +966,14 @@ function SettingsForm({
   );
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('settings:view');
+  const { brand: brandParam } = await searchParams;
+  const selectedBrand = resolveSelectedBrand(scope, brandParam);
   const canManage = canScope(scope, 'settings:write');
   const courierSince = getThirtyDaysAgo();
   const [settingsRows, channelRows, productBrands, orderBrands, supportBrands, courierEvents, courierCounts, lastCourierTest, locationCounts] = await Promise.all([
@@ -1014,6 +1021,14 @@ export default async function SettingsPage() {
     ...orderBrands.map((row) => row.brand),
     ...supportBrands.map((row) => row.brand),
   ]).filter((brand) => canAccessBrand(scope, brand));
+  // When a brand is selected in the global switcher, focus the brand-override
+  // section on just that brand; "All Brands" keeps the full list. Fall back to
+  // the selected brand itself if it isn't among the discovered settings brands.
+  const matchedBrandNames = selectedBrand
+    ? brandNames.filter((brand) => brandsMatch(brand, selectedBrand))
+    : brandNames;
+  const visibleBrandNames =
+    selectedBrand && matchedBrandNames.length === 0 ? [selectedBrand] : matchedBrandNames;
   const globalSettings = await getMerchantSettings();
   const globalSettingsRow = settingsRows.find((row) => row.storeKey === 'default');
   const courierCountByStatus = new Map(courierCounts.map((row) => [row.status, row._count._all]));
@@ -1061,7 +1076,7 @@ export default async function SettingsPage() {
     })),
   };
   const scopedSettings = await Promise.all(
-    brandNames.map(async (brand) => ({
+    visibleBrandNames.map(async (brand) => ({
       settings: await getMerchantSettings(brand),
       channelConfig: await getBrandChannelConfigView(brand),
       koombiyoSettings: await getKoombiyoSettingsView(brand),
@@ -1080,7 +1095,16 @@ export default async function SettingsPage() {
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Link className="btn btn-secondary" href="/settings/readiness">Launch readiness</Link>
-            <Link className="btn btn-secondary" href="/settings/meta">Meta status</Link>
+            <Link
+              className="btn btn-secondary"
+              href={
+                selectedBrand
+                  ? `/settings/meta?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
+                  : '/settings/meta'
+              }
+            >
+              Meta status
+            </Link>
             <Link className="btn btn-secondary" href="/settings/audit">Audit log</Link>
             <span className="app-chip app-chip-neutral">{describeScope(scope)}</span>
           </div>
@@ -1104,7 +1128,7 @@ export default async function SettingsPage() {
             <div>
               <p className="app-section-label">Brand Overrides</p>
               <h2 style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: 'var(--color-fg-1)' }}>
-                Store-specific settings
+                {selectedBrand ? `${selectedBrand} settings` : 'Store-specific settings'}
               </h2>
             </div>
             {scopedSettings.map(({ settings, channelConfig, koombiyoSettings, koombiyoLocationCount, royalExpressSettings }) => (
@@ -1118,7 +1142,7 @@ export default async function SettingsPage() {
                 title={settings.displayName}
                 subtitle={`Overrides customer-facing behavior for ${settings.brand}.`}
                 canManage={canManage}
-                defaultOpen={false}
+                defaultOpen={Boolean(selectedBrand)}
               />
             ))}
           </section>
