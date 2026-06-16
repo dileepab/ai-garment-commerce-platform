@@ -1,5 +1,7 @@
 import prisma from '@/lib/prisma';
-import { canAccessBrand, canScope, getBrandScopedWhere, getBrandScopeValues } from '@/lib/access-control';
+import { canScope } from '@/lib/access-control';
+import { getSelectedBrandScopedWhere, getSelectedBrandScopeValues } from '@/lib/brand-context';
+import { getAvailableBrands } from '@/lib/available-brands';
 import { requirePagePermission } from '@/lib/authz';
 import { getBrandForecasts } from '@/lib/demand-forecasting';
 import type { Product } from '@/components/ProductComponents';
@@ -7,25 +9,17 @@ import ProductsPageClient from './ProductsPageClient';
 
 export const dynamic = 'force-dynamic';
 
-function uniqueBrands(values: Array<string | null | undefined>): string[] {
-  return Array.from(
-    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))),
-  ).sort((a, b) => a.localeCompare(b));
-}
-
-export default async function ProductsPage() {
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('products:view');
-  const brandScope = getBrandScopeValues(scope);
-  const [
-    products,
-    settingsBrands,
-    channelBrands,
-    productBrands,
-    postBrands,
-    creativeBrands,
-  ] = await Promise.all([
+  const { brand } = await searchParams;
+  const brandScope = getSelectedBrandScopeValues(scope, brand);
+  const [products, availableBrands] = await Promise.all([
     prisma.product.findMany({
-      where: getBrandScopedWhere(scope),
+      where: getSelectedBrandScopedWhere(scope, brand),
       orderBy: { createdAt: 'desc' },
       include: {
         variants: {
@@ -37,22 +31,8 @@ export default async function ProductsPage() {
         },
       },
     }),
-    prisma.merchantSettings.findMany({ select: { brand: true } }),
-    prisma.brandChannelConfig.findMany({ select: { brand: true } }),
-    prisma.product.findMany({ distinct: ['brand'], select: { brand: true } }),
-    prisma.socialPost.findMany({ distinct: ['brand'], select: { brand: true } }),
-    prisma.generatedCreative.findMany({ distinct: ['brand'], select: { brand: true } }),
+    getAvailableBrands(scope),
   ]);
-  const availableBrands =
-    scope.brandAccess === 'limited'
-      ? scope.brands
-      : uniqueBrands([
-        ...settingsBrands.map((row) => row.brand),
-        ...channelBrands.map((row) => row.brand),
-        ...productBrands.map((row) => row.brand),
-        ...postBrands.map((row) => row.brand),
-        ...creativeBrands.map((row) => row.brand),
-      ]).filter((brand) => canAccessBrand(scope, brand));
 
   // Fetch forecast data
   const forecasts = await getBrandForecasts(brandScope);

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { PageHeader } from '@/components/PageHeader';
 import prisma from '@/lib/prisma';
-import { canScope, getBrandScopedWhere, getBrandScopeValues } from '@/lib/access-control';
+import { canScope } from '@/lib/access-control';
+import { getSelectedBrandScopedWhere, getSelectedBrandScopeValues } from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import { getScopedConversationSenderIds } from '@/lib/conversation-scope';
 import { isActiveOrderStatus, getOrderStageLabel } from '@/lib/order-status-display';
@@ -59,12 +60,17 @@ const FactoryIcon = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="
 const UsersIcon = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>;
 const ZapIcon = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>;
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('dashboard:view');
+  const { brand } = await searchParams;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const last30 = new Date(today); last30.setDate(last30.getDate() - 29);
-  const brandWhere = getBrandScopedWhere(scope);
-  const brandValues = getBrandScopeValues(scope);
+  const brandWhere = getSelectedBrandScopedWhere(scope, brand);
+  const brandValues = getSelectedBrandScopeValues(scope, brand);
   const variantInventoryWhere = getVariantInventoryBrandScopedWhere(brandValues);
   const canViewAnalytics = canScope(scope, 'analytics:view');
   const scopedSenderIds = await getScopedConversationSenderIds(scope);

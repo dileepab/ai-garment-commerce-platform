@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/PageHeader';
 import prisma from '@/lib/prisma';
 import {
-  getBrandScopedWhere,
-  getBrandScopeValues,
-} from '@/lib/access-control';
+  BRAND_QUERY_PARAM,
+  getSelectedBrandScopedWhere,
+  getSelectedBrandScopeValues,
+  normalizeSelectedBrand,
+} from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import { getScopedConversationSenderIds } from '@/lib/conversation-scope';
 import {
@@ -27,17 +29,25 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = Promise<{ range?: string }>;
+type SearchParams = Promise<{ range?: string; brand?: string }>;
 
 function fmt(n: number) { return new Intl.NumberFormat('en-LK').format(n); }
 
 export default async function AnalyticsPage({ searchParams }: { searchParams: SearchParams }) {
   const scope = await requirePagePermission('analytics:view');
-  const { range } = await searchParams;
+  const { range, brand } = await searchParams;
   const { preset, from, to } = resolveDateRange(range);
 
-  const brandWhere = getBrandScopedWhere(scope);
-  const brandValues = getBrandScopeValues(scope);
+  const brandWhere = getSelectedBrandScopedWhere(scope, brand);
+  const brandValues = getSelectedBrandScopeValues(scope, brand);
+  const activeBrand = normalizeSelectedBrand(brand);
+  const buildRangeHref = (rangeId: string) => {
+    const params = new URLSearchParams();
+    if (rangeId !== '30d') params.set('range', rangeId);
+    if (activeBrand) params.set(BRAND_QUERY_PARAM, activeBrand);
+    const qs = params.toString();
+    return qs ? `/analytics?${qs}` : '/analytics';
+  };
   const variantInventoryWhere = getVariantInventoryBrandScopedWhere(brandValues);
   const orderWhere = {
     ...brandWhere,
@@ -195,7 +205,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
               return (
                 <Link
                   key={r.id}
-                  href={r.id === '30d' ? '/analytics' : `/analytics?range=${r.id}`}
+                  href={buildRangeHref(r.id)}
                   style={{
                     ...rangeBtn,
                     background: active ? '#18160F' : '#fff',

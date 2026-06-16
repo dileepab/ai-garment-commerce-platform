@@ -17,6 +17,7 @@
     "check:meta": "node scripts/check-meta-subscription.js",
     "test:chat": "npm run build && node scripts/chat-regression-tests.js",
     "test:access-control": "node --test --experimental-strip-types --no-warnings scripts/access-control.test.ts",
+    "test:brand-context": "node --test --experimental-strip-types --no-warnings scripts/brand-context.test.ts",
     "test:analytics": "node scripts/analytics-helpers.test.js",
     "test:bot-insights": "node scripts/bot-insights.test.js",
     "test:bot-training": "node scripts/bot-training.test.js",

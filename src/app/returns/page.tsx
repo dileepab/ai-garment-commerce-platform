@@ -1,16 +1,22 @@
 import prisma from '@/lib/prisma';
-import { canScope, getBrandScopedWhere } from '@/lib/access-control';
+import { canScope } from '@/lib/access-control';
+import { getSelectedBrandScopedWhere } from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import ReturnRequestsPageClient from './ReturnRequestsPageClient';
 import { RETURN_REQUEST_STATUSES } from '@/lib/returns';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ReturnsPage() {
+export default async function ReturnsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('returns:view');
+  const { brand } = await searchParams;
 
   const returnRequests = await prisma.returnRequest.findMany({
-    where: getBrandScopedWhere(scope),
+    where: getSelectedBrandScopedWhere(scope, brand),
     include: {
       order: {
         select: {

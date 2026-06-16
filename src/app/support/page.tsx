@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
-import { canScope, getBrandScopedWhere } from '@/lib/access-control';
+import { canScope } from '@/lib/access-control';
+import { getSelectedBrandScopedWhere } from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import SupportPageClient from './SupportPageClient';
 import {
@@ -13,10 +14,16 @@ import type { SupportThread, SupportThreadMessage } from './types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SupportPage() {
+export default async function SupportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('support:view');
+  const { brand } = await searchParams;
+  const brandWhere = getSelectedBrandScopedWhere(scope, brand);
   const escalations = await prisma.supportEscalation.findMany({
-    where: getBrandScopedWhere(scope),
+    where: brandWhere,
     include: {
       customer: true,
       order: true,
@@ -42,7 +49,7 @@ export default async function SupportPage() {
         }),
         prisma.order.findMany({
           where: {
-            ...getBrandScopedWhere(scope),
+            ...brandWhere,
             ...(escalation.customerId
               ? { customerId: escalation.customerId }
               : escalation.orderId

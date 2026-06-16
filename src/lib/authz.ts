@@ -2,26 +2,18 @@ import { redirect } from 'next/navigation';
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import {
-  canAccessBrand,
+  AuthorizationError,
+  assertBrandAccess,
   canScope,
   getUserScopeFromSessionUser,
+  isAuthorizationError,
   type Permission,
   type UserScope,
 } from '@/lib/access-control';
 
-export class AuthorizationError extends Error {
-  status: number;
-
-  constructor(message = 'You do not have permission to perform this action.', status = 403) {
-    super(message);
-    this.name = 'AuthorizationError';
-    this.status = status;
-  }
-}
-
-export function isAuthorizationError(error: unknown): error is AuthorizationError {
-  return error instanceof AuthorizationError;
-}
+// Re-exported from access-control so existing `@/lib/authz` importers keep working
+// while the pure (Next-free) implementations live alongside the other scope helpers.
+export { AuthorizationError, isAuthorizationError, assertBrandAccess };
 
 export async function getCurrentUserScope(): Promise<UserScope | null> {
   const session = await auth();
@@ -59,12 +51,6 @@ export async function requireActionPermission(permission: Permission): Promise<U
 
 export async function requireApiPermission(permission: Permission): Promise<UserScope> {
   return requireActionPermission(permission);
-}
-
-export function assertBrandAccess(scope: UserScope, brand?: string | null, label = 'resource') {
-  if (!canAccessBrand(scope, brand)) {
-    throw new AuthorizationError(`You do not have access to this ${label}.`);
-  }
 }
 
 export function accessDeniedResponse(error: unknown) {

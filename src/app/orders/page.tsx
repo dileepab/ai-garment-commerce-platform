@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
-import { canScope, getBrandScopedWhere } from '@/lib/access-control';
+import { canScope } from '@/lib/access-control';
+import { getSelectedBrandScopedWhere } from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import OrdersPageClient from './OrdersPageClient';
 import { normalizeFulfillmentStatus } from '@/lib/fulfillment';
@@ -10,10 +11,15 @@ import { getMerchantSettings } from '@/lib/runtime-config';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('orders:view');
+  const { brand } = await searchParams;
   const orders = await prisma.order.findMany({
-    where: getBrandScopedWhere(scope),
+    where: getSelectedBrandScopedWhere(scope, brand),
     include: {
       customer: true,
       orderItems: {

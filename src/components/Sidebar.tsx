@@ -1,16 +1,20 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import {
   can,
+  canAccessBrand,
   describeScope,
   getUserScopeFromSessionUser,
   ROLE_LABELS,
   type Permission,
 } from '@/lib/access-control';
+import { BRAND_QUERY_PARAM, normalizeSelectedBrand } from '@/lib/brand-context';
+import BrandSwitcher from './BrandSwitcher';
 
 const NAV_ITEMS: {
   href: string;
@@ -131,11 +135,43 @@ const NAV_ITEMS: {
 
 export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const scope = session?.user ? getUserScopeFromSessionUser(session.user) : null;
   const visibleItems = scope
     ? NAV_ITEMS.filter((item) => can(scope.role, item.permission))
     : NAV_ITEMS;
+
+  // Global brand context. Limited users switch among their assigned brands;
+  // owner/admin users load the full list lazily from /api/brands.
+  const allBrandsAccess = scope?.brandAccess === 'all';
+  const [fetchedBrands, setFetchedBrands] = useState<string[]>([]);
+  useEffect(() => {
+    // Only owner/admin (all-brands) users need the server list; limited users
+    // use their session brands, so `fetchedBrands` stays unused for them.
+    if (!allBrandsAccess) return;
+    let active = true;
+    fetch('/api/brands')
+      .then((res) => (res.ok ? res.json() : { brands: [] }))
+      .then((data) => {
+        if (active && Array.isArray(data?.brands)) setFetchedBrands(data.brands as string[]);
+      })
+      .catch(() => {
+        /* switcher still works with the active brand only */
+      });
+    return () => {
+      active = false;
+    };
+  }, [allBrandsAccess]);
+
+  const rawBrand = normalizeSelectedBrand(searchParams.get(BRAND_QUERY_PARAM));
+  const selectedBrand = scope && rawBrand && canAccessBrand(scope, rawBrand) ? rawBrand : null;
+  const availableBrands = scope ? (allBrandsAccess ? fetchedBrands : scope.brands) : [];
+  const allowAllBrands = scope ? allBrandsAccess || scope.brands.length > 1 : false;
+  const showSwitcher = Boolean(scope) && (allBrandsAccess || availableBrands.length > 1);
+  const brandQuerySuffix = selectedBrand
+    ? `?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
+    : '';
   const displayName = session?.user?.name || session?.user?.email || 'GarmentOS';
   const initials = displayName
     .split(/\s|@/)
@@ -187,6 +223,15 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
         </button>
       </div>
 
+      {/* Global brand switcher */}
+      {showSwitcher && (
+        <BrandSwitcher
+          availableBrands={availableBrands}
+          selectedBrand={selectedBrand}
+          allowAllBrands={allowAllBrands}
+        />
+      )}
+
       {/* Nav items */}
       <nav style={{ flex: 1 }}>
         {visibleItems.map((item) => {
@@ -197,7 +242,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={`${item.href}${brandQuerySuffix}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 9,
                 padding: '8px 8px', borderRadius: 6,

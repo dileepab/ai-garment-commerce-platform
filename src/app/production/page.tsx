@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { getBrandScopedWhere } from '@/lib/access-control';
+import { getSelectedBrandScopedWhere } from '@/lib/brand-context';
 import { requirePagePermission } from '@/lib/authz';
 import { PageHeader } from '@/components/PageHeader';
 
@@ -25,10 +25,15 @@ function calcCompletion(plannedQty: number, finishedQty: number): number {
   return Math.min(100, Math.round((finishedQty / plannedQty) * 100));
 }
 
-export default async function ProductionPage() {
+export default async function ProductionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
   const scope = await requirePagePermission('production:view');
+  const { brand } = await searchParams;
   const batches = await prisma.productionBatch.findMany({
-    where: getBrandScopedWhere(scope),
+    where: getSelectedBrandScopedWhere(scope, brand),
     orderBy: { createdAt: 'desc' },
   });
 

@@ -214,6 +214,26 @@ export function canAccessBrand(scope: UserScope, brand?: string | null): boolean
   return scope.brands.some((allowedBrand) => brandsMatch(allowedBrand, brand));
 }
 
+export class AuthorizationError extends Error {
+  status: number;
+
+  constructor(message = 'You do not have permission to perform this action.', status = 403) {
+    super(message);
+    this.name = 'AuthorizationError';
+    this.status = status;
+  }
+}
+
+export function isAuthorizationError(error: unknown): error is AuthorizationError {
+  return error instanceof AuthorizationError;
+}
+
+export function assertBrandAccess(scope: UserScope, brand?: string | null, label = 'resource') {
+  if (!canAccessBrand(scope, brand)) {
+    throw new AuthorizationError(`You do not have access to this ${label}.`);
+  }
+}
+
 export function describeScope(scope: UserScope): string {
   if (scope.brandAccess === 'all') return 'All brands';
   return scope.brands.join(', ');
