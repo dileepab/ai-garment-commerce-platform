@@ -16,9 +16,16 @@ import {
   type NormalizedMessage,
 } from '@/lib/meta-normalize';
 import {
+  getConfiguredFacebookPageIds,
   resolveBrandForFacebookPageId,
   resolveFacebookConfigForPageId,
 } from '@/lib/brand-channel-config';
+import {
+  getMessengerBusinessLoopSkipReason,
+  getMessengerInternalSenderIdsForBrand,
+  getWebhookMessageTextForLoopGuard,
+  getWebhookSenderId,
+} from '@/lib/meta-loop-guard';
 import { queueFacebookCommentReply } from '@/lib/comment-reply-safety';
 import {
   buildHumanSupportReply,
@@ -574,6 +581,7 @@ export async function POST(request: Request) {
   }
 
   const entries = Array.isArray(body.entry) ? body.entry : [];
+  const configuredFacebookPageIds = await getConfiguredFacebookPageIds();
 
   logInfo('Meta Webhook', 'Received Messenger webhook batch.', {
     object: body.object,
@@ -590,12 +598,34 @@ export async function POST(request: Request) {
     const pageConfig = pageId ? await resolveFacebookConfigForPageId(pageId) : null;
     const brand = pageConfig?.brand ?? (pageId ? await resolveBrandForFacebookPageId(pageId) : null);
     const pageAccessToken = pageConfig?.pageAccessToken;
+    const internalSenderIds = getMessengerInternalSenderIdsForBrand(brand);
     const messagingEvents = Array.isArray(entry.messaging) ? entry.messaging : [];
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
 
     for (const webhookEvent of messagingEvents) {
       if (!isRecord(webhookEvent)) {
         stats.skipped += 1;
+        continue;
+      }
+
+      const senderId = getWebhookSenderId(webhookEvent);
+      const loopSkipReason = getMessengerBusinessLoopSkipReason({
+        senderId,
+        messageText: getWebhookMessageTextForLoopGuard(webhookEvent),
+        configuredPageIds: configuredFacebookPageIds,
+        internalSenderIds,
+      });
+
+      if (loopSkipReason) {
+        stats.skipped += 1;
+        logInfo('Meta Webhook', 'Skipped Messenger event to prevent managed page reply loop.', {
+          pageId,
+          brand: brand || 'unknown',
+          reason: loopSkipReason,
+          senderId,
+          senderBrand: senderId ? await resolveBrandForFacebookPageId(senderId) || 'unknown' : 'unknown',
+          summary: summarizeMessagingEvent(webhookEvent, pageId),
+        });
         continue;
       }
 

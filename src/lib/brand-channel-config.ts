@@ -213,6 +213,32 @@ export async function getConfiguredInstagramAccountIds(): Promise<Set<string>> {
   return accountIds;
 }
 
+export async function getConfiguredFacebookPageIds(): Promise<Set<string>> {
+  const pageIds = new Set<string>();
+  const records = await prisma.brandChannelConfig.findMany({
+    where: { facebookPageId: { not: null } },
+    select: { facebookPageId: true },
+  });
+
+  for (const record of records) {
+    const pageId = cleanOptionalText(record.facebookPageId);
+    if (pageId) pageIds.add(pageId);
+  }
+
+  for (const pageId of [
+    process.env.HAPPYBUY_PAGE_ID,
+    process.env.HAPPYBY_PAGE_ID,
+    process.env.CLEOPATRA_PAGE_ID,
+    process.env.MODABELLA_PAGE_ID,
+    process.env.META_FB_PAGE_ID,
+  ]) {
+    const cleaned = cleanOptionalText(pageId);
+    if (cleaned) pageIds.add(cleaned);
+  }
+
+  return pageIds;
+}
+
 export async function resolveFacebookConfigForPageId(pageId: string): Promise<ResolvedFacebookConfig | null> {
   const record = await prisma.brandChannelConfig.findFirst({
     where: { facebookPageId: pageId },

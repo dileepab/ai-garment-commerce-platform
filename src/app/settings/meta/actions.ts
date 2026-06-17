@@ -51,6 +51,12 @@ function metaErrorMessage(data: MetaProfileResponse, fallback: string): string {
   return `${prefix}${data.error?.message || fallback}`;
 }
 
+function maskMetaId(value?: string): string {
+  if (!value) return 'unknown';
+  if (value.length <= 8) return 'redacted';
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
 async function fetchMetaProfile(params: {
   host: string;
   objectId: string;
@@ -151,7 +157,9 @@ export async function testMetaConnectionAction(
       username: result.data.username,
       host: result.host,
       error: result.response.ok
-        ? result.data.id === config.accountId ? undefined : 'Token resolved, but not for the configured Instagram account ID.'
+        ? result.data.id === config.accountId
+          ? undefined
+          : `Token is valid, but it resolved to Instagram account ${maskMetaId(result.data.id)} instead of configured account ${maskMetaId(config.accountId)}. Update the Instagram Account ID or save the token for the configured account.`
         : metaErrorMessage(result.data, `Meta Graph returned ${result.response.status}.`),
     };
   } catch (error) {

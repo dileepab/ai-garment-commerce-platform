@@ -18,6 +18,12 @@ import {
   resolveBrandForInstagramAccountId,
   resolveInstagramConfigForAccountId,
 } from '@/lib/brand-channel-config';
+import {
+  getInstagramBusinessLoopSkipReason,
+  getInstagramInternalSenderIdsForBrand,
+  getWebhookMessageTextForLoopGuard,
+  getWebhookSenderId,
+} from '@/lib/meta-loop-guard';
 import { getAiCommentReply } from '@/lib/ai';
 import {
   buildHumanSupportReply,
@@ -131,19 +137,6 @@ function getInstagramEventSkipReason(webhookEvent: Record<string, unknown>, acco
   if (summary.hasPostback && summary.postbackKeys.length === 0) return 'empty_postback';
 
   return 'unsupported_event_shape';
-}
-
-function getWebhookSenderId(webhookEvent: Record<string, unknown>): string | null {
-  if (
-    typeof webhookEvent.sender === 'object' &&
-    webhookEvent.sender !== null &&
-    'id' in webhookEvent.sender &&
-    typeof webhookEvent.sender.id === 'string'
-  ) {
-    return webhookEvent.sender.id;
-  }
-
-  return null;
 }
 
 async function deliverCustomerResult(
@@ -541,6 +534,7 @@ export async function POST(request: Request) {
     const accountConfig = accountId ? await resolveInstagramConfigForAccountId(accountId) : null;
     const brand = accountConfig?.brand ?? (accountId ? await resolveBrandForInstagramAccountId(accountId) : null);
     const pageAccessToken = accountConfig?.accessToken;
+    const internalSenderIds = getInstagramInternalSenderIdsForBrand(brand);
     const messagingEvents = Array.isArray(entry.messaging) ? entry.messaging : [];
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
 
@@ -560,13 +554,21 @@ export async function POST(request: Request) {
       }
 
       const senderId = getWebhookSenderId(webhookEvent);
-      if (senderId && configuredInstagramAccountIds.has(senderId)) {
+      const loopSkipReason = getInstagramBusinessLoopSkipReason({
+        senderId,
+        messageText: getWebhookMessageTextForLoopGuard(webhookEvent),
+        configuredAccountIds: configuredInstagramAccountIds,
+        internalSenderIds,
+      });
+
+      if (loopSkipReason) {
         stats.skipped += 1;
-        logInfo('Instagram Webhook', 'Skipped Instagram event from managed business account.', {
+        logInfo('Instagram Webhook', 'Skipped Instagram event to prevent managed account reply loop.', {
           accountId,
           brand: brand || 'unknown',
+          reason: loopSkipReason,
           senderId,
-          senderBrand: await resolveBrandForInstagramAccountId(senderId) || 'unknown',
+          senderBrand: senderId ? await resolveBrandForInstagramAccountId(senderId) || 'unknown' : 'unknown',
           summary: summarizeMessagingEvent(webhookEvent, accountId),
         });
         continue;
