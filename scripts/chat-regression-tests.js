@@ -317,6 +317,44 @@ async function main() {
         },
       },
       {
+        name: 'Open Instagram support escalation stays silent even when state is bot active',
+        senderId: buildSender(runId, 'ig-open-support-paused'),
+        channel: 'instagram',
+        reset: false,
+        messages: ['what are the abailable items?'],
+        before: async ({ senderId, channel }) => {
+          await resetConversation(senderId, channel);
+          await prisma.supportEscalation.create({
+            data: {
+              senderId,
+              channel,
+              brand: 'Happybuy',
+              reason: 'unclear_request',
+              status: 'open',
+              latestCustomerMessage: 'previous message',
+              summary: 'Pre-seeded open support case for regression coverage.',
+            },
+          });
+        },
+        verify: async ({ transcript, senderId, channel }) => {
+          assert(
+            transcript[0].bot === '[no assistant reply recorded]',
+            `Expected no bot reply while an open Instagram support case exists.\n\nActual reply:\n${transcript[0].bot}`
+          );
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          assert(escalation, 'Expected the pre-seeded Instagram escalation to remain present.');
+          assert(
+            escalation.latestCustomerMessage === 'what are the abailable items?',
+            `Expected open escalation to track the latest IG customer message, received ${String(escalation.latestCustomerMessage)}.`
+          );
+        },
+      },
+      {
         name: 'Human active support case stays silent until resolved',
         senderId: buildSender(runId, 'human-active-silent'),
         messages: ['I need to talk to a real person'],
@@ -446,6 +484,30 @@ async function main() {
           assert(
             !transcript[0].bot.startsWith('Hello. How can I assist you'),
             `Greeting catalog request should not stop at the greeting shortcut.\n\nActual reply:\n${transcript[0].bot}`
+          );
+        },
+      },
+      {
+        name: 'Typo in available items still shows catalog',
+        senderId: buildSender(runId, 'catalog-typo-available'),
+        messages: ['what are the abailable items?'],
+        verify: async ({ transcript }) => {
+          assertIncludes(transcript[0].bot, [
+            'We currently have the following items available:',
+            'Oversized Casual Top',
+            'Relaxed Linen Pants',
+          ], 'Typo catalog reply');
+        },
+      },
+      {
+        name: 'Plain acknowledgement after catalog does not become order change fallback',
+        senderId: buildSender(runId, 'catalog-acknowledgement'),
+        messages: ['what are the available items?', 'okay'],
+        verify: async ({ transcript }) => {
+          assert(
+            !transcript[1].bot.includes('exact change') &&
+              !transcript[1].bot.includes('order #'),
+            `Catalog acknowledgement should not ask for an order change.\n\nActual reply:\n${transcript[1].bot}`
           );
         },
       },
@@ -2355,7 +2417,7 @@ async function main() {
         pageId: DEFAULT_PAGE_ID,
         accountId: DEFAULT_INSTAGRAM_ID,
         channel: testChannel,
-        reset: true,
+        reset: testCase.reset !== false,
       });
 
       console.log(formatTranscript(transcript));

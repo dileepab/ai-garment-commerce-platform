@@ -543,6 +543,8 @@ export async function routeCustomerMessage(
   const currentSupportMode: SupportWorkflowMode =
     activeSupportEscalation?.status === 'in_progress'
       ? 'human_active'
+      : activeSupportEscalation
+        ? 'handoff_requested'
       : conversationSupportMode;
   let diagnosticEffectiveAction: string | null = aiAction.action;
   let diagnosticConfidence: number | null = aiAction.confidence;

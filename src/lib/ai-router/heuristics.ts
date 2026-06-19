@@ -40,6 +40,7 @@ const SUPPORT_CONTACT_PATTERNS = [
 
 const THANKS_PATTERN =
   /\b(thanks|thank you|thankyou|many thanks|okay thank you|ok thank you|alright thank you)\b/i;
+const ACKNOWLEDGEMENT_PATTERN = /^(?:ok|okay|okey|k|noted|alright|got it|fine)$/i;
 const MIN_PRODUCT_MATCH_SCORE = 2;
 
 export function normalizeText(value: string): string {
@@ -249,6 +250,14 @@ export function buildHeuristicAction(
     },
   };
 
+  if (ACKNOWLEDGEMENT_PATTERN.test(normalized) || THANKS_PATTERN.test(normalized)) {
+    return {
+      ...base,
+      action: 'thanks_acknowledgement',
+      confidence: 0.88,
+    };
+  }
+
   if (CONFIRMATION_PHRASES.has(normalized)) {
     return {
       ...base,
@@ -273,14 +282,6 @@ export function buildHeuristicAction(
       ...base,
       action: 'support_contact_request',
       confidence: 0.92,
-    };
-  }
-
-  if (THANKS_PATTERN.test(normalized)) {
-    return {
-      ...base,
-      action: 'thanks_acknowledgement',
-      confidence: 0.88,
     };
   }
 
@@ -357,7 +358,7 @@ export function buildHeuristicAction(
   }
 
   if (
-    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/.test(normalized) ||
+    /\b(?:available|abailable|availabe|availble|avaiable) items?\b|\b(?:available|abailable|availabe|availble|avaiable) products?\b|\bwhat are the (?:available|abailable|availabe|availble|avaiable)\b|\bwhat do you have\b|\b(?:available|abailable|availabe|availble|avaiable) dresses?\b|\b(?:available|abailable|availabe|availble|avaiable) tops?\b|\b(?:available|abailable|availabe|availble|avaiable) t\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) tee\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) pants\b|\b(?:available|abailable|availabe|availble|avaiable) skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/.test(normalized) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(normalized) ||
     /\b(?:adum|edum|items?|products?)\b.*\b(?:monawada|monavada|mona|monawa|thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne)\b/i.test(normalized) ||
     /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||

@@ -617,7 +617,7 @@ export function looksLikeCatalogQuestion(message: string): boolean {
   const normalized = normalizeText(message);
 
   return (
-    /\bavailable items?\b|\bavailable products?\b|\bwhat are the available\b|\bwhat do you have\b|\bavailable dresses?\b|\bavailable tops?\b|\bavailable t\s*shirts?\b|\bavailable tee\s*shirts?\b|\bavailable pants\b|\bavailable skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/i.test(
+    /\b(?:available|abailable|availabe|availble|avaiable) items?\b|\b(?:available|abailable|availabe|availble|avaiable) products?\b|\bwhat are the (?:available|abailable|availabe|availble|avaiable)\b|\bwhat do you have\b|\b(?:available|abailable|availabe|availble|avaiable) dresses?\b|\b(?:available|abailable|availabe|availble|avaiable) tops?\b|\b(?:available|abailable|availabe|availble|avaiable) t\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) tee\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) pants\b|\b(?:available|abailable|availabe|availble|avaiable) skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/i.test(
       normalized
     ) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(
