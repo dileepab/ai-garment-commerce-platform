@@ -251,8 +251,11 @@ export function inferAssistantReplyKind(text: string): string {
   }
   if (
     normalized.includes('latest collection is dropping') ||
+    normalized.includes('do not have any items listed right now') ||
     text.includes('අලුත්ම ඇඳුම් එකතුව') ||
-    text.includes('புதிய ஆடைகள் விரைவில்')
+    text.includes('භාණ්ඩ කිසිවක් ලැයිස්තුගත කර නැහැ') ||
+    text.includes('புதிய ஆடைகள் விரைவில்') ||
+    text.includes('எந்தப் பொருட்களும் பட்டியலிடப்படவில்லை')
   ) {
     return 'empty_catalog';
   }

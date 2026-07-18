@@ -50,7 +50,10 @@ import {
   resolveCustomerLanguage,
 } from '@/lib/chat/language';
 import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
-import { routeCustomerMessageWithAi } from '@/lib/ai-action-router';
+import {
+  routeCustomerMessageWithAi,
+  type AiRoutedAction,
+} from '@/lib/ai-action-router';
 import {
   clearPendingConversationState,
   loadConversationState,
@@ -108,7 +111,6 @@ const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
 ]);
 
 const CONVERSATIONAL_REWRITE_REPLY_KINDS = new Set<AssistantReplyKind>([
-  'greeting',
   'support_contact',
   'support_handoff',
   'fallback',
@@ -225,6 +227,33 @@ function shouldUseGreetingShortcut(message: string): boolean {
     looksLikeOrderDetailsRequest(message) ||
     looksLikeSupportContactProblem(message)
   );
+}
+
+function buildEmptyRoutedAction(
+  action: AiRoutedAction['action'],
+  confidence: number
+): AiRoutedAction {
+  return {
+    action,
+    confidence,
+    orderId: null,
+    productName: null,
+    productType: null,
+    questionType: null,
+    quantity: null,
+    size: null,
+    color: null,
+    paymentMethod: null,
+    giftWrap: null,
+    giftNote: null,
+    requestedDate: null,
+    deliveryLocation: null,
+    contact: {
+      name: null,
+      address: null,
+      phone: null,
+    },
+  };
 }
 
 function looksLikeProductAvailabilityQuestion(message: string): boolean {
@@ -447,58 +476,41 @@ export async function routeCustomerMessage(
       : undefined) ??
     null;
 
-  const aiAction =
-    (await routeCustomerMessageWithAi({
-      brand: brandFilter,
-      currentMessage: input.currentMessage,
-      currentProductName,
-      pendingStep: state.pendingStep,
-      knownContact: baseContact,
-      lastReferencedOrderId: state.lastReferencedOrderId,
-      latestOrderId: latestOrder?.id ?? null,
-      latestActiveOrderId: latestActiveOrder?.id ?? null,
-      recentMessages: [...recentMessages].reverse(),
-      products: products.map((product) => {
-        // Build a variant-aware available quantity: sum of all active variant inventory
-        const variantTotal =
-          product.variants && product.variants.length > 0
-            ? product.variants.reduce(
-                (sum, v) => sum + (v.inventory?.availableQty ?? 0),
-                0
-              )
-            : null;
-        return {
-          name: product.name,
-          style: product.style,
-          price: product.price,
-          sizes: product.sizes,
-          colors: product.colors,
-          availableQty: variantTotal ?? product.inventory?.availableQty ?? product.stock,
-          garmentSpecs: buildGarmentSpecsForCustomer(product).replace(/\n/g, '; '),
-        };
-      }),
-      imageUrl: input.imageUrl,
-    })) || {
-      action: 'fallback',
-      confidence: 0,
-      orderId: null,
-      productName: null,
-      productType: null,
-      questionType: null,
-      quantity: null,
-      size: null,
-      color: null,
-      paymentMethod: null,
-      giftWrap: null,
-      giftNote: null,
-      requestedDate: null,
-      deliveryLocation: null,
-      contact: {
-        name: null,
-        address: null,
-        phone: null,
-      },
-    };
+  const useGreetingShortcut =
+    state.pendingStep === 'none' && shouldUseGreetingShortcut(input.currentMessage);
+  const aiAction = useGreetingShortcut
+    ? buildEmptyRoutedAction('greeting', 1)
+    : (await routeCustomerMessageWithAi({
+        brand: brandFilter,
+        currentMessage: input.currentMessage,
+        currentProductName,
+        pendingStep: state.pendingStep,
+        knownContact: baseContact,
+        lastReferencedOrderId: state.lastReferencedOrderId,
+        latestOrderId: latestOrder?.id ?? null,
+        latestActiveOrderId: latestActiveOrder?.id ?? null,
+        recentMessages: [...recentMessages].reverse(),
+        products: products.map((product) => {
+          // Build a variant-aware available quantity: sum of all active variant inventory
+          const variantTotal =
+            product.variants && product.variants.length > 0
+              ? product.variants.reduce(
+                  (sum, v) => sum + (v.inventory?.availableQty ?? 0),
+                  0
+                )
+              : null;
+          return {
+            name: product.name,
+            style: product.style,
+            price: product.price,
+            sizes: product.sizes,
+            colors: product.colors,
+            availableQty: variantTotal ?? product.inventory?.availableQty ?? product.stock,
+            garmentSpecs: buildGarmentSpecsForCustomer(product).replace(/\n/g, '; '),
+          };
+        }),
+        imageUrl: input.imageUrl,
+      })) || buildEmptyRoutedAction('fallback', 0);
 
   const singleMissingField =
     state.pendingStep === 'contact_collection' && state.orderDraft
@@ -1039,7 +1051,7 @@ export async function routeCustomerMessage(
     }
   }
 
-  if (shouldUseGreetingShortcut(input.currentMessage) && state.pendingStep === 'none') {
+  if (useGreetingShortcut) {
     setDiagnosticEffectiveAction('greeting');
     return finalizeReply({
       reply: buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),

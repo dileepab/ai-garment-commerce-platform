@@ -4,6 +4,7 @@ import {
   resolveFacebookConfigForBrand,
   resolveInstagramConfigForBrand,
 } from '@/lib/brand-channel-config';
+import { isInstagramLoginAccessToken } from '@/lib/meta-auth';
 import {
   assertBrandAccess,
   isAuthorizationError,
@@ -135,7 +136,7 @@ export async function testMetaConnectionAction(
       accessToken: config.accessToken,
       fields: 'id,username,name',
     });
-    const tokenLooksLikeInstagramLogin = config.accessToken.trim().startsWith('IG');
+    const tokenLooksLikeInstagramLogin = isInstagramLoginAccessToken(config.accessToken);
     const result = facebookGraph.response.ok || !tokenLooksLikeInstagramLogin
       ? facebookGraph
       : await fetchMetaProfile({

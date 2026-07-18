@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CustomerLanguage } from '@/lib/chat/language';
+import { isInstagramLoginAccessToken } from '@/lib/meta-auth';
 import {
   formatCarouselSubtitle,
   getCarouselButtonTitle,
   getCarouselDetailsButtonTitle,
 } from '@/lib/chat/language';
-import { logDebug, logError } from '@/lib/app-log';
+import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 
 const reusableAttachmentCache = new Map<string, string>();
@@ -27,6 +28,7 @@ export interface MetaQuickReply {
 interface MessengerSendOptions {
   payloadType: string;
   pageAccessToken?: string;
+  logLabel?: string;
 }
 
 export interface MetaPageTokenOptions {
@@ -129,7 +131,7 @@ async function sendMessengerPayload(
 
     const data = await readGraphResponseBody(response);
     if (!response.ok) {
-      logError('Meta', 'Messenger send failed.', {
+      logError('Meta', `${options.logLabel || 'Messenger'} send failed.`, {
         senderId,
         payloadType: options.payloadType,
         status: response.status,
@@ -142,7 +144,9 @@ async function sendMessengerPayload(
         data,
       };
     } else {
-      logDebug('Meta', `Messenger ${options.payloadType} sent successfully to ${senderId}.`, {
+      logDebug('Meta', `${options.logLabel || 'Messenger'} sent successfully.`, {
+        senderId,
+        payloadType: options.payloadType,
         status: response.status,
       });
       return {
@@ -198,13 +202,34 @@ export async function sendInstagramMessage(
     recipient: { id: senderId },
     message: buildTextMessagePayload(messageText, options),
   };
+
+  if (!isInstagramLoginAccessToken(ACCESS_TOKEN)) {
+    const facebookResult = await sendMessengerPayload(senderId, payload, {
+      payloadType: 'instagram_text_facebook_login',
+      pageAccessToken: ACCESS_TOKEN,
+      logLabel: 'Instagram text',
+    });
+
+    if (facebookResult.ok) {
+      logInfo('Meta', 'Instagram text message sent successfully.', {
+        senderId,
+        instagramAccountId,
+        endpointHost: 'graph.facebook.com',
+        authFlow: 'facebook_login',
+        status: facebookResult.status,
+      });
+    }
+
+    return facebookResult;
+  }
+
   const instagramEndpoints = [
     `https://graph.instagram.com/${META_GRAPH_VERSION}/${instagramAccountId}/messages`,
     `https://graph.instagram.com/${META_GRAPH_VERSION}/me/messages`,
   ];
   let lastFailure: MetaSendResult | null = null;
 
-  for (const endpoint of instagramEndpoints) {
+  for (const [index, endpoint] of instagramEndpoints.entries()) {
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -217,9 +242,11 @@ export async function sendInstagramMessage(
       const data = await readGraphResponseBody(response);
 
       if (response.ok) {
-        logDebug('Meta', 'Instagram text message sent successfully.', {
+        logInfo('Meta', 'Instagram text message sent successfully.', {
           senderId,
           instagramAccountId,
+          endpointHost: new URL(endpoint).host,
+          authFlow: 'instagram_login',
           status: response.status,
         });
         return { ok: true, status: response.status, data } satisfies MetaSendResult;
@@ -231,32 +258,47 @@ export async function sendInstagramMessage(
         error: getPayloadError(data) || `Meta Graph returned ${response.status}.`,
         data,
       };
-      logError('Meta', 'Instagram text send failed.', {
+      const logContext = {
         senderId,
         instagramAccountId,
         endpointHost: new URL(endpoint).host,
+        authFlow: 'instagram_login',
+        attemptNumber: index + 1,
         status: response.status,
-        data,
-      });
+        error: lastFailure.error,
+      };
+
+      if (index < instagramEndpoints.length - 1) {
+        logWarn('Meta', 'Instagram Login endpoint failed; trying one alternate endpoint.', logContext);
+      } else {
+        logError('Meta', 'Instagram text send failed.', logContext);
+      }
     } catch (error) {
       lastFailure = {
         ok: false,
         error: error instanceof Error ? error.message : 'Unknown Instagram send error.',
       };
-      logError('Meta', 'Error sending Instagram text message.', {
+      const logContext = {
         senderId,
         instagramAccountId,
-        error,
-      });
+        endpointHost: new URL(endpoint).host,
+        authFlow: 'instagram_login',
+        attemptNumber: index + 1,
+        error: lastFailure.error,
+      };
+
+      if (index < instagramEndpoints.length - 1) {
+        logWarn('Meta', 'Instagram Login request errored; trying one alternate endpoint.', logContext);
+      } else {
+        logError('Meta', 'Error sending Instagram text message.', logContext);
+      }
     }
   }
 
-  const fallbackResult = await sendMessengerPayload(senderId, payload, {
-    payloadType: 'instagram_text_facebook_graph_fallback',
-    pageAccessToken: ACCESS_TOKEN,
-  });
-
-  return fallbackResult.ok ? fallbackResult : (lastFailure || fallbackResult);
+  return lastFailure || {
+    ok: false,
+    error: 'Instagram text delivery failed.',
+  };
 }
 
 interface CarouselProduct {

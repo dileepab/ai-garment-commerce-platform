@@ -225,13 +225,13 @@ function localizeFallback(reply: string, language: CustomerLanguage): string {
 }
 
 const EMPTY_CATALOG_REPLY =
-  'Our latest collection is dropping very soon! Stay tuned to our page for updates. If you have a specific item in mind, feel free to drop the details here.';
+  'We do not have any items listed right now. New products will be available soon—follow our page for updates.';
 
 const EMPTY_CATALOG_REPLY_SINHALA =
-  'අපගේ අලුත්ම ඇඳුම් එකතුව (New Collection) ළඟදීම බලාපොරොත්තු වන්න! පිටුවට සම්බන්ධ වී සිටින්න. ඔබට අවශ්‍ය විශේෂ ඇඳුමක් ඇත්නම්, කරුණාකර අපට පණිවිඩයක් එවන්න.';
+  'දැනට අපගේ catalog එකේ භාණ්ඩ කිසිවක් ලැයිස්තුගත කර නැහැ. අලුත් භාණ්ඩ ළඟදීම එක් කරනු ඇත—updates සඳහා අපගේ page එක follow කරන්න.';
 
 const EMPTY_CATALOG_REPLY_TAMIL =
-  'எங்களது புதிய ஆடைகள் விரைவில் வரவிருக்கின்றன! புதிய வரவுகளை அறிய எங்களது பக்கத்தோடு இணைந்திருங்கள். உங்களுக்கு ஏதேனும் குறிப்பிட்ட ஆடை தேவைப்பட்டால் மெசேஜ் செய்யவும்.';
+  'தற்போது எங்கள் catalog-ல் எந்தப் பொருட்களும் பட்டியலிடப்படவில்லை. புதிய பொருட்கள் விரைவில் சேர்க்கப்படும்—updates-க்கு எங்கள் page-ஐ follow செய்யுங்கள்.';
 
 function localizeBusinessDayEstimate(estimate: string, language: CustomerLanguage): string {
   if (language === 'sinhala') {
