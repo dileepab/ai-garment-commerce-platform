@@ -19,7 +19,11 @@ export function MetaConnectionTestButton({
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<MetaConnectionTestResult | null>(null);
 
-  const label = channel === 'facebook' ? 'Test Page token' : 'Test IG token';
+  const label = channel === 'facebook'
+    ? 'Test Page token'
+    : channel === 'instagram'
+      ? 'Test IG token'
+      : 'Test WhatsApp token';
 
   function handleClick() {
     startTransition(async () => {

@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import {
   resolveFacebookConfigForBrand,
   resolveInstagramConfigForBrand,
+  resolveWhatsAppConfigForBrand,
 } from '@/lib/brand-channel-config';
 import { loadConversationState, saveConversationState } from '@/lib/conversation-state';
 import {
@@ -12,6 +13,7 @@ import {
   sendMessengerMessage,
   type MetaSendResult,
 } from '@/lib/meta';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { logInfo, logWarn } from '@/lib/app-log';
 import { logAdminAudit } from '@/lib/admin-audit';
 import { createReturnRequest, ReturnRequestError } from '@/lib/returns-service';
@@ -71,6 +73,24 @@ async function deliverSupportReply(params: {
 
     return sendInstagramMessage(params.senderId, config.accountId, params.reply, {
       pageAccessToken: config.accessToken,
+    });
+  }
+
+  if (params.channel === 'whatsapp') {
+    const config = params.brand ? await resolveWhatsAppConfigForBrand(params.brand) : null;
+
+    if (!config) {
+      return {
+        ok: false,
+        error: params.brand
+          ? `Missing WhatsApp Phone Number ID or access token for ${params.brand}.`
+          : 'Missing WhatsApp Phone Number ID or access token for this support case.',
+      };
+    }
+
+    return sendWhatsAppMessage(params.senderId, params.reply, {
+      phoneNumberId: config.phoneNumberId,
+      accessToken: config.accessToken,
     });
   }
 

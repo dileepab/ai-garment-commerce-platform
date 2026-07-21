@@ -687,7 +687,7 @@ function AddBrandForm({ canManage }: { canManage: boolean }) {
             Add store-specific settings
           </h2>
           <p className="app-muted" style={{ marginTop: 4 }}>
-            Create a brand section, then open it below to paste Page and Instagram tokens.
+            Create a brand section, then open it below to configure Facebook, Instagram, and WhatsApp.
           </p>
         </div>
         <button className="app-button-primary" type="submit">Add brand</button>
@@ -721,6 +721,27 @@ function AddBrandForm({ canManage }: { canManage: boolean }) {
           value=""
           disabled={false}
           placeholder="Optional"
+        />
+        <TextField
+          label="WhatsApp WABA ID"
+          name="newWhatsappBusinessAccountId"
+          value=""
+          disabled={false}
+          placeholder="Optional"
+        />
+        <TextField
+          label="WhatsApp Phone Number ID"
+          name="newWhatsappPhoneNumberId"
+          value=""
+          disabled={false}
+          placeholder="Optional"
+        />
+        <TextField
+          label="WhatsApp display number"
+          name="newWhatsappDisplayPhoneNumber"
+          value=""
+          disabled={false}
+          placeholder="e.g. +94714123777"
         />
       </div>
       <div style={{ ...gridStyle, marginTop: 12 }}>
@@ -897,7 +918,7 @@ function SettingsForm({
             {settings.brand && channelConfig && (
               <CollapsibleSection title="Meta Channels">
                 <p className="app-muted" style={{ marginBottom: 12 }}>
-                  Configure the Facebook Page and Instagram account used for this brand. Tokens are stored server-side; leave token fields blank to keep the saved value.
+                  Configure the Facebook, Instagram, and WhatsApp accounts used for this brand. Tokens are stored server-side; leave token fields blank to keep the saved value.
                 </p>
                 <div style={gridStyle}>
                   <TextField
@@ -924,6 +945,33 @@ function SettingsForm({
                     label="Instagram token"
                     name="instagramAccessToken"
                     hasValue={channelConfig.hasInstagramAccessToken}
+                    disabled={!canManage}
+                  />
+                  <TextField
+                    label="WhatsApp WABA ID"
+                    name="whatsappBusinessAccountId"
+                    value={channelConfig.whatsappBusinessAccountId}
+                    disabled={!canManage}
+                    placeholder="From WhatsApp Manager"
+                  />
+                  <TextField
+                    label="WhatsApp Phone Number ID"
+                    name="whatsappPhoneNumberId"
+                    value={channelConfig.whatsappPhoneNumberId}
+                    disabled={!canManage}
+                    placeholder="Meta-generated ID"
+                  />
+                  <TextField
+                    label="WhatsApp display number"
+                    name="whatsappDisplayPhoneNumber"
+                    value={channelConfig.whatsappDisplayPhoneNumber}
+                    disabled={!canManage}
+                    placeholder="e.g. +94714123777"
+                  />
+                  <TokenField
+                    label="WhatsApp system-user token"
+                    name="whatsappAccessToken"
+                    hasValue={channelConfig.hasWhatsappAccessToken}
                     disabled={!canManage}
                   />
                 </div>

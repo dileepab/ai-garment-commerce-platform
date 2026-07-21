@@ -625,6 +625,14 @@ export function getRuntimeWarnings(): RuntimeWarning[] {
     });
   }
 
+  if (!hasConfiguredValue(process.env.META_APP_SECRET)) {
+    warnings.push({
+      key: 'META_APP_SECRET',
+      level: 'warning',
+      message: 'META_APP_SECRET is missing or still set to a placeholder. Signed WhatsApp webhook deliveries will be rejected.',
+    });
+  }
+
   if (!isChatTestMode && hasConfiguredValue(process.env.META_PAGE_ACCESS_TOKEN)) {
     warnings.push({
       key: 'META_PAGE_ACCESS_TOKEN',

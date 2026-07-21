@@ -419,7 +419,7 @@ export default async function Dashboard({
                     <div style={{ ...alertDot, background: '#8B2020' }} />
                     <div style={{ flex: 1 }}>
                       <div style={alertText}>{openEscalationCount} support case{openEscalationCount > 1 ? 's' : ''} waiting for follow-up</div>
-                      <div style={alertSub}>Customer escalations via Messenger and Instagram</div>
+                      <div style={alertSub}>Customer escalations via Messenger, Instagram, and WhatsApp</div>
                     </div>
                     <Link href="/support" style={alertAction}>Open inbox →</Link>
                   </div>
@@ -507,10 +507,21 @@ export default async function Dashboard({
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', padding: '2px 7px',
                           borderRadius: 9999, fontSize: 10, fontWeight: 700,
-                          background: e.channel === 'instagram' ? '#C13584' : '#0866FF',
+                          background:
+                            e.channel === 'instagram'
+                              ? '#C13584'
+                              : e.channel === 'whatsapp'
+                                ? '#128C7E'
+                                : '#0866FF',
                           color: '#fff',
                         }}>
-                          {e.channel === 'instagram' ? 'Instagram' : 'Messenger'}
+                          {e.channel === 'instagram'
+                            ? 'Instagram'
+                            : e.channel === 'whatsapp'
+                              ? 'WhatsApp'
+                              : e.channel === 'messenger'
+                                ? 'Messenger'
+                                : e.channel}
                         </span>
                       </div>
                       <div style={{ fontSize: 12, color: '#6A635A', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>

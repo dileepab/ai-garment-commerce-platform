@@ -3,6 +3,7 @@
 import {
   resolveFacebookConfigForBrand,
   resolveInstagramConfigForBrand,
+  resolveWhatsAppConfigForBrand,
 } from '@/lib/brand-channel-config';
 import { isInstagramLoginAccessToken } from '@/lib/meta-auth';
 import {
@@ -13,7 +14,7 @@ import {
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 
-export type MetaConnectionChannel = 'facebook' | 'instagram';
+export type MetaConnectionChannel = 'facebook' | 'instagram' | 'whatsapp';
 
 export interface MetaConnectionTestResult {
   success: boolean;
@@ -25,6 +26,8 @@ export interface MetaConnectionTestResult {
   id?: string;
   name?: string;
   username?: string;
+  display_phone_number?: string;
+  verified_name?: string;
   host?: string;
   error?: string;
 }
@@ -33,6 +36,8 @@ interface MetaProfileResponse {
   id?: string;
   name?: string;
   username?: string;
+  display_phone_number?: string;
+  verified_name?: string;
   error?: {
     message?: string;
     code?: string | number;
@@ -115,6 +120,44 @@ export async function testMetaConnectionAction(
         error: response.ok
           ? data.id === config.pageId ? undefined : 'Token resolved, but not for the configured Facebook Page ID.'
           : metaErrorMessage(data, `Meta Graph returned ${response.status}.`),
+      };
+    }
+
+    if (channel === 'whatsapp') {
+      const config = await resolveWhatsAppConfigForBrand(brand);
+      if (!config) {
+        return {
+          success: true,
+          ok: false,
+          brand,
+          channel,
+          checkedAt,
+          error: 'Missing WhatsApp Phone Number ID or access token.',
+        };
+      }
+
+      const result = await fetchMetaProfile({
+        host: 'graph.facebook.com',
+        objectId: config.phoneNumberId,
+        accessToken: config.accessToken,
+        fields: 'id,display_phone_number,verified_name',
+      });
+
+      return {
+        success: true,
+        ok: result.response.ok && result.data.id === config.phoneNumberId,
+        brand,
+        channel,
+        checkedAt,
+        status: result.response.status,
+        id: result.data.id,
+        name: result.data.verified_name || result.data.display_phone_number,
+        host: result.host,
+        error: result.response.ok
+          ? result.data.id === config.phoneNumberId
+            ? undefined
+            : 'Token resolved, but not for the configured WhatsApp Phone Number ID.'
+          : metaErrorMessage(result.data, `Meta Graph returned ${result.response.status}.`),
       };
     }
 
