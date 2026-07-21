@@ -344,7 +344,10 @@ export async function routeCustomerMessage(
       senderId: input.senderId,
       channel: input.channel,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [
+      { createdAt: 'desc' },
+      { id: 'desc' },
+    ],
     take: 12,
     select: {
       role: true,

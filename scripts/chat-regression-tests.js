@@ -809,6 +809,8 @@ async function main() {
             'Thank you. Your order has been confirmed successfully ✅',
             'Order ID: #',
             'Current Stage: Confirmed',
+            'Our team will call you to confirm the order before dispatching it to the courier.',
+            'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
           ], 'Order placed reply');
 
           const { latestOrder } = await getLatestOrderForSender(senderId);
@@ -878,6 +880,8 @@ async function main() {
             'Thank you. Your order has been confirmed successfully ✅',
             'Order ID: #',
             'Current Stage: Confirmed',
+            'Our team will call you to confirm the order before dispatching it to the courier.',
+            'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
           ], 'Instagram order placed reply');
 
           const { customer, latestOrder } = await getLatestOrderForSender(senderId);

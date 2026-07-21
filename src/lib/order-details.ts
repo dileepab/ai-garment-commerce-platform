@@ -66,6 +66,11 @@ interface OrderStatusLike {
   courier?: string | null;
 }
 
+export const ORDER_CONFIRMATION_CALL_NOTICE = [
+  'Next Step: Our team will call you to confirm the order before dispatching it to the courier.',
+  'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
+] as const;
+
 function formatSizeForDisplay(size?: string | null): string {
   if (!size) {
     return 'Not specified';
@@ -184,7 +189,7 @@ export function buildOrderPlacedReply(
     `Current Stage: ${getOrderStageLabel('confirmed')}`,
     ...specialInstructions,
     '',
-    'Next Step: Our team will prepare your parcel for packing.',
+    ...ORDER_CONFIRMATION_CALL_NOTICE,
     `Need help? ${supportLine}`,
   ].join('\n');
 }

@@ -430,7 +430,7 @@ export function ProductDrawer({
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "10px 12px" }}>
                   <div className="drawer-section-label" style={{ marginBottom: 4 }}>Unit Price</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>₺{product.price.toLocaleString()}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>Rs {product.price.toLocaleString('en-LK')}</div>
                 </div>
                 <div style={{ background: "var(--color-bg)", borderRadius: "var(--radius-md)", padding: "10px 12px" }}>
                   <div className="drawer-section-label" style={{ marginBottom: 4 }}>Total Orders</div>

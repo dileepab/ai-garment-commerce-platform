@@ -8,6 +8,11 @@ export interface PersonaDef {
 }
 
 export const PERSONAS_BY_BRAND: Record<string, PersonaDef[]> = {
+  'DEEZ': [
+    { id: 'deez-1', label: 'Edgy Streetwear', imageUrl: '/personas/deez_model_1.png', height: '5\'5" (165cm)', bodyShape: 'slim Sri Lankan build', skinTone: 'warm golden skin tone' },
+    { id: 'deez-2', label: 'Smart Casual', imageUrl: '/personas/deez_model_2.png', height: '5\'8" (173cm)', bodyShape: 'slim athletic Sri Lankan build', skinTone: 'medium tan skin tone' },
+    { id: 'deez-3', label: 'Sporty & Active', imageUrl: '/personas/deez_model_3.png', height: '5\'6" (168cm)', bodyShape: 'athletic Sri Lankan build', skinTone: 'rich brown skin tone' }
+  ],
   'Happybuy': [
     { id: 'happybuy-1', label: 'Youthful & Bright', imageUrl: '/personas/happybuy_model_1.png', height: '5\'4" (162cm)', bodyShape: 'petite slim Sri Lankan build', skinTone: 'warm golden-tan skin tone' },
     { id: 'happybuy-2', label: 'Active & Cheerful', imageUrl: '/personas/happybuy_model_2.png', height: '5\'6" (168cm)', bodyShape: 'athletic healthy Sri Lankan build', skinTone: 'medium tan skin tone' },

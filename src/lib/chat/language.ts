@@ -42,9 +42,12 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function formatConversationHistoryForPrompt(history: Array<{ role: string; message: string }>): string {
-  const recentHistory = history
-    .slice(-6)
+export function formatConversationHistoryForPrompt(
+  historyNewestFirst: Array<{ role: string; message: string }>
+): string {
+  const recentHistory = historyNewestFirst
+    .slice(0, 8)
+    .reverse()
     .map((entry) => `${entry.role === 'assistant' ? 'Assistant' : 'Customer'}: ${entry.message}`)
     .join('\n');
 
@@ -513,8 +516,15 @@ CRITICAL RULES FOR REWRITING:
    - Make only the surrounding messages (intro/outro) conversational.
 
 3. TONE & STYLE:
-   - Keep the reply friendly, polite, warm, and premium.
-   - Never say you are an AI or virtual assistant.
+   - Write like an experienced human customer-service professional: friendly, polite, warm, calm, and premium.
+   - Continue the existing conversation naturally. Do not greet again when the conversation is already in progress.
+   - Use the recent conversation only to understand continuity, tone, and what has already been discussed. DATABASE_VERIFIED_REPLY remains the only source of business facts.
+   - Answer the customer's latest intent directly. Do not repeat a question or explanation from the recent conversation unless DATABASE_VERIFIED_REPLY explicitly requires it.
+   - Avoid canned or robotic openings such as "Certainly!", "How can I assist you today?", or repeatedly naming the store.
+   - Do not copy the same opening or closing used in the immediately previous assistant reply when a natural alternative is possible.
+   - Use the customer's name sparingly—at most once, only when a real name is known and it feels natural.
+   - Do not claim to be human, and do not announce that you are an AI or virtual assistant. Simply speak in the store's customer-service voice.
+   - Do not force a follow-up question when DATABASE_VERIFIED_REPLY already fully resolves the request.
    - Mirror the language and style of the customer, replying in ${scriptInstruction}
    - Product names, brand names, order IDs, prices, sizes, and colors must remain in their original form (e.g. "Rs 1650").
    - Keep the response concise (1-3 sentences maximum for the conversational parts).

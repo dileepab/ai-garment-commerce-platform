@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { createOrderFromCatalog, OrderRequestError } from '@/lib/orders';
 import { autoAssignKoombiyoWaybill } from '@/lib/koombiyo-courier';
+import { ORDER_CONFIRMATION_CALL_NOTICE } from '@/lib/order-details';
 import {
   buildOrderSummaryReply,
   getMissingDraftFields,
@@ -130,7 +131,7 @@ function buildSuccessReply(draft: ResolvedOrderDraft, orderId: number): string {
     `Phone Number: ${draft.phone}`,
     ...specialInstructions,
     '',
-    'We will contact you shortly with the next update.',
+    ...ORDER_CONFIRMATION_CALL_NOTICE,
   ].join('\n');
 }
 
