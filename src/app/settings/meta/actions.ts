@@ -45,10 +45,9 @@ interface MetaProfileResponse {
   };
 }
 
-function buildGraphUrl(host: string, objectId: string, accessToken: string, fields: string): string {
+function buildGraphUrl(host: string, objectId: string, fields: string): string {
   const url = new URL(`https://${host}/${META_GRAPH_VERSION}/${objectId}`);
   url.searchParams.set('fields', fields);
-  url.searchParams.set('access_token', accessToken);
   return url.toString();
 }
 
@@ -70,8 +69,12 @@ async function fetchMetaProfile(params: {
   fields: string;
 }): Promise<{ response: Response; data: MetaProfileResponse; host: string }> {
   const response = await fetch(
-    buildGraphUrl(params.host, params.objectId, params.accessToken, params.fields),
-    { method: 'GET', cache: 'no-store' },
+    buildGraphUrl(params.host, params.objectId, params.fields),
+    {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${params.accessToken}` },
+    },
   );
   const data = await response.json() as MetaProfileResponse;
   return { response, data, host: params.host };
