@@ -15,6 +15,7 @@ import { logAdminAudit } from '@/lib/admin-audit';
 import {
   isValidWhatsAppRegistrationPin,
   registerWhatsAppPhone,
+  subscribeWhatsAppBusinessAccount,
 } from '@/lib/whatsapp-registration';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
@@ -38,6 +39,16 @@ export interface MetaConnectionTestResult {
 }
 
 export interface WhatsAppRegistrationActionResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  status?: number;
+  errorCode?: string | number;
+  error?: string;
+}
+
+export interface WhatsAppWebhookSubscriptionActionResult {
   success: boolean;
   ok: boolean;
   brand: string;
@@ -317,6 +328,73 @@ export async function registerWhatsAppPhoneAction(
         : error instanceof Error
           ? error.message
           : 'WhatsApp registration failed.',
+    };
+  }
+}
+
+export async function subscribeWhatsAppWebhooksAction(
+  brand: string,
+): Promise<WhatsAppWebhookSubscriptionActionResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:write');
+    assertBrandAccess(scope, brand, 'WhatsApp webhook subscription');
+
+    const config = await resolveWhatsAppConfigForBrand(brand);
+    if (!config?.businessAccountId) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        error: 'Missing WhatsApp Business Account ID or system-user token.',
+      };
+    }
+
+    const result = await subscribeWhatsAppBusinessAccount({
+      businessAccountId: config.businessAccountId,
+      accessToken: config.accessToken,
+    });
+    const maskedBusinessAccountId = maskMetaId(config.businessAccountId);
+
+    await logAdminAudit({
+      action: result.ok
+        ? 'whatsapp_webhooks_subscribed'
+        : 'whatsapp_webhook_subscription_failed',
+      entityType: 'whatsapp_business_account',
+      entityId: maskedBusinessAccountId,
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: result.ok
+        ? `Subscribed ${brand} to WhatsApp webhooks.`
+        : `WhatsApp webhook subscription failed for ${brand}.`,
+      metadata: {
+        businessAccountId: maskedBusinessAccountId,
+        graphVersion: META_GRAPH_VERSION,
+        status: result.status,
+        errorCode: result.errorCode ?? null,
+      },
+    });
+
+    return {
+      success: true,
+      ok: result.ok,
+      brand,
+      checkedAt,
+      status: result.status,
+      errorCode: result.errorCode,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      error: isAuthorizationError(error)
+        ? error.message
+        : 'WhatsApp webhook subscription failed.',
     };
   }
 }

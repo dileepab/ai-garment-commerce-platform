@@ -39,6 +39,21 @@ export function buildWhatsAppRegistrationUrl(
   return `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/register`;
 }
 
+export function buildWhatsAppSubscriptionUrl(
+  businessAccountId: string,
+  graphVersion = process.env.META_GRAPH_VERSION || DEFAULT_META_GRAPH_VERSION,
+): string {
+  if (!PHONE_NUMBER_ID_PATTERN.test(businessAccountId)) {
+    throw new Error('WhatsApp Business Account ID must contain digits only.');
+  }
+
+  if (!/^v\d+\.\d+$/.test(graphVersion)) {
+    throw new Error('Meta Graph version is invalid.');
+  }
+
+  return `https://graph.facebook.com/${graphVersion}/${businessAccountId}/subscribed_apps`;
+}
+
 function parseMetaResponse(rawBody: string): MetaRegistrationResponse {
   if (!rawBody) return {};
 
@@ -136,6 +151,63 @@ export async function registerWhatsAppPhone(params: {
       error: sanitizeErrorMessage(
         error instanceof Error ? error.message : error,
         [params.accessToken, params.pin],
+        'Could not reach Meta Graph.',
+      ),
+    };
+  }
+}
+
+export async function subscribeWhatsAppBusinessAccount(params: {
+  businessAccountId: string;
+  accessToken: string;
+  graphVersion?: string;
+  fetchImpl?: FetchImplementation;
+}): Promise<WhatsAppRegistrationResult> {
+  if (!params.accessToken.trim()) {
+    return {
+      ok: false,
+      status: 0,
+      error: 'WhatsApp system-user token is missing.',
+    };
+  }
+
+  const url = buildWhatsAppSubscriptionUrl(
+    params.businessAccountId,
+    params.graphVersion,
+  );
+  const fetchImpl = params.fetchImpl ?? fetch;
+
+  try {
+    const response = await fetchImpl(url, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+      },
+    });
+    const rawBody = await response.text();
+    const data = parseMetaResponse(rawBody);
+    const ok = response.ok && (data.success === true || data.success === 'true');
+
+    return {
+      ok,
+      status: response.status,
+      errorCode: data.error?.code,
+      error: ok
+        ? undefined
+        : sanitizeErrorMessage(
+            data.error?.message,
+            [params.accessToken],
+            `Meta Graph returned ${response.status}.`,
+          ),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: sanitizeErrorMessage(
+        error instanceof Error ? error.message : error,
+        [params.accessToken],
         'Could not reach Meta Graph.',
       ),
     };
