@@ -272,12 +272,14 @@ async function saveConversationPair(
   senderId: string,
   channel: string,
   userMessage: string,
-  assistantReply?: string | null
+  assistantReply?: string | null,
+  brand?: string | null
 ) {
   const messages = [
     {
       senderId,
       channel,
+      brand: brand || null,
       role: 'user',
       message: userMessage,
     },
@@ -287,6 +289,7 @@ async function saveConversationPair(
     messages.push({
       senderId,
       channel,
+      brand: brand || null,
       role: 'assistant',
       message: assistantReply,
     });
@@ -331,29 +334,19 @@ export async function routeCustomerMessage(
       lastAssistantReplyKind: 'generic',
       unclearMessageCount: 0,
     });
-    await saveConversationPair(input.senderId, input.channel, input.currentMessage, reply);
+    await saveConversationPair(
+      input.senderId,
+      input.channel,
+      input.currentMessage,
+      reply,
+      input.brand
+    );
 
     return {
       reply,
       language: replyLanguage,
     };
   }
-
-  const recentMessages = await prisma.chatMessage.findMany({
-    where: {
-      senderId: input.senderId,
-      channel: input.channel,
-    },
-    orderBy: [
-      { createdAt: 'desc' },
-      { id: 'desc' },
-    ],
-    take: 12,
-    select: {
-      role: true,
-      message: true,
-    },
-  });
 
   const customer = await prisma.customer.findUnique({
     where: { externalId: input.senderId },
@@ -391,6 +384,22 @@ export async function routeCustomerMessage(
   });
 
   const brandFilter = input.brand || customer?.preferredBrand || undefined;
+  const recentMessages = await prisma.chatMessage.findMany({
+    where: {
+      senderId: input.senderId,
+      channel: input.channel,
+      ...(brandFilter ? { brand: brandFilter } : {}),
+    },
+    orderBy: [
+      { createdAt: 'desc' },
+      { id: 'desc' },
+    ],
+    take: 12,
+    select: {
+      role: true,
+      message: true,
+    },
+  });
   const settings = await getMerchantSettings(brandFilter);
   const globalProducts = await prisma.product.findMany({
     where: { status: 'active' },
@@ -547,6 +556,7 @@ export async function routeCustomerMessage(
     where: {
       senderId: input.senderId,
       channel: input.channel,
+      ...(brandFilter ? { brand: brandFilter } : {}),
       status: {
         not: 'resolved',
       },
@@ -809,7 +819,13 @@ export async function routeCustomerMessage(
         })
       : state;
 
-    await saveConversationPair(input.senderId, input.channel, input.currentMessage, localizedReply);
+    await saveConversationPair(
+      input.senderId,
+      input.channel,
+      input.currentMessage,
+      localizedReply,
+      brandFilter
+    );
 
     const hasMedia = hasInteractivePayload;
     const issueFlags = new Set<string>();

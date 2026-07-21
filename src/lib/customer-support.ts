@@ -221,6 +221,7 @@ export async function upsertSupportEscalation(input: SupportEscalationInput) {
     where: {
       senderId: input.senderId,
       channel: input.channel,
+      brand: input.brand || null,
       status: {
         not: 'resolved',
       },

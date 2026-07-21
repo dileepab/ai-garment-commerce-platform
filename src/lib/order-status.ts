@@ -113,19 +113,22 @@ async function saveConversationPair(
   senderId: string,
   channel: string,
   userMessage: string,
-  assistantReply: string
+  assistantReply: string,
+  brand?: string | null
 ) {
   await prisma.chatMessage.createMany({
     data: [
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'user',
         message: userMessage,
       },
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'assistant',
         message: assistantReply,
       },
@@ -140,6 +143,7 @@ export async function tryHandleOrderStatusRequest(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
     },
     orderBy: { createdAt: 'desc' },
     take: 8,
@@ -172,7 +176,7 @@ export async function tryHandleOrderStatusRequest(
 
   if (!customer) {
     const reply = 'I could not find any orders for this conversation yet.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -188,6 +192,7 @@ export async function tryHandleOrderStatusRequest(
     select: {
       id: true,
       orderStatus: true,
+      brand: true,
     },
   });
 
@@ -195,12 +200,18 @@ export async function tryHandleOrderStatusRequest(
     const reply = requestedOrderId
       ? `I could not find order #${requestedOrderId} for this conversation.`
       : 'I could not find any orders for this conversation yet.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
   const reply = buildOrderStatusReply(order.id, order.orderStatus);
-  await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+  await saveConversationPair(
+    params.senderId,
+    params.channel,
+    params.currentMessage,
+    reply,
+    params.brand || order.brand
+  );
   return {
     handled: true,
     reply,

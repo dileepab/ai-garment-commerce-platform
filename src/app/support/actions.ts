@@ -115,6 +115,118 @@ async function setConversationSupportMode(params: {
   });
 }
 
+export async function takeOverConversationAction(formData: FormData) {
+  let scope: UserScope;
+  try {
+    scope = await requireActionPermission('support:reply');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  const senderId = String(formData.get('senderId') || '').trim();
+  const channel = String(formData.get('channel') || '').trim().toLowerCase();
+  const brand = String(formData.get('brand') || '').trim();
+
+  if (!senderId || !channel || !brand) {
+    return;
+  }
+
+  try {
+    assertBrandAccess(scope, brand, 'conversation');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  const [latestCustomerMessage, customer, activeEscalation] = await Promise.all([
+    prisma.chatMessage.findFirst({
+      where: {
+        senderId,
+        channel,
+        brand,
+        role: 'user',
+      },
+      orderBy: [
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+    }),
+    prisma.customer.findUnique({
+      where: { externalId: senderId },
+    }),
+    prisma.supportEscalation.findFirst({
+      where: {
+        senderId,
+        channel,
+        brand,
+        status: { not: 'resolved' },
+      },
+      orderBy: { updatedAt: 'desc' },
+    }),
+  ]);
+
+  if (!latestCustomerMessage) {
+    return;
+  }
+
+  const summary = [
+    'Manual takeover from Support Inbox.',
+    `Latest customer message: ${latestCustomerMessage.message}`,
+  ].join('\n');
+
+  const escalation = activeEscalation
+    ? await prisma.supportEscalation.update({
+        where: { id: activeEscalation.id },
+        data: {
+          customerId: activeEscalation.customerId ?? customer?.id ?? null,
+          contactName: activeEscalation.contactName ?? customer?.name ?? null,
+          contactPhone: activeEscalation.contactPhone ?? customer?.phone ?? null,
+          latestCustomerMessage: latestCustomerMessage.message,
+          summary,
+          status: 'in_progress',
+          resolvedAt: null,
+        },
+      })
+    : await prisma.supportEscalation.create({
+        data: {
+          senderId,
+          channel,
+          customerId: customer?.id ?? null,
+          brand,
+          reason: 'manual_takeover',
+          status: 'in_progress',
+          contactName: customer?.name ?? null,
+          contactPhone: customer?.phone ?? null,
+          latestCustomerMessage: latestCustomerMessage.message,
+          summary,
+        },
+      });
+
+  await setConversationSupportMode({
+    senderId,
+    channel,
+    orderId: escalation.orderId,
+    supportMode: 'human_active',
+  });
+
+  await logAdminAudit({
+    action: 'support_conversation_taken_over',
+    entityType: 'support_escalation',
+    entityId: escalation.id,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Manually took over ${channel} conversation for ${brand}.`,
+    metadata: {
+      senderId,
+      channel,
+      previousStatus: activeEscalation?.status ?? 'bot_active',
+    },
+  });
+
+  revalidatePath('/support');
+}
+
 export async function updateEscalationWorkflowAction(formData: FormData) {
   let scope: UserScope;
   try {
@@ -231,6 +343,7 @@ export async function sendSupportReplyAction(formData: FormData) {
     data: {
       senderId: escalation.senderId,
       channel: escalation.channel,
+      brand: escalation.brand,
       role: 'operator',
       message: reply,
     },
@@ -289,6 +402,7 @@ export async function sendSupportReplyAction(formData: FormData) {
         data: {
           senderId: escalation.senderId,
           channel: escalation.channel,
+          brand: escalation.brand,
           role: 'support_note',
           message: supportDeliveryFailureNote(escalation.channel, error),
         },
@@ -344,6 +458,7 @@ export async function addSupportNoteAction(formData: FormData) {
     data: {
       senderId: escalation.senderId,
       channel: escalation.channel,
+      brand: escalation.brand,
       role: 'support_note',
       message: note,
     },
@@ -420,6 +535,7 @@ export async function startRefundDamageWorkflowAction(formData: FormData) {
       data: {
         senderId: escalation.senderId,
         channel: escalation.channel,
+        brand: escalation.brand,
         role: 'support_note',
         message: `Could not start ${workflowType} workflow: order #${orderId} is not linked to this customer.`,
       },
@@ -473,6 +589,7 @@ export async function startRefundDamageWorkflowAction(formData: FormData) {
       data: {
         senderId: escalation.senderId,
         channel: escalation.channel,
+        brand: escalation.brand,
         role: 'support_note',
         message: workflowNote,
       },

@@ -238,6 +238,7 @@ async function sendAutomationMessage(params: {
     data: {
       senderId: params.senderId,
       channel: params.channel,
+      brand: params.brand ?? null,
       role: 'assistant',
       message: params.message,
       createdAt: params.now,

@@ -47,18 +47,26 @@ function extractRequestedOrderId(message: string): number | null {
   return null;
 }
 
-async function saveConversationPair(senderId: string, channel: string, userMessage: string, assistantReply: string) {
+async function saveConversationPair(
+  senderId: string,
+  channel: string,
+  userMessage: string,
+  assistantReply: string,
+  brand?: string | null
+) {
   await prisma.chatMessage.createMany({
     data: [
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'user',
         message: userMessage,
       },
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'assistant',
         message: assistantReply,
       },
@@ -91,6 +99,7 @@ export async function tryCancelLatestOrderFromConversation(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
       role: 'assistant',
     },
     orderBy: { createdAt: 'desc' },
@@ -102,7 +111,7 @@ export async function tryCancelLatestOrderFromConversation(
     const reply = latestAssistantMessage?.message.toLowerCase().includes('order summary')
       ? 'Understood. No order has been placed yet, so nothing was processed. If you want to continue later, just send the details again.'
       : 'I could not find an active order to cancel for this conversation.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -111,7 +120,7 @@ export async function tryCancelLatestOrderFromConversation(
     const reply = cancelledOrderId
       ? `Order #${cancelledOrderId} is already cancelled. If you want to cancel a different order, please send the order ID.`
       : 'The latest order in this conversation is already cancelled. If you want to cancel a different order, please send the order ID.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply, orderId: cancelledOrderId ?? undefined };
   }
 
@@ -125,6 +134,7 @@ export async function tryCancelLatestOrderFromConversation(
     select: {
       id: true,
       orderStatus: true,
+      brand: true,
     },
   });
 
@@ -134,13 +144,19 @@ export async function tryCancelLatestOrderFromConversation(
       : latestAssistantMessage?.message.toLowerCase().includes('order summary')
         ? 'Understood. No order has been placed yet, so nothing was processed. If you want to continue later, just send the details again.'
         : 'I could not find an active order to cancel for this conversation.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
   if (latestOrder.orderStatus === 'cancelled') {
     const reply = `Order #${latestOrder.id} is already cancelled.`;
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || latestOrder.brand
+    );
     return { handled: true, reply, orderId: latestOrder.id };
   }
 
@@ -148,7 +164,13 @@ export async function tryCancelLatestOrderFromConversation(
     const cancelledOrder = await cancelOrderById(prisma, latestOrder.id);
     const reply = buildSuccessReply(cancelledOrder.id);
 
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || latestOrder.brand
+    );
 
     return {
       handled: true,
@@ -162,7 +184,13 @@ export async function tryCancelLatestOrderFromConversation(
         : 'Please contact us directly so we can help cancel it manually.';
     const reply = `Sorry, I could not cancel the order automatically. ${message}`;
 
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || latestOrder.brand
+    );
     return {
       handled: true,
       reply,

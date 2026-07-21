@@ -11,6 +11,7 @@ import {
 import {
   sendSupportReplyAction,
   startRefundDamageWorkflowAction,
+  takeOverConversationAction,
   updateEscalationWorkflowAction,
 } from '@/app/support/actions';
 
@@ -34,6 +35,7 @@ const ic = {
 const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A", whatsapp: "#128C7E" };
 const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
 const STATUS_CLASS: Record<string, string> = {
+  bot_active: "pill-resolved",
   escalated: "pill-escalated",
   open: "pill-open",
   pending: "pill-pending",
@@ -43,6 +45,7 @@ const STATUS_CLASS: Record<string, string> = {
   resolved: "pill-resolved",
 };
 const STATUS_LABEL: Record<string, string> = {
+  bot_active: "Bot Active",
   escalated: "Escalated",
   open: "Open",
   pending: "Pending Reply",
@@ -85,7 +88,8 @@ function getMessageRole(role: string): 'customer' | 'ai' | 'agent' | 'note' {
 interface SupportMessagesPayload {
   messages: SupportThreadMessage[];
   hasMoreOlder?: boolean;
-  escalation: {
+  conversation?: {
+    escalationId: number | null;
     status: string;
     latestCustomerMessage: string | null;
     summary: string;
@@ -111,19 +115,39 @@ function mergeMessages(messages: SupportThreadMessage[]): SupportThreadMessage[]
   return Array.from(byId.values()).sort((a, b) => a.id - b.id);
 }
 
-function getEscalationPatch(data: SupportMessagesPayload): Partial<SupportThread> {
+function getConversationPatch(data: SupportMessagesPayload): Partial<SupportThread> {
+  if (!data.conversation) return {};
+
   return {
-    status: data.escalation.status,
-    latestCustomerMessage: data.escalation.latestCustomerMessage,
-    summary: data.escalation.summary,
-    updatedAt: data.escalation.updatedAt,
-    updatedAtLabel: data.escalation.updatedAtLabel,
-    resolvedAt: data.escalation.resolvedAt,
+    escalationId: data.conversation.escalationId,
+    status: data.conversation.status,
+    latestCustomerMessage: data.conversation.latestCustomerMessage,
+    summary: data.conversation.summary,
+    updatedAt: data.conversation.updatedAt,
+    updatedAtLabel: data.conversation.updatedAtLabel,
+    resolvedAt: data.conversation.resolvedAt,
   };
+}
+
+function getConversationMessagesUrl(
+  conversation: SupportThread,
+  cursor?: { beforeId?: number; afterId?: number }
+): string {
+  const query = new URLSearchParams({
+    senderId: conversation.senderId,
+    channel: conversation.channel,
+    brand: conversation.brand ?? '',
+  });
+
+  if (cursor?.beforeId) query.set('beforeId', String(cursor.beforeId));
+  if (cursor?.afterId) query.set('afterId', String(cursor.afterId));
+
+  return `/api/support/conversations/messages?${query.toString()}`;
 }
 
 function OrderContextPanel({ convo, canReply }: { convo: SupportThread; canReply: boolean }) {
   const orders = convo.recentOrders ?? [];
+  const escalationId = convo.escalationId;
 
   return (
     <div
@@ -187,10 +211,10 @@ function OrderContextPanel({ convo, canReply }: { convo: SupportThread; canReply
                   </div>
                 )}
               </div>
-              {canReply && (
+              {canReply && escalationId !== null && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <form action={startRefundDamageWorkflowAction}>
-                    <input type="hidden" name="escalationId" value={convo.id} />
+                    <input type="hidden" name="escalationId" value={escalationId} />
                     <input type="hidden" name="orderId" value={order.id} />
                     <input type="hidden" name="workflowType" value="return" />
                     <input type="hidden" name="reason" value="Customer reported damaged item or refund request." />
@@ -199,7 +223,7 @@ function OrderContextPanel({ convo, canReply }: { convo: SupportThread; canReply
                     </button>
                   </form>
                   <form action={startRefundDamageWorkflowAction}>
-                    <input type="hidden" name="escalationId" value={convo.id} />
+                    <input type="hidden" name="escalationId" value={escalationId} />
                     <input type="hidden" name="orderId" value={order.id} />
                     <input type="hidden" name="workflowType" value="exchange" />
                     <input type="hidden" name="reason" value="Customer requested size or item exchange." />
@@ -223,7 +247,7 @@ export function Thread({
   canReply = true,
 }: {
   convo: SupportThread | null;
-  onConvoUpdate?: (id: number, patch: Partial<SupportThread>) => void;
+  onConvoUpdate?: (id: string, patch: Partial<SupportThread>) => void;
   canReply?: boolean;
 }) {
   const [reply, setReply] = useState("");
@@ -310,7 +334,10 @@ export function Thread({
       const beforeId = currentConvo.messages[0]?.id;
       if (!beforeId) return;
 
-      const res = await fetch(`/api/support/escalations/${currentConvo.id}/messages?beforeId=${beforeId}`);
+      const res = await fetch(
+        getConversationMessagesUrl(currentConvo, { beforeId }),
+        { cache: 'no-store' }
+      );
       const payload = (await res.json()) as SupportMessagesResponse;
 
       if (payload.success && payload.data) {
@@ -360,7 +387,10 @@ export function Thread({
         if (!currentConvo) return;
 
         const latestMessageId = currentConvo.messages[currentConvo.messages.length - 1]?.id;
-        const url = `/api/support/escalations/${selectedConvoId}/messages${latestMessageId ? `?afterId=${latestMessageId}` : ''}`;
+        const url = getConversationMessagesUrl(
+          currentConvo,
+          latestMessageId ? { afterId: latestMessageId } : undefined
+        );
 
         const response = await fetch(url, { cache: 'no-store' });
         const payload = (await response.json()) as SupportMessagesResponse;
@@ -379,7 +409,7 @@ export function Thread({
         const shouldScrollAfterUpdate = shouldStickToBottomRef.current;
 
         onConvoUpdate(currentConvo.id, {
-          ...getEscalationPatch(data),
+          ...getConversationPatch(data),
           hasOlderMessages: data.hasMoreOlder ?? latestConvo.hasOlderMessages,
           messages: nextMessages,
         });
@@ -415,8 +445,10 @@ export function Thread({
 
   const displayName = getDisplayName(convo);
   const initials = getInitials(displayName);
+  const escalationId = convo.escalationId;
+  const isBotActive = convo.status === "bot_active" || escalationId === null;
   const isResolved = convo.status === "resolved";
-  const canTake = canReply && !isResolved && convo.status !== "in_progress";
+  const canTake = canReply && escalationId !== null && !isResolved && convo.status !== "in_progress";
   const statusClass = STATUS_CLASS[convo.status || 'pending'] || "pill-pending";
   const statusLabel = STATUS_LABEL[convo.status || 'pending'] || "Pending Reply";
 
@@ -445,7 +477,7 @@ export function Thread({
                   <span>{convo.brand}</span>
                 </>
               )}
-              {!isResolved && (
+              {!isResolved && !isBotActive && (
                 <>
                   <span>·</span>
                   <Icon d={ic.clock} size={11} color="var(--color-fg-3)" />
@@ -458,31 +490,31 @@ export function Thread({
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {canTake && (
             <form action={updateEscalationWorkflowAction}>
-              <input type="hidden" name="escalationId" value={convo.id} />
+              <input type="hidden" name="escalationId" value={escalationId ?? ''} />
               <input type="hidden" name="nextStatus" value="in_progress" />
               <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
                 Take Case
               </button>
             </form>
           )}
-          {canReply && !isResolved && (
+          {canReply && escalationId !== null && !isResolved && (
             <>
               <form action={updateEscalationWorkflowAction}>
-                <input type="hidden" name="escalationId" value={convo.id} />
+                <input type="hidden" name="escalationId" value={escalationId} />
                 <input type="hidden" name="nextStatus" value="waiting_customer" />
                 <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
                   Waiting Customer
                 </button>
               </form>
               <form action={updateEscalationWorkflowAction}>
-                <input type="hidden" name="escalationId" value={convo.id} />
+                <input type="hidden" name="escalationId" value={escalationId} />
                 <input type="hidden" name="nextStatus" value="waiting_team" />
                 <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
                   Waiting Team
                 </button>
               </form>
               <form action={updateEscalationWorkflowAction}>
-                <input type="hidden" name="escalationId" value={convo.id} />
+                <input type="hidden" name="escalationId" value={escalationId} />
                 <input type="hidden" name="nextStatus" value="resolved" />
                 <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
                   <Icon d={ic.check} size={12} />Mark Resolved
@@ -490,16 +522,16 @@ export function Thread({
               </form>
             </>
           )}
-          {canReply && isResolved && (
+          {canReply && escalationId !== null && isResolved && (
             <form action={updateEscalationWorkflowAction}>
-              <input type="hidden" name="escalationId" value={convo.id} />
+              <input type="hidden" name="escalationId" value={escalationId} />
               <input type="hidden" name="nextStatus" value="open" />
               <button type="submit" className="btn btn-secondary" style={{ fontSize: 11 }}>
                 Reopen
               </button>
             </form>
           )}
-          <button className="btn btn-ghost" style={{ padding: "6px" }}>
+          <button type="button" className="btn btn-ghost" style={{ padding: "6px" }} aria-label="More conversation actions">
             <Icon d={ic.moreH} size={15} color="var(--color-fg-2)" />
           </button>
         </div>
@@ -535,7 +567,7 @@ export function Thread({
           const showDateSeparator = !previousMessage || previousDateKey !== currentDateKey;
 
           return (
-            <React.Fragment key={msg.id || i}>
+            <React.Fragment key={msg.id}>
               {showDateSeparator && (
                 <div className="thread-date-separator" suppressHydrationWarning>
                   <span>{formatSupportMessageDateSeparator(msg.createdAt)}</span>
@@ -573,6 +605,25 @@ export function Thread({
             </span>
           </div>
         </div>
+      ) : isBotActive ? (
+        <div className="reply-area reply-area-resolved">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="ai-badge"><Icon d={ic.zap} size={10} color="#7A3A18" />Bot active</span>
+              <span style={{ fontSize: 12, color: "var(--color-fg-2)" }}>
+                The bot is handling this conversation. Take over to pause automated replies and respond as support.
+              </span>
+            </div>
+            <form action={takeOverConversationAction}>
+              <input type="hidden" name="senderId" value={convo.senderId} />
+              <input type="hidden" name="channel" value={convo.channel} />
+              <input type="hidden" name="brand" value={convo.brand ?? ''} />
+              <button type="submit" className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>
+                Take over
+              </button>
+            </form>
+          </div>
+        </div>
       ) : isResolved ? (
         <div className="reply-area reply-area-resolved">
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -595,7 +646,7 @@ export function Thread({
             className="reply-inner"
             onSubmit={() => setReply("")}
           >
-            <input type="hidden" name="escalationId" value={convo.id} />
+            <input type="hidden" name="escalationId" value={escalationId ?? ''} />
             <textarea
               className="reply-textarea"
               name="reply"

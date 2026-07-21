@@ -23,6 +23,7 @@
     "test:bot-training": "node scripts/bot-training.test.js",
     "test:contact-profile": "node --test --experimental-strip-types --no-warnings scripts/contact-profile.test.ts",
     "test:retention": "node --test --experimental-strip-types --no-warnings scripts/retention-automation.test.ts",
+    "test:support-inbox": "node --test --experimental-strip-types --no-warnings scripts/support-inbox.test.ts",
     "test:fulfillment": "node --test --experimental-strip-types --no-warnings scripts/fulfillment.test.ts",
     "test:whatsapp": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-normalize.test.ts scripts/meta-webhook-signature.test.ts scripts/whatsapp-registration.test.ts",
     "cleanup:conversation": "node scripts/prune-conversation-data.js",

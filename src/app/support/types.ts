@@ -38,7 +38,9 @@ export interface SupportThreadMessage {
 }
 
 export interface SupportThread {
-  id: number;
+  id: string;
+  conversationKey: string;
+  escalationId: number | null;
   senderId: string;
   channel: string;
   customerId: number | null;

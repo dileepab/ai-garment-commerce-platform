@@ -36,6 +36,7 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
 const CHANNEL_CLASS: Record<string, string> = { messenger: "badge-messenger", instagram: "badge-instagram", whatsapp: "badge-whatsapp" };
 const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
 const SUPPORT_STATUS_LABELS: Record<string, string> = {
+  bot_active: "Bot active",
   escalated: "Escalated",
   open: "Open",
   pending: "Pending",
@@ -45,6 +46,7 @@ const SUPPORT_STATUS_LABELS: Record<string, string> = {
   resolved: "Resolved",
 };
 const SUPPORT_STATUS_CLASSES: Record<string, string> = {
+  bot_active: "pill-resolved",
   escalated: "pill-escalated",
   open: "pill-open",
   pending: "pill-pending",
@@ -55,7 +57,7 @@ const SUPPORT_STATUS_CLASSES: Record<string, string> = {
 };
 
 interface SupportPageClientProps {
-  initialEscalations: SupportThread[];
+  initialConversations: SupportThread[];
   stats: SupportStats;
   canReply: boolean;
   selectedBrand: string | null;
@@ -74,29 +76,29 @@ const SORT_OPTIONS: { value: SupportSort; label: string }[] = [
 interface SupportInboxResponse {
   success: boolean;
   data?: {
-    escalations: SupportThread[];
+    conversations: SupportThread[];
     stats: SupportStats;
   };
   error?: string;
 }
 
-function mergeEscalationList(
-  currentEscalations: SupportThread[],
-  nextEscalations: SupportThread[]
+function mergeConversationList(
+  currentConversations: SupportThread[],
+  nextConversations: SupportThread[]
 ): SupportThread[] {
   const currentById = new Map(
-    currentEscalations.map((escalation) => [escalation.id, escalation])
+    currentConversations.map((conversation) => [conversation.id, conversation])
   );
 
-  return nextEscalations.map((nextEscalation) => {
-    const currentEscalation = currentById.get(nextEscalation.id);
+  return nextConversations.map((nextConversation) => {
+    const currentConversation = currentById.get(nextConversation.id);
 
-    if (!currentEscalation) return nextEscalation;
+    if (!currentConversation) return nextConversation;
 
     return {
-      ...nextEscalation,
-      hasOlderMessages: currentEscalation.hasOlderMessages,
-      messages: currentEscalation.messages,
+      ...nextConversation,
+      hasOlderMessages: currentConversation.hasOlderMessages,
+      messages: currentConversation.messages,
     };
   });
 }
@@ -120,10 +122,10 @@ function formatWaitingFrom(iso: string): string {
   return `${days}d`;
 }
 
-function getAverageWaitLabel(escalations: SupportThread[]): string {
-  const activeCreatedAt = escalations
-    .filter((escalation) => isActiveStatus(escalation.status))
-    .map((escalation) => new Date(escalation.createdAt).getTime())
+function getAverageWaitLabel(conversations: SupportThread[]): string {
+  const activeCreatedAt = conversations
+    .filter((conversation) => isActiveStatus(conversation.status))
+    .map((conversation) => new Date(conversation.createdAt).getTime())
     .filter((time) => !Number.isNaN(time));
 
   if (activeCreatedAt.length === 0) return '0m';
@@ -180,45 +182,46 @@ function SupportStatusAction({
   );
 }
 
-function SupportQuickActions({ escalation, canReply }: { escalation: SupportThread; canReply: boolean }) {
-  const active = isActiveStatus(escalation.status);
-  const canTake = active && escalation.status !== "in_progress";
+function SupportQuickActions({ conversation, canReply }: { conversation: SupportThread; canReply: boolean }) {
+  const active = isActiveStatus(conversation.status);
+  const canTake = active && conversation.status !== "in_progress";
+  const escalationId = conversation.escalationId;
 
-  if (!canReply) {
+  if (!canReply || escalationId === null) {
     return null;
   }
 
   return (
     <div className="convo-quick-actions" onClick={(event) => event.stopPropagation()}>
       {canTake && (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="in_progress" label="Take" />
+        <SupportStatusAction escalationId={escalationId} nextStatus="in_progress" label="Take" />
       )}
-      {active && escalation.status !== "waiting_customer" && (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="waiting_customer" label="Wait customer" />
+      {active && conversation.status !== "waiting_customer" && (
+        <SupportStatusAction escalationId={escalationId} nextStatus="waiting_customer" label="Wait customer" />
       )}
-      {active && escalation.status !== "waiting_team" && (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="waiting_team" label="Wait team" />
+      {active && conversation.status !== "waiting_team" && (
+        <SupportStatusAction escalationId={escalationId} nextStatus="waiting_team" label="Wait team" />
       )}
       {active ? (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="resolved" label="Resolve" variant="strong" />
+        <SupportStatusAction escalationId={escalationId} nextStatus="resolved" label="Resolve" variant="strong" />
       ) : (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="open" label="Reopen" variant="strong" />
+        <SupportStatusAction escalationId={escalationId} nextStatus="open" label="Reopen" variant="strong" />
       )}
     </div>
   );
 }
 
-export default function SupportPageClient({ initialEscalations, stats, canReply, selectedBrand }: SupportPageClientProps) {
-  const [escalations, setEscalations] = useState(initialEscalations);
+export default function SupportPageClient({ initialConversations, stats, canReply, selectedBrand }: SupportPageClientProps) {
+  const [conversations, setConversations] = useState(initialConversations);
   const [liveStats, setLiveStats] = useState(stats);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<SupportFilter>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [sort, setSort] = useState<SupportSort>("priority");
-  const [selectedId, setSelectedId] = useState<number | null>(
-    initialEscalations.find((escalation) => escalation.status !== "resolved")?.id ||
-      initialEscalations[0]?.id ||
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialConversations.find((conversation) => conversation.status !== "resolved")?.id ??
+      initialConversations[0]?.id ??
       null
   );
   // Mobile: toggle between conversation list and thread view
@@ -227,12 +230,12 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) setEscalations(initialEscalations);
+      if (!cancelled) setConversations(initialConversations);
     });
     return () => {
       cancelled = true;
     };
-  }, [initialEscalations]);
+  }, [initialConversations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,10 +247,10 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
     };
   }, [stats]);
 
-  const updateEscalation = useCallback((id: number, patch: Partial<SupportThread>) => {
-    setEscalations((currentEscalations) =>
-      currentEscalations.map((escalation) =>
-        escalation.id === id ? { ...escalation, ...patch } : escalation
+  const updateConversation = useCallback((id: string, patch: Partial<SupportThread>) => {
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === id ? { ...conversation, ...patch } : conversation
       )
     );
   }, []);
@@ -256,20 +259,20 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
     let cancelled = false;
 
     // Keep the live poll scoped to the globally selected brand so it does not
-    // re-introduce other brands' escalations on top of the brand-filtered render.
+    // re-introduce other brands' conversations on top of the brand-filtered render.
     const query = selectedBrand
       ? `?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
       : '';
 
     const refreshInbox = async () => {
       try {
-        const response = await fetch(`/api/support/escalations${query}`, { cache: 'no-store' });
+        const response = await fetch(`/api/support/conversations${query}`, { cache: 'no-store' });
         const payload = (await response.json()) as SupportInboxResponse;
 
         if (cancelled || !response.ok || !payload.success || !payload.data) return;
 
-        setEscalations((currentEscalations) =>
-          mergeEscalationList(currentEscalations, payload.data!.escalations)
+        setConversations((currentConversations) =>
+          mergeConversationList(currentConversations, payload.data!.conversations)
         );
         setLiveStats(payload.data.stats);
       } catch (error) {
@@ -288,19 +291,19 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
 
   const channelOptions = useMemo(() => {
     const set = new Set<string>();
-    escalations.forEach(e => { if (e.channel) set.add(e.channel); });
+    conversations.forEach(e => { if (e.channel) set.add(e.channel); });
     return Array.from(set).sort();
-  }, [escalations]);
+  }, [conversations]);
 
   const brandOptions = useMemo(() => {
     const set = new Set<string>();
-    escalations.forEach(e => { if (e.brand) set.add(e.brand); });
+    conversations.forEach(e => { if (e.brand) set.add(e.brand); });
     return Array.from(set).sort();
-  }, [escalations]);
+  }, [conversations]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = escalations.filter(e => {
+    const list = conversations.filter(e => {
       if (filter === "active" && !isActiveStatus(e.status)) return false;
       if (filter === "resolved" && e.status !== "resolved") return false;
       if (channelFilter !== "all" && e.channel !== channelFilter) return false;
@@ -346,14 +349,14 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
       }
     });
     return sorted;
-  }, [escalations, search, filter, channelFilter, brandFilter, sort]);
+  }, [conversations, search, filter, channelFilter, brandFilter, sort]);
 
   useEffect(() => {
-    let nextSelectedId: number | null = selectedId;
+    let nextSelectedId: string | null = selectedId;
 
     if (filtered.length === 0) {
       nextSelectedId = null;
-    } else if (!selectedId || !filtered.some((escalation) => escalation.id === selectedId)) {
+    } else if (!selectedId || !filtered.some((conversation) => conversation.id === selectedId)) {
       nextSelectedId = filtered[0].id;
     }
 
@@ -371,11 +374,11 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
   }, [filtered, selectedId]);
 
   const activeConvo = useMemo(
-    () => escalations.find(e => e.id === selectedId) || null,
-    [escalations, selectedId]
+    () => conversations.find(e => e.id === selectedId) || null,
+    [conversations, selectedId]
   );
 
-  const averageWaitLabel = useMemo(() => getAverageWaitLabel(escalations), [escalations]);
+  const averageWaitLabel = useMemo(() => getAverageWaitLabel(conversations), [conversations]);
   const hasActiveInboxFilters = filter !== "all" || channelFilter !== "all" || brandFilter !== "all" || sort !== "priority" || !!search.trim();
   const clearInboxFilters = () => {
     setSearch("");
@@ -489,7 +492,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
                 </button>
               )}
             </div>
-            <div className="convo-result-count">{filtered.length} of {escalations.length}</div>
+            <div className="convo-result-count">{filtered.length} of {conversations.length}</div>
           </div>
           <div className="convo-list">
             {filtered.map(e => {
@@ -499,6 +502,17 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
                   key={e.id}
                   className={`convo-item${selectedId === e.id ? " active" : ""}${active ? ' unread' : ''}`}
                   onClick={() => { setSelectedId(e.id); setMobileView('thread'); }}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedId(e.id);
+                      setMobileView('thread');
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedId === e.id}
                 >
                   <div className="convo-item-top">
                     <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
@@ -536,7 +550,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
                   <div className="convo-item-preview">
                     {e.latestCustomerMessage || e.summary || 'No message preview available.'}
                   </div>
-                  <SupportQuickActions escalation={e} canReply={canReply} />
+                  <SupportQuickActions conversation={e} canReply={canReply} />
                 </div>
               );
             })}
@@ -554,13 +568,13 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
           </div>
         </div>
         <div className={`thread-panel-wrap${mobileView === 'list' ? ' mobile-panel-hidden' : ''}`}>
-          <button className="mobile-back-btn" onClick={() => setMobileView('list')}>
+          <button type="button" className="mobile-back-btn" onClick={() => setMobileView('list')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
             Back to inbox
           </button>
-          <Thread convo={activeConvo} onConvoUpdate={updateEscalation} canReply={canReply} />
+          <Thread convo={activeConvo} onConvoUpdate={updateConversation} canReply={canReply} />
         </div>
       </div>
     </main>

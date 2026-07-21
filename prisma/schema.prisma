@@ -248,9 +248,12 @@ model ChatMessage {
   id        Int      @id @default(autoincrement())
   senderId  String // Meta sender ID or phone number
   channel   String   @default("messenger") // messenger, instagram, whatsapp
+  brand     String?
   role      String // "user" or "assistant"
   message   String
   createdAt DateTime @default(now())
+
+  @@index([brand, channel, senderId, createdAt])
 }
 
 model ConversationState {

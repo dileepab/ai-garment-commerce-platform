@@ -86,6 +86,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       where: {
         senderId: escalation.senderId,
         channel: escalation.channel,
+        brand: escalation.brand,
         ...(beforeId ? { id: { lt: beforeId } } : {}),
         ...(afterId ? { id: { gt: afterId } } : {}),
       },

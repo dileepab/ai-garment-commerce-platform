@@ -45,18 +45,26 @@ function looksLikeAffirmativeReply(message: string): boolean {
   return AFFIRMATIVE_REPLY_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-async function saveConversationPair(senderId: string, channel: string, userMessage: string, assistantReply: string) {
+async function saveConversationPair(
+  senderId: string,
+  channel: string,
+  userMessage: string,
+  assistantReply: string,
+  brand?: string | null
+) {
   await prisma.chatMessage.createMany({
     data: [
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'user',
         message: userMessage,
       },
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'assistant',
         message: assistantReply,
       },
@@ -71,6 +79,7 @@ export async function tryHandleReorderFromConversation(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
       role: 'assistant',
     },
     orderBy: { createdAt: 'desc' },
@@ -97,11 +106,17 @@ export async function tryHandleReorderFromConversation(
   if (!draft) {
     const reply =
       'Please send the product name, size, and color you want, and I will prepare the order summary right away.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
   const reply = buildOrderSummaryReply(draft);
-  await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+  await saveConversationPair(
+    params.senderId,
+    params.channel,
+    params.currentMessage,
+    reply,
+    params.brand || draft.brand
+  );
   return { handled: true, reply };
 }

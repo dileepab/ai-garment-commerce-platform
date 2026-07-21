@@ -4,30 +4,45 @@ import {
   isAuthorizationError,
   requireApiPermission,
 } from '@/lib/authz';
-import { loadSupportInbox, SupportInboxError } from '@/lib/support-inbox';
+import {
+  loadSupportInbox,
+  SupportInboxError,
+} from '@/lib/support-inbox';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Compatibility endpoint for older clients. The main inbox now uses
- * /api/support/conversations; this route intentionally returns case-backed
- * threads only under the historical `escalations` key.
- */
+function parseOptionalPositiveInt(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  if (!/^\d+$/.test(value)) {
+    throw new SupportInboxError('Limit must be a positive integer.');
+  }
+
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new SupportInboxError('Limit must be a positive integer.');
+  }
+  return parsed;
+}
+
 export async function GET(request: Request) {
   try {
     const scope = await requireApiPermission('support:view');
     const { searchParams } = new URL(request.url);
+    const includeMessages = ['1', 'true'].includes(
+      (searchParams.get('includeMessages') ?? '').toLowerCase()
+    );
     const { threads, stats } = await loadSupportInbox({
       scope,
       selectedBrand: searchParams.get('brand'),
-      includeMessages: false,
+      includeMessages,
+      conversationLimit: parseOptionalPositiveInt(searchParams.get('limit')),
     });
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          escalations: threads.filter((thread) => thread.escalationId !== null),
+          conversations: threads,
           stats,
         },
       },

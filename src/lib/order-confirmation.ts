@@ -154,18 +154,26 @@ function buildMissingVariantReply(draft: ResolvedOrderDraft): string {
   return prompts.join('\n');
 }
 
-async function saveConversationPair(senderId: string, channel: string, userMessage: string, assistantReply: string) {
+async function saveConversationPair(
+  senderId: string,
+  channel: string,
+  userMessage: string,
+  assistantReply: string,
+  brand?: string | null
+) {
   await prisma.chatMessage.createMany({
     data: [
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'user',
         message: userMessage,
       },
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'assistant',
         message: assistantReply,
       },
@@ -184,6 +192,7 @@ export async function tryConfirmOrderFromConversation(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
     },
     orderBy: { createdAt: 'desc' },
     take: 6,
@@ -205,7 +214,7 @@ export async function tryConfirmOrderFromConversation(
   if (!draft) {
     const reply =
       'Please send the product, size, and color once more so I can prepare the correct order summary.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -221,13 +230,25 @@ export async function tryConfirmOrderFromConversation(
 
   if (missingDraftFields.length > 0) {
     const reply = buildMissingVariantReply(draft);
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || draft.brand
+    );
     return { handled: true, reply };
   }
 
   if (isContactConfirmationMessage(latestAssistantMessage.message)) {
     const reply = buildOrderSummaryReply(draft);
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || draft.brand
+    );
     return { handled: true, reply };
   }
 
@@ -286,7 +307,13 @@ export async function tryConfirmOrderFromConversation(
     });
 
     const reply = buildSuccessReply(draft, order.id);
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || draft.brand
+    );
 
     return {
       handled: true,
@@ -300,7 +327,13 @@ export async function tryConfirmOrderFromConversation(
         : 'Please try again in a moment or contact us directly.';
     const reply = buildFailureReply(message);
 
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || draft.brand
+    );
     return {
       handled: true,
       reply,
