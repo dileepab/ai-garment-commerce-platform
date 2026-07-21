@@ -11,6 +11,11 @@ import {
   isAuthorizationError,
   requireActionPermission,
 } from '@/lib/authz';
+import { logAdminAudit } from '@/lib/admin-audit';
+import {
+  isValidWhatsAppRegistrationPin,
+  registerWhatsAppPhone,
+} from '@/lib/whatsapp-registration';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 
@@ -29,6 +34,16 @@ export interface MetaConnectionTestResult {
   display_phone_number?: string;
   verified_name?: string;
   host?: string;
+  error?: string;
+}
+
+export interface WhatsAppRegistrationActionResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  status?: number;
+  errorCode?: string | number;
   error?: string;
 }
 
@@ -221,6 +236,87 @@ export async function testMetaConnectionAction(
         : error instanceof Error
           ? error.message
           : 'Connection test failed.',
+    };
+  }
+}
+
+export async function registerWhatsAppPhoneAction(
+  brand: string,
+  pin: string,
+): Promise<WhatsAppRegistrationActionResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:write');
+    assertBrandAccess(scope, brand, 'WhatsApp registration');
+
+    if (!isValidWhatsAppRegistrationPin(pin)) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        error: 'Enter exactly six digits for the WhatsApp two-step PIN.',
+      };
+    }
+
+    const config = await resolveWhatsAppConfigForBrand(brand);
+    if (!config) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        error: 'Missing WhatsApp Phone Number ID or system-user token.',
+      };
+    }
+
+    const result = await registerWhatsAppPhone({
+      phoneNumberId: config.phoneNumberId,
+      accessToken: config.accessToken,
+      pin,
+    });
+    const maskedPhoneNumberId = maskMetaId(config.phoneNumberId);
+
+    await logAdminAudit({
+      action: result.ok
+        ? 'whatsapp_phone_registered'
+        : 'whatsapp_phone_registration_failed',
+      entityType: 'whatsapp_phone_number',
+      entityId: maskedPhoneNumberId,
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: result.ok
+        ? `Registered the WhatsApp phone number for ${brand}.`
+        : `WhatsApp phone registration failed for ${brand}.`,
+      metadata: {
+        phoneNumberId: maskedPhoneNumberId,
+        graphVersion: META_GRAPH_VERSION,
+        status: result.status,
+        errorCode: result.errorCode ?? null,
+      },
+    });
+
+    return {
+      success: true,
+      ok: result.ok,
+      brand,
+      checkedAt,
+      status: result.status,
+      errorCode: result.errorCode,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      error: isAuthorizationError(error)
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'WhatsApp registration failed.',
     };
   }
 }
