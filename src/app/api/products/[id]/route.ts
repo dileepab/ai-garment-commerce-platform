@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
 import {
@@ -8,6 +8,11 @@ import {
   requireApiPermission,
 } from '@/lib/authz';
 import { nextProductSku } from '@/lib/product-sku';
+import { buildMetaCatalogVariantRetailerId } from '@/lib/meta-catalog-feed';
+import {
+  retireWhatsAppCatalogProduct,
+  syncWhatsAppCatalogProduct,
+} from '@/lib/whatsapp-catalog-sync';
 
 export async function PATCH(
   request: Request,
@@ -23,7 +28,11 @@ export async function PATCH(
 
     const existing = await prisma.product.findUnique({
       where: { id: productId },
-      select: { brand: true, sku: true, variants: { select: { id: true } } },
+      select: {
+        brand: true,
+        sku: true,
+        variants: { select: { id: true, sku: true } },
+      },
     });
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Product not found.' }, { status: 404 });
@@ -137,6 +146,45 @@ export async function PATCH(
       }
 
       return updated;
+    });
+
+    after(async () => {
+      try {
+        const nextBrand = data.brand ?? existing.brand;
+        if (nextBrand !== existing.brand) {
+          const parentId = existing.sku?.trim() || `PRODUCT-${productId}`;
+          const retirementIds = [
+            parentId,
+            ...existing.variants.map((variant) =>
+              buildMetaCatalogVariantRetailerId(
+                { id: productId, sku: existing.sku },
+                variant,
+              ),
+            ),
+          ];
+          const retirement = await retireWhatsAppCatalogProduct(existing.brand, retirementIds);
+          if (retirement.configured && !retirement.ok) {
+            console.warn('[Products API] Previous WhatsApp catalog item retirement failed.', {
+              brand: existing.brand,
+              productId,
+              error: retirement.error,
+            });
+          }
+        }
+        const catalogSync = await syncWhatsAppCatalogProduct(productId);
+        if (catalogSync.configured && !catalogSync.ok) {
+          console.warn('[Products API] WhatsApp catalog sync failed after update.', {
+            brand: catalogSync.brand,
+            productId,
+            error: catalogSync.error,
+          });
+        }
+      } catch (catalogError) {
+        console.warn('[Products API] WhatsApp catalog sync could not run after update.', {
+          productId,
+          error: catalogError instanceof Error ? catalogError.message : 'Unexpected catalog sync error.',
+        });
+      }
     });
 
     return NextResponse.json({ success: true, data: product });

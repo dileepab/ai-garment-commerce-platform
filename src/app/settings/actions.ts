@@ -126,6 +126,7 @@ export async function saveMerchantSettingsAction(formData: FormData) {
     const instagramAccountId = cleanOptionalText(readText(formData, 'instagramAccountId'));
     const instagramAccessToken = cleanAccessToken(readText(formData, 'instagramAccessToken'));
     const whatsappBusinessAccountId = cleanOptionalText(readText(formData, 'whatsappBusinessAccountId'));
+    const whatsappCatalogId = cleanOptionalText(readText(formData, 'whatsappCatalogId'));
     const whatsappPhoneNumberId = cleanOptionalText(readText(formData, 'whatsappPhoneNumberId'));
     const whatsappDisplayPhoneNumber = cleanOptionalText(readText(formData, 'whatsappDisplayPhoneNumber'));
     const whatsappAccessToken = cleanAccessToken(readText(formData, 'whatsappAccessToken'));
@@ -134,6 +135,7 @@ export async function saveMerchantSettingsAction(formData: FormData) {
       facebookPageId,
       instagramAccountId,
       whatsappBusinessAccountId,
+      whatsappCatalogId,
       whatsappPhoneNumberId,
       whatsappDisplayPhoneNumber,
       isTestBrand: readBoolean(formData, 'isTestBrand'),
@@ -152,6 +154,7 @@ export async function saveMerchantSettingsAction(formData: FormData) {
         instagramAccountId,
         instagramAccessToken,
         whatsappBusinessAccountId,
+        whatsappCatalogId,
         whatsappPhoneNumberId,
         whatsappDisplayPhoneNumber,
         whatsappAccessToken,
@@ -179,6 +182,7 @@ export async function addBrandSettingsAction(formData: FormData) {
   const facebookPageId = cleanOptionalText(readText(formData, 'newFacebookPageId'));
   const instagramAccountId = cleanOptionalText(readText(formData, 'newInstagramAccountId'));
   const whatsappBusinessAccountId = cleanOptionalText(readText(formData, 'newWhatsappBusinessAccountId'));
+  const whatsappCatalogId = cleanOptionalText(readText(formData, 'newWhatsappCatalogId'));
   const whatsappPhoneNumberId = cleanOptionalText(readText(formData, 'newWhatsappPhoneNumberId'));
   const whatsappDisplayPhoneNumber = cleanOptionalText(readText(formData, 'newWhatsappDisplayPhoneNumber'));
   const notes = cleanOptionalText(readText(formData, 'newChannelNotes'));
@@ -202,6 +206,7 @@ export async function addBrandSettingsAction(formData: FormData) {
       facebookPageId,
       instagramAccountId,
       whatsappBusinessAccountId,
+      whatsappCatalogId,
       whatsappPhoneNumberId,
       whatsappDisplayPhoneNumber,
       isTestBrand,
@@ -211,6 +216,7 @@ export async function addBrandSettingsAction(formData: FormData) {
       ...(facebookPageId ? { facebookPageId } : {}),
       ...(instagramAccountId ? { instagramAccountId } : {}),
       ...(whatsappBusinessAccountId ? { whatsappBusinessAccountId } : {}),
+      ...(whatsappCatalogId ? { whatsappCatalogId } : {}),
       ...(whatsappPhoneNumberId ? { whatsappPhoneNumberId } : {}),
       ...(whatsappDisplayPhoneNumber ? { whatsappDisplayPhoneNumber } : {}),
       isTestBrand,

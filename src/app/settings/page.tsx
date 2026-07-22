@@ -730,6 +730,13 @@ function AddBrandForm({ canManage }: { canManage: boolean }) {
           placeholder="Optional"
         />
         <TextField
+          label="WhatsApp Catalog ID"
+          name="newWhatsappCatalogId"
+          value=""
+          disabled={false}
+          placeholder="Optional"
+        />
+        <TextField
           label="WhatsApp Phone Number ID"
           name="newWhatsappPhoneNumberId"
           value=""
@@ -953,6 +960,13 @@ function SettingsForm({
                     value={channelConfig.whatsappBusinessAccountId}
                     disabled={!canManage}
                     placeholder="From WhatsApp Manager"
+                  />
+                  <TextField
+                    label="WhatsApp Catalog ID"
+                    name="whatsappCatalogId"
+                    value={channelConfig.whatsappCatalogId}
+                    disabled={!canManage}
+                    placeholder="From Commerce Manager"
                   />
                   <TextField
                     label="WhatsApp Phone Number ID"

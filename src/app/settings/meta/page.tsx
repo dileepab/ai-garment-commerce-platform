@@ -12,8 +12,10 @@ import {
   type BrandChannelConfigView,
 } from '@/lib/brand-channel-config';
 import { getMetaCommentAutoReplyMode } from '@/lib/meta-feature-flags';
+import { getMetaCatalogBrand } from '@/lib/meta-catalog-feed';
 import { PageHeader } from '@/components/PageHeader';
 import { MetaConnectionTestButton } from './MetaConnectionTestButton';
+import { WhatsAppCatalogControls } from './WhatsAppCatalogControls';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +128,13 @@ function ChannelHealthBlock({
       : config.hasWhatsappAccessToken;
   const ready = Boolean(accountId && hasToken);
   const label = isFacebook ? 'Facebook Page' : isInstagram ? 'Instagram Business' : 'WhatsApp Business';
+  const catalogBrand = isFacebook || isInstagram ? null : getMetaCatalogBrand(brand);
+  const catalogReady = Boolean(
+    config.whatsappBusinessAccountId &&
+    config.whatsappCatalogId &&
+    config.whatsappPhoneNumberId &&
+    config.hasWhatsappAccessToken,
+  );
 
   return (
     <div
@@ -172,6 +181,13 @@ function ChannelHealthBlock({
       </div>
 
       <MetaConnectionTestButton brand={brand} channel={channel} disabled={!ready} />
+      {channel === 'whatsapp' && (
+        <WhatsAppCatalogControls
+          brand={brand}
+          disabled={!catalogReady}
+          feedUrl={catalogBrand ? `/api/catalog/meta/${catalogBrand.key}/feed.csv` : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -304,6 +320,7 @@ export default async function MetaStatusPage({
       instagramAccountId: null,
       hasInstagramAccessToken: false,
       whatsappBusinessAccountId: null,
+      whatsappCatalogId: null,
       whatsappPhoneNumberId: null,
       whatsappDisplayPhoneNumber: null,
       hasWhatsappAccessToken: false,

@@ -15,6 +15,7 @@ export interface ResolvedInstagramConfig {
 export interface ResolvedWhatsAppConfig {
   brand: string;
   businessAccountId: string | null;
+  catalogId: string | null;
   phoneNumberId: string;
   displayPhoneNumber: string | null;
   accessToken: string;
@@ -27,6 +28,7 @@ export interface BrandChannelConfigView {
   instagramAccountId: string | null;
   hasInstagramAccessToken: boolean;
   whatsappBusinessAccountId: string | null;
+  whatsappCatalogId: string | null;
   whatsappPhoneNumberId: string | null;
   whatsappDisplayPhoneNumber: string | null;
   hasWhatsappAccessToken: boolean;
@@ -108,6 +110,7 @@ export async function getBrandChannelConfigView(brand: string): Promise<BrandCha
       instagramAccountId: true,
       instagramAccessToken: true,
       whatsappBusinessAccountId: true,
+      whatsappCatalogId: true,
       whatsappPhoneNumberId: true,
       whatsappDisplayPhoneNumber: true,
       whatsappAccessToken: true,
@@ -119,6 +122,8 @@ export async function getBrandChannelConfigView(brand: string): Promise<BrandCha
   if (record) {
     const whatsappBusinessAccountId =
       record.whatsappBusinessAccountId ?? resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID');
+    const whatsappCatalogId =
+      record.whatsappCatalogId ?? resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID');
     const whatsappPhoneNumberId =
       record.whatsappPhoneNumberId ?? resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID');
     const whatsappDisplayPhoneNumber =
@@ -133,6 +138,7 @@ export async function getBrandChannelConfigView(brand: string): Promise<BrandCha
       instagramAccountId: record.instagramAccountId ?? null,
       hasInstagramAccessToken: Boolean(record.instagramAccessToken),
       whatsappBusinessAccountId: whatsappBusinessAccountId ?? null,
+      whatsappCatalogId: whatsappCatalogId ?? null,
       whatsappPhoneNumberId: whatsappPhoneNumberId ?? null,
       whatsappDisplayPhoneNumber: whatsappDisplayPhoneNumber ?? null,
       hasWhatsappAccessToken: Boolean(whatsappAccessToken),
@@ -148,6 +154,7 @@ export async function getBrandChannelConfigView(brand: string): Promise<BrandCha
     instagramAccountId: legacyInstagramAccountIdForBrand(brand) ?? null,
     hasInstagramAccessToken: Boolean(resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN)),
     whatsappBusinessAccountId: resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID') ?? null,
+    whatsappCatalogId: resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID') ?? null,
     whatsappPhoneNumberId: resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID') ?? null,
     whatsappDisplayPhoneNumber: resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE') ?? null,
     hasWhatsappAccessToken: Boolean(resolveBrandEnv(brand, 'META_WHATSAPP_ACCESS_TOKEN')),
@@ -203,6 +210,7 @@ export async function resolveWhatsAppConfigForBrand(brand: string): Promise<Reso
     where: { brand },
     select: {
       whatsappBusinessAccountId: true,
+      whatsappCatalogId: true,
       whatsappPhoneNumberId: true,
       whatsappDisplayPhoneNumber: true,
       whatsappAccessToken: true,
@@ -223,6 +231,9 @@ export async function resolveWhatsAppConfigForBrand(brand: string): Promise<Reso
       businessAccountId: cleanOptionalText(
         record.whatsappBusinessAccountId ?? resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID')
       ),
+      catalogId: cleanOptionalText(
+        record.whatsappCatalogId ?? resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID')
+      ),
       phoneNumberId,
       displayPhoneNumber: cleanOptionalText(
         record.whatsappDisplayPhoneNumber ?? resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE')
@@ -238,6 +249,7 @@ export async function resolveWhatsAppConfigForBrand(brand: string): Promise<Reso
   return {
     brand,
     businessAccountId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID')),
+    catalogId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID')),
     phoneNumberId,
     displayPhoneNumber: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE')),
     accessToken,
@@ -413,6 +425,7 @@ export async function resolveWhatsAppConfigForPhoneNumberId(
     select: {
       brand: true,
       whatsappBusinessAccountId: true,
+      whatsappCatalogId: true,
       whatsappPhoneNumberId: true,
       whatsappDisplayPhoneNumber: true,
       whatsappAccessToken: true,
@@ -424,6 +437,9 @@ export async function resolveWhatsAppConfigForPhoneNumberId(
     return {
       brand: record.brand,
       businessAccountId: cleanOptionalText(record.whatsappBusinessAccountId),
+      catalogId: cleanOptionalText(
+        record.whatsappCatalogId ?? resolveBrandEnv(record.brand, 'META_WHATSAPP_CATALOG_ID')
+      ),
       phoneNumberId: record.whatsappPhoneNumberId,
       displayPhoneNumber: cleanOptionalText(record.whatsappDisplayPhoneNumber),
       accessToken,
@@ -440,6 +456,7 @@ export async function resolveWhatsAppConfigForPhoneNumberId(
     return {
       brand,
       businessAccountId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID')),
+      catalogId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID')),
       phoneNumberId,
       displayPhoneNumber: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE')),
       accessToken: envAccessToken,

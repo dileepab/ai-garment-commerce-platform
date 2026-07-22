@@ -17,6 +17,10 @@ import {
   registerWhatsAppPhone,
   subscribeWhatsAppBusinessAccount,
 } from '@/lib/whatsapp-registration';
+import {
+  syncWhatsAppCatalogForBrand,
+  testWhatsAppCatalogConnection,
+} from '@/lib/whatsapp-catalog-sync';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 
@@ -55,6 +59,33 @@ export interface WhatsAppWebhookSubscriptionActionResult {
   checkedAt: string;
   status?: number;
   errorCode?: string | number;
+  error?: string;
+}
+
+export interface WhatsAppCatalogConnectionActionResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  catalogName?: string;
+  linkedToWaba?: boolean;
+  catalogVisible?: boolean;
+  cartEnabled?: boolean;
+  status?: number;
+  error?: string;
+}
+
+export interface WhatsAppCatalogSyncActionResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  configured: boolean;
+  submitted: number;
+  upserted: number;
+  deleted: number;
+  skipped: number;
+  validationErrors: number;
   error?: string;
 }
 
@@ -395,6 +426,126 @@ export async function subscribeWhatsAppWebhooksAction(
       error: isAuthorizationError(error)
         ? error.message
         : 'WhatsApp webhook subscription failed.',
+    };
+  }
+}
+
+export async function testWhatsAppCatalogAction(
+  brand: string,
+): Promise<WhatsAppCatalogConnectionActionResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:write');
+    assertBrandAccess(scope, brand, 'WhatsApp catalog');
+
+    const result = await testWhatsAppCatalogConnection(brand);
+    await logAdminAudit({
+      action: result.ok ? 'whatsapp_catalog_test_passed' : 'whatsapp_catalog_test_failed',
+      entityType: 'whatsapp_catalog',
+      entityId: result.catalogId || 'not-configured',
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: result.ok
+        ? `Verified the WhatsApp catalog connection for ${brand}.`
+        : `WhatsApp catalog connection test failed for ${brand}.`,
+      metadata: {
+        graphVersion: META_GRAPH_VERSION,
+        status: result.status ?? null,
+        linkedToWaba: result.linkedToWaba,
+        catalogVisible: result.catalogVisible ?? null,
+        cartEnabled: result.cartEnabled ?? null,
+      },
+    });
+
+    return {
+      success: true,
+      ok: result.ok,
+      brand,
+      checkedAt,
+      catalogName: result.catalogName,
+      linkedToWaba: result.linkedToWaba,
+      catalogVisible: result.catalogVisible,
+      cartEnabled: result.cartEnabled,
+      status: result.status,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      error: isAuthorizationError(error)
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'WhatsApp catalog connection test failed.',
+    };
+  }
+}
+
+export async function syncWhatsAppCatalogAction(
+  brand: string,
+): Promise<WhatsAppCatalogSyncActionResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:write');
+    assertBrandAccess(scope, brand, 'WhatsApp catalog sync');
+
+    const result = await syncWhatsAppCatalogForBrand(brand);
+    await logAdminAudit({
+      action: result.ok ? 'whatsapp_catalog_sync_submitted' : 'whatsapp_catalog_sync_failed',
+      entityType: 'whatsapp_catalog',
+      entityId: brand,
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: result.ok
+        ? `Submitted ${result.submitted} WhatsApp catalog change${result.submitted === 1 ? '' : 's'} for ${brand}.`
+        : `WhatsApp catalog sync failed for ${brand}.`,
+      metadata: {
+        graphVersion: META_GRAPH_VERSION,
+        configured: result.configured,
+        submitted: result.submitted,
+        upserted: result.upserted,
+        deleted: result.deleted,
+        skipped: result.skipped,
+        validationErrors: result.validationErrors,
+        status: result.status ?? null,
+      },
+    });
+
+    return {
+      success: true,
+      ok: result.ok,
+      brand,
+      checkedAt,
+      configured: result.configured,
+      submitted: result.submitted,
+      upserted: result.upserted,
+      deleted: result.deleted,
+      skipped: result.skipped,
+      validationErrors: result.validationErrors,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      configured: false,
+      submitted: 0,
+      upserted: 0,
+      deleted: 0,
+      skipped: 0,
+      validationErrors: 0,
+      error: isAuthorizationError(error)
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'WhatsApp catalog sync failed.',
     };
   }
 }

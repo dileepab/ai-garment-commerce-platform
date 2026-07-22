@@ -588,6 +588,7 @@ model BrandChannelConfig {
   instagramAccountId         String?
   instagramAccessToken       String?
   whatsappBusinessAccountId  String?
+  whatsappCatalogId          String?
   whatsappPhoneNumberId      String?  @unique
   whatsappDisplayPhoneNumber String?
   whatsappAccessToken        String?
