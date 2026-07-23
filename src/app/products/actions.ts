@@ -2,7 +2,6 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { after } from 'next/server';
 import {
   accessDeniedResult,
   assertBrandAccess,
@@ -11,11 +10,6 @@ import {
 } from '@/lib/authz';
 import { nextProductSku } from '@/lib/product-sku';
 import { logAdminAudit } from '@/lib/admin-audit';
-import { buildMetaCatalogVariantRetailerId } from '@/lib/meta-catalog-feed';
-import {
-  retireWhatsAppCatalogProduct,
-  syncWhatsAppCatalogProduct,
-} from '@/lib/whatsapp-catalog-sync';
 
 export interface VariantInput {
   id?: number;
@@ -130,53 +124,6 @@ function validateVariants(variants: VariantInput[]): string | null {
   return null;
 }
 
-async function syncProductCatalogAfterCommit(
-  productId: number,
-  previous?: {
-    brand: string;
-    sku: string | null;
-    variants: Array<{ id: number; sku: string | null }>;
-  },
-  nextBrand?: string,
-): Promise<void> {
-  try {
-    if (previous && nextBrand && previous.brand !== nextBrand) {
-      const parentId = previous.sku?.trim() || `PRODUCT-${productId}`;
-      const retirementIds = [
-        parentId,
-        ...previous.variants.map((variant) =>
-          buildMetaCatalogVariantRetailerId(
-            { id: productId, sku: previous.sku },
-            variant,
-          ),
-        ),
-      ];
-      const retirement = await retireWhatsAppCatalogProduct(previous.brand, retirementIds);
-      if (retirement.configured && !retirement.ok) {
-        console.warn('[Products] Previous WhatsApp catalog item retirement failed.', {
-          brand: previous.brand,
-          productId,
-          error: retirement.error,
-        });
-      }
-    }
-
-    const sync = await syncWhatsAppCatalogProduct(productId);
-    if (sync.configured && !sync.ok) {
-      console.warn('[Products] WhatsApp catalog product sync failed.', {
-        brand: sync.brand,
-        productId,
-        error: sync.error,
-      });
-    }
-  } catch (error) {
-    console.warn('[Products] WhatsApp catalog sync could not run after product save.', {
-      productId,
-      error: error instanceof Error ? error.message : 'Unexpected catalog sync error.',
-    });
-  }
-}
-
 export async function createProduct(input: ProductFormInput): Promise<ProductActionResult> {
   try {
     const scope = await requireActionPermission('products:write');
@@ -237,7 +184,6 @@ export async function createProduct(input: ProductFormInput): Promise<ProductAct
       return created;
     });
 
-    after(() => syncProductCatalogAfterCommit(product.id));
     revalidatePath('/products');
     return { success: true, productId: product.id };
   } catch (error) {
@@ -395,7 +341,6 @@ export async function updateProduct(
       }
     });
 
-    after(() => syncProductCatalogAfterCommit(productId, existing, input.brand.trim()));
     revalidatePath('/products');
     return { success: true, productId };
   } catch (error) {

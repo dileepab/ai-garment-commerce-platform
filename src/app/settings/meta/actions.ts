@@ -17,10 +17,6 @@ import {
   registerWhatsAppPhone,
   subscribeWhatsAppBusinessAccount,
 } from '@/lib/whatsapp-registration';
-import {
-  syncWhatsAppCatalogForBrand,
-  testWhatsAppCatalogConnection,
-} from '@/lib/whatsapp-catalog-sync';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 
@@ -39,6 +35,33 @@ export interface MetaConnectionTestResult {
   display_phone_number?: string;
   verified_name?: string;
   host?: string;
+  error?: string;
+}
+
+export interface FacebookPagePost {
+  id: string;
+  message?: string;
+  createdTime?: string;
+  permalinkUrl?: string;
+  reactionCount: number;
+  commentCount: number;
+  shareCount: number;
+  recentComments: Array<{
+    id: string;
+    message?: string;
+    createdTime?: string;
+  }>;
+}
+
+export interface FacebookPagePostsResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  pageId?: string;
+  pageName?: string;
+  posts: FacebookPagePost[];
+  commentReadError?: string;
   error?: string;
 }
 
@@ -62,33 +85,6 @@ export interface WhatsAppWebhookSubscriptionActionResult {
   error?: string;
 }
 
-export interface WhatsAppCatalogConnectionActionResult {
-  success: boolean;
-  ok: boolean;
-  brand: string;
-  checkedAt: string;
-  catalogName?: string;
-  linkedToWaba?: boolean;
-  catalogVisible?: boolean;
-  cartEnabled?: boolean;
-  status?: number;
-  error?: string;
-}
-
-export interface WhatsAppCatalogSyncActionResult {
-  success: boolean;
-  ok: boolean;
-  brand: string;
-  checkedAt: string;
-  configured: boolean;
-  submitted: number;
-  upserted: number;
-  deleted: number;
-  skipped: number;
-  validationErrors: number;
-  error?: string;
-}
-
 interface MetaProfileResponse {
   id?: string;
   name?: string;
@@ -100,6 +96,34 @@ interface MetaProfileResponse {
     code?: string | number;
     type?: string;
   };
+}
+
+interface MetaSummaryField {
+  data?: Array<{
+    id?: string;
+    message?: string;
+    created_time?: string;
+  }>;
+  summary?: { total_count?: number };
+}
+
+interface MetaPagePostResponse {
+  id?: string;
+  message?: string;
+  created_time?: string;
+  permalink_url?: string;
+  reactions?: MetaSummaryField;
+  comments?: MetaSummaryField;
+  shares?: { count?: number };
+}
+
+interface MetaPagePostsResponse {
+  data?: MetaPagePostResponse[];
+  error?: MetaProfileResponse['error'];
+}
+
+interface MetaPageCommentsResponse extends MetaSummaryField {
+  error?: MetaProfileResponse['error'];
 }
 
 function buildGraphUrl(host: string, objectId: string, fields: string): string {
@@ -135,6 +159,154 @@ async function fetchMetaProfile(params: {
   );
   const data = await response.json() as MetaProfileResponse;
   return { response, data, host: params.host };
+}
+
+export async function loadFacebookPagePostsAction(
+  brand: string,
+): Promise<FacebookPagePostsResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:view');
+    assertBrandAccess(scope, brand, 'Facebook Page posts');
+
+    const config = await resolveFacebookConfigForBrand(brand);
+    if (!config) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        posts: [],
+        error: 'Missing Facebook Page ID or Page access token.',
+      };
+    }
+
+    const [profileResult, postsResponse] = await Promise.all([
+      fetchMetaProfile({
+        host: 'graph.facebook.com',
+        objectId: config.pageId,
+        accessToken: config.pageAccessToken,
+        fields: 'id,name',
+      }),
+      fetch((() => {
+        const url = new URL(
+          `https://graph.facebook.com/${META_GRAPH_VERSION}/${config.pageId}/posts`,
+        );
+        url.searchParams.set(
+          'fields',
+          'id,message,created_time,permalink_url,shares,reactions.limit(0).summary(true)',
+        );
+        url.searchParams.set('limit', '5');
+        return url;
+      })(), {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${config.pageAccessToken}` },
+      }),
+    ]);
+    const postsData = await postsResponse.json() as MetaPagePostsResponse;
+
+    if (!profileResult.response.ok) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        posts: [],
+        error: metaErrorMessage(
+          profileResult.data,
+          `Meta Graph returned ${profileResult.response.status} loading the Page.`,
+        ),
+      };
+    }
+
+    if (!postsResponse.ok) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        pageId: profileResult.data.id,
+        pageName: profileResult.data.name,
+        posts: [],
+        error: metaErrorMessage(
+          postsData,
+          `Meta Graph returned ${postsResponse.status} loading Page-authored posts. Confirm pages_read_engagement is granted to the token.`,
+        ),
+      };
+    }
+
+    const pagePosts = (postsData.data ?? [])
+      .filter((post): post is MetaPagePostResponse & { id: string } => Boolean(post.id))
+      .slice(0, 5);
+    const commentResults = await Promise.all(pagePosts.map(async (post) => {
+      const url = new URL(
+        `https://graph.facebook.com/${META_GRAPH_VERSION}/${post.id}/comments`,
+      );
+      url.searchParams.set('fields', 'id,message,created_time');
+      url.searchParams.set('limit', '3');
+      url.searchParams.set('summary', 'true');
+      const response = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${config.pageAccessToken}` },
+      });
+      const data = await response.json() as MetaPageCommentsResponse;
+      return { response, data };
+    }));
+    const failedCommentResult = commentResults.find((result) => !result.response.ok);
+    const posts = pagePosts.map((post, index) => {
+      const comments = commentResults[index]?.response.ok
+        ? commentResults[index].data
+        : undefined;
+      return {
+        id: post.id,
+        message: post.message,
+        createdTime: post.created_time,
+        permalinkUrl: post.permalink_url,
+        reactionCount: post.reactions?.summary?.total_count ?? 0,
+        commentCount: comments?.summary?.total_count ?? 0,
+        shareCount: post.shares?.count ?? 0,
+        recentComments: (comments?.data ?? [])
+          .filter((comment): comment is { id: string; message?: string; created_time?: string } => Boolean(comment.id))
+          .map((comment) => ({
+            id: comment.id,
+            message: comment.message,
+            createdTime: comment.created_time,
+          })),
+      };
+    });
+
+    return {
+      success: true,
+      ok: true,
+      brand,
+      checkedAt,
+      pageId: profileResult.data.id,
+      pageName: profileResult.data.name,
+      posts,
+      commentReadError: failedCommentResult
+        ? metaErrorMessage(
+            failedCommentResult.data,
+            'Meta did not allow user comments to be read. Grant pages_read_user_content to the Page token.',
+          )
+        : undefined,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      posts: [],
+      error: isAuthorizationError(error)
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Could not load Facebook Page posts.',
+    };
+  }
 }
 
 export async function testMetaConnectionAction(
@@ -426,126 +598,6 @@ export async function subscribeWhatsAppWebhooksAction(
       error: isAuthorizationError(error)
         ? error.message
         : 'WhatsApp webhook subscription failed.',
-    };
-  }
-}
-
-export async function testWhatsAppCatalogAction(
-  brand: string,
-): Promise<WhatsAppCatalogConnectionActionResult> {
-  const checkedAt = new Date().toISOString();
-
-  try {
-    const scope = await requireActionPermission('settings:write');
-    assertBrandAccess(scope, brand, 'WhatsApp catalog');
-
-    const result = await testWhatsAppCatalogConnection(brand);
-    await logAdminAudit({
-      action: result.ok ? 'whatsapp_catalog_test_passed' : 'whatsapp_catalog_test_failed',
-      entityType: 'whatsapp_catalog',
-      entityId: result.catalogId || 'not-configured',
-      brand,
-      actorEmail: scope.email ?? null,
-      summary: result.ok
-        ? `Verified the WhatsApp catalog connection for ${brand}.`
-        : `WhatsApp catalog connection test failed for ${brand}.`,
-      metadata: {
-        graphVersion: META_GRAPH_VERSION,
-        status: result.status ?? null,
-        linkedToWaba: result.linkedToWaba,
-        catalogVisible: result.catalogVisible ?? null,
-        cartEnabled: result.cartEnabled ?? null,
-      },
-    });
-
-    return {
-      success: true,
-      ok: result.ok,
-      brand,
-      checkedAt,
-      catalogName: result.catalogName,
-      linkedToWaba: result.linkedToWaba,
-      catalogVisible: result.catalogVisible,
-      cartEnabled: result.cartEnabled,
-      status: result.status,
-      error: result.error,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      ok: false,
-      brand,
-      checkedAt,
-      error: isAuthorizationError(error)
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'WhatsApp catalog connection test failed.',
-    };
-  }
-}
-
-export async function syncWhatsAppCatalogAction(
-  brand: string,
-): Promise<WhatsAppCatalogSyncActionResult> {
-  const checkedAt = new Date().toISOString();
-
-  try {
-    const scope = await requireActionPermission('settings:write');
-    assertBrandAccess(scope, brand, 'WhatsApp catalog sync');
-
-    const result = await syncWhatsAppCatalogForBrand(brand);
-    await logAdminAudit({
-      action: result.ok ? 'whatsapp_catalog_sync_submitted' : 'whatsapp_catalog_sync_failed',
-      entityType: 'whatsapp_catalog',
-      entityId: brand,
-      brand,
-      actorEmail: scope.email ?? null,
-      summary: result.ok
-        ? `Submitted ${result.submitted} WhatsApp catalog change${result.submitted === 1 ? '' : 's'} for ${brand}.`
-        : `WhatsApp catalog sync failed for ${brand}.`,
-      metadata: {
-        graphVersion: META_GRAPH_VERSION,
-        configured: result.configured,
-        submitted: result.submitted,
-        upserted: result.upserted,
-        deleted: result.deleted,
-        skipped: result.skipped,
-        validationErrors: result.validationErrors,
-        status: result.status ?? null,
-      },
-    });
-
-    return {
-      success: true,
-      ok: result.ok,
-      brand,
-      checkedAt,
-      configured: result.configured,
-      submitted: result.submitted,
-      upserted: result.upserted,
-      deleted: result.deleted,
-      skipped: result.skipped,
-      validationErrors: result.validationErrors,
-      error: result.error,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      ok: false,
-      brand,
-      checkedAt,
-      configured: false,
-      submitted: 0,
-      upserted: 0,
-      deleted: 0,
-      skipped: 0,
-      validationErrors: 0,
-      error: isAuthorizationError(error)
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'WhatsApp catalog sync failed.',
     };
   }
 }

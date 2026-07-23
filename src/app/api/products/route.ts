@@ -1,9 +1,8 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
 import { getBrandScopedWhere } from '@/lib/access-control';
 import { nextProductSku } from '@/lib/product-sku';
-import { syncWhatsAppCatalogProduct } from '@/lib/whatsapp-catalog-sync';
 import {
   accessDeniedResponse,
   assertBrandAccess,
@@ -103,24 +102,6 @@ export async function POST(request: Request) {
       }
 
       return created;
-    });
-
-    after(async () => {
-      try {
-        const catalogSync = await syncWhatsAppCatalogProduct(product.id);
-        if (catalogSync.configured && !catalogSync.ok) {
-          console.warn('[Products API] WhatsApp catalog sync failed after create.', {
-            brand: catalogSync.brand,
-            productId: product.id,
-            error: catalogSync.error,
-          });
-        }
-      } catch (catalogError) {
-        console.warn('[Products API] WhatsApp catalog sync could not run after create.', {
-          productId: product.id,
-          error: catalogError instanceof Error ? catalogError.message : 'Unexpected catalog sync error.',
-        });
-      }
     });
 
     return NextResponse.json({ success: true, data: product });
