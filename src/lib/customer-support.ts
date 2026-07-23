@@ -1,5 +1,4 @@
 import prisma from '@/lib/prisma';
-import { getBrandChannelConfigView } from '@/lib/brand-channel-config';
 import {
   getDefaultMerchantSettings,
   getMerchantSettings,
@@ -81,25 +80,7 @@ export function getDefaultSupportContactConfig(): SupportContactConfig {
 }
 
 export async function getSupportContactConfig(brand?: string | null): Promise<SupportContactConfig> {
-  const support = (await getMerchantSettings(brand)).support;
-  const cleanedBrand = cleanSupportContactValue(brand);
-
-  if (!cleanedBrand) {
-    return support;
-  }
-
-  const channelConfig = await getBrandChannelConfigView(cleanedBrand);
-  const brandWhatsapp = cleanSupportContactValue(channelConfig.whatsappDisplayPhoneNumber);
-
-  if (!brandWhatsapp) {
-    return support;
-  }
-
-  return {
-    ...support,
-    phone: brandWhatsapp,
-    whatsapp: brandWhatsapp,
-  };
+  return (await getMerchantSettings(brand)).support;
 }
 
 export function getSupportContactConfigSync(): SupportContactConfig {
