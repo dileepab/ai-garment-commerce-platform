@@ -822,8 +822,24 @@ function SettingsForm({
             <CollapsibleSection title="Store and Support">
               <div style={gridStyle}>
                 <TextField label="Display name" name="displayName" value={settings.displayName} disabled={!canManage} />
-                <TextField label="Support phone" name="supportPhone" value={settings.support.phone} disabled={!canManage} />
-                <TextField label="Support WhatsApp" name="supportWhatsapp" value={settings.support.whatsapp} disabled={!canManage} />
+                {settings.brand ? (
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>Support center number</span>
+                    <input
+                      className="app-input"
+                      value={channelConfig?.whatsappDisplayPhoneNumber || 'Not configured'}
+                      readOnly
+                    />
+                    <span className="app-muted" style={{ fontSize: 12 }}>
+                      Uses this brand&apos;s WhatsApp display number. Update it under Meta Channels.
+                    </span>
+                  </label>
+                ) : (
+                  <>
+                    <TextField label="Fallback support phone" name="supportPhone" value={settings.support.phone} disabled={!canManage} />
+                    <TextField label="Fallback support WhatsApp" name="supportWhatsapp" value={settings.support.whatsapp} disabled={!canManage} />
+                  </>
+                )}
                 <TextField label="Support hours" name="supportHours" value={settings.support.hours} disabled={!canManage} />
               </div>
               <div style={{ ...gridStyle, marginTop: 12 }}>
