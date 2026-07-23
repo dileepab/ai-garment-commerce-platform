@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { getBrandChannelConfigView } from '@/lib/brand-channel-config';
 
 const warnedKeys = new Set<string>();
 
@@ -217,6 +218,26 @@ export function getDefaultMerchantSettings(): MerchantSettings {
   };
 }
 
+function applyBrandWhatsappToSupport(
+  settings: MerchantSettings,
+  whatsappDisplayPhoneNumber?: string | null
+): MerchantSettings {
+  const brandWhatsapp = cleanOptionalText(whatsappDisplayPhoneNumber);
+
+  if (!brandWhatsapp) {
+    return settings;
+  }
+
+  return {
+    ...settings,
+    support: {
+      ...settings.support,
+      phone: brandWhatsapp,
+      whatsapp: brandWhatsapp,
+    },
+  };
+}
+
 function overlayMerchantSettings(
   base: MerchantSettings,
   record: MerchantSettingsRecord,
@@ -343,13 +364,16 @@ export async function getMerchantSettings(brand?: string | null): Promise<Mercha
   const storeKey = getMerchantSettingsStoreKey(cleanedBrand);
 
   try {
-    const records = await prisma.merchantSettings.findMany({
-      where: {
-        storeKey: {
-          in: cleanedBrand ? [DEFAULT_STORE_KEY, storeKey] : [DEFAULT_STORE_KEY],
+    const [records, channelConfig] = await Promise.all([
+      prisma.merchantSettings.findMany({
+        where: {
+          storeKey: {
+            in: cleanedBrand ? [DEFAULT_STORE_KEY, storeKey] : [DEFAULT_STORE_KEY],
+          },
         },
-      },
-    });
+      }),
+      cleanedBrand ? getBrandChannelConfigView(cleanedBrand) : Promise.resolve(null),
+    ]);
     const globalRecord = records.find((record) => record.storeKey === DEFAULT_STORE_KEY) as MerchantSettingsRecord | undefined;
     const scopedRecord = cleanedBrand
       ? records.find((record) => record.storeKey === storeKey) as MerchantSettingsRecord | undefined
@@ -358,7 +382,7 @@ export async function getMerchantSettings(brand?: string | null): Promise<Mercha
       ? overlayMerchantSettings(defaults, globalRecord, false)
       : defaults;
 
-    return scopedRecord
+    const settings = scopedRecord
       ? overlayMerchantSettings(globalSettings, scopedRecord, true)
       : {
           ...globalSettings,
@@ -366,6 +390,8 @@ export async function getMerchantSettings(brand?: string | null): Promise<Mercha
           brand: cleanedBrand ?? null,
           displayName: cleanedBrand ?? globalSettings.displayName,
         };
+
+    return applyBrandWhatsappToSupport(settings, channelConfig?.whatsappDisplayPhoneNumber);
   } catch (error) {
     warnSettingsReadError(error);
     return {
