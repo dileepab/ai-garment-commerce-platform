@@ -202,7 +202,11 @@ export async function updateProduct(
 
     const existing = await prisma.product.findUnique({
       where: { id: productId },
-      select: { brand: true, sku: true, variants: { select: { id: true } } },
+      select: {
+        brand: true,
+        sku: true,
+        variants: { select: { id: true, sku: true } },
+      },
     });
 
     if (!existing) return { success: false, error: 'Product not found.' };

@@ -3,16 +3,24 @@
 import {
   resolveFacebookConfigForBrand,
   resolveInstagramConfigForBrand,
+  resolveWhatsAppConfigForBrand,
 } from '@/lib/brand-channel-config';
+import { isInstagramLoginAccessToken } from '@/lib/meta-auth';
 import {
   assertBrandAccess,
   isAuthorizationError,
   requireActionPermission,
 } from '@/lib/authz';
+import { logAdminAudit } from '@/lib/admin-audit';
+import {
+  isValidWhatsAppRegistrationPin,
+  registerWhatsAppPhone,
+  subscribeWhatsAppBusinessAccount,
+} from '@/lib/whatsapp-registration';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 
-export type MetaConnectionChannel = 'facebook' | 'instagram';
+export type MetaConnectionChannel = 'facebook' | 'instagram' | 'whatsapp';
 
 export interface MetaConnectionTestResult {
   success: boolean;
@@ -24,7 +32,56 @@ export interface MetaConnectionTestResult {
   id?: string;
   name?: string;
   username?: string;
+  display_phone_number?: string;
+  verified_name?: string;
   host?: string;
+  error?: string;
+}
+
+export interface FacebookPagePost {
+  id: string;
+  message?: string;
+  createdTime?: string;
+  permalinkUrl?: string;
+  reactionCount: number;
+  commentCount: number;
+  shareCount: number;
+  recentComments: Array<{
+    id: string;
+    message?: string;
+    createdTime?: string;
+  }>;
+}
+
+export interface FacebookPagePostsResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  pageId?: string;
+  pageName?: string;
+  posts: FacebookPagePost[];
+  commentReadError?: string;
+  error?: string;
+}
+
+export interface WhatsAppRegistrationActionResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  status?: number;
+  errorCode?: string | number;
+  error?: string;
+}
+
+export interface WhatsAppWebhookSubscriptionActionResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  status?: number;
+  errorCode?: string | number;
   error?: string;
 }
 
@@ -32,6 +89,8 @@ interface MetaProfileResponse {
   id?: string;
   name?: string;
   username?: string;
+  display_phone_number?: string;
+  verified_name?: string;
   error?: {
     message?: string;
     code?: string | number;
@@ -39,10 +98,37 @@ interface MetaProfileResponse {
   };
 }
 
-function buildGraphUrl(host: string, objectId: string, accessToken: string, fields: string): string {
+interface MetaSummaryField {
+  data?: Array<{
+    id?: string;
+    message?: string;
+    created_time?: string;
+  }>;
+  summary?: { total_count?: number };
+}
+
+interface MetaPagePostResponse {
+  id?: string;
+  message?: string;
+  created_time?: string;
+  permalink_url?: string;
+  reactions?: MetaSummaryField;
+  comments?: MetaSummaryField;
+  shares?: { count?: number };
+}
+
+interface MetaPagePostsResponse {
+  data?: MetaPagePostResponse[];
+  error?: MetaProfileResponse['error'];
+}
+
+interface MetaPageCommentsResponse extends MetaSummaryField {
+  error?: MetaProfileResponse['error'];
+}
+
+function buildGraphUrl(host: string, objectId: string, fields: string): string {
   const url = new URL(`https://${host}/${META_GRAPH_VERSION}/${objectId}`);
   url.searchParams.set('fields', fields);
-  url.searchParams.set('access_token', accessToken);
   return url.toString();
 }
 
@@ -64,11 +150,163 @@ async function fetchMetaProfile(params: {
   fields: string;
 }): Promise<{ response: Response; data: MetaProfileResponse; host: string }> {
   const response = await fetch(
-    buildGraphUrl(params.host, params.objectId, params.accessToken, params.fields),
-    { method: 'GET', cache: 'no-store' },
+    buildGraphUrl(params.host, params.objectId, params.fields),
+    {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${params.accessToken}` },
+    },
   );
   const data = await response.json() as MetaProfileResponse;
   return { response, data, host: params.host };
+}
+
+export async function loadFacebookPagePostsAction(
+  brand: string,
+): Promise<FacebookPagePostsResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:view');
+    assertBrandAccess(scope, brand, 'Facebook Page posts');
+
+    const config = await resolveFacebookConfigForBrand(brand);
+    if (!config) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        posts: [],
+        error: 'Missing Facebook Page ID or Page access token.',
+      };
+    }
+
+    const [profileResult, postsResponse] = await Promise.all([
+      fetchMetaProfile({
+        host: 'graph.facebook.com',
+        objectId: config.pageId,
+        accessToken: config.pageAccessToken,
+        fields: 'id,name',
+      }),
+      fetch((() => {
+        const url = new URL(
+          `https://graph.facebook.com/${META_GRAPH_VERSION}/${config.pageId}/posts`,
+        );
+        url.searchParams.set(
+          'fields',
+          'id,message,created_time,permalink_url,shares,reactions.limit(0).summary(true)',
+        );
+        url.searchParams.set('limit', '5');
+        return url;
+      })(), {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${config.pageAccessToken}` },
+      }),
+    ]);
+    const postsData = await postsResponse.json() as MetaPagePostsResponse;
+
+    if (!profileResult.response.ok) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        posts: [],
+        error: metaErrorMessage(
+          profileResult.data,
+          `Meta Graph returned ${profileResult.response.status} loading the Page.`,
+        ),
+      };
+    }
+
+    if (!postsResponse.ok) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        pageId: profileResult.data.id,
+        pageName: profileResult.data.name,
+        posts: [],
+        error: metaErrorMessage(
+          postsData,
+          `Meta Graph returned ${postsResponse.status} loading Page-authored posts. Confirm pages_read_engagement is granted to the token.`,
+        ),
+      };
+    }
+
+    const pagePosts = (postsData.data ?? [])
+      .filter((post): post is MetaPagePostResponse & { id: string } => Boolean(post.id))
+      .slice(0, 5);
+    const commentResults = await Promise.all(pagePosts.map(async (post) => {
+      const url = new URL(
+        `https://graph.facebook.com/${META_GRAPH_VERSION}/${post.id}/comments`,
+      );
+      url.searchParams.set('fields', 'id,message,created_time');
+      url.searchParams.set('limit', '3');
+      url.searchParams.set('summary', 'true');
+      const response = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${config.pageAccessToken}` },
+      });
+      const data = await response.json() as MetaPageCommentsResponse;
+      return { response, data };
+    }));
+    const failedCommentResult = commentResults.find((result) => !result.response.ok);
+    const posts = pagePosts.map((post, index) => {
+      const comments = commentResults[index]?.response.ok
+        ? commentResults[index].data
+        : undefined;
+      return {
+        id: post.id,
+        message: post.message,
+        createdTime: post.created_time,
+        permalinkUrl: post.permalink_url,
+        reactionCount: post.reactions?.summary?.total_count ?? 0,
+        commentCount: comments?.summary?.total_count ?? 0,
+        shareCount: post.shares?.count ?? 0,
+        recentComments: (comments?.data ?? [])
+          .filter((comment): comment is { id: string; message?: string; created_time?: string } => Boolean(comment.id))
+          .map((comment) => ({
+            id: comment.id,
+            message: comment.message,
+            createdTime: comment.created_time,
+          })),
+      };
+    });
+
+    return {
+      success: true,
+      ok: true,
+      brand,
+      checkedAt,
+      pageId: profileResult.data.id,
+      pageName: profileResult.data.name,
+      posts,
+      commentReadError: failedCommentResult
+        ? metaErrorMessage(
+            failedCommentResult.data,
+            'Meta did not allow user comments to be read. Grant pages_read_user_content to the Page token.',
+          )
+        : undefined,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      posts: [],
+      error: isAuthorizationError(error)
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Could not load Facebook Page posts.',
+    };
+  }
 }
 
 export async function testMetaConnectionAction(
@@ -117,6 +355,44 @@ export async function testMetaConnectionAction(
       };
     }
 
+    if (channel === 'whatsapp') {
+      const config = await resolveWhatsAppConfigForBrand(brand);
+      if (!config) {
+        return {
+          success: true,
+          ok: false,
+          brand,
+          channel,
+          checkedAt,
+          error: 'Missing WhatsApp Phone Number ID or access token.',
+        };
+      }
+
+      const result = await fetchMetaProfile({
+        host: 'graph.facebook.com',
+        objectId: config.phoneNumberId,
+        accessToken: config.accessToken,
+        fields: 'id,display_phone_number,verified_name',
+      });
+
+      return {
+        success: true,
+        ok: result.response.ok && result.data.id === config.phoneNumberId,
+        brand,
+        channel,
+        checkedAt,
+        status: result.response.status,
+        id: result.data.id,
+        name: result.data.verified_name || result.data.display_phone_number,
+        host: result.host,
+        error: result.response.ok
+          ? result.data.id === config.phoneNumberId
+            ? undefined
+            : 'Token resolved, but not for the configured WhatsApp Phone Number ID.'
+          : metaErrorMessage(result.data, `Meta Graph returned ${result.response.status}.`),
+      };
+    }
+
     const config = await resolveInstagramConfigForBrand(brand);
     if (!config) {
       return {
@@ -135,7 +411,7 @@ export async function testMetaConnectionAction(
       accessToken: config.accessToken,
       fields: 'id,username,name',
     });
-    const tokenLooksLikeInstagramLogin = config.accessToken.trim().startsWith('IG');
+    const tokenLooksLikeInstagramLogin = isInstagramLoginAccessToken(config.accessToken);
     const result = facebookGraph.response.ok || !tokenLooksLikeInstagramLogin
       ? facebookGraph
       : await fetchMetaProfile({
@@ -174,6 +450,154 @@ export async function testMetaConnectionAction(
         : error instanceof Error
           ? error.message
           : 'Connection test failed.',
+    };
+  }
+}
+
+export async function registerWhatsAppPhoneAction(
+  brand: string,
+  pin: string,
+): Promise<WhatsAppRegistrationActionResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:write');
+    assertBrandAccess(scope, brand, 'WhatsApp registration');
+
+    if (!isValidWhatsAppRegistrationPin(pin)) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        error: 'Enter exactly six digits for the WhatsApp two-step PIN.',
+      };
+    }
+
+    const config = await resolveWhatsAppConfigForBrand(brand);
+    if (!config) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        error: 'Missing WhatsApp Phone Number ID or system-user token.',
+      };
+    }
+
+    const result = await registerWhatsAppPhone({
+      phoneNumberId: config.phoneNumberId,
+      accessToken: config.accessToken,
+      pin,
+    });
+    const maskedPhoneNumberId = maskMetaId(config.phoneNumberId);
+
+    await logAdminAudit({
+      action: result.ok
+        ? 'whatsapp_phone_registered'
+        : 'whatsapp_phone_registration_failed',
+      entityType: 'whatsapp_phone_number',
+      entityId: maskedPhoneNumberId,
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: result.ok
+        ? `Registered the WhatsApp phone number for ${brand}.`
+        : `WhatsApp phone registration failed for ${brand}.`,
+      metadata: {
+        phoneNumberId: maskedPhoneNumberId,
+        graphVersion: META_GRAPH_VERSION,
+        status: result.status,
+        errorCode: result.errorCode ?? null,
+      },
+    });
+
+    return {
+      success: true,
+      ok: result.ok,
+      brand,
+      checkedAt,
+      status: result.status,
+      errorCode: result.errorCode,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      error: isAuthorizationError(error)
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'WhatsApp registration failed.',
+    };
+  }
+}
+
+export async function subscribeWhatsAppWebhooksAction(
+  brand: string,
+): Promise<WhatsAppWebhookSubscriptionActionResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:write');
+    assertBrandAccess(scope, brand, 'WhatsApp webhook subscription');
+
+    const config = await resolveWhatsAppConfigForBrand(brand);
+    if (!config?.businessAccountId) {
+      return {
+        success: true,
+        ok: false,
+        brand,
+        checkedAt,
+        error: 'Missing WhatsApp Business Account ID or system-user token.',
+      };
+    }
+
+    const result = await subscribeWhatsAppBusinessAccount({
+      businessAccountId: config.businessAccountId,
+      accessToken: config.accessToken,
+    });
+    const maskedBusinessAccountId = maskMetaId(config.businessAccountId);
+
+    await logAdminAudit({
+      action: result.ok
+        ? 'whatsapp_webhooks_subscribed'
+        : 'whatsapp_webhook_subscription_failed',
+      entityType: 'whatsapp_business_account',
+      entityId: maskedBusinessAccountId,
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: result.ok
+        ? `Subscribed ${brand} to WhatsApp webhooks.`
+        : `WhatsApp webhook subscription failed for ${brand}.`,
+      metadata: {
+        businessAccountId: maskedBusinessAccountId,
+        graphVersion: META_GRAPH_VERSION,
+        status: result.status,
+        errorCode: result.errorCode ?? null,
+      },
+    });
+
+    return {
+      success: true,
+      ok: result.ok,
+      brand,
+      checkedAt,
+      status: result.status,
+      errorCode: result.errorCode,
+      error: result.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      error: isAuthorizationError(error)
+        ? error.message
+        : 'WhatsApp webhook subscription failed.',
     };
   }
 }

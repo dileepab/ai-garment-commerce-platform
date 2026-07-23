@@ -42,19 +42,22 @@ async function saveConversationPair(
   senderId: string,
   channel: string,
   userMessage: string,
-  assistantReply: string
+  assistantReply: string,
+  brand?: string | null
 ) {
   await prisma.chatMessage.createMany({
     data: [
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'user',
         message: userMessage,
       },
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'assistant',
         message: assistantReply,
       },
@@ -73,6 +76,7 @@ export async function tryHandleOrderContactUpdate(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
       role: 'assistant',
     },
     orderBy: { createdAt: 'desc' },
@@ -120,6 +124,12 @@ export async function tryHandleOrderContactUpdate(
     reply = buildOrderSummaryReply(draft);
   }
 
-  await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+  await saveConversationPair(
+    params.senderId,
+    params.channel,
+    params.currentMessage,
+    reply,
+    params.brand || draft.brand
+  );
   return { handled: true, reply };
 }

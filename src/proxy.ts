@@ -7,6 +7,7 @@ export const config = {
      * - api/auth (NextAuth session/signin flows)
      * - api/webhooks (Meta Messenger/Instagram webhooks)
      * - api/storefront (public storefront catalog)
+     * - api/catalog/meta (public scheduled Meta catalog feeds)
      * - api/content/creatives/.../image (public image URLs for Meta publishing/replies)
      * - api/cron (background CRON jobs)
      * - size-charts (public size chart images for chat/storefront)
@@ -15,6 +16,6 @@ export const config = {
      * - favicon.ico, sitemap.xml, robots.txt
      * - login page
      */
-    '/((?!api/auth|api/webhooks|api/storefront|api/content/creatives/[^/]+/image|api/cron|size-charts|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|login).*)',
+    '/((?!api/auth|api/webhooks|api/storefront|api/catalog/meta|api/content/creatives/[^/]+/image|api/cron|size-charts|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|login).*)',
   ],
 };

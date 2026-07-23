@@ -605,16 +605,16 @@ async function main() {
         ],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
-            'Our latest collection is dropping very soon!',
-            'If you have a specific item in mind',
+            'We do not have any items listed right now.',
+            'New products will be available soon',
           ], 'English empty catalog reply');
           assertIncludes(transcript[1].bot, [
-            'අපගේ අලුත්ම ඇඳුම් එකතුව',
-            'පණිවිඩයක් එවන්න',
+            'භාණ්ඩ කිසිවක් ලැයිස්තුගත කර නැහැ',
+            'page එක follow කරන්න',
           ], 'Sinhala empty catalog reply');
           assertIncludes(transcript[2].bot, [
-            'எங்களது புதிய ஆடைகள் விரைவில் வரவிருக்கின்றன',
-            'மெசேஜ் செய்யவும்',
+            'எந்தப் பொருட்களும் பட்டியலிடப்படவில்லை',
+            'page-ஐ follow செய்யுங்கள்',
           ], 'Tamil empty catalog reply');
         },
       },
@@ -809,6 +809,8 @@ async function main() {
             'Thank you. Your order has been confirmed successfully ✅',
             'Order ID: #',
             'Current Stage: Confirmed',
+            'Our team will call you to confirm the order before dispatching it to the courier.',
+            'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
           ], 'Order placed reply');
 
           const { latestOrder } = await getLatestOrderForSender(senderId);
@@ -878,6 +880,8 @@ async function main() {
             'Thank you. Your order has been confirmed successfully ✅',
             'Order ID: #',
             'Current Stage: Confirmed',
+            'Our team will call you to confirm the order before dispatching it to the courier.',
+            'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
           ], 'Instagram order placed reply');
 
           const { customer, latestOrder } = await getLatestOrderForSender(senderId);

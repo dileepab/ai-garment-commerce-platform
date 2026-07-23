@@ -19,6 +19,12 @@ const PLATFORM_TO_BRAND_SLUG: Record<string, string> = {
   Modabella: 'modabella',
 };
 
+const PLATFORM_BRAND_ALIASES: Record<string, string[]> = {
+  Happybuy: ['Happybuy', 'Happyby', 'Happy Buy', 'happybuy', 'happyby'],
+  Cleopatra: ['Cleopatra', 'cleopatra'],
+  Modabella: ['Modabella', 'modabella'],
+};
+
 const COLOR_HEX: Record<string, string> = {
   beige: '#D9A899',
   black: '#1F1A14',
@@ -82,6 +88,11 @@ function slugify(value: string): string {
 function normalizeBrand(value?: string | null): string | null {
   const compact = (value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
   return compact ? BRAND_SLUG_TO_PLATFORM[compact] || null : null;
+}
+
+function storefrontBrandSlug(value: string): string {
+  const canonical = normalizeBrand(value);
+  return canonical ? PLATFORM_TO_BRAND_SLUG[canonical] : slugify(value);
 }
 
 function toAbsoluteUrl(value: string | null | undefined, origin: string): string | null {
@@ -182,7 +193,7 @@ function mapProductForStorefront(
     id: product.id,
     sku: product.sku,
     slug,
-    brand: PLATFORM_TO_BRAND_SLUG[product.brand] || slugify(product.brand),
+    brand: storefrontBrandSlug(product.brand),
     platformBrand: product.brand,
     title: product.name,
     price: formatPrice(product.price),
@@ -235,7 +246,10 @@ export async function GET(request: Request) {
 
     const products = await prisma.product.findMany({
       where: {
-        brand,
+        brand: {
+          in: PLATFORM_BRAND_ALIASES[brand] ?? [brand],
+          mode: 'insensitive',
+        },
         status: { notIn: ['archived', 'deleted'] },
       },
       include: {

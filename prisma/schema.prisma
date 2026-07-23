@@ -248,9 +248,12 @@ model ChatMessage {
   id        Int      @id @default(autoincrement())
   senderId  String // Meta sender ID or phone number
   channel   String   @default("messenger") // messenger, instagram, whatsapp
+  brand     String?
   role      String // "user" or "assistant"
   message   String
   createdAt DateTime @default(now())
+
+  @@index([brand, channel, senderId, createdAt])
 }
 
 model ConversationState {
@@ -578,16 +581,21 @@ model MerchantSettings {
 }
 
 model BrandChannelConfig {
-  id                      Int      @id @default(autoincrement())
-  brand                   String   @unique
-  facebookPageId          String?
-  facebookPageAccessToken String?
-  instagramAccountId      String?
-  instagramAccessToken    String?
-  isTestBrand             Boolean  @default(false)
-  notes                   String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                         Int      @id @default(autoincrement())
+  brand                      String   @unique
+  facebookPageId             String?
+  facebookPageAccessToken    String?
+  instagramAccountId         String?
+  instagramAccessToken       String?
+  whatsappBusinessAccountId  String?
+  whatsappCatalogId          String?
+  whatsappPhoneNumberId      String?  @unique
+  whatsappDisplayPhoneNumber String?
+  whatsappAccessToken        String?
+  isTestBrand                Boolean  @default(false)
+  notes                      String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
   @@index([facebookPageId])
   @@index([instagramAccountId])

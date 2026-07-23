@@ -113,7 +113,11 @@ export async function getAiStockReply(
     if (senderId) {
       // Fetch chat history
       previousMessages = await prisma.chatMessage.findMany({
-        where: { senderId },
+        where: {
+          senderId,
+          channel: channel || 'web',
+          ...(brandFilter ? { brand: brandFilter } : {}),
+        },
         orderBy: { createdAt: 'desc' },
         take: MAX_HISTORY,
         select: {
@@ -206,6 +210,7 @@ export async function getAiStockReply(
           data: {
             senderId,
             channel: channel || 'web',
+            brand: brandFilter || null,
             role: 'user',
             message: customerMessage,
           }
@@ -435,6 +440,7 @@ IMPORTANT:
         data: {
           senderId,
           channel: channel || 'web',
+          brand: brandFilter || null,
           role: 'assistant',
           message: reply,
         }

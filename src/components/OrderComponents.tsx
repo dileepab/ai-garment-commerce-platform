@@ -1581,7 +1581,7 @@ export function OrderDrawer({
                           </div>
                         </div>
                         <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
-                          ₺{(item.price * item.quantity).toLocaleString()}
+                          Rs {formatMoney(item.price * item.quantity)}
                         </div>
                       </div>
                     ))}

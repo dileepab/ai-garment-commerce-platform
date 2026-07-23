@@ -6,7 +6,7 @@
  * the data to the orchestrator.
  */
 
-export type MetaChannel = 'messenger' | 'instagram';
+export type MetaChannel = 'messenger' | 'instagram' | 'whatsapp';
 
 export interface NormalizedMessage {
   eventId?: string;
@@ -67,7 +67,7 @@ function decodeMetaValue(value?: string): string | null {
   }
 }
 
-function getStructuredPostbackMessage(payload?: string): string | null {
+export function getStructuredPostbackMessage(payload?: string): string | null {
   const trimmedPayload = getTrimmedValue(payload);
 
   if (

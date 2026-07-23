@@ -42,6 +42,7 @@ export async function resolveDraftFromConversation(
     where: {
       senderId,
       channel,
+      ...(brand ? { brand } : {}),
     },
     orderBy: { createdAt: 'desc' },
     take: 20,

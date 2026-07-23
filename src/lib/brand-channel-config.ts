@@ -12,12 +12,26 @@ export interface ResolvedInstagramConfig {
   accessToken: string;
 }
 
+export interface ResolvedWhatsAppConfig {
+  brand: string;
+  businessAccountId: string | null;
+  catalogId: string | null;
+  phoneNumberId: string;
+  displayPhoneNumber: string | null;
+  accessToken: string;
+}
+
 export interface BrandChannelConfigView {
   brand: string;
   facebookPageId: string | null;
   hasFacebookPageAccessToken: boolean;
   instagramAccountId: string | null;
   hasInstagramAccessToken: boolean;
+  whatsappBusinessAccountId: string | null;
+  whatsappCatalogId: string | null;
+  whatsappPhoneNumberId: string | null;
+  whatsappDisplayPhoneNumber: string | null;
+  hasWhatsappAccessToken: boolean;
   isTestBrand: boolean;
   notes: string | null;
 }
@@ -47,6 +61,19 @@ function resolveEnv(brand: string, suffix: string, fallback?: string): string | 
       ? process.env[`${suffix}_HAPPYBY`]
       : undefined;
   return process.env[`${suffix}_${brandKey}`] ?? happybuyKey ?? legacyHappybyKey ?? process.env[suffix] ?? fallback;
+}
+
+function resolveBrandEnv(brand: string, suffix: string): string | undefined {
+  const brandKey = brandEnvKey(brand);
+  const happybuyKey =
+    brandKey === 'HAPPYBUY' || brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY'
+      ? process.env[`${suffix}_HAPPYBUY`]
+      : undefined;
+  const legacyHappybyKey =
+    brandKey === 'HAPPYBUY' || brandKey === 'HAPPYBY' || brandKey === 'HAPPY_BUY'
+      ? process.env[`${suffix}_HAPPYBY`]
+      : undefined;
+  return process.env[`${suffix}_${brandKey}`] ?? happybuyKey ?? legacyHappybyKey;
 }
 
 function legacyFacebookPageIdForBrand(brand: string): string | undefined {
@@ -82,18 +109,39 @@ export async function getBrandChannelConfigView(brand: string): Promise<BrandCha
       facebookPageAccessToken: true,
       instagramAccountId: true,
       instagramAccessToken: true,
+      whatsappBusinessAccountId: true,
+      whatsappCatalogId: true,
+      whatsappPhoneNumberId: true,
+      whatsappDisplayPhoneNumber: true,
+      whatsappAccessToken: true,
       isTestBrand: true,
       notes: true,
     },
   });
 
   if (record) {
+    const whatsappBusinessAccountId =
+      record.whatsappBusinessAccountId ?? resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID');
+    const whatsappCatalogId =
+      record.whatsappCatalogId ?? resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID');
+    const whatsappPhoneNumberId =
+      record.whatsappPhoneNumberId ?? resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID');
+    const whatsappDisplayPhoneNumber =
+      record.whatsappDisplayPhoneNumber ?? resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE');
+    const whatsappAccessToken =
+      record.whatsappAccessToken ?? resolveBrandEnv(brand, 'META_WHATSAPP_ACCESS_TOKEN');
+
     return {
       brand,
       facebookPageId: record.facebookPageId ?? null,
       hasFacebookPageAccessToken: Boolean(record.facebookPageAccessToken),
       instagramAccountId: record.instagramAccountId ?? null,
       hasInstagramAccessToken: Boolean(record.instagramAccessToken),
+      whatsappBusinessAccountId: whatsappBusinessAccountId ?? null,
+      whatsappCatalogId: whatsappCatalogId ?? null,
+      whatsappPhoneNumberId: whatsappPhoneNumberId ?? null,
+      whatsappDisplayPhoneNumber: whatsappDisplayPhoneNumber ?? null,
+      hasWhatsappAccessToken: Boolean(whatsappAccessToken),
       isTestBrand: record.isTestBrand,
       notes: record.notes ?? null,
     };
@@ -105,6 +153,11 @@ export async function getBrandChannelConfigView(brand: string): Promise<BrandCha
     hasFacebookPageAccessToken: Boolean(resolveEnv(brand, 'META_FB_PAGE_TOKEN', process.env.META_PAGE_ACCESS_TOKEN)),
     instagramAccountId: legacyInstagramAccountIdForBrand(brand) ?? null,
     hasInstagramAccessToken: Boolean(resolveEnv(brand, 'META_IG_TOKEN', process.env.META_PAGE_ACCESS_TOKEN)),
+    whatsappBusinessAccountId: resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID') ?? null,
+    whatsappCatalogId: resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID') ?? null,
+    whatsappPhoneNumberId: resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID') ?? null,
+    whatsappDisplayPhoneNumber: resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE') ?? null,
+    hasWhatsappAccessToken: Boolean(resolveBrandEnv(brand, 'META_WHATSAPP_ACCESS_TOKEN')),
     isTestBrand: false,
     notes: null,
   };
@@ -152,6 +205,57 @@ export async function resolveInstagramConfigForBrand(brand: string): Promise<Res
   return { brand, accountId, accessToken };
 }
 
+export async function resolveWhatsAppConfigForBrand(brand: string): Promise<ResolvedWhatsAppConfig | null> {
+  const record = await prisma.brandChannelConfig.findUnique({
+    where: { brand },
+    select: {
+      whatsappBusinessAccountId: true,
+      whatsappCatalogId: true,
+      whatsappPhoneNumberId: true,
+      whatsappDisplayPhoneNumber: true,
+      whatsappAccessToken: true,
+    },
+  });
+
+  if (record) {
+    const phoneNumberId = cleanOptionalText(
+      record.whatsappPhoneNumberId ?? resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID')
+    );
+    const accessToken = cleanAccessToken(
+      record.whatsappAccessToken ?? resolveBrandEnv(brand, 'META_WHATSAPP_ACCESS_TOKEN')
+    );
+
+    if (!phoneNumberId || !accessToken) return null;
+    return {
+      brand,
+      businessAccountId: cleanOptionalText(
+        record.whatsappBusinessAccountId ?? resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID')
+      ),
+      catalogId: cleanOptionalText(
+        record.whatsappCatalogId ?? resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID')
+      ),
+      phoneNumberId,
+      displayPhoneNumber: cleanOptionalText(
+        record.whatsappDisplayPhoneNumber ?? resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE')
+      ),
+      accessToken,
+    };
+  }
+
+  const phoneNumberId = cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID'));
+  const accessToken = cleanAccessToken(resolveBrandEnv(brand, 'META_WHATSAPP_ACCESS_TOKEN'));
+
+  if (!phoneNumberId || !accessToken) return null;
+  return {
+    brand,
+    businessAccountId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID')),
+    catalogId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID')),
+    phoneNumberId,
+    displayPhoneNumber: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE')),
+    accessToken,
+  };
+}
+
 export async function resolveBrandForFacebookPageId(pageId: string): Promise<string | null> {
   const record = await prisma.brandChannelConfig.findFirst({
     where: { facebookPageId: pageId },
@@ -183,6 +287,22 @@ export async function resolveBrandForInstagramAccountId(accountId: string): Prom
   }
   if (process.env.CLEOPATRA_INSTAGRAM_ID === accountId) return 'Cleopatra';
   if (process.env.MODABELLA_INSTAGRAM_ID === accountId) return 'Modabella';
+
+  return null;
+}
+
+export async function resolveBrandForWhatsAppPhoneNumberId(phoneNumberId: string): Promise<string | null> {
+  const record = await prisma.brandChannelConfig.findUnique({
+    where: { whatsappPhoneNumberId: phoneNumberId },
+    select: { brand: true },
+  });
+  if (record?.brand) return record.brand;
+
+  for (const brand of ['DEEZ', 'Happybuy', 'Cleopatra', 'Modabella']) {
+    if (cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID')) === phoneNumberId) {
+      return brand;
+    }
+  }
 
   return null;
 }
@@ -239,6 +359,26 @@ export async function getConfiguredFacebookPageIds(): Promise<Set<string>> {
   return pageIds;
 }
 
+export async function getConfiguredWhatsAppPhoneNumberIds(): Promise<Set<string>> {
+  const phoneNumberIds = new Set<string>();
+  const records = await prisma.brandChannelConfig.findMany({
+    where: { whatsappPhoneNumberId: { not: null } },
+    select: { whatsappPhoneNumberId: true },
+  });
+
+  for (const record of records) {
+    const phoneNumberId = cleanOptionalText(record.whatsappPhoneNumberId);
+    if (phoneNumberId) phoneNumberIds.add(phoneNumberId);
+  }
+
+  for (const brand of ['DEEZ', 'Happybuy', 'Cleopatra', 'Modabella']) {
+    const phoneNumberId = cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID'));
+    if (phoneNumberId) phoneNumberIds.add(phoneNumberId);
+  }
+
+  return phoneNumberIds;
+}
+
 export async function resolveFacebookConfigForPageId(pageId: string): Promise<ResolvedFacebookConfig | null> {
   const record = await prisma.brandChannelConfig.findFirst({
     where: { facebookPageId: pageId },
@@ -275,4 +415,53 @@ export async function resolveInstagramConfigForAccountId(accountId: string): Pro
 
   const brand = await resolveBrandForInstagramAccountId(accountId);
   return brand ? resolveInstagramConfigForBrand(brand) : null;
+}
+
+export async function resolveWhatsAppConfigForPhoneNumberId(
+  phoneNumberId: string
+): Promise<ResolvedWhatsAppConfig | null> {
+  const record = await prisma.brandChannelConfig.findUnique({
+    where: { whatsappPhoneNumberId: phoneNumberId },
+    select: {
+      brand: true,
+      whatsappBusinessAccountId: true,
+      whatsappCatalogId: true,
+      whatsappPhoneNumberId: true,
+      whatsappDisplayPhoneNumber: true,
+      whatsappAccessToken: true,
+    },
+  });
+
+  const accessToken = cleanAccessToken(record?.whatsappAccessToken);
+  if (record?.brand && record.whatsappPhoneNumberId && accessToken) {
+    return {
+      brand: record.brand,
+      businessAccountId: cleanOptionalText(record.whatsappBusinessAccountId),
+      catalogId: cleanOptionalText(
+        record.whatsappCatalogId ?? resolveBrandEnv(record.brand, 'META_WHATSAPP_CATALOG_ID')
+      ),
+      phoneNumberId: record.whatsappPhoneNumberId,
+      displayPhoneNumber: cleanOptionalText(record.whatsappDisplayPhoneNumber),
+      accessToken,
+    };
+  }
+
+  const brand = await resolveBrandForWhatsAppPhoneNumberId(phoneNumberId);
+  if (!brand) return null;
+
+  const envPhoneNumberId = cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_PHONE_NUMBER_ID'));
+  const envAccessToken = cleanAccessToken(resolveBrandEnv(brand, 'META_WHATSAPP_ACCESS_TOKEN'));
+
+  if (envPhoneNumberId === phoneNumberId && envAccessToken) {
+    return {
+      brand,
+      businessAccountId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_WABA_ID')),
+      catalogId: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_CATALOG_ID')),
+      phoneNumberId,
+      displayPhoneNumber: cleanOptionalText(resolveBrandEnv(brand, 'META_WHATSAPP_DISPLAY_PHONE')),
+      accessToken: envAccessToken,
+    };
+  }
+
+  return resolveWhatsAppConfigForBrand(brand);
 }

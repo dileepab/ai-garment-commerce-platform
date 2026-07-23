@@ -30,11 +30,13 @@ const ic = {
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   messenger: <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.36 2 2 6.13 2 11.7c0 3.22 1.47 6.08 3.75 7.94V22l2.23-1.22c1.24.34 2.56.53 3.92.53 5.64 0 10-4.13 10-9.7C22 6.13 17.64 2 12 2zm1.06 12.5l-2.52-2.67-4.92 2.67 5.41-5.74 2.58 2.67 4.86-2.67-5.41 5.74z"/></svg>,
   instagram: <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.43.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.43.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41-.56-.22-.96-.48-1.38-.9-.42-.42-.68-.82-.9-1.38-.16-.43-.36-1.06-.41-2.23-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.43-.16 1.06-.36 2.23-.41 1.27-.06 1.65-.07 4.85-.07M12 0C8.74 0 8.33.01 7.05.07 5.77.13 4.9.33 4.14.63c-.78.3-1.45.72-2.11 1.38C1.38 2.68.96 3.35.66 4.14.36 4.9.16 5.77.1 7.05.04 8.33.03 8.74.03 12s.01 3.67.07 4.95c.06 1.28.26 2.15.56 2.91.31.79.72 1.45 1.39 2.11.66.67 1.33 1.08 2.12 1.39.76.3 1.63.5 2.91.56 1.28.06 1.69.07 4.95.07s3.67-.01 4.95-.07c1.28-.06 2.15-.26 2.91-.56.79-.31 1.45-.72 2.11-1.39.67-.66 1.08-1.33 1.39-2.12.3-.76.5-1.63.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.28-.26-2.15-.56-2.91-.31-.79-.72-1.45-1.39-2.11-.66-.67-1.33-1.08-2.12-1.39-.76-.3-1.63-.5-2.91-.56C15.67.01 15.26 0 12 0z"/><path d="M12 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zM18.41 4.15a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg>,
+  whatsapp: <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.52 3.48A11.8 11.8 0 0012.07 0C5.5 0 .16 5.34.16 11.91c0 2.1.55 4.16 1.6 5.97L.06 24l6.27-1.64a11.9 11.9 0 005.73 1.46h.01c6.57 0 11.91-5.34 11.91-11.91 0-3.18-1.23-6.17-3.46-8.43zm-8.45 18.33h-.01a9.87 9.87 0 01-5.03-1.38l-.36-.21-3.72.98.99-3.63-.24-.37a9.88 9.88 0 01-1.52-5.29c0-5.45 4.44-9.89 9.9-9.89a9.82 9.82 0 017 2.9 9.82 9.82 0 012.89 7c-.01 5.45-4.45 9.89-9.9 9.89zm5.42-7.41c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47a8.93 8.93 0 01-1.65-2.05c-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.07 2.88 1.22 3.08.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.7.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z"/></svg>,
 };
 
-const CHANNEL_CLASS: Record<string, string> = { messenger: "badge-messenger", instagram: "badge-instagram" };
+const CHANNEL_CLASS: Record<string, string> = { messenger: "badge-messenger", instagram: "badge-instagram", whatsapp: "badge-whatsapp" };
 const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
 const SUPPORT_STATUS_LABELS: Record<string, string> = {
+  bot_active: "Bot active",
   escalated: "Escalated",
   open: "Open",
   pending: "Pending",
@@ -44,6 +46,7 @@ const SUPPORT_STATUS_LABELS: Record<string, string> = {
   resolved: "Resolved",
 };
 const SUPPORT_STATUS_CLASSES: Record<string, string> = {
+  bot_active: "pill-resolved",
   escalated: "pill-escalated",
   open: "pill-open",
   pending: "pill-pending",
@@ -54,7 +57,7 @@ const SUPPORT_STATUS_CLASSES: Record<string, string> = {
 };
 
 interface SupportPageClientProps {
-  initialEscalations: SupportThread[];
+  initialConversations: SupportThread[];
   stats: SupportStats;
   canReply: boolean;
   selectedBrand: string | null;
@@ -73,29 +76,29 @@ const SORT_OPTIONS: { value: SupportSort; label: string }[] = [
 interface SupportInboxResponse {
   success: boolean;
   data?: {
-    escalations: SupportThread[];
+    conversations: SupportThread[];
     stats: SupportStats;
   };
   error?: string;
 }
 
-function mergeEscalationList(
-  currentEscalations: SupportThread[],
-  nextEscalations: SupportThread[]
+function mergeConversationList(
+  currentConversations: SupportThread[],
+  nextConversations: SupportThread[]
 ): SupportThread[] {
   const currentById = new Map(
-    currentEscalations.map((escalation) => [escalation.id, escalation])
+    currentConversations.map((conversation) => [conversation.id, conversation])
   );
 
-  return nextEscalations.map((nextEscalation) => {
-    const currentEscalation = currentById.get(nextEscalation.id);
+  return nextConversations.map((nextConversation) => {
+    const currentConversation = currentById.get(nextConversation.id);
 
-    if (!currentEscalation) return nextEscalation;
+    if (!currentConversation) return nextConversation;
 
     return {
-      ...nextEscalation,
-      hasOlderMessages: currentEscalation.hasOlderMessages,
-      messages: currentEscalation.messages,
+      ...nextConversation,
+      hasOlderMessages: currentConversation.hasOlderMessages,
+      messages: currentConversation.messages,
     };
   });
 }
@@ -119,10 +122,10 @@ function formatWaitingFrom(iso: string): string {
   return `${days}d`;
 }
 
-function getAverageWaitLabel(escalations: SupportThread[]): string {
-  const activeCreatedAt = escalations
-    .filter((escalation) => isActiveStatus(escalation.status))
-    .map((escalation) => new Date(escalation.createdAt).getTime())
+function getAverageWaitLabel(conversations: SupportThread[]): string {
+  const activeCreatedAt = conversations
+    .filter((conversation) => isActiveStatus(conversation.status))
+    .map((conversation) => new Date(conversation.createdAt).getTime())
     .filter((time) => !Number.isNaN(time));
 
   if (activeCreatedAt.length === 0) return '0m';
@@ -179,45 +182,46 @@ function SupportStatusAction({
   );
 }
 
-function SupportQuickActions({ escalation, canReply }: { escalation: SupportThread; canReply: boolean }) {
-  const active = isActiveStatus(escalation.status);
-  const canTake = active && escalation.status !== "in_progress";
+function SupportQuickActions({ conversation, canReply }: { conversation: SupportThread; canReply: boolean }) {
+  const active = isActiveStatus(conversation.status);
+  const canTake = active && conversation.status !== "in_progress";
+  const escalationId = conversation.escalationId;
 
-  if (!canReply) {
+  if (!canReply || escalationId === null) {
     return null;
   }
 
   return (
     <div className="convo-quick-actions" onClick={(event) => event.stopPropagation()}>
       {canTake && (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="in_progress" label="Take" />
+        <SupportStatusAction escalationId={escalationId} nextStatus="in_progress" label="Take" />
       )}
-      {active && escalation.status !== "waiting_customer" && (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="waiting_customer" label="Wait customer" />
+      {active && conversation.status !== "waiting_customer" && (
+        <SupportStatusAction escalationId={escalationId} nextStatus="waiting_customer" label="Wait customer" />
       )}
-      {active && escalation.status !== "waiting_team" && (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="waiting_team" label="Wait team" />
+      {active && conversation.status !== "waiting_team" && (
+        <SupportStatusAction escalationId={escalationId} nextStatus="waiting_team" label="Wait team" />
       )}
       {active ? (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="resolved" label="Resolve" variant="strong" />
+        <SupportStatusAction escalationId={escalationId} nextStatus="resolved" label="Resolve" variant="strong" />
       ) : (
-        <SupportStatusAction escalationId={escalation.id} nextStatus="open" label="Reopen" variant="strong" />
+        <SupportStatusAction escalationId={escalationId} nextStatus="open" label="Reopen" variant="strong" />
       )}
     </div>
   );
 }
 
-export default function SupportPageClient({ initialEscalations, stats, canReply, selectedBrand }: SupportPageClientProps) {
-  const [escalations, setEscalations] = useState(initialEscalations);
+export default function SupportPageClient({ initialConversations, stats, canReply, selectedBrand }: SupportPageClientProps) {
+  const [conversations, setConversations] = useState(initialConversations);
   const [liveStats, setLiveStats] = useState(stats);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<SupportFilter>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [sort, setSort] = useState<SupportSort>("priority");
-  const [selectedId, setSelectedId] = useState<number | null>(
-    initialEscalations.find((escalation) => escalation.status !== "resolved")?.id ||
-      initialEscalations[0]?.id ||
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialConversations.find((conversation) => conversation.status !== "resolved")?.id ??
+      initialConversations[0]?.id ??
       null
   );
   // Mobile: toggle between conversation list and thread view
@@ -226,12 +230,12 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) setEscalations(initialEscalations);
+      if (!cancelled) setConversations(initialConversations);
     });
     return () => {
       cancelled = true;
     };
-  }, [initialEscalations]);
+  }, [initialConversations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,10 +247,10 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
     };
   }, [stats]);
 
-  const updateEscalation = useCallback((id: number, patch: Partial<SupportThread>) => {
-    setEscalations((currentEscalations) =>
-      currentEscalations.map((escalation) =>
-        escalation.id === id ? { ...escalation, ...patch } : escalation
+  const updateConversation = useCallback((id: string, patch: Partial<SupportThread>) => {
+    setConversations((currentConversations) =>
+      currentConversations.map((conversation) =>
+        conversation.id === id ? { ...conversation, ...patch } : conversation
       )
     );
   }, []);
@@ -255,20 +259,20 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
     let cancelled = false;
 
     // Keep the live poll scoped to the globally selected brand so it does not
-    // re-introduce other brands' escalations on top of the brand-filtered render.
+    // re-introduce other brands' conversations on top of the brand-filtered render.
     const query = selectedBrand
       ? `?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
       : '';
 
     const refreshInbox = async () => {
       try {
-        const response = await fetch(`/api/support/escalations${query}`, { cache: 'no-store' });
+        const response = await fetch(`/api/support/conversations${query}`, { cache: 'no-store' });
         const payload = (await response.json()) as SupportInboxResponse;
 
         if (cancelled || !response.ok || !payload.success || !payload.data) return;
 
-        setEscalations((currentEscalations) =>
-          mergeEscalationList(currentEscalations, payload.data!.escalations)
+        setConversations((currentConversations) =>
+          mergeConversationList(currentConversations, payload.data!.conversations)
         );
         setLiveStats(payload.data.stats);
       } catch (error) {
@@ -287,19 +291,19 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
 
   const channelOptions = useMemo(() => {
     const set = new Set<string>();
-    escalations.forEach(e => { if (e.channel) set.add(e.channel); });
+    conversations.forEach(e => { if (e.channel) set.add(e.channel); });
     return Array.from(set).sort();
-  }, [escalations]);
+  }, [conversations]);
 
   const brandOptions = useMemo(() => {
     const set = new Set<string>();
-    escalations.forEach(e => { if (e.brand) set.add(e.brand); });
+    conversations.forEach(e => { if (e.brand) set.add(e.brand); });
     return Array.from(set).sort();
-  }, [escalations]);
+  }, [conversations]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = escalations.filter(e => {
+    const list = conversations.filter(e => {
       if (filter === "active" && !isActiveStatus(e.status)) return false;
       if (filter === "resolved" && e.status !== "resolved") return false;
       if (channelFilter !== "all" && e.channel !== channelFilter) return false;
@@ -345,14 +349,14 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
       }
     });
     return sorted;
-  }, [escalations, search, filter, channelFilter, brandFilter, sort]);
+  }, [conversations, search, filter, channelFilter, brandFilter, sort]);
 
   useEffect(() => {
-    let nextSelectedId: number | null = selectedId;
+    let nextSelectedId: string | null = selectedId;
 
     if (filtered.length === 0) {
       nextSelectedId = null;
-    } else if (!selectedId || !filtered.some((escalation) => escalation.id === selectedId)) {
+    } else if (!selectedId || !filtered.some((conversation) => conversation.id === selectedId)) {
       nextSelectedId = filtered[0].id;
     }
 
@@ -370,11 +374,11 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
   }, [filtered, selectedId]);
 
   const activeConvo = useMemo(
-    () => escalations.find(e => e.id === selectedId) || null,
-    [escalations, selectedId]
+    () => conversations.find(e => e.id === selectedId) || null,
+    [conversations, selectedId]
   );
 
-  const averageWaitLabel = useMemo(() => getAverageWaitLabel(escalations), [escalations]);
+  const averageWaitLabel = useMemo(() => getAverageWaitLabel(conversations), [conversations]);
   const hasActiveInboxFilters = filter !== "all" || channelFilter !== "all" || brandFilter !== "all" || sort !== "priority" || !!search.trim();
   const clearInboxFilters = () => {
     setSearch("");
@@ -488,7 +492,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
                 </button>
               )}
             </div>
-            <div className="convo-result-count">{filtered.length} of {escalations.length}</div>
+            <div className="convo-result-count">{filtered.length} of {conversations.length}</div>
           </div>
           <div className="convo-list">
             {filtered.map(e => {
@@ -498,6 +502,17 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
                   key={e.id}
                   className={`convo-item${selectedId === e.id ? " active" : ""}${active ? ' unread' : ''}`}
                   onClick={() => { setSelectedId(e.id); setMobileView('thread'); }}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedId(e.id);
+                      setMobileView('thread');
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedId === e.id}
                 >
                   <div className="convo-item-top">
                     <span className="convo-item-name">{e.customer?.name || e.contactName || 'Unknown'}</span>
@@ -535,7 +550,7 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
                   <div className="convo-item-preview">
                     {e.latestCustomerMessage || e.summary || 'No message preview available.'}
                   </div>
-                  <SupportQuickActions escalation={e} canReply={canReply} />
+                  <SupportQuickActions conversation={e} canReply={canReply} />
                 </div>
               );
             })}
@@ -553,13 +568,13 @@ export default function SupportPageClient({ initialEscalations, stats, canReply,
           </div>
         </div>
         <div className={`thread-panel-wrap${mobileView === 'list' ? ' mobile-panel-hidden' : ''}`}>
-          <button className="mobile-back-btn" onClick={() => setMobileView('list')}>
+          <button type="button" className="mobile-back-btn" onClick={() => setMobileView('list')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
             Back to inbox
           </button>
-          <Thread convo={activeConvo} onConvoUpdate={updateEscalation} canReply={canReply} />
+          <Thread convo={activeConvo} onConvoUpdate={updateConversation} canReply={canReply} />
         </div>
       </div>
     </main>

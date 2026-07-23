@@ -44,19 +44,22 @@ async function saveConversationPair(
   senderId: string,
   channel: string,
   userMessage: string,
-  assistantReply: string
+  assistantReply: string,
+  brand?: string | null
 ) {
   await prisma.chatMessage.createMany({
     data: [
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'user',
         message: userMessage,
       },
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'assistant',
         message: assistantReply,
       },
@@ -71,6 +74,7 @@ export async function tryHandleShoppingSupport(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
     },
     orderBy: { createdAt: 'desc' },
     take: 20,
@@ -439,6 +443,12 @@ export async function tryHandleShoppingSupport(
     return { handled: false };
   }
 
-  await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+  await saveConversationPair(
+    params.senderId,
+    params.channel,
+    params.currentMessage,
+    reply,
+    params.brand || customer?.preferredBrand
+  );
   return { handled: true, reply, imagePath };
 }

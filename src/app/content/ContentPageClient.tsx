@@ -931,7 +931,7 @@ export default function ContentPageClient({
       </div>
 
       {/* View-mode tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+      <div className="content-view-tabs">
         {(['posts', 'creatives'] as const).map((mode) => (
           <button
             key={mode}

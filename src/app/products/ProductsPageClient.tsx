@@ -179,7 +179,7 @@ export default function ProductsPageClient({
         </div>
         <div className="kpi-strip-card">
           <div className="kpi-strip-label">Inventory Value</div>
-          <div className="kpi-strip-val">₺{Math.round(stats.inventoryValue / 1000)}k</div>
+          <div className="kpi-strip-val">Rs {Math.round(stats.inventoryValue / 1000).toLocaleString('en-LK')}k</div>
           <div className="kpi-strip-note">estimated</div>
         </div>
         <div className="kpi-strip-card">
@@ -258,7 +258,7 @@ export default function ProductsPageClient({
                         ? p.variants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
                         : p.stock}
                     </td>
-                    <td style={{ textAlign: "right", fontWeight: 600 }}>₺{p.price.toLocaleString()}</td>
+                    <td style={{ textAlign: "right", fontWeight: 600 }}>Rs {p.price.toLocaleString('en-LK')}</td>
                     <td>
                       {renderForecastingBadge(p.forecast)}
                     </td>

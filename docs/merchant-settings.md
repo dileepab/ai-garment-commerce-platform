@@ -65,9 +65,13 @@ If no support contact is configured, the bot falls back to asking the customer t
 
 ## Brand Overrides
 
-Each brand can override the global defaults. This is useful when:
+Each brand uses its own WhatsApp display number as both its support phone and
+support WhatsApp number. Configure that number in the brand's Meta Channels
+settings. The global support phone and WhatsApp values are only fallbacks for
+brands that do not yet have a WhatsApp display number.
 
-- brands have different support numbers
+Each brand can also override the other global defaults. This is useful when:
+
 - delivery charges differ by brand
 - payment wording differs
 - automation tone or timing differs
@@ -75,6 +79,7 @@ Each brand can override the global defaults. This is useful when:
 ## Recommended Usage
 
 - use global defaults for shared business rules
+- keep each brand's WhatsApp display number current; it is the brand's support-center number
 - override only the settings that genuinely differ by brand
 - keep at least one valid support contact configured in production
 - review automation timing after launch to avoid over-messaging customers

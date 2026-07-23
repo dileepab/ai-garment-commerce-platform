@@ -22,7 +22,7 @@ import { splitCsv, firstNameOf, sortSizeOptions, formatSizeList } from '@/lib/ch
 import { buildGarmentSpecsForCustomer, type ProductGarmentSpecSource } from '@/lib/product-garment-specs';
 
 export const EMPTY_CATALOG_REPLY =
-  'Our latest collection is dropping very soon! Stay tuned to our page for updates. If you have a specific item in mind, feel free to drop the details here.';
+  'We do not have any items listed right now. New products will be available soon—follow our page for updates.';
 
 export function buildMissingFieldLabels(missingFields: ContactField[]): string {
   return missingFields

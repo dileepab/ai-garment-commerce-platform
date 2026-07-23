@@ -12,8 +12,11 @@ import {
   type BrandChannelConfigView,
 } from '@/lib/brand-channel-config';
 import { getMetaCommentAutoReplyMode } from '@/lib/meta-feature-flags';
+import { getMetaCatalogBrand } from '@/lib/meta-catalog-feed';
 import { PageHeader } from '@/components/PageHeader';
 import { MetaConnectionTestButton } from './MetaConnectionTestButton';
+import { FacebookPostVerification } from './FacebookPostVerification';
+import { WhatsAppCatalogControls } from './WhatsAppCatalogControls';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +28,7 @@ interface BrandHealth {
   webhook24h: {
     facebook: { total: number; failed: number };
     instagram: { total: number; failed: number };
+    whatsapp: { total: number; failed: number };
   };
   publish30d: {
     facebook: { published: number; failed: number };
@@ -84,11 +88,14 @@ function trimText(value?: string | null, maxLength = 120): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
-function channelReady(config: BrandChannelConfigView, channel: 'facebook' | 'instagram'): boolean {
+function channelReady(config: BrandChannelConfigView, channel: 'facebook' | 'instagram' | 'whatsapp'): boolean {
   if (channel === 'facebook') {
     return Boolean(config.facebookPageId && config.hasFacebookPageAccessToken);
   }
-  return Boolean(config.instagramAccountId && config.hasInstagramAccessToken);
+  if (channel === 'instagram') {
+    return Boolean(config.instagramAccountId && config.hasInstagramAccessToken);
+  }
+  return Boolean(config.whatsappPhoneNumberId && config.hasWhatsappAccessToken);
 }
 
 function readinessTone(ready: boolean): HealthTone {
@@ -103,16 +110,26 @@ function ChannelHealthBlock({
   publish,
 }: {
   brand: string;
-  channel: 'facebook' | 'instagram';
+  channel: 'facebook' | 'instagram' | 'whatsapp';
   config: BrandChannelConfigView;
   webhook: { total: number; failed: number };
-  publish: { published: number; failed: number };
+  publish?: { published: number; failed: number };
 }) {
   const isFacebook = channel === 'facebook';
-  const accountId = isFacebook ? config.facebookPageId : config.instagramAccountId;
-  const hasToken = isFacebook ? config.hasFacebookPageAccessToken : config.hasInstagramAccessToken;
+  const isInstagram = channel === 'instagram';
+  const accountId = isFacebook
+    ? config.facebookPageId
+    : isInstagram
+      ? config.instagramAccountId
+      : config.whatsappPhoneNumberId;
+  const hasToken = isFacebook
+    ? config.hasFacebookPageAccessToken
+    : isInstagram
+      ? config.hasInstagramAccessToken
+      : config.hasWhatsappAccessToken;
   const ready = Boolean(accountId && hasToken);
-  const label = isFacebook ? 'Facebook Page' : 'Instagram Business';
+  const label = isFacebook ? 'Facebook Page' : isInstagram ? 'Instagram Business' : 'WhatsApp Business';
+  const catalogBrand = isFacebook || isInstagram ? null : getMetaCatalogBrand(brand);
 
   return (
     <div
@@ -147,14 +164,26 @@ function ChannelHealthBlock({
           </div>
         </div>
         <div>
-          <div className="app-section-label">Publish 30d</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: publish.failed > 0 ? 'var(--color-error)' : 'var(--color-fg-1)' }}>
-            {publish.published} ok · {publish.failed} failed
-          </div>
+          <div className="app-section-label">{publish ? 'Publish 30d' : 'Purpose'}</div>
+          {publish ? (
+            <div style={{ fontSize: 13, fontWeight: 700, color: publish.failed > 0 ? 'var(--color-error)' : 'var(--color-fg-1)' }}>
+              {publish.published} ok · {publish.failed} failed
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-fg-1)' }}>Messaging</div>
+          )}
         </div>
       </div>
 
       <MetaConnectionTestButton brand={brand} channel={channel} disabled={!ready} />
+      {channel === 'facebook' && (
+        <FacebookPostVerification brand={brand} disabled={!ready} />
+      )}
+      {channel === 'whatsapp' && (
+        <WhatsAppCatalogControls
+          feedUrl={catalogBrand ? `/api/catalog/meta/${catalogBrand.key}/feed.csv` : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -286,6 +315,11 @@ export default async function MetaStatusPage({
       hasFacebookPageAccessToken: false,
       instagramAccountId: null,
       hasInstagramAccessToken: false,
+      whatsappBusinessAccountId: null,
+      whatsappCatalogId: null,
+      whatsappPhoneNumberId: null,
+      whatsappDisplayPhoneNumber: null,
+      hasWhatsappAccessToken: false,
       isTestBrand: false,
       notes: null,
     };
@@ -301,6 +335,10 @@ export default async function MetaStatusPage({
         instagram: {
           total: ['processing', 'processed', 'failed', 'skipped'].reduce((sum, status) => sum + (webhookCounts.get(metricKey(brand, 'instagram', status)) ?? 0), 0),
           failed: webhookCounts.get(metricKey(brand, 'instagram', 'failed')) ?? 0,
+        },
+        whatsapp: {
+          total: ['processing', 'processed', 'failed', 'skipped'].reduce((sum, status) => sum + (webhookCounts.get(metricKey(brand, 'whatsapp', status)) ?? 0), 0),
+          failed: webhookCounts.get(metricKey(brand, 'whatsapp', 'failed')) ?? 0,
         },
       },
       publish30d: {
@@ -318,6 +356,7 @@ export default async function MetaStatusPage({
 
   const hasFacebookConfig = healthRows.some((row) => channelReady(row.config, 'facebook'));
   const hasInstagramConfig = healthRows.some((row) => channelReady(row.config, 'instagram'));
+  const hasWhatsAppConfig = healthRows.some((row) => channelReady(row.config, 'whatsapp'));
   const commentMode = await getMetaCommentAutoReplyMode();
   const pendingCommentQueue = queueCounts.get('pending') ?? 0;
   const failedComments = (commentCounts.get('failed') ?? 0) + (queueCounts.get('failed') ?? 0);
@@ -348,9 +387,19 @@ export default async function MetaStatusPage({
             ready={hasInstagramConfig}
           />
           <ReadinessItem
+            label="WhatsApp messaging"
+            note="At least one brand has a WhatsApp Phone Number ID and saved system-user token."
+            ready={hasWhatsAppConfig}
+          />
+          <ReadinessItem
             label="DM auto-replies"
             note={process.env.META_VERIFY_TOKEN ? 'Webhook verify token is configured.' : 'Set META_VERIFY_TOKEN before review demos.'}
             ready={Boolean(process.env.META_VERIFY_TOKEN)}
+          />
+          <ReadinessItem
+            label="WhatsApp webhook security"
+            note={process.env.META_APP_SECRET ? 'Meta App Secret is configured for signature checks.' : 'Set META_APP_SECRET before connecting the WhatsApp webhook.'}
+            ready={Boolean(process.env.META_APP_SECRET)}
           />
           <ReadinessItem
             label="Comment auto-reply"
@@ -405,6 +454,12 @@ export default async function MetaStatusPage({
                       config={row.config}
                       webhook={row.webhook24h.instagram}
                       publish={row.publish30d.instagram}
+                    />
+                    <ChannelHealthBlock
+                      brand={row.brand}
+                      channel="whatsapp"
+                      config={row.config}
+                      webhook={row.webhook24h.whatsapp}
                     />
                   </div>
                 </div>

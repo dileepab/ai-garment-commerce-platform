@@ -125,14 +125,24 @@ export async function saveMerchantSettingsAction(formData: FormData) {
     const facebookPageAccessToken = cleanAccessToken(readText(formData, 'facebookPageAccessToken'));
     const instagramAccountId = cleanOptionalText(readText(formData, 'instagramAccountId'));
     const instagramAccessToken = cleanAccessToken(readText(formData, 'instagramAccessToken'));
+    const whatsappBusinessAccountId = cleanOptionalText(readText(formData, 'whatsappBusinessAccountId'));
+    const whatsappCatalogId = cleanOptionalText(readText(formData, 'whatsappCatalogId'));
+    const whatsappPhoneNumberId = cleanOptionalText(readText(formData, 'whatsappPhoneNumberId'));
+    const whatsappDisplayPhoneNumber = cleanOptionalText(readText(formData, 'whatsappDisplayPhoneNumber'));
+    const whatsappAccessToken = cleanAccessToken(readText(formData, 'whatsappAccessToken'));
     const notes = cleanOptionalText(readText(formData, 'channelNotes'));
     const channelUpdateData = {
       facebookPageId,
       instagramAccountId,
+      whatsappBusinessAccountId,
+      whatsappCatalogId,
+      whatsappPhoneNumberId,
+      whatsappDisplayPhoneNumber,
       isTestBrand: readBoolean(formData, 'isTestBrand'),
       notes,
       ...(facebookPageAccessToken ? { facebookPageAccessToken } : {}),
       ...(instagramAccessToken ? { instagramAccessToken } : {}),
+      ...(whatsappAccessToken ? { whatsappAccessToken } : {}),
     };
 
     await prisma.brandChannelConfig.upsert({
@@ -143,6 +153,11 @@ export async function saveMerchantSettingsAction(formData: FormData) {
         facebookPageAccessToken,
         instagramAccountId,
         instagramAccessToken,
+        whatsappBusinessAccountId,
+        whatsappCatalogId,
+        whatsappPhoneNumberId,
+        whatsappDisplayPhoneNumber,
+        whatsappAccessToken,
         isTestBrand: readBoolean(formData, 'isTestBrand'),
         notes,
       },
@@ -166,6 +181,10 @@ export async function addBrandSettingsAction(formData: FormData) {
   const displayName = cleanOptionalText(readText(formData, 'newDisplayName')) || brand;
   const facebookPageId = cleanOptionalText(readText(formData, 'newFacebookPageId'));
   const instagramAccountId = cleanOptionalText(readText(formData, 'newInstagramAccountId'));
+  const whatsappBusinessAccountId = cleanOptionalText(readText(formData, 'newWhatsappBusinessAccountId'));
+  const whatsappCatalogId = cleanOptionalText(readText(formData, 'newWhatsappCatalogId'));
+  const whatsappPhoneNumberId = cleanOptionalText(readText(formData, 'newWhatsappPhoneNumberId'));
+  const whatsappDisplayPhoneNumber = cleanOptionalText(readText(formData, 'newWhatsappDisplayPhoneNumber'));
   const notes = cleanOptionalText(readText(formData, 'newChannelNotes'));
   const isTestBrand = readBoolean(formData, 'newIsTestBrand');
   const data = buildMerchantSettingsPersistenceInput({
@@ -186,12 +205,20 @@ export async function addBrandSettingsAction(formData: FormData) {
       brand,
       facebookPageId,
       instagramAccountId,
+      whatsappBusinessAccountId,
+      whatsappCatalogId,
+      whatsappPhoneNumberId,
+      whatsappDisplayPhoneNumber,
       isTestBrand,
       notes,
     },
     update: {
       ...(facebookPageId ? { facebookPageId } : {}),
       ...(instagramAccountId ? { instagramAccountId } : {}),
+      ...(whatsappBusinessAccountId ? { whatsappBusinessAccountId } : {}),
+      ...(whatsappCatalogId ? { whatsappCatalogId } : {}),
+      ...(whatsappPhoneNumberId ? { whatsappPhoneNumberId } : {}),
+      ...(whatsappDisplayPhoneNumber ? { whatsappDisplayPhoneNumber } : {}),
       isTestBrand,
       ...(notes ? { notes } : {}),
     },
@@ -207,6 +234,7 @@ export async function addBrandSettingsAction(formData: FormData) {
     metadata: {
       hasFacebookPageId: Boolean(facebookPageId),
       hasInstagramAccountId: Boolean(instagramAccountId),
+      hasWhatsappPhoneNumberId: Boolean(whatsappPhoneNumberId),
       isTestBrand,
     },
   });

@@ -196,19 +196,22 @@ async function saveConversationPair(
   senderId: string,
   channel: string,
   userMessage: string,
-  assistantReply: string
+  assistantReply: string,
+  brand?: string | null
 ) {
   await prisma.chatMessage.createMany({
     data: [
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'user',
         message: userMessage,
       },
       {
         senderId,
         channel,
+        brand: brand || null,
         role: 'assistant',
         message: assistantReply,
       },
@@ -223,6 +226,7 @@ export async function tryHandleOrderQuantityUpdateRequest(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
       role: 'assistant',
     },
     orderBy: { createdAt: 'desc' },
@@ -242,7 +246,7 @@ export async function tryHandleOrderQuantityUpdateRequest(
 
   if (!requestedQuantity) {
     const reply = 'Please tell me the quantity you want for your last order, and I will prepare the update summary.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -253,7 +257,7 @@ export async function tryHandleOrderQuantityUpdateRequest(
 
   if (!customer) {
     const reply = 'I could not find an active order to update for this conversation.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -282,14 +286,20 @@ export async function tryHandleOrderQuantityUpdateRequest(
     const reply = requestedOrderId
       ? `I could not find an active order #${requestedOrderId} to update for this conversation.`
       : 'I could not find an active order to update for this conversation.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
   if (latestOrder.orderItems.length !== 1) {
     const reply =
       'Automatic quantity updates are only available for single-item orders right now. Please contact us and we will help you manually.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || latestOrder.brand
+    );
     return { handled: true, reply };
   }
 
@@ -297,7 +307,13 @@ export async function tryHandleOrderQuantityUpdateRequest(
 
   if (requestedQuantity === item.quantity) {
     const reply = `Order #${latestOrder.id} already has quantity ${item.quantity}. Please send a different quantity if you want to update it.`;
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || latestOrder.brand
+    );
     return {
       handled: true,
       reply,
@@ -309,7 +325,13 @@ export async function tryHandleOrderQuantityUpdateRequest(
 
   if (requestedQuantity > maxAvailableQuantity) {
     const reply = `I can update order #${latestOrder.id} up to ${maxAvailableQuantity} item(s) based on current stock. Please send a lower quantity.`;
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || latestOrder.brand
+    );
     return {
       handled: true,
       reply,
@@ -339,7 +361,13 @@ export async function tryHandleOrderQuantityUpdateRequest(
     giftNote: latestOrder.giftNote,
   });
 
-  await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+  await saveConversationPair(
+    params.senderId,
+    params.channel,
+    params.currentMessage,
+    reply,
+    params.brand || latestOrder.brand
+  );
   return {
     handled: true,
     reply,
@@ -358,6 +386,7 @@ export async function tryConfirmOrderQuantityUpdate(
     where: {
       senderId: params.senderId,
       channel: params.channel,
+      ...(params.brand ? { brand: params.brand } : {}),
       role: 'assistant',
     },
     orderBy: { createdAt: 'desc' },
@@ -378,7 +407,7 @@ export async function tryConfirmOrderQuantityUpdate(
 
   if (!Number.isInteger(orderId) || !Number.isInteger(nextQuantity) || nextQuantity <= 0) {
     const reply = 'Sorry, I could not read the requested order update. Please send the quantity once more.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -389,7 +418,7 @@ export async function tryConfirmOrderQuantityUpdate(
 
   if (!customer) {
     const reply = 'I could not find the customer record for this order update.';
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -399,12 +428,12 @@ export async function tryConfirmOrderQuantityUpdate(
       customerId: customer.id,
       ...(params.brand ? { brand: params.brand } : {}),
     },
-    select: { id: true },
+    select: { id: true, brand: true },
   });
 
   if (!ownedOrder) {
     const reply = `I could not find order #${orderId} for this conversation.`;
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply, params.brand);
     return { handled: true, reply };
   }
 
@@ -429,7 +458,13 @@ export async function tryConfirmOrderQuantityUpdate(
       giftNote: updatedOrder.giftNote,
     });
 
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || updatedOrder.brand
+    );
     return {
       handled: true,
       reply,
@@ -441,7 +476,13 @@ export async function tryConfirmOrderQuantityUpdate(
         ? error.message
         : 'Please contact us directly so we can help update it manually.';
     const reply = `Sorry, I could not update the order automatically. ${message}`;
-    await saveConversationPair(params.senderId, params.channel, params.currentMessage, reply);
+    await saveConversationPair(
+      params.senderId,
+      params.channel,
+      params.currentMessage,
+      reply,
+      params.brand || ownedOrder.brand
+    );
     return {
       handled: true,
       reply,
