@@ -39,7 +39,7 @@ const SUPPORT_CONTACT_PATTERNS = [
 ];
 
 const THANKS_PATTERN =
-  /\b(thanks|thank you|thankyou|many thanks|okay thank you|ok thank you|alright thank you)\b/i;
+  /^(?:(?:ok|okay|alright)\s+)?(?:thanks|thank you|thankyou|many thanks|thank u|thx|godak sthuthi|bohoma sthuthi|sthuthi|romba nandri|nandri)(?:\s+(?:very much|so much|a lot|for (?:your )?help))?$/i;
 const ACKNOWLEDGEMENT_PATTERN = /^(?:ok|okay|okey|k|noted|alright|got it|fine)$/i;
 const MIN_PRODUCT_MATCH_SCORE = 2;
 
@@ -221,6 +221,9 @@ export function buildHeuristicAction(
   const giftNote = /happy birthday/i.test(message) ? 'Happy Birthday' : null;
   const isCodPaymentQuestion = /\bcod\b|\bcash on delivery\b/.test(normalized);
   const isOnlinePaymentQuestion = /\bonline transfer\b|\bbank transfer\b|\btransfer the money\b/.test(normalized);
+  const lastAssistantMessage = [...input.recentMessages]
+    .reverse()
+    .find((entry) => entry.role === 'assistant')?.message || '';
 
   const base: AiRoutedAction = {
     action: 'fallback',
@@ -273,6 +276,20 @@ export function buildHeuristicAction(
     return {
       ...base,
       action: 'place_order',
+      confidence: 0.92,
+    };
+  }
+
+  if (
+    input.lastReferencedOrderId &&
+    (base.contact.name || base.contact.address || base.contact.phone) &&
+    /\bplease send the new (?:name|delivery address|phone number)\b|\bnew name delivery address or phone number\b/.test(
+      normalizeText(lastAssistantMessage)
+    )
+  ) {
+    return {
+      ...base,
+      action: 'update_order_contact',
       confidence: 0.92,
     };
   }
@@ -347,7 +364,7 @@ export function buildHeuristicAction(
 
   if (
     product &&
-    /\b(?:do you(?: guys)? have|have you got|is (?:it|this|that)?\s*available|available|in stock)\b/.test(normalized)
+    /\b(?:do (?:you|u)(?: guys)? have|have you got|is (?:it|this|that)?\s*available|available|in stock|how many|left)\b/.test(normalized)
   ) {
     return {
       ...base,
@@ -358,7 +375,7 @@ export function buildHeuristicAction(
   }
 
   if (
-    /\b(?:available|abailable|availabe|availble|avaiable) items?\b|\b(?:available|abailable|availabe|availble|avaiable) products?\b|\bwhat are the (?:available|abailable|availabe|availble|avaiable)\b|\bwhat do you have\b|\b(?:available|abailable|availabe|availble|avaiable) dresses?\b|\b(?:available|abailable|availabe|availble|avaiable) tops?\b|\b(?:available|abailable|availabe|availble|avaiable) t\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) tee\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) pants\b|\b(?:available|abailable|availabe|availble|avaiable) skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/.test(normalized) ||
+    /\b(?:available|abailable|availabe|availble|avaiable) items?\b|\b(?:available|abailable|availabe|availble|avaiable) products?\b|\bwhat are the (?:available|abailable|availabe|availble|avaiable)\b|\bwhat (?:clothes|items|products) (?:do you|are)\b|\bwhat do you have\b|\b(?:available|abailable|availabe|availble|avaiable) dresses?\b|\b(?:available|abailable|availabe|availble|avaiable) tops?\b|\b(?:available|abailable|availabe|availble|avaiable) t\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) tee\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) pants\b|\b(?:available|abailable|availabe|availble|avaiable) skirts?\b|\bdo (?:you|u)(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/.test(normalized) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(normalized) ||
     /\b(?:adum|edum|items?|products?)\b.*\b(?:monawada|monavada|mona|monawa|thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne)\b/i.test(normalized) ||
     /\bmonawath?\b.*\bpenne\b|\bpenne\b.*\bnane\b/i.test(normalized) ||
@@ -372,14 +389,14 @@ export function buildHeuristicAction(
     };
   }
 
-  if (product && /\bwhat colors?\b|\bavailable colors?\b|\bwhat sizes?\b|\bavailable sizes?\b|\bprice\b|\bhow much\b|\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized)) {
+  if (product && (/\bwhat colors?\b|\bavailable colors?\b|\bwhat (?:sizes?|szes?)\b|\bavailable (?:sizes?|szes?)\b|\bprice\b|\bprce\b|\bprise\b|\bhow much\b|\bfabric\b|\bmaterial\b|\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized) || /මිල|ගාන|ප්‍රමාණ|පාට|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்|விலை|அளவு|நிறம்/.test(message))) {
     let questionType: AiRoutedAction['questionType'] = 'availability';
 
     if (/\bcolor\b/.test(normalized)) {
       questionType = 'colors';
-    } else if (/\bsize\b/.test(normalized)) {
+    } else if (/\b(?:size|sizes|sze|szes)\b/.test(normalized)) {
       questionType = 'sizes';
-    } else if (/\bprice\b|\bhow much\b/.test(normalized)) {
+    } else if (/\b(?:price|prce|prise)\b|\bhow much\b/.test(normalized)) {
       questionType = 'price';
     } else if (/\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized)) {
       questionType = 'fit';

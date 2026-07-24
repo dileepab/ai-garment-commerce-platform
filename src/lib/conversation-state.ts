@@ -1,6 +1,6 @@
 import type { ResolvedOrderDraft } from '@/lib/order-draft';
 import type { SizeChartCategory } from '@/lib/size-charts';
-import type { CustomerLanguage } from '@/lib/chat/language';
+import type { CustomerLanguage, CustomerScriptStyle } from '@/lib/chat/language';
 import prisma from '@/lib/prisma';
 
 export type PendingConversationStep =
@@ -51,6 +51,12 @@ export interface PendingQuantityUpdate {
   giftNote?: string | null;
 }
 
+export interface RecommendationConstraints {
+  maximumPrice?: number | null;
+  colors?: string[];
+  sizes?: string[];
+}
+
 export interface ConversationStateData {
   pendingStep: PendingConversationStep;
   orderDraft: ResolvedOrderDraft | null;
@@ -62,6 +68,11 @@ export interface ConversationStateData {
   lastAssistantReplyKind: AssistantReplyKind;
   unclearMessageCount: number;
   preferredLanguage: CustomerLanguage;
+  preferredScriptStyle: CustomerScriptStyle;
+  lastReferencedProductId: number | null;
+  lastReferencedProductName: string | null;
+  lastRecommendedProductIds: number[];
+  lastRecommendationConstraints: RecommendationConstraints | null;
 }
 
 const VALID_PENDING_STEPS = new Set<PendingConversationStep>([
@@ -106,6 +117,7 @@ const VALID_SUPPORT_MODES = new Set<SupportWorkflowMode>([
   'resolved',
 ]);
 const VALID_LANGUAGES = new Set<CustomerLanguage>(['english', 'sinhala', 'tamil']);
+const VALID_SCRIPT_STYLES = new Set<CustomerScriptStyle>(['native', 'roman']);
 
 export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   pendingStep: 'none',
@@ -118,6 +130,11 @@ export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   lastAssistantReplyKind: 'generic',
   unclearMessageCount: 0,
   preferredLanguage: 'english',
+  preferredScriptStyle: 'native',
+  lastReferencedProductId: null,
+  lastReferencedProductName: null,
+  lastRecommendedProductIds: [],
+  lastRecommendationConstraints: null,
 };
 
 function parseConversationState(value?: string | null): Partial<ConversationStateData> {
@@ -167,6 +184,12 @@ function normalizeCustomerLanguage(value?: string | null): CustomerLanguage {
     : 'english';
 }
 
+function normalizeCustomerScriptStyle(value?: string | null): CustomerScriptStyle {
+  return VALID_SCRIPT_STYLES.has(value as CustomerScriptStyle)
+    ? (value as CustomerScriptStyle)
+    : 'native';
+}
+
 export function normalizeConversationState(
   value?: Partial<ConversationStateData> | null
 ): ConversationStateData {
@@ -192,11 +215,131 @@ export function normalizeConversationState(
         ? Math.floor(nextState.unclearMessageCount)
         : 0,
     preferredLanguage: normalizeCustomerLanguage(nextState.preferredLanguage),
+    preferredScriptStyle: normalizeCustomerScriptStyle(nextState.preferredScriptStyle),
+    lastReferencedProductId:
+      typeof nextState.lastReferencedProductId === 'number'
+        ? nextState.lastReferencedProductId
+        : null,
+    lastReferencedProductName:
+      typeof nextState.lastReferencedProductName === 'string' && nextState.lastReferencedProductName.trim()
+        ? nextState.lastReferencedProductName.trim()
+        : null,
+    lastRecommendedProductIds: Array.isArray(nextState.lastRecommendedProductIds)
+      ? Array.from(
+          new Set(
+            nextState.lastRecommendedProductIds.filter(
+              (productId): productId is number =>
+                typeof productId === 'number' && Number.isInteger(productId) && productId > 0
+            )
+          )
+        ).slice(0, 3)
+      : [],
+    lastRecommendationConstraints:
+      nextState.lastRecommendationConstraints &&
+      typeof nextState.lastRecommendationConstraints === 'object'
+        ? {
+            ...(
+              typeof nextState.lastRecommendationConstraints.maximumPrice === 'number' &&
+              Number.isFinite(nextState.lastRecommendationConstraints.maximumPrice) &&
+              nextState.lastRecommendationConstraints.maximumPrice > 0
+                ? { maximumPrice: nextState.lastRecommendationConstraints.maximumPrice }
+                : nextState.lastRecommendationConstraints.maximumPrice === null
+                  ? { maximumPrice: null }
+                  : {}
+            ),
+            ...(Array.isArray(nextState.lastRecommendationConstraints.colors)
+              ? {
+                  colors: Array.from(
+                    new Set(
+                      nextState.lastRecommendationConstraints.colors
+                        .filter((color): color is string => typeof color === 'string')
+                        .map((color) => color.trim())
+                        .filter(Boolean)
+                    )
+                  ).slice(0, 6),
+                }
+              : {}),
+            ...(Array.isArray(nextState.lastRecommendationConstraints.sizes)
+              ? {
+                  sizes: Array.from(
+                    new Set(
+                      nextState.lastRecommendationConstraints.sizes
+                        .filter((size): size is string => typeof size === 'string')
+                        .map((size) => size.trim())
+                        .filter(Boolean)
+                    )
+                  ).slice(0, 6),
+                }
+              : {}),
+          }
+        : null,
   };
 }
 
 function stringifyConversationState(state: ConversationStateData): string {
   return JSON.stringify(state);
+}
+
+function stringifyPreScriptConversationState(state: ConversationStateData): string {
+  const preScriptState = {
+    pendingStep: state.pendingStep,
+    orderDraft: state.orderDraft,
+    quantityUpdate: state.quantityUpdate,
+    lastReferencedOrderId: state.lastReferencedOrderId,
+    lastMissingOrderId: state.lastMissingOrderId,
+    lastSizeChartCategory: state.lastSizeChartCategory,
+    supportMode: state.supportMode,
+    lastAssistantReplyKind: state.lastAssistantReplyKind,
+    unclearMessageCount: state.unclearMessageCount,
+    preferredLanguage: state.preferredLanguage,
+  };
+
+  return JSON.stringify(preScriptState);
+}
+
+function stringifyPreRecommendationConversationState(
+  state: ConversationStateData
+): string {
+  const preRecommendationState = {
+    pendingStep: state.pendingStep,
+    orderDraft: state.orderDraft,
+    quantityUpdate: state.quantityUpdate,
+    lastReferencedOrderId: state.lastReferencedOrderId,
+    lastMissingOrderId: state.lastMissingOrderId,
+    lastSizeChartCategory: state.lastSizeChartCategory,
+    supportMode: state.supportMode,
+    lastAssistantReplyKind: state.lastAssistantReplyKind,
+    unclearMessageCount: state.unclearMessageCount,
+    preferredLanguage: state.preferredLanguage,
+    preferredScriptStyle: state.preferredScriptStyle,
+    lastReferencedProductId: state.lastReferencedProductId,
+    lastReferencedProductName: state.lastReferencedProductName,
+    lastRecommendedProductIds: state.lastRecommendedProductIds,
+  };
+
+  return JSON.stringify(preRecommendationState);
+}
+
+function stringifyPreShortlistConversationState(
+  state: ConversationStateData
+): string {
+  const preShortlistState = {
+    pendingStep: state.pendingStep,
+    orderDraft: state.orderDraft,
+    quantityUpdate: state.quantityUpdate,
+    lastReferencedOrderId: state.lastReferencedOrderId,
+    lastMissingOrderId: state.lastMissingOrderId,
+    lastSizeChartCategory: state.lastSizeChartCategory,
+    supportMode: state.supportMode,
+    lastAssistantReplyKind: state.lastAssistantReplyKind,
+    unclearMessageCount: state.unclearMessageCount,
+    preferredLanguage: state.preferredLanguage,
+    preferredScriptStyle: state.preferredScriptStyle,
+    lastReferencedProductId: state.lastReferencedProductId,
+    lastReferencedProductName: state.lastReferencedProductName,
+  };
+
+  return JSON.stringify(preShortlistState);
 }
 
 function stringifyLegacyConversationState(state: ConversationStateData): string {
@@ -269,6 +412,11 @@ export async function saveConversationStateIfCurrent(
   const normalizedCurrentState = normalizeConversationState(currentState);
   const normalizedNextState = normalizeConversationState(nextState);
   const currentStateJson = stringifyConversationState(normalizedCurrentState);
+  const preRecommendationCurrentStateJson =
+    stringifyPreRecommendationConversationState(normalizedCurrentState);
+  const preShortlistCurrentStateJson =
+    stringifyPreShortlistConversationState(normalizedCurrentState);
+  const preScriptCurrentStateJson = stringifyPreScriptConversationState(normalizedCurrentState);
   const legacyCurrentStateJson = stringifyLegacyConversationState(normalizedCurrentState);
 
   const result = await prisma.conversationState.updateMany({
@@ -277,6 +425,15 @@ export async function saveConversationStateIfCurrent(
       channel,
       OR: [
         { stateJson: currentStateJson },
+        ...(preRecommendationCurrentStateJson !== currentStateJson
+          ? [{ stateJson: preRecommendationCurrentStateJson }]
+          : []),
+        ...(preShortlistCurrentStateJson !== currentStateJson
+          ? [{ stateJson: preShortlistCurrentStateJson }]
+          : []),
+        ...(preScriptCurrentStateJson !== currentStateJson
+          ? [{ stateJson: preScriptCurrentStateJson }]
+          : []),
         ...(legacyCurrentStateJson !== currentStateJson
           ? [{ stateJson: legacyCurrentStateJson }]
           : []),
@@ -300,5 +457,10 @@ export function clearPendingConversationState(
     supportMode: state.supportMode,
     lastAssistantReplyKind: state.lastAssistantReplyKind,
     preferredLanguage: state.preferredLanguage,
+    preferredScriptStyle: state.preferredScriptStyle,
+    lastReferencedProductId: state.lastReferencedProductId,
+    lastReferencedProductName: state.lastReferencedProductName,
+    lastRecommendedProductIds: state.lastRecommendedProductIds,
+    lastRecommendationConstraints: state.lastRecommendationConstraints,
   };
 }

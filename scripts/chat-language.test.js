@@ -31,7 +31,12 @@ function loadLanguageModule() {
   return moduleInstance.exports;
 }
 
-const { formatConversationHistoryForPrompt } = loadLanguageModule();
+const {
+  buildLanguagePreferenceAcknowledgement,
+  detectCustomerScriptStyle,
+  formatConversationHistoryForPrompt,
+  localizeReplyWithGemini,
+} = loadLanguageModule();
 const newestFirst = Array.from({ length: 10 }, (_, index) => ({
   role: index % 2 === 0 ? 'assistant' : 'user',
   message: `message-${10 - index}`,
@@ -47,4 +52,52 @@ assert.equal(formattedLines.length, 8);
 assert.match(formatted, /^Customer: message-3/);
 assert.match(formatted, /Assistant: message-10$/);
 
-console.log('Chat language history tests passed');
+assert.equal(detectCustomerScriptStyle('COD thiyanawada?', 'sinhala'), 'roman');
+assert.equal(detectCustomerScriptStyle('COD තියෙනවද?', 'sinhala'), 'native');
+assert.equal(
+  buildLanguagePreferenceAcknowledgement('sinhala', 'roman'),
+  'Ow, puluwan. Methanin passe mama Roman Sinhala walin help karannam.'
+);
+
+async function run() {
+  const romanDelivery = await localizeReplyWithGemini(
+    'Delivery to Negombo costs Rs 450. Delivery to Negombo usually takes 2-3 business days, excluding weekends and Sri Lankan public holidays. If the order is confirmed on July 24, 2026, the expected delivery window is July 28, 2026 to July 30, 2026.\n\nYes, COD works for us. Available payment methods are COD and Online Transfer.',
+    'sinhala',
+    'roman'
+  );
+
+  assert.match(romanDelivery, /Negombo walata delivery charge eka Rs 450/);
+  assert.match(romanDelivery, /Ow, COD puluwan/);
+  assert.doesNotMatch(romanDelivery, /[\u0D80-\u0DFF]/);
+
+  const romanVariantUpdate = await localizeReplyWithGemini(
+    "Got it — I've updated the selection to size L.\n\nPlease let me know the color you need for Breezy Summer Dress. Available colors: Coral, Sage.",
+    'sinhala',
+    'roman'
+  );
+  assert.match(romanVariantUpdate, /selection eka size L walata update kala/);
+  assert.match(romanVariantUpdate, /ona color eka kiyannako/);
+  assert.doesNotMatch(romanVariantUpdate, /[\u0D80-\u0DFF]/);
+
+  const nativeSinhalaFabric = await localizeReplyWithGemini(
+    'Pleated Midi Skirt:\nFabric: Crepe',
+    'sinhala',
+    'native'
+  );
+  assert.match(nativeSinhalaFabric, /රෙදි වර්ගය: Crepe/);
+  assert.doesNotMatch(nativeSinhalaFabric, /Fabric:/);
+
+  const romanTamilFabric = await localizeReplyWithGemini(
+    'Pleated Midi Skirt:\nFabric: Crepe',
+    'tamil',
+    'roman'
+  );
+  assert.match(romanTamilFabric, /Thuni: Crepe/);
+  assert.doesNotMatch(romanTamilFabric, /Fabric:/);
+  console.log('Chat language history and script-style tests passed');
+}
+
+run().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

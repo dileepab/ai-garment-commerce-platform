@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma';
 import { brandsMatch } from '@/lib/brand-aliases';
 import {
   extractExplicitOrderIdFromMessage,
+  extractDeliveryLocationHint,
   extractMaximumQuantityFromAssistantMessage,
   extractStandaloneQuantityFromMessage,
   extractRequestedProductTypes,
@@ -9,6 +10,7 @@ import {
   isGreetingMessage,
   isLowerQuantityPrompt,
   isNeutralAcknowledgement,
+  isThanksMessage,
   isUnambiguousCancellationMessage,
   looksLikeCatalogQuestion,
   looksLikeCasualWellbeingQuestion,
@@ -22,6 +24,7 @@ import {
   looksLikeOrderDetailsRequest,
   looksLikeOrderStatusRequest,
   looksLikePaymentQuestion,
+  looksLikePrivateDataExtractionRequest,
   looksLikePreOrderIssuePolicyQuestion,
   looksLikeSameItemMessage,
   looksLikeStoreLocationQuestion,
@@ -43,6 +46,7 @@ import {
 } from '@/lib/chat/reply-builders';
 import {
   detectCustomerLanguage,
+  detectCustomerScriptStyle,
   buildLanguagePreferenceAcknowledgement,
   isLanguagePreferenceOnlyMessage,
   localizeReplyWithGemini,
@@ -95,6 +99,12 @@ import type {
 } from './chat/contracts';
 import { upsertCustomerContact } from './chat/shared-actions';
 import * as CatalogHandlers from './chat/catalog';
+import {
+  findMentionedCatalogProducts,
+  looksLikeProductComparison,
+  looksLikeRecommendationRequest,
+  looksLikeShortlistFollowUp,
+} from './chat/catalog-guidance';
 import * as OrderingHandlers from './chat/orders';
 import * as InfoHandlers from './chat/info';
 import { logInfo, logWarn } from '@/lib/app-log';
@@ -217,6 +227,7 @@ function shouldUseGreetingShortcut(message: string): boolean {
 
   return !(
     messageMentionsProductType(message) ||
+    looksLikeRecommendationRequest(message) ||
     looksLikeCatalogQuestion(message) ||
     looksLikeStoreLocationQuestion(message) ||
     looksLikePaymentQuestion(message) ||
@@ -226,6 +237,12 @@ function shouldUseGreetingShortcut(message: string): boolean {
     looksLikeOrderStatusRequest(message) ||
     looksLikeOrderDetailsRequest(message) ||
     looksLikeSupportContactProblem(message)
+  );
+}
+
+function looksLikeCapabilityQuestion(message: string): boolean {
+  return /\b(?:what|how) (?:can|could|do) you (?:help|assist|do)|\bwhat can i ask\b|\bwhat do you help with\b/i.test(
+    message
   );
 }
 
@@ -263,8 +280,35 @@ function looksLikeProductAvailabilityQuestion(message: string): boolean {
     .replace(/\s+/g, ' ')
     .trim();
 
-  return /\b(?:do you(?: guys)? have|have you got|is (?:it|this|that)?\s*available|available|in stock)\b/.test(
+  return /\b(?:do (?:you|u)(?: guys)? have|have you got|is (?:it|this|that)?\s*available|available|in stock|how many|left)\b/.test(
     normalized
+  );
+}
+
+function looksLikeProductInformationQuestion(message: string): boolean {
+  return /\b(?:price|prce|prise|cost|how much|size|sizes|sizing|sze|szes|colou?rs?|available|availability|stock|fabric|material|pockets?|zip|zipper|slit|fit|length|sleeve|neckline|hem|pattern)\b|මිල|ගාන|ප්‍රමාණ|පාට|රෙද්ද|අමුද්‍රව්‍ය|තියෙනවද|துணி|பொருள்|விலை|அளவு|நிறம்|கிடைக்குமா/i.test(
+    message
+  );
+}
+
+function looksLikeReferencedProductFollowUp(message: string): boolean {
+  const normalized = message
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    looksLikeProductAvailabilityQuestion(message) ||
+    /\b(?:it|this|that|same one|eka)\b.*\b(?:available|stock|price|size|color|colour|black|white|beige|pink|coral|sage|cream|fabric|material|pocket|zip|slit|fit)\b/i.test(
+      normalized
+    ) ||
+    /(එක|එකක්|ඒක|එය).*(කළු|සුදු|පාට|size|ප්‍රමාණ|තියෙනවද|තිබෙනවද|මිල)/i.test(message) ||
+    /(அது|இது).*(கருப்பு|வெள்ளை|நிறம்|size|அளவு|கிடைக்குமா|இருக்கிறதா|விலை)/i.test(message) ||
+    /^(?:xs|s|m|l|xl|xxl|small|medium|large)(?:\s+size)?$/i.test(normalized) ||
+    /^(?:black|white|grey|gray|beige|pink|coral|sage|cream|blue|red|green|brown)(?:\s+(?:color|colour))?$/i.test(
+      normalized
+    )
   );
 }
 
@@ -321,16 +365,26 @@ export async function routeCustomerMessage(
   })
     ? state.preferredLanguage
     : languageResolution.language;
+  const detectedScriptStyle = detectCustomerScriptStyle(
+    input.currentMessage,
+    languageResolution.detectedLanguage || replyLanguage
+  );
+  const replyScriptStyle =
+    replyLanguage === 'english'
+      ? 'native'
+      : detectedScriptStyle ||
+        (state.preferredLanguage === replyLanguage ? state.preferredScriptStyle : 'native');
 
   if (
     languageResolution.isExplicitPreferenceRequest &&
     isLanguagePreferenceOnlyMessage(input.currentMessage)
   ) {
-    const reply = buildLanguagePreferenceAcknowledgement(replyLanguage);
+    const reply = buildLanguagePreferenceAcknowledgement(replyLanguage, replyScriptStyle);
 
     await saveConversationState(input.senderId, input.channel, {
       ...state,
       preferredLanguage: replyLanguage,
+      preferredScriptStyle: replyScriptStyle,
       lastAssistantReplyKind: 'generic',
       unclearMessageCount: 0,
     });
@@ -581,6 +635,19 @@ export async function routeCustomerMessage(
 
   function findProductByName(productName?: string | null) {
     if (!productName) {
+      if (state.lastReferencedProductId) {
+        return products.find((product) => product.id === state.lastReferencedProductId) || null;
+      }
+
+      if (state.lastReferencedProductName) {
+        return (
+          products.find(
+            (product) =>
+              product.name.toLowerCase() === state.lastReferencedProductName?.toLowerCase()
+          ) || null
+        );
+      }
+
       return null;
     }
 
@@ -793,12 +860,17 @@ export async function routeCustomerMessage(
           input.currentMessage,
           recentMessages,
           brandFilter,
-          customer?.name || input.customerName
+          customer?.name || input.customerName,
+          replyScriptStyle
         );
       }
 
       if (!localizedReply) {
-        localizedReply = await localizeReplyWithGemini(params.reply, replyLanguage);
+        localizedReply = await localizeReplyWithGemini(
+          params.reply,
+          replyLanguage,
+          replyScriptStyle
+        );
       }
     }
     const shouldPersistState =
@@ -811,6 +883,7 @@ export async function routeCustomerMessage(
           ...state,
           ...params.nextState,
           preferredLanguage: replyLanguage,
+          preferredScriptStyle: replyScriptStyle,
           lastAssistantReplyKind: assistantReplyKind,
           unclearMessageCount:
             assistantReplyKind === 'fallback'
@@ -1041,6 +1114,17 @@ export async function routeCustomerMessage(
     return finalizeSupportSilentHold(pausedSupportMode);
   }
 
+  if (isThanksMessage(input.currentMessage)) {
+    setDiagnosticEffectiveAction('acknowledgement', 1);
+    return finalizeReply({
+      reply: buildAcknowledgementReply(state, settings.support),
+      assistantReplyKind: 'generic',
+      nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
   if (state.pendingStep === 'none') {
     const trainingRule = await findMatchingBotTrainingRule({
       brand: brandFilter,
@@ -1073,7 +1157,9 @@ export async function routeCustomerMessage(
   if (useGreetingShortcut) {
     setDiagnosticEffectiveAction('greeting');
     return finalizeReply({
-      reply: buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
+      reply: looksLikeCapabilityQuestion(input.currentMessage)
+        ? 'I can help you browse available items, compare products, check sizes and colors, confirm stock, calculate delivery charges and timing, explain COD or payment options, place an order, and connect you with support when needed.'
+        : buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
       assistantReplyKind: 'greeting',
       nextState: {
         lastMissingOrderId: null,
@@ -1316,9 +1402,64 @@ export async function routeCustomerMessage(
   }
 
   if (!state.orderDraft && looksLikeTotalQuestion(input.currentMessage) && !messageReferencesExistingOrder(input.currentMessage)) {
+    const referencedProduct =
+      (state.lastReferencedProductId
+        ? products.find((product) => product.id === state.lastReferencedProductId)
+        : null) ||
+      (state.lastReferencedProductName
+        ? products.find(
+            (product) =>
+              product.name.toLowerCase() === state.lastReferencedProductName?.toLowerCase()
+          )
+        : null);
+
+    if (referencedProduct) {
+      const deliveryAddress =
+        aiAction.deliveryLocation ||
+        extractDeliveryLocationHint(input.currentMessage) ||
+        mergedContact.address;
+
+      if (!deliveryAddress) {
+        return finalizeReply({
+          reply: `For 1 ${referencedProduct.name}, the item total is Rs ${referencedProduct.price}. Which city or town should I use to add the exact delivery charge?`,
+          nextState: {
+            lastMissingOrderId: null,
+            lastReferencedProductId: referencedProduct.id,
+            lastReferencedProductName: referencedProduct.name,
+          },
+        });
+      }
+
+      const quantity = aiAction.quantity || 1;
+      const deliveryCharge = getDeliveryChargeForAddress(deliveryAddress, settings.delivery);
+      const itemTotal = referencedProduct.price * quantity;
+      const total = itemTotal + deliveryCharge;
+
+      return finalizeReply({
+        reply: `For ${quantity} ${referencedProduct.name}, the total to ${deliveryAddress} is Rs ${total} (Rs ${itemTotal} for the item${quantity > 1 ? 's' : ''} + Rs ${deliveryCharge} delivery).`,
+        nextState: {
+          lastMissingOrderId: null,
+          lastReferencedProductId: referencedProduct.id,
+          lastReferencedProductName: referencedProduct.name,
+        },
+      });
+    }
+
     return finalizeReply({
       reply: "Sure — share the item details for the order and I'll work out the total with delivery charges.",
       nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
+  if (looksLikePrivateDataExtractionRequest(input.currentMessage)) {
+    setDiagnosticEffectiveAction('privacy_refusal', 1);
+    return finalizeReply({
+      reply:
+        "I can't share private customer information or database records. I can only help with your own order, products, delivery, or payments, and I can connect you with support if needed.",
+      nextState: {
+        unclearMessageCount: 0,
         lastMissingOrderId: null,
       },
     });
@@ -1343,7 +1484,7 @@ export async function routeCustomerMessage(
     isSimpleSupportContactRequest ||
     isCourierProviderQuestion ||
     shouldAnswerSupportPolicy ||
-    aiAction.action === 'thanks_acknowledgement' ||
+    (aiAction.action === 'thanks_acknowledgement' && isThanksMessage(input.currentMessage)) ||
     (looksLikeOrderContactUpdateRequest(input.currentMessage) &&
       !looksLikeHumanEscalationRequest(input.currentMessage))
       ? null
@@ -1363,6 +1504,19 @@ export async function routeCustomerMessage(
 
   let effectiveAction = aiAction.action;
   let effectiveAiAction = aiAction;
+
+  if (
+    effectiveAction === 'thanks_acknowledgement' &&
+    !isThanksMessage(input.currentMessage) &&
+    !isNeutralAcknowledgement(input.currentMessage)
+  ) {
+    effectiveAction = 'fallback';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'fallback',
+      confidence: Math.min(effectiveAiAction.confidence, 0.5),
+    };
+  }
 
   if (
     ACTIONS_REQUIRING_HIGH_CONFIDENCE.has(effectiveAction) &&
@@ -1500,10 +1654,74 @@ export async function routeCustomerMessage(
     });
   }
 
+  const explicitlyMentionedCatalogProducts = findMentionedCatalogProducts(
+    input.currentMessage,
+    products
+  );
+  const isRecommendationRequest = looksLikeRecommendationRequest(input.currentMessage);
+  const isShortlistFollowUp =
+    state.lastRecommendedProductIds.length > 1 &&
+    looksLikeShortlistFollowUp(input.currentMessage);
+  const canUseRecommendationRouting = ['fallback', 'greeting', 'catalog_list'].includes(
+    effectiveAction
+  );
+
+  if (state.pendingStep === 'none' && isShortlistFollowUp && canUseRecommendationRouting) {
+    effectiveAction = 'catalog_list';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'catalog_list',
+      confidence: Math.max(effectiveAiAction.confidence, 0.96),
+    };
+  } else if (
+    state.pendingStep === 'none' &&
+    isRecommendationRequest &&
+    explicitlyMentionedCatalogProducts.length === 0 &&
+    canUseRecommendationRouting
+  ) {
+    effectiveAction = 'catalog_list';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'catalog_list',
+      productName: null,
+      confidence: Math.max(effectiveAiAction.confidence, 0.96),
+    };
+  }
+
   const mentionedProductForAvailability =
     state.pendingStep === 'none' && looksLikeProductAvailabilityQuestion(input.currentMessage)
       ? products.find((product) => scoreProductMatch(product, input.currentMessage) >= 100) || null
       : null;
+  const mentionedProductForQuestion =
+    state.pendingStep === 'none' && looksLikeProductInformationQuestion(input.currentMessage)
+      ? products.find((product) => scoreProductMatch(product, input.currentMessage) >= 100) || null
+      : null;
+
+  const referencedProductForFollowUp =
+    state.pendingStep === 'none' && looksLikeReferencedProductFollowUp(input.currentMessage)
+      ? (state.lastReferencedProductId
+          ? products.find((product) => product.id === state.lastReferencedProductId)
+          : null) ||
+        (state.lastReferencedProductName
+          ? products.find(
+              (product) =>
+                product.name.toLowerCase() === state.lastReferencedProductName?.toLowerCase()
+            )
+          : null)
+      : null;
+
+  if (
+    referencedProductForFollowUp &&
+    ['fallback', 'support_contact_request', 'greeting', 'catalog_list'].includes(effectiveAction)
+  ) {
+    effectiveAction = 'product_question';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'product_question',
+      productName: referencedProductForFollowUp.name,
+      confidence: Math.max(effectiveAiAction.confidence, 0.9),
+    };
+  }
 
   if (
     mentionedProductForAvailability &&
@@ -1515,6 +1733,40 @@ export async function routeCustomerMessage(
       action: 'product_question',
       productName: mentionedProductForAvailability.name,
       questionType: effectiveAiAction.questionType || 'availability',
+      confidence: Math.max(effectiveAiAction.confidence, 0.92),
+    };
+  }
+
+  if (
+    mentionedProductForQuestion &&
+    ['fallback', 'support_contact_request', 'greeting', 'catalog_list'].includes(effectiveAction)
+  ) {
+    effectiveAction = 'product_question';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'product_question',
+      productName: mentionedProductForQuestion.name,
+      questionType:
+        effectiveAiAction.questionType ||
+        (/\b(?:fabric|material|pockets?|zip|zipper|slit|fit|length|sleeve|neckline|hem|pattern)\b/i.test(
+          input.currentMessage
+        )
+          ? 'fit'
+          : null),
+      confidence: Math.max(effectiveAiAction.confidence, 0.92),
+    };
+  }
+
+  if (
+    state.pendingStep === 'none' &&
+    ['fallback', 'support_contact_request', 'greeting'].includes(effectiveAction) &&
+    (looksLikeRecommendationRequest(input.currentMessage) ||
+      looksLikeProductComparison(input.currentMessage))
+  ) {
+    effectiveAction = 'catalog_list';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'catalog_list',
       confidence: Math.max(effectiveAiAction.confidence, 0.92),
     };
   }

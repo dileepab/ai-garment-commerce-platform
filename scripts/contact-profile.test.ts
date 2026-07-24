@@ -80,3 +80,36 @@ test('confirmation phrases are never inferred as missing address fields', () => 
   assert.equal(district.district, '');
   assert.equal(district.address, '');
 });
+
+test('product selection text is never inferred as a comma-separated address', () => {
+  const contact = extractContactDetailsFromText(
+    'I want to order 1 Oversized Casual Top, size M, color Black.'
+  );
+
+  assert.equal(contact.streetAddress, '');
+  assert.equal(contact.city, '');
+  assert.equal(contact.district, '');
+  assert.equal(contact.address, '');
+});
+
+test('an explicit delivery phrase still extracts an address from an order message', () => {
+  const contact = extractContactDetailsFromText(
+    'Please deliver my order to 12 Main Street, Nugegoda, Colombo'
+  );
+
+  assert.equal(contact.streetAddress, '12 Main Street');
+  assert.equal(contact.city, 'Nugegoda');
+  assert.equal(contact.district, 'Colombo');
+  assert.equal(contact.address, '12 Main Street, Nugegoda, Colombo');
+});
+
+test('an explicit send phrase still extracts an address from an order message', () => {
+  const contact = extractContactDetailsFromText(
+    'Please send my order to 42 Test Lane, Negombo, Gampaha'
+  );
+
+  assert.equal(contact.streetAddress, '42 Test Lane');
+  assert.equal(contact.city, 'Negombo');
+  assert.equal(contact.district, 'Gampaha');
+  assert.equal(contact.address, '42 Test Lane, Negombo, Gampaha');
+});
