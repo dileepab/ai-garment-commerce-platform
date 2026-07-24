@@ -425,23 +425,38 @@ export async function generateCreative(
 
   logDebug('CreativeGen', `Text-to-image via ${TEXT_TO_IMAGE_MODEL} — brand "${input.brand}" persona "${input.personaId}".`);
 
-  const genResponse = await ai.models.generateImages({
+  // Gemini native image models use generateContent. generateImages maps to
+  // the Imagen predict endpoint, which rejects Gemini model identifiers.
+  const genResponse = await ai.models.generateContent({
     model: TEXT_TO_IMAGE_MODEL,
-    prompt,
-    config: { numberOfImages: 1, outputMimeType: 'image/jpeg', aspectRatio: '4:3' },
+    contents: prompt,
+    config: {
+      responseModalities: [Modality.IMAGE, Modality.TEXT],
+      imageConfig: {
+        aspectRatio: '4:3',
+        imageSize: '1K',
+        personGeneration: 'ALLOW_NONE',
+      },
+    },
   });
 
-  const generated = genResponse.generatedImages?.[0];
-  if (!generated?.image?.imageBytes) {
-    logError('CreativeGen', 'generateImages returned no image bytes.');
-    throw new Error(
-      'Image generation returned no image data. The content may have been filtered — ' +
-      'try rephrasing the product description.',
-    );
+  const candidates = genResponse.candidates ?? [];
+  for (const candidate of candidates) {
+    for (const part of candidate.content?.parts ?? []) {
+      if (part.inlineData?.data && part.inlineData?.mimeType) {
+        const mimeType = part.inlineData.mimeType;
+        const imageData = `data:${mimeType};base64,${part.inlineData.data}`;
+        logDebug('CreativeGen', 'Text-to-image creative generated successfully.');
+        return { imageData, mimeType, prompt };
+      }
+    }
   }
 
-  const mimeType = generated.image.mimeType ?? 'image/jpeg';
-  const imageData = `data:${mimeType};base64,${generated.image.imageBytes}`;
-  logDebug('CreativeGen', 'Text-to-image creative generated successfully.');
-  return { imageData, mimeType, prompt };
+  const textPart = candidates[0]?.content?.parts?.find(part => part.text);
+  const reason = textPart?.text ?? candidates[0]?.finishReason ?? 'unknown';
+  logError('CreativeGen', `${TEXT_TO_IMAGE_MODEL} returned no image.`, { reason });
+  throw new Error(
+    `Image generation was blocked or returned no output. Reason: ${reason}. ` +
+    'Try rephrasing the product description.',
+  );
 }
