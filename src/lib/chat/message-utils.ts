@@ -205,9 +205,10 @@ export function parseRequestedDateFromMessage(message: string, referenceDate: Da
 
 export function extractDeliveryLocationHint(message: string): string | null {
   const patterns = [
-    /\b(?:delivery(?:\s+\w+){0,3}\s+to|deliver(?:y)?\s+to)\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
+    /\b(?:delivery(?:\s+\w+){0,3}\s+to|deliver(?:ed|y)?\s+to|ship(?:ped|ping)?\s+to)\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
     /\bhow long does delivery take to\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
     /\bdelivery time to\s+([^?.,]+(?:,\s*[^?.,]+)*)/i,
+    /\b([A-Za-z][A-Za-z.'-]{1,50}?)(?:ta|walata)\s+(?:delivery|shipping|courier)/i,
     /\b([A-Za-z][A-Za-z\s.'-]{1,50})\s*(?:වලට|ට|වෙත)\s*(?:එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery|කරන්න)/i,
     /([\u0D80-\u0DFF\s]{2,}?)(?:ට|වෙත)\s*(?:එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i,
     /([\u0B80-\u0BFF\s]{2,}?)(?:க்கு|இற்கு)\s*(?:அனுப்ப|அனுப்புவதற்கு|டெலிவரி|delivery)/i,
@@ -217,7 +218,12 @@ export function extractDeliveryLocationHint(message: string): string | null {
     const match = message.match(pattern);
 
     if (match?.[1]) {
-      return match[1].trim();
+      return match[1]
+        .replace(
+          /,\s*(?:and\s+)?(?:when|how long|what|can|could|will|would|is|are|do|does)\b[\s\S]*$/i,
+          ''
+        )
+        .trim();
     }
   }
 
@@ -225,7 +231,11 @@ export function extractDeliveryLocationHint(message: string): string | null {
 }
 
 export function isGreetingMessage(message: string): boolean {
-  return /^(hi|hello|hey|good morning|good afternoon|good evening)\b/i.test(message.trim());
+  return (
+    /^(hi|hello|hey|good morning|good afternoon|good evening|ayubowan|vanakkam)\b/i.test(
+      message.trim()
+    ) || /^(ආයුබෝවන්|வணக்கம்)/.test(message.trim())
+  );
 }
 
 export function looksLikeCasualWellbeingQuestion(message: string): boolean {
@@ -237,6 +247,17 @@ export function looksLikeCasualWellbeingQuestion(message: string): boolean {
 
 export function isNeutralAcknowledgement(message: string): boolean {
   return /^(ok|okay|alright|fine|noted|got it|understood)\b[!. ]*$/i.test(message.trim());
+}
+
+export function isThanksMessage(message: string): boolean {
+  const normalized = normalizeText(message);
+  return (
+    /^(?:(?:ok|okay|alright) )?(?:thank you|thanks|thank u|thx|godak sthuthi|bohoma sthuthi|sthuthi|romba nandri|nandri)(?: very much| so much| a lot| for (?:your )?help)?$/.test(
+      normalized
+    ) ||
+    /^(?:බොහොම\s*)?ස්තුතියි$/.test(normalized) ||
+    /^(?:ரொம்ப\s*)?நன்றி$/.test(normalized)
+  );
 }
 
 export function extractExplicitOrderIdFromMessage(message: string): number | null {
@@ -556,10 +577,36 @@ export function extractGiftNoteFromText(message: string): string | null {
 
 export function looksLikeDeliveryQuestion(message: string): boolean {
   return (
-    /\bhow long\b|\bdelivery\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/i.test(
+    /\bhow long\b|\bdelivery\b|\bdeliver(?:ed|y)?\b|\bship(?:ped|ping)?\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/i.test(
       message
     ) ||
     looksLikeDeliveryChargeQuestion(message) ||
+    /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|කීයක්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(
+      message
+    ) ||
+    /(දවස්|කීයක්|යයිද|කොච්චර|කල්).*(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i.test(
+      message
+    ) ||
+    /(அனுப்ப|டெலிவரி|delivery).*(எத்தனை|நாட்கள்|நேரம்|எப்போது|வரும்|கிடைக்கும்)/i.test(
+      message
+    ) ||
+    /(எத்தனை|நாட்கள்|நேரம்|எப்போது).*(அனுப்ப|டெலிவரி|delivery)/i.test(message)
+  );
+}
+
+export function looksLikeDeliveryLogisticsQuestion(message: string): boolean {
+  const normalizedWithoutPaymentTerms = normalizeText(message)
+    .replace(/\bcash on delivery\b|\bpay on delivery\b|\bcod\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return (
+    looksLikeDeliveryChargeQuestion(message) ||
+    looksLikeCourierProviderQuestion(message) ||
+    Boolean(extractDeliveryLocationHint(message)) ||
+    /\bhow long\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b|\bdelivery (?:time|duration|estimate|eta)\b|\b(?:do|can) you deliver\b|\bdeliver(?:ed|y)?\s+to\b|\bship(?:ped|ping)?\s+to\b|\bdelivery available\b/i.test(
+      normalizedWithoutPaymentTerms
+    ) ||
     /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|කීයක්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(
       message
     ) ||
@@ -608,8 +655,37 @@ export function looksLikeDeliveryChargeQuestion(message: string): boolean {
 }
 
 export function looksLikeTotalQuestion(message: string): boolean {
-  return /\btotal\b|\bwith delivery\b|\bdelivery charges?\b|\bfinal amount\b|\bhow much altogether\b/i.test(
-    message
+  return (
+    /\btotal\b|\bwith delivery\b|\bincluding delivery\b|\bfinal amount\b|\bhow much altogether\b/i.test(
+      message
+    ) ||
+    /\b(?:order|item|product|cart)\b.*\bdelivery charges?\b|\bdelivery charges?\b.*\b(?:order|item|product|cart)\b/i.test(
+      message
+    )
+  );
+}
+
+export function looksLikePrivateDataExtractionRequest(message: string): boolean {
+  const normalized = normalizeText(message);
+  const triesToOverrideInstructions =
+    /\b(?:ignore|forget|override|bypass|disregard)\b.*\b(?:instructions?|rules?|policy|policies|prompt)\b/i.test(
+      normalized
+    ) || /\b(?:system prompt|developer message|hidden instructions?)\b/i.test(normalized);
+  const asksForSensitiveData =
+    /\b(?:customer|customers|user|users|people|database|records?)\b.*\b(?:phone|mobile|email|address|password|card|payment|personal|private|contact)\b/i.test(
+      normalized
+    ) ||
+    /\b(?:phone|mobile|email|address|password|card|payment|personal|private|contact)\b.*\b(?:customer|customers|user|users|database|records?)\b/i.test(
+      normalized
+    );
+  const requestsBulkAccess =
+    /\b(?:all|every|entire|full|list|show|reveal|export|download|dump|database|records?)\b/i.test(
+      normalized
+    );
+
+  return (
+    (triesToOverrideInstructions && (asksForSensitiveData || /\bdatabase\b/i.test(normalized))) ||
+    (asksForSensitiveData && requestsBulkAccess)
   );
 }
 
@@ -617,7 +693,7 @@ export function looksLikeCatalogQuestion(message: string): boolean {
   const normalized = normalizeText(message);
 
   return (
-    /\b(?:available|abailable|availabe|availble|avaiable) items?\b|\b(?:available|abailable|availabe|availble|avaiable) products?\b|\bwhat are the (?:available|abailable|availabe|availble|avaiable)\b|\bwhat do you have\b|\b(?:available|abailable|availabe|availble|avaiable) dresses?\b|\b(?:available|abailable|availabe|availble|avaiable) tops?\b|\b(?:available|abailable|availabe|availble|avaiable) t\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) tee\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) pants\b|\b(?:available|abailable|availabe|availble|avaiable) skirts?\b|\bdo you(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/i.test(
+    /\b(?:available|abailable|availabe|availble|avaiable) items?\b|\b(?:available|abailable|availabe|availble|avaiable) products?\b|\bwhat are the (?:available|abailable|availabe|availble|avaiable)\b|\bwhat do you have\b|\bwhat clothes\b.*\b(?:available|have|stock)\b|\bclothes\b.*\b(?:available|in stock)\b|\b(?:available|abailable|availabe|availble|avaiable) dresses?\b|\b(?:available|abailable|availabe|availble|avaiable) tops?\b|\b(?:available|abailable|availabe|availble|avaiable) t\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) tee\s*shirts?\b|\b(?:available|abailable|availabe|availble|avaiable) pants\b|\b(?:available|abailable|availabe|availble|avaiable) skirts?\b|\bdo (?:you|u)(?: guys)? have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b|\bdon t you have\b.*\b(dress|dresses|top|tops|t\s*shirt|t\s*shirts|tee\s*shirt|tee\s*shirts|pant|pants|skirt|skirts)\b/i.test(
       normalized
     ) ||
     /\b(?:monawada|monavada|mona|monawa)\b.*\b(?:thiyana|thiyena|tiyana|tiyena|thiyenne|tiyenne|adum|edum|items?|products?)\b/i.test(

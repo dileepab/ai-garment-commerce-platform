@@ -424,6 +424,7 @@ async function main() {
 
   } catch (error) {
     console.error('Test execution error:', error);
+    process.exitCode = 1;
   } finally {
     if (server) {
       console.log('Stopping test server...');

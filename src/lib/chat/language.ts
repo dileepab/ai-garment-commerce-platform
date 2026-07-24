@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { logDebug, logError, logWarn } from '@/lib/app-log';
 
 export type CustomerLanguage = 'english' | 'sinhala' | 'tamil';
+export type CustomerScriptStyle = 'native' | 'roman';
 
 interface LanguageResolution {
   language: CustomerLanguage;
@@ -22,16 +23,16 @@ const TAMIL_SCRIPT_RE = /[\u0B80-\u0BFF]/;
 const SINHALA_ROMAN_RE =
   /\b(sinhala|sinhalese|sinhalen|singhala|singhalen|kohomada|kohoma|karanne|karanna|ganna|ganne|puluwanda|puluwan|mata|mama|ape|oyala|oyage|denna|danna|kiyanna|ona|mona|monawa|monawada|monawath|thiyana|thiyena|tiyana|tiyena|thiyenne|thiyenawada|tiyenawada|thiyanawada|adum|edum|anduma|koheda|keeyada|ganan|milada|mokakda|mokadda|mokada|penne|nane)\b/i;
 const TAMIL_ROMAN_RE =
-  /\b(tamil|thamizh|thamil|tamilil|eppadi|epdi|irukka|irukkaa|venum|vendaum|vangurathu|vaanga|order panna|vilai|evlo|evvalavu|size enna|color enna)\b/i;
+  /\b(tamil|thamizh|thamil|tamilil|vanakkam|nandri|romba|enakku|naan|eppadi|epdi|irukka|irukkaa|venum|vendaum|vangurathu|vaanga|podanum|vaanganum|order panna|vilai|evlo|evvalavu|size enna|color enna)\b/i;
 const ENGLISH_HINT_RE =
   /\b(english|where|what|when|how|who|does|do|can|could|have|has|send|via|courier|price|cost|charge|fee|size|color|order|buy|available|delivery|shipping|payment|cancel|change|address|phone|thanks|hello|hi|shop|store|outlet|location|located|branch|branches|open|opening|close|closing|hours|item|items|product|products|details|fabric|slit|zip|dress|gown|top|skirt|pants|interested|support|contact|chat)\b/i;
 
 const SINHALA_PREFERENCE_RE =
-  /\b(sinhala|sinhalese|sinhalen|singhala|singhalen)\b/i;
-const TAMIL_PREFERENCE_RE = /\b(tamil|thamizh|thamil|tamilil)\b/i;
+  /\b(sinhala|sinhalese|sinhalen|singhala|singhalen)\b|සිංහලෙන්|සිංහල භාෂාවෙන්/i;
+const TAMIL_PREFERENCE_RE = /\b(tamil|thamizh|thamil|tamilil)\b|தமிழில்|தமிழ் மொழியில்/i;
 const ENGLISH_PREFERENCE_RE = /\b(english|ingrisi|ingreesi)\b/i;
 const LANGUAGE_REQUEST_RE =
-  /\b(can you|could you|please|pls|puluwanda|puluwan|danna|kiyanna|reply|send|type|speak|talk|language|basa|baasa|mozhi)\b/i;
+  /\b(can you|could you|please|pls|puluwanda|puluwan|danna|kiyanna|reply|send|type|speak|talk|language|basa|baasa|mozhi)\b|කියන්න|පුළුවන්ද|පිළිතුරු|பதில்|சொல்ல|முடியுமா/i;
 
 function getErrorStatus(error: unknown): number | undefined {
   if (typeof error === 'object' && error !== null && 'status' in error) {
@@ -88,6 +89,33 @@ export function detectCustomerLanguage(message: string): CustomerLanguage | null
   return null;
 }
 
+export function detectCustomerScriptStyle(
+  message: string,
+  language?: CustomerLanguage | null
+): CustomerScriptStyle | null {
+  const normalized = message.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (SINHALA_SCRIPT_RE.test(normalized) || TAMIL_SCRIPT_RE.test(normalized)) {
+    return 'native';
+  }
+
+  const resolvedLanguage = language || detectCustomerLanguage(normalized);
+
+  if (resolvedLanguage === 'sinhala' && SINHALA_ROMAN_RE.test(normalized)) {
+    return 'roman';
+  }
+
+  if (resolvedLanguage === 'tamil' && TAMIL_ROMAN_RE.test(normalized)) {
+    return 'roman';
+  }
+
+  return null;
+}
+
 export function resolveCustomerLanguage(
   message: string,
   previousLanguage: CustomerLanguage = 'english'
@@ -131,18 +159,25 @@ export function isLanguagePreferenceOnlyMessage(message: string): boolean {
   }
 
   const businessIntentRe =
-    /\b(price|size|color|order|buy|available|delivery|payment|cancel|change|address|phone|top|dress|pant|skirt|shirt|item|product|rs|keeyada|ganan|milada|vilai|evlo|venum|ganna|ganne|karanne)\b/i;
+    /\b(price|size|color|order|buy|available|delivery|payment|cancel|change|address|phone|top|dress|pant|skirt|shirt|item|product|rs|keeyada|ganan|milada|vilai|evlo|venum|ganna|ganne|karanne)\b|මිල|ගාන|ප්‍රමාණ|පාට|ඇඳුම|ඇදුම|ඇඳුම්|ඇදුම්|තියෙන|තිබෙන|ඇණවුම|ගෙවීම්|ඩිලිවරි|விலை|அளவு|நிறம்|உடை|ஆடை|கிடைக்க|ஆர்டர்|கட்டணம்|டெலிவரி|பரிந்துரை/i;
 
   return !businessIntentRe.test(normalized);
 }
 
-export function buildLanguagePreferenceAcknowledgement(language: CustomerLanguage): string {
+export function buildLanguagePreferenceAcknowledgement(
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string {
   if (language === 'sinhala') {
-    return 'ඔව්, පුළුවන්. මෙතැන් සිට මම සිංහලෙන් උදව් කරන්නම්.';
+    return scriptStyle === 'roman'
+      ? 'Ow, puluwan. Methanin passe mama Roman Sinhala walin help karannam.'
+      : 'ඔව්, පුළුවන්. මෙතැන් සිට මම සිංහලෙන් උදව් කරන්නම්.';
   }
 
   if (language === 'tamil') {
-    return 'ஆம், முடியும். இனிமேல் நான் தமிழில் உதவி செய்கிறேன்.';
+    return scriptStyle === 'roman'
+      ? 'Aam, mudiyum. Inime naan Roman Tamil-la help panren.'
+      : 'ஆம், முடியும். இனிமேல் நான் தமிழில் உதவி செய்கிறேன்.';
   }
 
   return 'Sure. I will continue in English.';
@@ -187,14 +222,45 @@ export function formatCarouselSubtitle(
   return `Sizes: ${product.sizes} | Colors: ${product.colors}`;
 }
 
-function localizeFallback(reply: string, language: CustomerLanguage): string {
+function localizeFallback(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string {
   if (language === 'english') {
     return reply;
+  }
+
+  if (language === 'sinhala' && scriptStyle === 'roman') {
+    return reply
+      .replace('We currently have the following items available:', 'Danata apita me items thiyenawa:')
+      .replaceAll('Fabric:', 'Redda:')
+      .replaceAll('Available stock:', 'Stock eka:')
+      .replace('At the moment this chat is set up for online orders.', 'Danata me chat eka online orders walata set karala thiyenne.')
+      .replace('I do not have a confirmed branch list saved here yet.', 'Confirm karapu branch list ekak danata save wela naha.')
+      .replace('You can message us here for item details, delivery, COD, or orders.', 'Item details, delivery, COD, saha orders gana me chat ekenma ahanna puluwan.')
+      .replace('For store location or branch details,', 'Store location hari branch details walata,')
+      .replaceAll('Please send the item name', 'Item eke nama ewanawada')
+      .replaceAll('I will share the correct details for it.', 'Mama eka gana hari details dennam.')
+      .replaceAll('Sorry, I did not quite catch that.', 'Sorry, mata eka hariyata therune naha.')
+      .replaceAll("Sorry, I didn't quite catch that.", 'Sorry, mata eka hariyata therune naha.');
+  }
+
+  if (language === 'tamil' && scriptStyle === 'roman') {
+    return reply
+      .replace('We currently have the following items available:', 'Ippo engal kitta indha items irukku:')
+      .replaceAll('Fabric:', 'Thuni:')
+      .replaceAll('Available stock:', 'Stock:')
+      .replaceAll('Please send the item name', 'Item name anuppunga')
+      .replaceAll('I will share the correct details for it.', 'Athoda correct details anuppuren.')
+      .replaceAll('Sorry, I did not quite catch that.', 'Sorry, adhu enakku clear-a puriyala.')
+      .replaceAll("Sorry, I didn't quite catch that.", 'Sorry, adhu enakku clear-a puriyala.');
   }
 
   if (language === 'sinhala') {
     return reply
       .replace('We currently have the following items available:', 'දැනට අපට තිබෙන භාණ්ඩ:')
+      .replaceAll('Fabric:', 'රෙදි වර්ගය:')
       .replaceAll('Sizes:', 'ප්‍රමාණ:')
       .replaceAll('Sizes ', 'ප්‍රමාණ ')
       .replaceAll('Colors:', 'වර්ණ:')
@@ -212,6 +278,7 @@ function localizeFallback(reply: string, language: CustomerLanguage): string {
 
   return reply
     .replace('We currently have the following items available:', 'தற்போது எங்களிடம் உள்ள பொருட்கள்:')
+    .replaceAll('Fabric:', 'துணி:')
     .replaceAll('Sizes:', 'அளவுகள்:')
     .replaceAll('Sizes ', 'அளவுகள் ')
     .replaceAll('Colors:', 'நிறங்கள்:')
@@ -236,6 +303,12 @@ const EMPTY_CATALOG_REPLY_SINHALA =
 const EMPTY_CATALOG_REPLY_TAMIL =
   'தற்போது எங்கள் catalog-ல் எந்தப் பொருட்களும் பட்டியலிடப்படவில்லை. புதிய பொருட்கள் விரைவில் சேர்க்கப்படும்—updates-க்கு எங்கள் page-ஐ follow செய்யுங்கள்.';
 
+const EMPTY_CATALOG_REPLY_ROMAN_SINHALA =
+  'Danata catalog eke items list karala naha. Aluth items langadima add karanawa—updates walata page eka follow karanna.';
+
+const EMPTY_CATALOG_REPLY_ROMAN_TAMIL =
+  'Ippo catalog-la items list pannala. Pudhu items seekiram add pannuvom—updates-ku page-a follow pannunga.';
+
 function localizeBusinessDayEstimate(estimate: string, language: CustomerLanguage): string {
   if (language === 'sinhala') {
     return estimate
@@ -252,7 +325,11 @@ function localizeBusinessDayEstimate(estimate: string, language: CustomerLanguag
   return estimate;
 }
 
-function localizeDeliveryReply(reply: string, language: CustomerLanguage): string | null {
+function localizeDeliveryReply(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string | null {
   const chargedPreOrderMatch = reply.match(
     /^Delivery to (.+?) costs Rs (\d+)\. Delivery to \1 usually takes (.+?), excluding weekends and Sri Lankan public holidays\. If the order is confirmed on (.+?), the expected delivery window is (.+?) to (.+?)\.$/
   );
@@ -260,6 +337,14 @@ function localizeDeliveryReply(reply: string, language: CustomerLanguage): strin
   if (chargedPreOrderMatch) {
     const [, address, charge, estimate, referenceDate, earliestDate, latestDate] = chargedPreOrderMatch;
     const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
+
+    if (language === 'sinhala' && scriptStyle === 'roman') {
+      return `${address} walata delivery charge eka Rs ${charge}. Delivery eka samanyen ${estimate} yanawa, weekends saha Sri Lankan public holidays nathuwa. ${referenceDate} order eka confirm kaloth, expected delivery window eka ${earliestDate} idan ${latestDate} dakwa.`;
+    }
+
+    if (language === 'tamil' && scriptStyle === 'roman') {
+      return `${address}-ku delivery charge Rs ${charge}. Delivery usually ${estimate}, weekends-um Sri Lankan public holidays-um thavirthu. ${referenceDate} order confirm pannina, expected delivery window ${earliestDate} mudhal ${latestDate} varai.`;
+    }
 
     if (language === 'sinhala') {
       return `${address} වෙත delivery charge එක Rs ${charge} කි. ${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. ${referenceDate} දින ඇණවුම තහවුරු කළහොත්, අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
@@ -278,6 +363,14 @@ function localizeDeliveryReply(reply: string, language: CustomerLanguage): strin
     const [, address, charge, estimate, earliestDate, latestDate] = chargedWindowMatch;
     const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
 
+    if (language === 'sinhala' && scriptStyle === 'roman') {
+      return `${address} walata delivery charge eka Rs ${charge}. Delivery eka samanyen ${estimate} yanawa, weekends saha Sri Lankan public holidays nathuwa. Expected delivery window eka ${earliestDate} idan ${latestDate} dakwa.`;
+    }
+
+    if (language === 'tamil' && scriptStyle === 'roman') {
+      return `${address}-ku delivery charge Rs ${charge}. Delivery usually ${estimate}, weekends-um Sri Lankan public holidays-um thavirthu. Expected delivery window ${earliestDate} mudhal ${latestDate} varai.`;
+    }
+
     if (language === 'sinhala') {
       return `${address} වෙත delivery charge එක Rs ${charge} කි. ${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
     }
@@ -294,6 +387,14 @@ function localizeDeliveryReply(reply: string, language: CustomerLanguage): strin
   if (preOrderMatch) {
     const [, address, estimate, referenceDate, earliestDate, latestDate] = preOrderMatch;
     const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
+
+    if (language === 'sinhala' && scriptStyle === 'roman') {
+      return `${address} walata delivery eka samanyen ${estimate} yanawa, weekends saha Sri Lankan public holidays nathuwa. ${referenceDate} order eka confirm kaloth, expected delivery window eka ${earliestDate} idan ${latestDate} dakwa.`;
+    }
+
+    if (language === 'tamil' && scriptStyle === 'roman') {
+      return `${address}-ku delivery usually ${estimate}, weekends-um Sri Lankan public holidays-um thavirthu. ${referenceDate} order confirm pannina, expected delivery window ${earliestDate} mudhal ${latestDate} varai.`;
+    }
 
     if (language === 'sinhala') {
       return `${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. ${referenceDate} දින ඇණවුම තහවුරු කළහොත්, අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
@@ -312,6 +413,14 @@ function localizeDeliveryReply(reply: string, language: CustomerLanguage): strin
     const [, address, estimate, earliestDate, latestDate] = windowMatch;
     const localizedEstimate = localizeBusinessDayEstimate(estimate, language);
 
+    if (language === 'sinhala' && scriptStyle === 'roman') {
+      return `${address} walata delivery eka samanyen ${estimate} yanawa, weekends saha Sri Lankan public holidays nathuwa. Expected delivery window eka ${earliestDate} idan ${latestDate} dakwa.`;
+    }
+
+    if (language === 'tamil' && scriptStyle === 'roman') {
+      return `${address}-ku delivery usually ${estimate}, weekends-um Sri Lankan public holidays-um thavirthu. Expected delivery window ${earliestDate} mudhal ${latestDate} varai.`;
+    }
+
     if (language === 'sinhala') {
       return `${address} වෙත භාරදීම සාමාන්‍යයෙන් ${localizedEstimate} ගතවේ, සති අන්ත සහ ශ්‍රී ලංකා මහජන නිවාඩු දින හැර. අපේක්ෂිත භාරදීමේ කාලය ${earliestDate} සිට ${latestDate} දක්වා වේ.`;
     }
@@ -324,7 +433,11 @@ function localizeDeliveryReply(reply: string, language: CustomerLanguage): strin
   return null;
 }
 
-function localizeVariantPromptFallback(reply: string, language: CustomerLanguage): string | null {
+function localizeVariantPromptFallback(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string | null {
   const sizeMatch = reply.match(
     /^Please let me know the size you need for (.+?)(?:\. Available sizes: (.+?)\.)?$/
   );
@@ -338,6 +451,30 @@ function localizeVariantPromptFallback(reply: string, language: CustomerLanguage
 
   const [, sizeProduct, sizeOptions] = sizeMatch ?? [];
   const [, colorProduct, colorOptions] = colorMatch ?? [];
+
+  if (language === 'sinhala' && scriptStyle === 'roman') {
+    if (sizeMatch) {
+      return `${sizeProduct} ekata ona size eka kiyannako.${
+        sizeOptions ? ` Available sizes: ${sizeOptions}.` : ''
+      }`;
+    }
+
+    return `${colorProduct} ekata ona color eka kiyannako.${
+      colorOptions ? ` Available colors: ${colorOptions}.` : ''
+    }`;
+  }
+
+  if (language === 'tamil' && scriptStyle === 'roman') {
+    if (sizeMatch) {
+      return `${sizeProduct}-ku venum size-a sollunga.${
+        sizeOptions ? ` Available sizes: ${sizeOptions}.` : ''
+      }`;
+    }
+
+    return `${colorProduct}-ku venum color-a sollunga.${
+      colorOptions ? ` Available colors: ${colorOptions}.` : ''
+    }`;
+  }
 
   if (language === 'sinhala') {
     if (sizeMatch) {
@@ -366,17 +503,175 @@ function localizeVariantPromptFallback(reply: string, language: CustomerLanguage
   return null;
 }
 
-function localizeKnownReply(reply: string, language: CustomerLanguage): string | null {
-  if (reply !== EMPTY_CATALOG_REPLY) {
-    return localizeDeliveryReply(reply, language) || localizeVariantPromptFallback(reply, language);
-  }
+function localizeSelectionUpdateReply(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string | null {
+  const match = reply.match(/^Got it — I've updated the selection to (.+)\.$/);
+  if (!match?.[1]) return null;
+  const selection = match[1];
 
   if (language === 'sinhala') {
-    return EMPTY_CATALOG_REPLY_SINHALA;
+    return scriptStyle === 'roman'
+      ? `Hari — selection eka ${selection} walata update kala.`
+      : `හරි — selection එක ${selection} ලෙස update කළා.`;
   }
 
   if (language === 'tamil') {
-    return EMPTY_CATALOG_REPLY_TAMIL;
+    return scriptStyle === 'roman'
+      ? `Sari — selection-a ${selection}-ku update pannitten.`
+      : `சரி — selection-ஐ ${selection} என update செய்துவிட்டேன்.`;
+  }
+
+  return reply;
+}
+
+function localizePaymentReply(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string | null {
+  if (!/\b(?:payment methods?|COD|cash on delivery|online transfer)\b/i.test(reply)) {
+    return null;
+  }
+
+  if (language === 'sinhala' && scriptStyle === 'roman') {
+    return reply
+      .replace('Yes, COD works for us.', 'Ow, COD puluwan.')
+      .replace('COD is not available right now.', 'Danata COD available naha.')
+      .replace(/Available payment methods are (.+?)\./, 'Payment karanna puluwan methods: $1.')
+      .replace(/Available payment method is (.+?)\./, 'Payment karanna puluwan method eka: $1.');
+  }
+
+  if (language === 'sinhala') {
+    return reply
+      .replace('Yes, COD works for us.', 'ඔව්, COD භාවිතා කළ හැක.')
+      .replace('COD is not available right now.', 'දැනට COD ලබා ගත නොහැක.')
+      .replace(/Available payment methods are (.+?)\./, 'ලබා ගත හැකි ගෙවීම් ක්‍රම: $1.')
+      .replace(/Available payment method is (.+?)\./, 'ලබා ගත හැකි ගෙවීම් ක්‍රමය: $1.');
+  }
+
+  if (language === 'tamil' && scriptStyle === 'roman') {
+    return reply
+      .replace('Yes, COD works for us.', 'Aam, COD irukku.')
+      .replace('COD is not available right now.', 'Ippo COD available illa.')
+      .replace(/Available payment methods are (.+?)\./, 'Payment panna mudiyum methods: $1.')
+      .replace(/Available payment method is (.+?)\./, 'Payment panna mudiyum method: $1.');
+  }
+
+  if (language === 'tamil') {
+    return reply
+      .replace('Yes, COD works for us.', 'ஆம், COD உள்ளது.')
+      .replace('COD is not available right now.', 'தற்போது COD கிடைக்கவில்லை.')
+      .replace(/Available payment methods are (.+?)\./, 'கிடைக்கும் கட்டண முறைகள்: $1.')
+      .replace(/Available payment method is (.+?)\./, 'கிடைக்கும் கட்டண முறை: $1.');
+  }
+
+  return reply;
+}
+
+function localizeKnownReply(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string | null {
+  if (
+    reply ===
+    'I am doing well, thank you. I can help with available items, sizes, COD, delivery, or an order.'
+  ) {
+    if (language === 'sinhala') {
+      return scriptStyle === 'roman'
+        ? 'Mama hondin, sthuthi. Available items, sizes, COD, delivery, hari order ekak gana mama help karannam.'
+        : 'මම හොඳින්, ස්තුතියි. තිබෙන භාණ්ඩ, sizes, COD, delivery, හෝ order එකක් ගැන මට උදව් කළ හැක.';
+    }
+
+    if (language === 'tamil') {
+      return scriptStyle === 'roman'
+        ? 'Naan nalla irukken, nandri. Available items, sizes, COD, delivery, illa order pathi help panren.'
+        : 'நான் நலமாக இருக்கிறேன், நன்றி. கிடைக்கும் பொருட்கள், sizes, COD, delivery, அல்லது order பற்றி உதவுகிறேன்.';
+    }
+  }
+
+  if (reply === 'You are welcome. Let me know if there is anything else.') {
+    if (language === 'sinhala') {
+      return scriptStyle === 'roman'
+        ? 'Prashnayak naha. Thawa monawath ona nam kiyannako.'
+        : 'ප්‍රශ්නයක් නැහැ. තවත් උදව්වක් අවශ්‍ය නම් කියන්න.';
+    }
+
+    if (language === 'tamil') {
+      return scriptStyle === 'roman'
+        ? 'Parava illa. Vera edhavathu help venumna sollunga.'
+        : 'பரவாயில்லை. வேறு ஏதாவது உதவி வேண்டுமெனில் சொல்லுங்கள்.';
+    }
+  }
+
+  const greetingMatch = reply.match(
+    /^Hello(?: ([^.]+))?\. How can I help you with (.+) today\?$/
+  );
+
+  if (greetingMatch) {
+    const [, customerName, storeName] = greetingMatch;
+    const namePart = customerName ? ` ${customerName}` : '';
+
+    if (language === 'sinhala') {
+      return scriptStyle === 'roman'
+        ? `Ayubowan${namePart}. ${storeName} gena ada kohomada udaw karanna puluwanda?`
+        : `ආයුබෝවන්${namePart}. අද ${storeName} ගැන මට ඔබට කෙසේ උදව් කළ හැකිද?`;
+    }
+
+    if (language === 'tamil') {
+      return scriptStyle === 'roman'
+        ? `Vanakkam${namePart}. Innaikku ${storeName} pathi eppadi help pannattum?`
+        : `வணக்கம்${namePart}. இன்று ${storeName} பற்றி நான் எப்படி உதவலாம்?`;
+    }
+  }
+
+  if (reply !== EMPTY_CATALOG_REPLY) {
+    const paragraphReplies = reply.split(/\n\n+/);
+    if (paragraphReplies.length > 1) {
+      const localizedParagraphs = paragraphReplies.map(
+        (paragraph) =>
+          localizeSelectionUpdateReply(paragraph, language, scriptStyle) ||
+          localizeVariantPromptFallback(paragraph, language, scriptStyle)
+      );
+
+      if (localizedParagraphs.every((paragraph): paragraph is string => Boolean(paragraph))) {
+        return localizedParagraphs.join('\n\n');
+      }
+    }
+
+    const [primaryReply, ...additionalReplies] = reply.split(/\n\n+/);
+    const localizedDelivery = localizeDeliveryReply(primaryReply, language, scriptStyle);
+
+    if (localizedDelivery) {
+      return [
+        localizedDelivery,
+        ...additionalReplies.map(
+          (additionalReply) =>
+            localizePaymentReply(additionalReply, language, scriptStyle) ||
+            localizeFallback(additionalReply, language, scriptStyle)
+        ),
+      ].join('\n\n');
+    }
+
+    return (
+      localizeVariantPromptFallback(reply, language, scriptStyle) ||
+      localizePaymentReply(reply, language, scriptStyle)
+    );
+  }
+
+  if (language === 'sinhala') {
+    return scriptStyle === 'roman'
+      ? EMPTY_CATALOG_REPLY_ROMAN_SINHALA
+      : EMPTY_CATALOG_REPLY_SINHALA;
+  }
+
+  if (language === 'tamil') {
+    return scriptStyle === 'roman'
+      ? EMPTY_CATALOG_REPLY_ROMAN_TAMIL
+      : EMPTY_CATALOG_REPLY_TAMIL;
   }
 
   return reply;
@@ -384,13 +679,14 @@ function localizeKnownReply(reply: string, language: CustomerLanguage): string |
 
 export async function localizeReplyWithGemini(
   reply: string | null,
-  language: CustomerLanguage
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
 ): Promise<string | null> {
   if (!reply || language === 'english') {
     return reply;
   }
 
-  const knownReply = localizeKnownReply(reply, language);
+  const knownReply = localizeKnownReply(reply, language, scriptStyle);
   if (knownReply) {
     return knownReply;
   }
@@ -398,14 +694,18 @@ export async function localizeReplyWithGemini(
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey || process.env.CHAT_TEST_MODE === '1') {
-    return localizeFallback(reply, language);
+    return localizeFallback(reply, language, scriptStyle);
   }
 
   const languageName = language === 'sinhala' ? 'Sinhala' : 'Tamil';
   const scriptInstruction =
     language === 'sinhala'
-      ? 'Use natural conversational Sinhala script, not romanized Sinhala.'
-      : 'Use natural conversational Tamil script, not romanized Tamil.';
+      ? scriptStyle === 'roman'
+        ? 'Use natural conversational Roman Sinhala written with Latin letters; do not use Sinhala characters.'
+        : 'Use natural conversational Sinhala script, not romanized Sinhala.'
+      : scriptStyle === 'roman'
+        ? 'Use natural conversational Roman Tamil written with Latin letters; do not use Tamil characters.'
+        : 'Use natural conversational Tamil script, not romanized Tamil.';
   const prompt = `Translate this customer-service reply into ${languageName}.
 
 Rules:
@@ -456,7 +756,7 @@ ${reply}`;
     }
   }
 
-  return localizeFallback(reply, language);
+  return localizeFallback(reply, language, scriptStyle);
 }
 
 export async function generateConversationalReplyWithGemini(
@@ -465,7 +765,8 @@ export async function generateConversationalReplyWithGemini(
   customerMessage: string,
   history: Array<{ role: string; message: string }>,
   brandName?: string | null,
-  customerName?: string | null
+  customerName?: string | null,
+  scriptStyle: CustomerScriptStyle = 'native'
 ): Promise<string | null> {
   if (!reply) {
     return null;
@@ -482,9 +783,13 @@ export async function generateConversationalReplyWithGemini(
 
   const scriptInstruction =
     language === 'sinhala'
-      ? 'Reply in natural conversational Sinhala script (not romanized Sinhala).'
+      ? scriptStyle === 'roman'
+        ? 'Reply in natural conversational Roman Sinhala using Latin letters, matching the customer. Do not use Sinhala characters.'
+        : 'Reply in natural conversational Sinhala script (not romanized Sinhala).'
       : language === 'tamil'
-        ? 'Reply in natural conversational Tamil script.'
+        ? scriptStyle === 'roman'
+          ? 'Reply in natural conversational Roman Tamil using Latin letters, matching the customer. Do not use Tamil characters.'
+          : 'Reply in natural conversational Tamil script.'
         : 'Reply in English.';
   const historyText = formatConversationHistoryForPrompt(history);
 

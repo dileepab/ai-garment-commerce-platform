@@ -19,15 +19,55 @@ export interface KoombiyoDeliveryRateMatch {
   chargeAdditionalKg: number;
 }
 
+export interface DeliveryDestinationResolution {
+  match: KoombiyoDeliveryRateMatch | null;
+  suggestion: string | null;
+}
+
 const KOOMBIYO_DELIVERY_RATE_TABLE = koombiyoDeliveryRatesData as KoombiyoDeliveryRateTable;
 const KOOMBIYO_DELIVERY_RATES = KOOMBIYO_DELIVERY_RATE_TABLE.rates;
+const LOCALIZED_DESTINATION_ALIASES: Record<string, string> = {
+  'කොළඹ': 'colombo',
+  'ගාල්ල': 'galle',
+  'මහනුවර': 'kandy',
+  'කුරුණෑගල': 'kurunegala',
+  'මීගමුව': 'negombo',
+  'යාපනය': 'jaffna',
+  'මාතර': 'matara',
+  'අනුරාධපුර': 'anuradhapura',
+  'බදුල්ල': 'badulla',
+  'රත්නපුර': 'ratnapura',
+  'ත්‍රිකුණාමලය': 'trincomalee',
+  'මඩකලපුව': 'batticaloa',
+  'கொழும்பு': 'colombo',
+  'காலி': 'galle',
+  'கண்டி': 'kandy',
+  'குருநாகல்': 'kurunegala',
+  'நீர்கொழும்பு': 'negombo',
+  'யாழ்ப்பாணம்': 'jaffna',
+  'மாத்தறை': 'matara',
+  'அனுராதபுரம்': 'anuradhapura',
+  'பதுளை': 'badulla',
+  'இரத்தினபுரி': 'ratnapura',
+  'திருகோணமலை': 'trincomalee',
+  'மட்டக்களப்பு': 'batticaloa',
+};
+const CANONICAL_DESTINATION_ALIASES: Record<string, string> = {
+  negambo: 'negombo',
+  kurunagala: 'kurunegala',
+};
 
 function getDeliverySettings(settings?: MerchantDeliverySettings): MerchantDeliverySettings {
   return settings ?? getDefaultMerchantSettings().delivery;
 }
 
 function normalizeDeliveryRateText(value: string): string {
-  return value
+  const aliasedValue = Object.entries(LOCALIZED_DESTINATION_ALIASES).reduce(
+    (result, [localizedName, rateName]) => result.replaceAll(localizedName, rateName),
+    value
+  );
+
+  return aliasedValue
     .toLowerCase()
     .normalize('NFKD')
     .replace(/([\p{L}])(\p{N})/gu, '$1 $2')
@@ -36,6 +76,28 @@ function normalizeDeliveryRateText(value: string): string {
     .replace(/\b0+(\d+)\b/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function isOutsideColomboDeliveryArea(address?: string): boolean {
+  const rawAddress = address ?? '';
+  const normalizedAddress = normalizeDeliveryRateText(rawAddress);
+
+  return (
+    /\b(?:outside|out of|beyond)\s+colombo\b/.test(normalizedAddress) ||
+    /කොළඹ(?:ින්)?\s*(?:පිට|පිටත)/.test(rawAddress) ||
+    /கொழும்பு(?:க்கு)?\s*வெளியே/.test(rawAddress)
+  );
+}
+
+function hasColomboCitySegment(address: string): boolean {
+  return address
+    .split(',')
+    .map((segment) => normalizeDeliveryRateText(segment))
+    .some((segment) => /^colombo(?:\s+(?:district|\d{1,2}))?$/.test(segment));
+}
+
+function canonicalDestination(value: string): string {
+  return CANONICAL_DESTINATION_ALIASES[value] ?? value;
 }
 
 function includesNormalizedPhrase(value: string, phrase: string): boolean {
@@ -80,13 +142,40 @@ function getNormalizedAddressSegments(address: string): string[] {
   return segments.length >= 3 ? segments.slice(-2) : segments;
 }
 
+function editDistance(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + substitutionCost
+      );
+    }
+
+    previous.splice(0, previous.length, ...current);
+  }
+
+  return previous[right.length];
+}
+
+function titleCaseDestination(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+}
+
 export function getKoombiyoDeliveryRateForAddress(
   address?: string,
 ): KoombiyoDeliveryRateMatch | null {
   const rawAddress = address ?? '';
   const normalizedAddress = normalizeDeliveryRateText(rawAddress);
 
-  if (!normalizedAddress) {
+  if (!normalizedAddress || isOutsideColomboDeliveryArea(rawAddress)) {
     return null;
   }
 
@@ -114,6 +203,48 @@ export function getKoombiyoDeliveryRateForAddress(
   };
 }
 
+export function resolveKoombiyoDeliveryDestination(
+  address?: string
+): DeliveryDestinationResolution {
+  const match = getKoombiyoDeliveryRateForAddress(address);
+  if (match) {
+    return { match, suggestion: null };
+  }
+
+  const normalizedAddress = normalizeDeliveryRateText(address ?? '');
+  if (!normalizedAddress || normalizedAddress.length < 4) {
+    return { match: null, suggestion: null };
+  }
+
+  const addressTokenCount = normalizedAddress.split(' ').length;
+  const maximumDistance = normalizedAddress.length <= 6 ? 2 : 3;
+  let best: { label: string; distance: number } | null = null;
+  const seen = new Set<string>();
+
+  for (const [, rawNormalizedDestination] of KOOMBIYO_DELIVERY_RATES) {
+    const normalizedDestination = canonicalDestination(rawNormalizedDestination);
+    if (
+      seen.has(normalizedDestination) ||
+      normalizedDestination.split(' ').length !== addressTokenCount ||
+      Math.abs(normalizedDestination.length - normalizedAddress.length) > maximumDistance
+    ) {
+      continue;
+    }
+
+    seen.add(normalizedDestination);
+    const distance = editDistance(normalizedAddress, normalizedDestination);
+
+    if (distance <= maximumDistance && (!best || distance < best.distance)) {
+      best = { label: normalizedDestination, distance };
+    }
+  }
+
+  return {
+    match: null,
+    suggestion: best ? titleCaseDestination(best.label) : null,
+  };
+}
+
 export function getDeliveryChargeForAddress(
   address?: string,
   settings?: MerchantDeliverySettings
@@ -124,6 +255,14 @@ export function getDeliveryChargeForAddress(
 
   if (!normalized) {
     return 0;
+  }
+
+  if (isOutsideColomboDeliveryArea(address)) {
+    return delivery.outsideColomboCharge;
+  }
+
+  if (hasColomboCitySegment(address ?? '')) {
+    return delivery.colomboCharge;
   }
 
   if (koombiyoRate) {
@@ -142,7 +281,11 @@ export function getDeliveryEstimateForAddress(
   const normalized = normalizeText(address ?? '');
   const delivery = getDeliverySettings(settings);
 
-  if (normalized.includes('colombo')) {
+  if (isOutsideColomboDeliveryArea(address)) {
+    return delivery.outsideColomboEstimate;
+  }
+
+  if (hasColomboCitySegment(address ?? '') || normalized === 'colombo') {
     return delivery.colomboEstimate;
   }
 

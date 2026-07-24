@@ -20,6 +20,11 @@ import {
 import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
 import { splitCsv, firstNameOf, sortSizeOptions, formatSizeList } from '@/lib/chat/message-utils';
 import { buildGarmentSpecsForCustomer, type ProductGarmentSpecSource } from '@/lib/product-garment-specs';
+import {
+  buildAvailableVariantReply,
+  resolveRequestedVariant,
+  type CatalogGuidanceProduct,
+} from '@/lib/chat/catalog-guidance';
 
 export const EMPTY_CATALOG_REPLY =
   'We do not have any items listed right now. New products will be available soon—follow our page for updates.';
@@ -140,12 +145,19 @@ export function buildProductQuestionReply(
     colors: string;
     fabric?: string | null;
     inventory?: { availableQty: number } | null;
-    variants?: Array<{ size: string; color: string; inventory?: { availableQty: number } | null }>;
+    variants?: Array<{
+      size: string;
+      color: string;
+      status?: string | null;
+      inventory?: { availableQty: number } | null;
+    }>;
   } & ProductGarmentSpecSource,
-  questionType: 'colors' | 'sizes' | 'price' | 'availability' | 'fit' | null
+  questionType: 'colors' | 'sizes' | 'price' | 'availability' | 'fit' | null,
+  customerMessage = '',
+  requestedSelection?: { size?: string | null; color?: string | null }
 ): string {
   const availableVariants = product.variants?.filter(
-    (v) => (v.inventory?.availableQty ?? 0) > 0
+    (v) => (!v.status || v.status === 'active') && (v.inventory?.availableQty ?? 0) > 0
   ) ?? [];
 
   const sizeList =
@@ -162,6 +174,89 @@ export function buildProductQuestionReply(
     availableVariants.length > 0
       ? availableVariants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
       : (product.inventory?.availableQty ?? 0);
+
+  const requestedVariant = resolveRequestedVariant(
+    product as CatalogGuidanceProduct,
+    customerMessage,
+    requestedSelection?.size,
+    requestedSelection?.color
+  );
+  const exactVariantReply = buildAvailableVariantReply(
+    product as CatalogGuidanceProduct,
+    requestedVariant.size,
+    requestedVariant.color,
+    customerMessage
+  );
+
+  if (exactVariantReply) {
+    return exactVariantReply;
+  }
+
+  const asksPrice = /\b(?:price|prce|prise|cost|how much|මිල|ගාන|கட்டணம்|விலை)\b/i.test(customerMessage);
+  const asksSizes = /\b(?:size|sizes|sizing|sze|szes|sisez)\b/i.test(customerMessage);
+  const asksColors = /\b(?:colou?rs?|පාට|நிறம்|நிறங்கள்)\b/i.test(customerMessage);
+  const asksFabric = /\b(?:fabric|material|cloth)\b|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்/i.test(customerMessage);
+  const asksAvailability = /\b(?:available|availability|stock|in stock)\b/i.test(customerMessage);
+  const asksPockets = /\bpockets?\b/i.test(customerMessage);
+  const asksZip = /\b(?:zip|zipper|side zip)\b/i.test(customerMessage);
+  const asksSideSlit = /\b(?:side\s+)?slit\b/i.test(customerMessage);
+  const asksGeneralFit = /\b(?:fit|length|sleeve|neckline|hem|pattern)\b/i.test(customerMessage);
+  const requestedFieldCount = [
+    asksPrice,
+    asksSizes,
+    asksColors,
+    asksFabric,
+    asksAvailability,
+    asksPockets,
+    asksZip,
+    asksSideSlit,
+    asksGeneralFit,
+  ].filter(Boolean).length;
+
+  if (requestedFieldCount > 0) {
+    const requestedLines: string[] = [];
+
+    if (asksPrice) requestedLines.push(`Price: Rs ${product.price}`);
+    if (asksFabric || asksPockets || asksZip || asksSideSlit || asksGeneralFit) {
+      if (product.fabric) {
+        requestedLines.push(`Fabric: ${product.fabric}`);
+      } else if (asksFabric) {
+        requestedLines.push('Fabric details are not recorded yet, so I do not want to guess.');
+      }
+    }
+    if (asksSizes) requestedLines.push(`Sizes: ${sizeList.join(', ')}`);
+    if (asksColors) requestedLines.push(`Colors: ${colorList.join(', ')}`);
+    if (asksAvailability) requestedLines.push(`Available stock: ${availableQty}`);
+    if (asksPockets) {
+      requestedLines.push('Pocket details are not recorded yet, so I do not want to guess.');
+    }
+    if (asksZip) {
+      requestedLines.push(
+        product.closureDetails
+          ? `Closure/details: ${product.closureDetails}`
+          : 'Zip/closure details are not recorded yet, so I do not want to guess.'
+      );
+    }
+    if (asksSideSlit) {
+      requestedLines.push(
+        product.hasSideSlit === true
+          ? `Side slit: yes${
+              product.sideSlitHeightCm ? `, ${product.sideSlitHeightCm} cm high` : ''
+            }`
+          : product.hasSideSlit === false
+            ? 'Side slit: no'
+            : 'Side-slit details are not recorded yet, so I do not want to guess.'
+      );
+    }
+    if (asksGeneralFit && !asksPockets && !asksZip && !asksSideSlit) {
+      const fitDetails = buildGarmentSpecsForCustomer(product);
+      requestedLines.push(
+        fitDetails || 'Fit details are not recorded yet, so I do not want to guess.'
+      );
+    }
+
+    return `${product.name}:\n${requestedLines.join('\n')}`;
+  }
 
   if (questionType === 'colors') {
     return `${product.name} is currently available in ${colorList.join(', ')}.`;
@@ -197,6 +292,93 @@ export function buildProductQuestionReply(
   )}. Colors: ${colorList.join(', ')}. Available stock: ${availableQty}.${specBlock}`;
 }
 
+function formatPaymentMethodList(methods: string[]): string {
+  if (methods.length <= 1) {
+    return methods[0] || '';
+  }
+
+  if (methods.length === 2) {
+    return `${methods[0]} and ${methods[1]}`;
+  }
+
+  return `${methods.slice(0, -1).join(', ')}, and ${methods[methods.length - 1]}`;
+}
+
+export function buildPaymentAvailabilityReply(params: {
+  message: string;
+  methods: string[];
+  onlineTransferLabel?: string | null;
+}): string {
+  const methods = Array.from(
+    new Map(
+      params.methods
+        .map((method) => method.trim())
+        .filter(Boolean)
+        .map((method) => [method.toLowerCase(), method])
+    ).values()
+  );
+
+  if (methods.length === 0) {
+    return 'No payment methods are configured right now.';
+  }
+
+  const requestedCod = /\bcod\b|cash on delivery|pay on delivery/i.test(params.message);
+  const requestedOnlineTransfer = /\bonline transfer\b|\bbank transfer\b|\btransfer the money\b/i.test(
+    params.message
+  );
+  const requestedSplitPayment =
+    /\b(?:split|combine|part)\b.*\b(?:payment|pay|cod|transfer)\b|\bhalf\b.*\b(?:rest|remaining|balance)\b|\b(?:rest|remaining|balance)\b.*\bhalf\b/i.test(
+      params.message
+    );
+  const requestedUnsupportedMethods = [
+    /\b(?:credit|debit)\s+card\b|\bcard payment\b/i.test(params.message)
+      ? 'credit/debit card'
+      : null,
+    /\bpaypal\b/i.test(params.message) ? 'PayPal' : null,
+  ].filter((method): method is string => Boolean(method));
+  const codMethod = methods.find((method) => /\bcod\b|cash on delivery/i.test(method));
+  const onlineTransferMethod = methods.find(
+    (method) =>
+      method.toLowerCase() === params.onlineTransferLabel?.trim().toLowerCase() ||
+      /online|bank|transfer/i.test(method)
+  );
+  const methodLabel = methods.length === 1 ? 'method is' : 'methods are';
+  const methodsSummary = `Available payment ${methodLabel} ${formatPaymentMethodList(methods)}.`;
+
+  if (requestedSplitPayment) {
+    return `Split payment between online transfer and COD is not supported right now. Please choose one payment method for the full order. ${methodsSummary}`;
+  }
+
+  if (requestedUnsupportedMethods.length > 0) {
+    return `${formatPaymentMethodList(requestedUnsupportedMethods)} ${
+      requestedUnsupportedMethods.length === 1 ? 'is' : 'are'
+    } not available right now. ${methodsSummary}`;
+  }
+
+  if (requestedCod && requestedOnlineTransfer) {
+    const bothAvailable = Boolean(codMethod && onlineTransferMethod);
+    return `${
+      bothAvailable
+        ? `Yes, both ${codMethod} and ${onlineTransferMethod} are available.`
+        : 'One or more of those payment methods is not available right now.'
+    } ${methodsSummary}`;
+  }
+
+  if (requestedCod) {
+    return `${codMethod ? 'Yes, COD works for us.' : 'COD is not available right now.'} ${methodsSummary}`;
+  }
+
+  if (requestedOnlineTransfer) {
+    return `${
+      onlineTransferMethod
+        ? `Yes, ${onlineTransferMethod} works for us.`
+        : 'Online transfer is not available right now.'
+    } ${methodsSummary}`;
+  }
+
+  return methodsSummary;
+}
+
 export function buildDeliveryReply(params: {
   address?: string | null;
   referenceDate: Date;
@@ -207,8 +389,13 @@ export function buildDeliveryReply(params: {
   getDeliveryChargeForAddress?: (address: string) => number;
   includeCharge?: boolean;
   defaultDeliveryText?: string;
+  paymentReply?: string | null;
 }): string {
   const address = params.address?.trim();
+  const withPaymentReply = (deliveryReply: string) =>
+    params.paymentReply
+      ? `${deliveryReply}\n\n${params.paymentReply}`
+      : deliveryReply;
 
   if (!address) {
     const chargeText =
@@ -216,15 +403,32 @@ export function buildDeliveryReply(params: {
         ? `${params.defaultDeliveryText}.`
         : '';
 
-    return chargeText ||
-      params.defaultDeliveryText ||
-      'Delivery usually takes 1-2 business days within Colombo and 2-3 business days outside Colombo, excluding weekends and Sri Lankan public holidays.';
+    return withPaymentReply(
+      chargeText ||
+        params.defaultDeliveryText ||
+        'Delivery usually takes 1-2 business days within Colombo and 2-3 business days outside Colombo, excluding weekends and Sri Lankan public holidays.'
+    );
+  }
+
+  const deliveryCharge =
+    params.includeCharge && params.getDeliveryChargeForAddress
+      ? params.getDeliveryChargeForAddress(address)
+      : null;
+
+  if (
+    params.includeCharge &&
+    params.getDeliveryChargeForAddress &&
+    (deliveryCharge === null || !Number.isFinite(deliveryCharge) || deliveryCharge <= 0)
+  ) {
+    return withPaymentReply(
+      `I couldn't verify ${address} in our delivery rate list. Please confirm the city or town, district, or postal code before I quote a delivery charge or delivery window.`
+    );
   }
 
   const estimate = params.getDeliveryEstimateForAddress(address);
   const chargePrefix =
-    params.includeCharge && params.getDeliveryChargeForAddress
-      ? `Delivery to ${address} costs Rs ${params.getDeliveryChargeForAddress(address)}. `
+    deliveryCharge !== null
+      ? `Delivery to ${address} costs Rs ${deliveryCharge}. `
       : '';
   const businessDays = getBusinessDayRangeFromEstimate(estimate);
   const { earliestDate, latestDate } = calculateSriLankaDeliveryWindow(
@@ -239,37 +443,47 @@ export function buildDeliveryReply(params: {
 
   if (!params.requestedDate) {
     if (params.isDraft) {
-      return `${intro} If the order is confirmed on ${formatSriLankaDisplayDate(
-        params.referenceDate
-      )}, the expected delivery window is ${formatSriLankaDisplayDate(earliestDate)} to ${formatSriLankaDisplayDate(
-        latestDate
-      )}.`;
+      return withPaymentReply(
+        `${intro} If the order is confirmed on ${formatSriLankaDisplayDate(
+          params.referenceDate
+        )}, the expected delivery window is ${formatSriLankaDisplayDate(earliestDate)} to ${formatSriLankaDisplayDate(
+          latestDate
+        )}.`
+      );
     }
 
-    return `${intro} The expected delivery window is ${formatSriLankaDisplayDate(
-      earliestDate
-    )} to ${formatSriLankaDisplayDate(latestDate)}.`;
+    return withPaymentReply(
+      `${intro} The expected delivery window is ${formatSriLankaDisplayDate(
+        earliestDate
+      )} to ${formatSriLankaDisplayDate(latestDate)}.`
+    );
   }
 
   if (latestDate <= params.requestedDate) {
-    return `${intro} The expected delivery window is ${formatSriLankaDisplayDate(
-      earliestDate
-    )} to ${formatSriLankaDisplayDate(latestDate)}, so it should arrive by ${formatSriLankaDisplayDate(
-      params.requestedDate
-    )}.`;
+    return withPaymentReply(
+      `${intro} The expected delivery window is ${formatSriLankaDisplayDate(
+        earliestDate
+      )} to ${formatSriLankaDisplayDate(latestDate)}, so it should arrive by ${formatSriLankaDisplayDate(
+        params.requestedDate
+      )}.`
+    );
   }
 
   if (params.isDraft) {
-    return `${intro} If the order is confirmed on ${formatSriLankaDisplayDate(
-      params.referenceDate
-    )}, delivery before ${formatSriLankaDisplayDate(params.requestedDate)} is not possible.`;
+    return withPaymentReply(
+      `${intro} If the order is confirmed on ${formatSriLankaDisplayDate(
+        params.referenceDate
+      )}, delivery before ${formatSriLankaDisplayDate(params.requestedDate)} is not possible.`
+    );
   }
 
-  return `${intro} The expected delivery window is ${formatSriLankaDisplayDate(
-    earliestDate
-  )} to ${formatSriLankaDisplayDate(latestDate)}, so delivery before ${formatSriLankaDisplayDate(
-    params.requestedDate
-  )} cannot be guaranteed.`;
+  return withPaymentReply(
+    `${intro} The expected delivery window is ${formatSriLankaDisplayDate(
+      earliestDate
+    )} to ${formatSriLankaDisplayDate(latestDate)}, so delivery before ${formatSriLankaDisplayDate(
+      params.requestedDate
+    )} cannot be guaranteed.`
+  );
 }
 
 export function buildGreetingReply(name?: string | null, brand?: string): string {
