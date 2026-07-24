@@ -435,7 +435,6 @@ export async function generateCreative(
       imageConfig: {
         aspectRatio: '4:3',
         imageSize: '1K',
-        personGeneration: 'ALLOW_NONE',
       },
     },
   });
