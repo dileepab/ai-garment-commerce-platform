@@ -337,9 +337,13 @@ function CourierWebhookHealthPanel({
             </p>
           </div>
           {canManage && (
-            <form action={testCourierWebhookSettingsAction}>
-              <button className="btn btn-secondary" type="submit">Test config</button>
-            </form>
+            <button
+              className="btn btn-secondary"
+              type="submit"
+              formAction={testCourierWebhookSettingsAction}
+            >
+              Test config
+            </button>
           )}
         </div>
       </div>

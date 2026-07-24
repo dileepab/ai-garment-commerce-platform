@@ -24,6 +24,12 @@ import {
 } from '@/lib/fulfillment';
 import { getReturnStatusLabel, getReturnTypeLabel } from '@/lib/returns';
 import { buildCode128BarcodeSvg } from '@/lib/barcode';
+import {
+  buildRoyalExpressLabelAddressLines,
+  buildRoyalExpressQrMatrix,
+  formatRoyalExpressLabelPhone,
+  resolveRoyalExpressLabelLocation,
+} from '@/lib/royal-express-label';
 import { CreateReturnRequestForm } from '@/components/ReturnComponents';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
@@ -350,13 +356,13 @@ function buildKoombiyoPackageDescription(order: OrderDrawerOrder | null): string
 function buildKoombiyoPrintAddressLines(
   order: OrderDrawerOrder,
   shipment: OrderCourierShipmentLike,
+  includeLocation = true,
 ): string[] {
   const parts = [
     shipment.receiverStreet,
     order.deliveryStreetAddress,
     order.deliveryAddress,
-    order.deliveryCity,
-    order.deliveryDistrict,
+    ...(includeLocation ? [order.deliveryCity, order.deliveryDistrict] : []),
   ].filter((value): value is string => Boolean(value?.trim()));
   const selected: string[] = [];
 
@@ -377,53 +383,43 @@ function buildKoombiyoPrintAddressLines(
 
 function buildRoyalExpressQrHtml(value: string): string {
   const cleaned = value.trim() || '0';
-  const size = 13;
-  let seed = 0;
-  for (let index = 0; index < cleaned.length; index += 1) {
-    seed = (seed * 31 + cleaned.charCodeAt(index)) >>> 0;
-  }
+  const qr = buildRoyalExpressQrMatrix(cleaned);
+  const cells = qr.cells.map((filled) =>
+    `<span class="${filled ? 'qr-cell qr-cell-on' : 'qr-cell'}"></span>`
+  );
 
-  const cells: string[] = [];
-  const finderCells = new Set<string>();
-  const addFinder = (startRow: number, startCol: number) => {
-    for (let row = 0; row < 5; row += 1) {
-      for (let col = 0; col < 5; col += 1) {
-        const border = row === 0 || row === 4 || col === 0 || col === 4;
-        const center = row >= 2 && row <= 2 && col >= 2 && col <= 2;
-        if (border || center) finderCells.add(`${startRow + row}:${startCol + col}`);
-      }
-    }
-  };
-
-  addFinder(0, 0);
-  addFinder(0, size - 5);
-  addFinder(size - 5, 0);
-
-  for (let row = 0; row < size; row += 1) {
-    for (let col = 0; col < size; col += 1) {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      const filled = finderCells.has(`${row}:${col}`) || ((seed + row * 17 + col * 29) % 7 < 3);
-      cells.push(`<span class="${filled ? 'qr-cell qr-cell-on' : 'qr-cell'}"></span>`);
-    }
-  }
-
-  return `<div class="qr-code" aria-label="Waybill QR ${escapeHtml(cleaned)}">${cells.join('')}</div>`;
+  return `<div class="qr-code" aria-label="Waybill QR ${escapeHtml(cleaned)}" style="grid-template-columns:repeat(${qr.size},1fr);grid-template-rows:repeat(${qr.size},1fr)">${cells.join('')}</div>`;
 }
 
 function printRoyalExpressWaybill(order: OrderDrawerOrder, shipment: OrderCourierShipmentLike) {
   const customerName = shipment.receiverName || order.customer.name || 'Customer';
-  const addressLines = buildKoombiyoPrintAddressLines(order, shipment);
+  const { city, postalCode } = resolveRoyalExpressLabelLocation({
+    receiverCityId: shipment.receiverCityId,
+    deliveryCity: order.deliveryCity,
+    deliveryDistrict: order.deliveryDistrict,
+    addressParts: [shipment.receiverStreet, order.deliveryStreetAddress, order.deliveryAddress],
+  });
+  const addressLines = buildRoyalExpressLabelAddressLines([
+    shipment.receiverStreet,
+    order.deliveryStreetAddress,
+    order.deliveryAddress,
+  ], [city, order.deliveryCity, order.deliveryDistrict]);
   const addressHtml = addressLines.map((line) => escapeHtml(line)).join('<br />');
-  const phone = shipment.receiverPhone || order.customer.phone || 'No phone';
+  const phone = formatRoyalExpressLabelPhone(
+    shipment.receiverPhone || order.customer.phone || 'No phone',
+  );
   const description = shipment.description || buildKoombiyoPackageDescription(order);
-  const codAmount = order.orderTotal ?? order.codValue ?? shipment.codAmount ?? order.totalAmount ?? 0;
+  const codAmount = shipment.codAmount ?? order.orderTotal ?? order.codValue ?? order.totalAmount ?? 0;
   const orderDate = formatRoyalExpressDateTime(order.createdAt);
   const brandName = order.brand || 'DEEZ';
-  const senderName = order.koombiyoCourier?.senderName || brandName;
-  const senderPhone = order.koombiyoCourier?.senderPhone || '-';
-  const orderNumber = shipment.orderReference || String(order.id);
-  const city = order.deliveryCity || order.deliveryDistrict || shipment.receiverCityId || '-';
-  const postalCode = shipment.receiverCityId || '-';
+  const senderName = brandName;
+  const senderPhone = formatRoyalExpressLabelPhone(order.koombiyoCourier?.senderPhone || '-');
+  const orderNumber = (shipment.orderReference || String(order.id)).replace(/^ORD-/i, '');
+  const specialNote = shipment.specialNote?.trim();
+  const showSpecialNote = Boolean(specialNote && !/^DEEZ\s+.+\s+order\s+#\d+$/i.test(specialNote));
+  const specialNoteHtml = showSpecialNote && specialNote
+    ? `<span class="label">Special Note</span><span class="value special-note">${escapeHtml(specialNote)}</span>`
+    : '';
   const barcodeSvg = buildCode128BarcodeSvg(shipment.waybillId);
   const qrHtml = buildRoyalExpressQrHtml(shipment.waybillId);
   const html = `<!doctype html>
@@ -432,7 +428,7 @@ function printRoyalExpressWaybill(order: OrderDrawerOrder, shipment: OrderCourie
   <title>RoyalExpress Waybill ${escapeHtml(shipment.waybillId)}</title>
   <style>
     * { box-sizing: border-box; }
-    @page { size: A4 portrait; margin: 6mm; }
+    @page { size: 4in 6in; margin: 0; }
     body {
       margin: 0;
       padding: 0;
@@ -441,147 +437,188 @@ function printRoyalExpressWaybill(order: OrderDrawerOrder, shipment: OrderCourie
       background: #fff;
     }
     .print-page {
-      width: 198mm;
-      min-height: 285mm;
+      width: 101.6mm;
+      height: 152.4mm;
       display: flex;
       align-items: flex-start;
       justify-content: center;
       background: #fff;
     }
     .waybill {
-      width: 128mm;
-      min-height: 188mm;
-      border: 1.4px solid #000;
+      width: 101.6mm;
+      height: 152.4mm;
+      border: 0.35mm solid #000;
       display: grid;
-      grid-template-rows: auto auto auto auto auto 7mm;
+      grid-template-rows: 39mm 7mm 44mm 7mm 1fr 5mm;
       background: #fff;
       page-break-inside: avoid;
       break-inside: avoid;
+      overflow: hidden;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .top {
-      min-height: 71mm;
-      padding: 3mm 3mm 2mm;
+      padding: 2.4mm 2.8mm 1.8mm;
       display: grid;
-      grid-template-columns: 43% 57%;
-      border-bottom: 1.2px solid #000;
+      grid-template-columns: 40% 60%;
+      border-bottom: 0.2mm solid #000;
     }
     .carrier {
       display: grid;
       align-content: start;
-      gap: 3mm;
+      gap: 1.6mm;
       min-width: 0;
     }
     .royal-logo {
-      width: 38mm;
-      height: 21mm;
+      width: 35mm;
+      height: 18mm;
       display: flex;
       align-items: center;
     }
     .royal-logo img {
-      width: 38mm;
+      width: 35mm;
       height: auto;
-      max-height: 21mm;
+      max-height: 18mm;
       object-fit: contain;
       object-position: left center;
       display: block;
-    }
-    .carrier-name {
-      font-size: 17px;
-      line-height: 1.12;
-      font-weight: 900;
+      filter: grayscale(1) contrast(1.15);
     }
     .carrier-contact {
-      font-size: 12px;
-      line-height: 1.38;
-      font-weight: 800;
+      font-size: 8.5px;
+      line-height: 1.25;
+      font-weight: 700;
     }
     .tracking {
       display: grid;
       justify-items: end;
       align-content: start;
-      gap: 3mm;
+      gap: 0.8mm;
       min-width: 0;
     }
-    .waybill-id {
-      font-size: 15px;
+    .waybill-heading {
+      align-items: baseline;
+      display: flex;
+      gap: 1.5mm;
+      justify-content: flex-end;
       line-height: 1;
+      white-space: nowrap;
+    }
+    .waybill-heading span {
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+    }
+    .waybill-heading strong {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
       font-weight: 900;
-      text-align: right;
     }
     .barcode-panel {
       display: grid;
       justify-items: center;
-      width: 70mm;
+      width: 56mm;
     }
     .barcode-svg {
-      width: 69mm;
-      height: 10mm;
+      width: 55mm;
+      height: 9mm;
       fill: #000;
     }
-    .barcode-text {
-      margin-top: 0.6mm;
-      font-size: 15px;
-      font-weight: 500;
-      letter-spacing: 1.6px;
-    }
     .qr-code {
-      width: 24mm;
-      height: 24mm;
-      margin-top: 8mm;
+      width: 15mm;
+      height: 15mm;
+      margin-top: 0.4mm;
+      padding: 1mm;
+      align-self: end;
       display: grid;
-      grid-template-columns: repeat(13, 1fr);
-      grid-template-rows: repeat(13, 1fr);
       gap: 0;
       background: #fff;
     }
     .qr-cell { background: #fff; }
     .qr-cell-on { background: #000; }
     .section-title {
-      min-height: 9mm;
+      min-height: 7mm;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-bottom: 1.2px solid #000;
-      font-size: 13px;
+      background: #fff;
+      border-bottom: 0.2mm solid #000;
+      color: #000;
+      font-size: 9.5px;
       font-weight: 900;
+      letter-spacing: 0.8px;
       line-height: 1;
+      text-transform: uppercase;
     }
+    .order-title { margin: 0; }
     .two-col {
       display: grid;
-      grid-template-columns: 37% 63%;
-      border-bottom: 1.2px solid #000;
+      gap: 0;
+      grid-template-columns: 34% 66%;
+      border-bottom: 0.2mm solid #000;
+      margin: 0;
     }
-    .two-col > div:first-child { border-right: 1.2px solid #000; }
+    .two-col > div:first-child { border-right: 0.2mm solid #000; }
     .cell {
-      padding: 2mm;
-      min-height: 38mm;
-      font-size: 13px;
-      line-height: 1.32;
-      font-weight: 900;
+      padding: 2.4mm 2.6mm;
+      min-height: 0;
+      font-size: 9px;
+      line-height: 1.18;
+      font-weight: 700;
       overflow-wrap: anywhere;
     }
     .label {
       display: block;
-      font-weight: 900;
+      color: #222;
+      font-size: 7.5px;
+      font-weight: 800;
+      letter-spacing: 0.45px;
+      text-transform: uppercase;
     }
     .value {
       display: block;
-      margin-bottom: 1mm;
-      font-weight: 900;
+      margin-bottom: 1.1mm;
+      font-size: 10.5px;
+      font-weight: 800;
     }
+    .two-col:not(.order-details) > .cell:last-child .value { font-size: 11px; }
     .merchant-details .value {
       margin-bottom: 2mm;
     }
+    .merchant-name { font-size: 13px; line-height: 1.05; }
+    .merchant-phone { font-size: 11.5px; }
+    .recipient-name { font-size: 12.5px !important; }
+    .recipient-address { font-size: 11.5px !important; line-height: 1.22; }
+    .recipient-phone { font-size: 12px !important; }
+    .location-row { display: grid; gap: 2mm; grid-template-columns: 1fr 1fr; }
+    .special-note {
+      border: 0.3mm solid #000;
+      font-size: 8.5px;
+      padding: 0.8mm;
+    }
     .order-details {
-      min-height: 55mm;
+      min-height: 0;
+    }
+    .cod-value {
+      background: #000;
+      color: #fff;
+      display: inline-block;
+      font-size: 13.5px;
+      font-weight: 900;
+      letter-spacing: 0.35px;
+      margin-top: 0.3mm;
+      padding: 1mm 1.4mm;
+      white-space: nowrap;
     }
     .footer {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      font-weight: 900;
+      font-size: 7px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
       line-height: 1;
+      text-transform: uppercase;
     }
     @media print {
       .no-print { display: none; }
@@ -597,63 +634,68 @@ function printRoyalExpressWaybill(order: OrderDrawerOrder, shipment: OrderCourie
           <div class="royal-logo">
             <img src="/royal-express-logo.png" alt="Royal Express" />
           </div>
-          <div class="carrier-name">Royal Express<br />Courier &amp; Logistics<br />(Pvt) Ltd</div>
           <div class="carrier-contact">
-            0112417417<br />
-            No 69 Subhadrarama Road,<br />
-            Kattiya Junction,<br />
+            <strong>0112 417 417</strong><br />
+            No. 69, Subhadrarama Rd,<br />
             Nugegoda
           </div>
         </div>
         <div class="tracking">
-          <div class="waybill-id">Waybill ID : ${escapeHtml(shipment.waybillId)}</div>
+          <div class="waybill-heading">
+            <span>WAYBILL</span>
+            <strong>${escapeHtml(shipment.waybillId)}</strong>
+          </div>
           <div class="barcode-panel">
             ${barcodeSvg}
-            <div class="barcode-text">${escapeHtml(shipment.waybillId)}</div>
           </div>
           ${qrHtml}
         </div>
       </div>
       <div class="two-col">
-        <div class="section-title">Merchant Details</div>
-        <div class="section-title">Customer Details</div>
+        <div class="section-title">Ship From</div>
+        <div class="section-title">Ship To</div>
       </div>
       <div class="two-col">
         <div class="cell merchant-details">
           <span class="label">Name</span>
-          <span class="value">${escapeHtml(senderName)}</span>
+          <span class="value merchant-name">${escapeHtml(senderName)}</span>
           <span class="label">Telephone</span>
-          <span class="value">${escapeHtml(senderPhone)}</span>
+          <span class="value merchant-phone">${escapeHtml(senderPhone)}</span>
         </div>
         <div class="cell">
           <span class="label">Name</span>
-          <span class="value">${escapeHtml(customerName)}</span>
+          <span class="value recipient-name">${escapeHtml(customerName)}</span>
           <span class="label">Address</span>
-          <span class="value">${addressHtml}</span>
+          <span class="value recipient-address">${addressHtml}</span>
+          <div class="location-row">
+            <span>
+              <span class="label">City</span>
+              <span class="value">${escapeHtml(city)}</span>
+            </span>
+            <span>
+              <span class="label">Postal / Zip</span>
+              <span class="value">${escapeHtml(postalCode)}</span>
+            </span>
+          </div>
           <span class="label">Telephone</span>
-          <span class="value">${escapeHtml(phone)}</span>
+          <span class="value recipient-phone">${escapeHtml(phone)}</span>
         </div>
       </div>
-      <div class="section-title">Order Details</div>
+      <div class="section-title order-title">Order Details</div>
       <div class="two-col order-details">
         <div class="cell">
           <span class="label">Order Number</span>
           <span class="value">${escapeHtml(orderNumber)}</span>
           <span class="label">Order Date</span>
           <span class="value">${escapeHtml(orderDate)}</span>
-          <span class="label">Postal / Zip Code</span>
-          <span class="value">${escapeHtml(postalCode)}</span>
           <span class="label">Weight</span>
-          <span class="value">1</span>
+          <span class="value">1 kg</span>
         </div>
         <div class="cell">
           <span class="label">Description</span>
           <span class="value">${escapeHtml(description)}</span>
-          <br />
-          <span class="label">City</span>
-          <span class="value">${escapeHtml(city)}</span>
-          <span class="label">Total COD</span>
-          <span class="value">${formatMoney(codAmount)}</span>
+          ${specialNoteHtml}
+          <span class="value cod-value">COD: LKR ${formatMoney(codAmount)}</span>
         </div>
       </div>
       <div class="footer">Powered By Curfox.com</div>
