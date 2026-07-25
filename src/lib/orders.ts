@@ -263,6 +263,9 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
         customer: true,
       },
     });
+  }, {
+    maxWait: 10_000,
+    timeout: 30_000,
   });
 }
 
