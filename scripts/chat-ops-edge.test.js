@@ -58,6 +58,8 @@ const deliverySettings = {
 const {
   getDeliveryChargeForAddress,
   getKoombiyoDeliveryRateForAddress,
+  getRoyalExpressDeliveryRateForAddress,
+  resolveDeliveryDestination,
   resolveKoombiyoDeliveryDestination,
 } = loadModule(PRICING_FILE, {
   './formatters': { normalizeText },
@@ -65,10 +67,12 @@ const {
     getDefaultMerchantSettings: () => ({ delivery: deliverySettings }),
   },
   '@/lib/data/koombiyo-delivery-rates.json': require('../src/lib/data/koombiyo-delivery-rates.json'),
+  '@/data/royalexpress-city-list.json': require('../src/data/royalexpress-city-list.json'),
 });
 
 const {
   extractDeliveryLocationHint,
+  looksLikeDeliveryChargeQuestion,
 } = loadModule(MESSAGE_UTILS_FILE, {
   '@/lib/contact-profile': {
     cleanStoredContactName: (value) => value || '',
@@ -212,6 +216,19 @@ function buildDeliveryReplyForLocation(address) {
   });
 }
 
+function buildRoyalExpressDeliveryReplyForLocation(address) {
+  return buildDeliveryReply({
+    address,
+    referenceDate: new Date('2026-07-24T00:00:00.000Z'),
+    requestedDate: null,
+    isDraft: true,
+    getDeliveryEstimateForAddress: () => '2-3 business days',
+    getDeliveryChargeForAddress: (value) =>
+      getDeliveryChargeForAddress(value, deliverySettings),
+    includeCharge: true,
+  });
+}
+
 test('known Koombiyo destination is resolved and quoted exactly', () => {
   const rate = getKoombiyoDeliveryRateForAddress('Negombo');
 
@@ -220,14 +237,30 @@ test('known Koombiyo destination is resolved and quoted exactly', () => {
   assert.match(buildDeliveryReplyForLocation('Negombo'), /Delivery to Negombo costs Rs 450/);
 });
 
+test('RoyalExpress Bingiriya rate is used for customer delivery pricing', () => {
+  assert.equal(getRoyalExpressDeliveryRateForAddress('Bingiriya')?.chargeFirstKg, 425);
+  assert.equal(resolveDeliveryDestination('Bingiriya').match?.chargeFirstKg, 425);
+  assert.equal(getDeliveryChargeForAddress('Bingiriya', deliverySettings), 425);
+  assert.match(
+    buildRoyalExpressDeliveryReplyForLocation('Bingiriya'),
+    /Delivery to Bingiriya costs Rs 425\./
+  );
+});
+
+test('courier charge wording and common deliver typo request a price', () => {
+  assert.equal(looksLikeDeliveryChargeQuestion('Courier charges to the Bingiriya?'), true);
+  assert.equal(looksLikeDeliveryChargeQuestion('Deliver charges to Bingiriya'), true);
+  assert.equal(looksLikeDeliveryChargeQuestion('Delivery cost?'), true);
+});
+
 test('native-script city names resolve to their configured Koombiyo rate', () => {
   assert.equal(getKoombiyoDeliveryRateForAddress('කුරුණෑගල')?.chargeFirstKg, 400);
   assert.equal(getKoombiyoDeliveryRateForAddress('குருநாகல்')?.chargeFirstKg, 400);
 });
 
-test('outside-Colombo policy wording uses the configured regional rate', () => {
+test('RoyalExpress flat rate also applies outside Colombo', () => {
   assert.equal(getKoombiyoDeliveryRateForAddress('outside Colombo'), null);
-  assert.equal(getDeliveryChargeForAddress('outside Colombo', deliverySettings), 200);
+  assert.equal(getDeliveryChargeForAddress('outside Colombo', deliverySettings), 425);
 });
 
 test('destination typo suggestion prefers the canonical spelling', () => {

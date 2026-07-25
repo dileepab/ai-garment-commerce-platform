@@ -35,7 +35,7 @@ import {
   getDeliveryChargeForAddress,
   getDeliveryEstimateForAddress,
   isOutsideColomboDeliveryArea,
-  resolveKoombiyoDeliveryDestination,
+  resolveDeliveryDestination,
 } from '@/lib/order-draft';
 import {
   buildSupportContactAcknowledgement,
@@ -335,7 +335,7 @@ export async function handle_delivery_question(
     null;
 
   if (effectiveAddress && !isOutsideColomboDeliveryArea(effectiveAddress)) {
-    const destinationResolution = resolveKoombiyoDeliveryDestination(effectiveAddress);
+    const destinationResolution = resolveDeliveryDestination(effectiveAddress);
 
     if (!destinationResolution.match) {
       const clarification = destinationResolution.suggestion
