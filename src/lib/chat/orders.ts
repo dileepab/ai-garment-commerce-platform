@@ -53,6 +53,7 @@ import {
   mentionsOwnedOrderReference,
 } from '@/lib/chat/message-utils';
 import { buildSupportContactLineFromConfig } from '@/lib/customer-support';
+import { logError } from '@/lib/app-log';
 import {
   getSizeChartCategoryFromStyle,
   getSizeChartImagePath,
@@ -748,6 +749,12 @@ export async function handle_confirm_pending(ctx: ChatContext) {
           },
         });
       }
+
+      logError('Chat Orders', 'Unexpected order confirmation failure.', {
+        senderId: input.senderId,
+        channel: input.channel,
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       return escalateToSupport(
         'unclear_request',

@@ -226,7 +226,18 @@ function cleanAddressString(addressStr: string): string {
     return '';
   }
 
-  const parts = addressStr.split(',');
+  const addressOnly = addressStr
+    .replace(
+      /\s*[,.]?\s*\b(?:phone(?: number)?|contact(?: number)?|mobile(?: number)?)\s*(?:is|:|-)?\s*\+?\d[\d\s()+-]{7,}\d[\s\S]*$/i,
+      ''
+    )
+    .replace(
+      /\s*[,.]?\s*\b(?:cash on delivery|cod|payment(?: method)?|online transfer|bank transfer)\b[\s\S]*$/i,
+      ''
+    )
+    .replace(/[\s,.]+$/, '')
+    .trim();
+  const parts = addressOnly.split(',');
   const cleanedParts = parts.filter((part) => {
     const trimmed = part.trim().toLowerCase();
     if (
@@ -262,6 +273,15 @@ function splitFreeformAddress(address?: string | null): Pick<ContactDetails, 'st
     .filter(Boolean);
 
   if (parts.length >= 3) {
+    const explicitDistrict = parts[parts.length - 1].replace(/\s+district$/i, '').trim();
+    if (isKnownSriLankaDistrict(explicitDistrict)) {
+      return {
+        streetAddress: parts.slice(0, -2).join(', '),
+        city: parts[parts.length - 2],
+        district: explicitDistrict,
+      };
+    }
+
     if (parts.length === 3 && STREET_ADDRESS_HINT_PATTERN.test(parts[1])) {
       return {
         streetAddress: parts.slice(0, 2).join(', '),
