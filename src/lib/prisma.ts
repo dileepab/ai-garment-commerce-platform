@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client'
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
 function getRuntimeDatabaseUrl(): string | undefined {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
   if (!databaseUrl) return undefined;
 
   try {
