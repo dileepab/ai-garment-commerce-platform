@@ -1536,8 +1536,25 @@ export async function routeCustomerMessage(
     };
   }
 
-  if (effectiveAction === 'confirm_pending' && !isClearConfirmation(input.currentMessage)) {
+  const hasExplicitPendingConfirmation =
+    ['contact_confirmation', 'order_confirmation', 'quantity_update_confirmation'].includes(
+      state.pendingStep
+    ) && isClearConfirmation(input.currentMessage);
+
+  if (hasExplicitPendingConfirmation) {
+    effectiveAction = 'confirm_pending';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'confirm_pending',
+      confidence: Math.max(effectiveAiAction.confidence, 0.99),
+    };
+  } else if (effectiveAction === 'confirm_pending') {
     effectiveAction = 'fallback';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'fallback',
+      confidence: Math.min(effectiveAiAction.confidence, 0.5),
+    };
   }
 
   if (

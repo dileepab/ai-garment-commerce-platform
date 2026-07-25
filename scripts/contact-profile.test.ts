@@ -74,11 +74,20 @@ test('sentence-style contact details preserve name and phone when address is par
 test('confirmation phrases are never inferred as missing address fields', () => {
   const city = extractContactDetailsFromText('Yes, that is correct', 'city');
   const district = extractContactDetailsFromText('Yes confirm order', 'district');
+  const naturalCity = extractContactDetailsFromText('Yes. Place it now.', 'city');
+  const naturalDistrict = extractContactDetailsFromText(
+    'Yes, confirm and place the order',
+    'district'
+  );
 
   assert.equal(city.city, '');
   assert.equal(city.address, '');
   assert.equal(district.district, '');
   assert.equal(district.address, '');
+  assert.equal(naturalCity.city, '');
+  assert.equal(naturalCity.address, '');
+  assert.equal(naturalDistrict.district, '');
+  assert.equal(naturalDistrict.address, '');
 });
 
 test('product selection text is never inferred as a comma-separated address', () => {

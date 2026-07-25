@@ -1,3 +1,5 @@
+import { isClearConfirmation } from './confirmation-intent.ts';
+
 export type ContactField = 'name' | 'streetAddress' | 'city' | 'district' | 'phone';
 
 export interface ContactDetails {
@@ -594,7 +596,7 @@ export function isNonContactOnlyMessage(message: string): boolean {
     .replace(/\s+/g, ' ')
     .trim();
 
-  return NON_CONTACT_ONLY_PATTERN.test(normalized);
+  return isClearConfirmation(message) || NON_CONTACT_ONLY_PATTERN.test(normalized);
 }
 
 export function extractContactDetailsFromText(

@@ -2,6 +2,7 @@ import { RouterProductContext, RouterInput, AiRoutedAction } from './types';
 import { extractContactDetailsFromText } from '@/lib/contact-profile';
 import { looksLikeCourierProviderQuestion } from '@/lib/chat/message-utils';
 import { SizeChartCategory } from '@/lib/size-charts';
+import { isClearConfirmation } from '@/lib/confirmation-intent';
 
 export const SIZE_PATTERN = /\b(4XL|3XL|2XL|XXL|XL|XS|S|M|L|small|medium|large|extra small|extra large|double extra large)\b/i;
 export const QUANTITY_PATTERNS = [
@@ -11,26 +12,6 @@ export const QUANTITY_PATTERNS = [
   /\b(?:need|want|order|buy|get|take)\s+(\d+)\b/i,
   /\b(\d+)\s*(?:x|items?|pieces?|pcs?)\b/i,
 ];
-export const CONFIRMATION_PHRASES = new Set([
-  'yes',
-  'yes correct',
-  'yes that is correct',
-  'correct',
-  'that is correct',
-  'confirmed',
-  'confirm',
-  'yes confirm',
-  'yes confirm order',
-  'yes confirm the order',
-  'sure',
-  'no changes needed',
-  'looks good',
-  'proceed',
-  'yes please',
-  'details are correct',
-  'yes details are correct',
-]);
-
 const SUPPORT_CONTACT_PATTERNS = [
   /\b(?:support|customer care|customer support|support center|help center|customer service)\b.*\b(?:contact|phone|mobile|telephone|whatsapp)\b/i,
   /\b(?:contact|phone|mobile|telephone|whatsapp)\b.*\b(?:support|team|center|customer care|customer support|customer service)\b/i,
@@ -261,7 +242,7 @@ export function buildHeuristicAction(
     };
   }
 
-  if (CONFIRMATION_PHRASES.has(normalized)) {
+  if (isClearConfirmation(message)) {
     return {
       ...base,
       action: 'confirm_pending',

@@ -2122,6 +2122,37 @@ async function main() {
         },
       },
       {
+        name: 'Natural confirmation wording advances and places the order',
+        senderId: buildSender(runId, 'natural-confirmation'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Natural Confirmation Customer',
+          '12 Main Street, Bingiriya, Kurunegala',
+          '0771007373',
+          'Yes, confirm and place the order',
+          'Yes. Place it now.',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[4].bot, [
+            'Order Summary',
+          ], 'Natural contact confirmation');
+          assertIncludes(transcript[5].bot, [
+            'confirmed successfully',
+            'Order ID:',
+          ], 'Natural order confirmation');
+
+          const orders = await getOrdersForSender(senderId);
+          assert(
+            orders.length === 1,
+            `Expected one order after natural confirmation, received ${orders.length}.`
+          );
+          assert(
+            orders[0].orderStatus === 'confirmed',
+            `Expected the naturally confirmed order to be confirmed, received ${orders[0].orderStatus}.`
+          );
+        },
+      },
+      {
         name: 'Unclear request gets warmer fallback wording before escalation',
         senderId: buildSender(runId, 'fallback-wording'),
         messages: ['blargh blargh blargh'],
