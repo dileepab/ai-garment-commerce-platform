@@ -4,8 +4,10 @@ import {
   extractGiftNoteFromText,
   inferSupportIssueReason,
   looksLikeDeliveryChargeQuestion,
+  looksLikeDeliveryLogisticsQuestion,
   looksLikeCasualWellbeingQuestion,
   looksLikeCourierProviderQuestion,
+  looksLikePaymentQuestion,
   mentionsCurrentOrderReference,
   mentionsLatestOrderReference,
   mentionsOwnedOrderReference,
@@ -23,6 +25,7 @@ import {
   buildDeliveryReply,
   buildGreetingReply,
   buildMissingOrderLookupReply,
+  buildPaymentAvailabilityReply,
 } from '@/lib/chat/reply-builders';
 import { getRequestedOrderId, resolveCustomerTargetOrder } from '@/lib/chat/order-flow';
 import { getSriLankaDateOnly, getSriLankaToday } from '@/lib/delivery-calendar';
@@ -31,15 +34,17 @@ import {
   buildOrderSummaryReply,
   getDeliveryChargeForAddress,
   getDeliveryEstimateForAddress,
+  isOutsideColomboDeliveryArea,
+  resolveKoombiyoDeliveryDestination,
 } from '@/lib/order-draft';
 import {
   buildSupportContactAcknowledgement,
-  buildSupportContactLineFromConfig,
   buildSupportContactReply,
 } from '@/lib/customer-support';
-import { describeDeliveryEstimates, resolvePaymentMethod } from '@/lib/runtime-config';
+import { describeDeliveryEstimates } from '@/lib/runtime-config';
 import { isOrderMutableStatus } from '@/lib/orders';
 import { updateOrderGiftInstructions } from './shared-actions';
+import type { CustomerMessageResult } from './contracts';
 import type { ChatContext } from './types';
 
 const COURIER_PROVIDER_LABELS: Record<string, string> = {
@@ -247,7 +252,9 @@ export async function handle_order_details(ctx: ChatContext) {
   });
 }
 
-export async function handle_delivery_question(ctx: ChatContext) {
+export async function handle_delivery_question(
+  ctx: ChatContext
+): Promise<CustomerMessageResult> {
   const {
     aiAction,
     input,
@@ -262,6 +269,24 @@ export async function handle_delivery_question(ctx: ChatContext) {
   const deliveryChargeForAddress = (address: string) =>
     getDeliveryChargeForAddress(address, settings.delivery);
   const includeCharge = looksLikeDeliveryChargeQuestion(input.currentMessage);
+  const includesPaymentQuestion = looksLikePaymentQuestion(input.currentMessage);
+
+  if (
+    includesPaymentQuestion &&
+    !looksLikeDeliveryLogisticsQuestion(input.currentMessage)
+  ) {
+    return handle_payment_question(ctx);
+  }
+
+  const paymentReply = includesPaymentQuestion
+    ? buildPaymentAvailabilityReply({
+        message: input.currentMessage,
+        methods: settings.payment.methods,
+        onlineTransferLabel: settings.payment.onlineTransferLabel,
+      })
+    : null;
+  const withPaymentReply = (reply: string) =>
+    paymentReply ? `${reply}\n\n${paymentReply}` : reply;
 
   if (looksLikeCourierProviderQuestion(input.currentMessage)) {
     const activeProviderLabels = await getActiveCourierProviderLabels(input.brand || ctx.brandFilter);
@@ -278,7 +303,9 @@ export async function handle_delivery_question(ctx: ChatContext) {
         : '';
 
       return finalizeReply({
-        reply: `For ${brandLabel}, the available courier service is ${availableText}.${unavailableText}`,
+        reply: withPaymentReply(
+          `For ${brandLabel}, the available courier service is ${availableText}.${unavailableText}`
+        ),
         nextState: {
           lastMissingOrderId: null,
         },
@@ -286,7 +313,9 @@ export async function handle_delivery_question(ctx: ChatContext) {
     }
 
     return finalizeReply({
-      reply: `Courier service is not active for ${brandLabel} yet. Once a courier account is enabled for this brand, I can confirm the available courier before you place the order.`,
+      reply: withPaymentReply(
+        `Courier service is not active for ${brandLabel} yet. Once a courier account is enabled for this brand, I can confirm the available courier before you place the order.`
+      ),
       nextState: {
         lastMissingOrderId: null,
       },
@@ -297,6 +326,30 @@ export async function handle_delivery_question(ctx: ChatContext) {
   const requestedDate =
     parseRequestedDateFromMessage(input.currentMessage, getSriLankaToday()) ||
     (aiAction.requestedDate ? new Date(aiAction.requestedDate) : null);
+
+  const effectiveAddress =
+    locationHint ||
+    state.orderDraft?.address ||
+    latestActiveOrder?.deliveryAddress ||
+    mergedContact.address ||
+    null;
+
+  if (effectiveAddress && !isOutsideColomboDeliveryArea(effectiveAddress)) {
+    const destinationResolution = resolveKoombiyoDeliveryDestination(effectiveAddress);
+
+    if (!destinationResolution.match) {
+      const clarification = destinationResolution.suggestion
+        ? `I couldn't match "${effectiveAddress}" exactly. The closest rate-table entry is ${destinationResolution.suggestion}. Please resend the full city or town name before I quote the delivery charge or delivery window.`
+        : `I couldn't verify "${effectiveAddress}" in our delivery rate list. Please send the nearest city or town, district, or postal code before I quote a delivery charge or delivery window.`;
+
+      return finalizeReply({
+        reply: withPaymentReply(clarification),
+        nextState: {
+          lastMissingOrderId: null,
+        },
+      });
+    }
+  }
 
   if (state.orderDraft) {
     return finalizeReply({
@@ -309,6 +362,7 @@ export async function handle_delivery_question(ctx: ChatContext) {
         getDeliveryChargeForAddress: deliveryChargeForAddress,
         includeCharge,
         defaultDeliveryText: describeDeliveryEstimates(settings),
+        paymentReply,
       }),
       nextState: {
         lastMissingOrderId: null,
@@ -327,6 +381,7 @@ export async function handle_delivery_question(ctx: ChatContext) {
         getDeliveryChargeForAddress: deliveryChargeForAddress,
         includeCharge,
         defaultDeliveryText: describeDeliveryEstimates(settings),
+        paymentReply,
       }),
       nextState: {
         lastMissingOrderId: null,
@@ -346,6 +401,7 @@ export async function handle_delivery_question(ctx: ChatContext) {
         getDeliveryChargeForAddress: deliveryChargeForAddress,
         includeCharge,
         defaultDeliveryText: describeDeliveryEstimates(settings),
+        paymentReply,
       }),
       orderId: latestActiveOrder.id,
       nextState: {
@@ -365,6 +421,7 @@ export async function handle_delivery_question(ctx: ChatContext) {
       getDeliveryChargeForAddress: deliveryChargeForAddress,
       includeCharge,
       defaultDeliveryText: describeDeliveryEstimates(settings),
+      paymentReply,
     }),
     nextState: {
       lastMissingOrderId: null,
@@ -372,24 +429,60 @@ export async function handle_delivery_question(ctx: ChatContext) {
   });
 }
 
-export async function handle_payment_question(ctx: ChatContext) {
+export async function handle_payment_question(
+  ctx: ChatContext
+): Promise<CustomerMessageResult> {
   const { aiAction, input, settings, state } = ctx;
   const { finalizeReply } = ctx.helpers;
-  const paymentMethod = resolvePaymentMethod(
-    aiAction.paymentMethod,
-    input.currentMessage,
-    settings
+
+  if (looksLikeDeliveryLogisticsQuestion(input.currentMessage)) {
+    return handle_delivery_question(ctx);
+  }
+
+  const availabilityReply = buildPaymentAvailabilityReply({
+    message: input.currentMessage,
+    methods: settings.payment.methods,
+    onlineTransferLabel: settings.payment.onlineTransferLabel,
+  });
+  const normalizedMessage = input.currentMessage.toLowerCase();
+  const requestedCod = /\bcod\b|cash on delivery|pay on delivery/i.test(normalizedMessage);
+  const requestedTransfer = /\bonline transfer\b|\bbank transfer\b|\btransfer\b/i.test(
+    normalizedMessage
   );
-  const paymentWorksText = paymentMethod.toLowerCase().includes('transfer')
-    ? 'online transfer works'
-    : `${paymentMethod} works`;
+  const requestedSplit =
+    /\b(?:split|combine|part)\b.*\b(?:payment|pay|cod|transfer)\b|\bhalf\b.*\b(?:rest|remaining|balance)\b/i.test(
+      normalizedMessage
+    );
+  const requestedUnsupported = /\b(?:credit|debit)\s+card\b|\bcard payment\b|\bpaypal\b/i.test(
+    normalizedMessage
+  );
+  const configuredMethods = settings.payment.methods.map((method) => method.trim()).filter(Boolean);
+  const requestedPaymentMethod =
+    !requestedSplit && !requestedUnsupported && requestedCod !== requestedTransfer
+      ? requestedCod
+        ? configuredMethods.find((method) => /\bcod\b|cash on delivery/i.test(method)) || null
+        : configuredMethods.find((method) => /online|bank|transfer/i.test(method)) || null
+      : aiAction.paymentMethod && !requestedSplit && !requestedUnsupported
+        ? configuredMethods.find(
+            (method) => method.toLowerCase() === aiAction.paymentMethod?.toLowerCase()
+          ) || null
+        : null;
+
+  if (!requestedPaymentMethod) {
+    return finalizeReply({
+      reply: availabilityReply,
+      nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
 
   if (state.orderDraft) {
     const nextDraft = {
       ...state.orderDraft,
-      paymentMethod,
+      paymentMethod: requestedPaymentMethod,
     };
-    const baseReply = `Yes, ${paymentWorksText} for us. I've set the payment method to ${paymentMethod}.`;
+    const baseReply = `${availabilityReply} I've set the payment method to ${requestedPaymentMethod}.`;
 
     if (state.pendingStep === 'order_confirmation') {
       return finalizeReply({
@@ -411,10 +504,8 @@ export async function handle_payment_question(ctx: ChatContext) {
     });
   }
 
-  const supportLine = buildSupportContactLineFromConfig(settings.support).toLowerCase();
-
   return finalizeReply({
-    reply: `Yes, ${paymentWorksText} for us. I'll note the payment method when you're ready to place the order. If you need help with a payment confirmation, ${supportLine}`,
+    reply: `${availabilityReply} I'll note that payment method when you're ready to place the order.`,
     nextState: {
       lastMissingOrderId: null,
     },
@@ -465,7 +556,7 @@ export async function handle_exchange_question(ctx: ChatContext) {
   return finalizeReply({
     reply: isSinhala
       ? 'ඔව්, size/fit එක නොගැලපුණොත් exchange එකක් බලන්න පුළුවන්. Item එක භාවිතා නොකර, tags/packaging එක්ක තබාගන්න. Delivery එක ලැබුණාට පස්සේ order number එක සහ ඔබට අවශ්‍ය size/item එක එවන්න. Stock availability සහ item condition අනුව අපි option එක confirm කරන්නම්.'
-      : "Yes, exchange is possible if the size or fit is not right after delivery, subject to item condition and stock availability. Please keep the item unused with its tags/packaging, then send your order number and the size or item you want instead.",
+      : "Yes, exchange is possible if the size or fit is not right after delivery, subject to item condition and stock availability. A return or refund is not automatically confirmed for a fit-only issue; our support team must review it. Please keep the item unused with its tags/packaging, then send your order number and the size or item you want instead.",
     nextState: {
       lastMissingOrderId: null,
     },

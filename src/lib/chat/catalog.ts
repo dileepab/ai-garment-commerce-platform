@@ -8,13 +8,36 @@ import {
 import {
   buildProductQuestionReply,
   buildProductTypeUnavailableReply,
+  buildDeliveryReply,
+  buildPaymentAvailabilityReply,
   formatCatalogListReply,
   buildSizeChartReply,
   buildSizeChartSelectionReply,
 } from '@/lib/chat/reply-builders';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { brandsMatch } from '@/lib/brand-aliases';
-import { formatSizeList } from '@/lib/chat/message-utils';
+import {
+  extractDeliveryLocationHint,
+  looksLikeDeliveryQuestion,
+  looksLikePaymentQuestion,
+  formatSizeList,
+} from '@/lib/chat/message-utils';
+import {
+  buildCatalogRecommendationReply,
+  buildProductComparisonReply,
+  buildShortlistRecommendationReply,
+  buildUnavailableVariantReply,
+  looksLikeRecommendationRequest,
+  resolveRequestedVariant,
+} from '@/lib/chat/catalog-guidance';
+import {
+  getDeliveryChargeForAddress,
+  getDeliveryEstimateForAddress,
+  isOutsideColomboDeliveryArea,
+  resolveKoombiyoDeliveryDestination,
+} from '@/lib/order-draft';
+import { getSriLankaToday } from '@/lib/delivery-calendar';
+import { describeDeliveryEstimates } from '@/lib/runtime-config';
 import type { ChatContext } from './types';
 
 type ProductImageSource = {
@@ -151,9 +174,87 @@ function formatCatalogLines(products: Array<{
     .join('\n');
 }
 
+function buildCatalogLogisticsSupplement(ctx: ChatContext): string | null {
+  const { input, settings } = ctx;
+  const asksDelivery = looksLikeDeliveryQuestion(input.currentMessage);
+  const asksPayment = looksLikePaymentQuestion(input.currentMessage);
+
+  if (!asksDelivery && !asksPayment) return null;
+
+  const paymentReply = asksPayment
+    ? buildPaymentAvailabilityReply({
+        message: input.currentMessage,
+        methods: settings.payment.methods,
+        onlineTransferLabel: settings.payment.onlineTransferLabel,
+      })
+    : null;
+
+  if (!asksDelivery) return paymentReply;
+
+  const location = extractDeliveryLocationHint(input.currentMessage);
+  if (location && !isOutsideColomboDeliveryArea(location)) {
+    const destinationResolution = resolveKoombiyoDeliveryDestination(location);
+
+    if (!destinationResolution.match) {
+      const clarification = destinationResolution.suggestion
+        ? `I couldn't match "${location}" exactly. The closest rate-table entry is ${destinationResolution.suggestion}. Please resend the full city or town name before I quote delivery.`
+        : `I couldn't verify "${location}" in our delivery rate list. Please send the nearest city or town, district, or postal code before I quote delivery.`;
+      return paymentReply ? `${clarification}\n\n${paymentReply}` : clarification;
+    }
+  }
+
+  return buildDeliveryReply({
+    address: location,
+    referenceDate: getSriLankaToday(),
+    requestedDate: null,
+    isDraft: true,
+    getDeliveryEstimateForAddress: (address) =>
+      getDeliveryEstimateForAddress(address, settings.delivery),
+    getDeliveryChargeForAddress: (address) =>
+      getDeliveryChargeForAddress(address, settings.delivery),
+    includeCharge: Boolean(location),
+    defaultDeliveryText: describeDeliveryEstimates(settings),
+    paymentReply,
+  });
+}
+
 export async function handle_catalog_list(ctx: ChatContext) {
-  const { brandFilter, globalProducts, products, requestedProductTypes } = ctx;
+  const { brandFilter, globalProducts, input, products, requestedProductTypes, state } = ctx;
   const { finalizeReply } = ctx.helpers;
+
+  const retainedShortlist = state.lastRecommendedProductIds
+    .map((productId) => products.find((product) => product.id === productId) || null)
+    .filter(
+      (product): product is (typeof products)[number] =>
+        Boolean(product) && hasAvailableStock(product as (typeof products)[number])
+    );
+  const shortlistFollowUp = buildShortlistRecommendationReply(
+    retainedShortlist,
+    input.currentMessage
+  );
+
+  if (shortlistFollowUp) {
+    return finalizeReply({
+      reply: shortlistFollowUp.reply,
+      nextState: {
+        lastMissingOrderId: null,
+        lastReferencedProductId: shortlistFollowUp.preferredProduct.id,
+        lastReferencedProductName: shortlistFollowUp.preferredProduct.name,
+      },
+    });
+  }
+
+  const comparison = buildProductComparisonReply(products, input.currentMessage);
+  if (comparison) {
+    return finalizeReply({
+      reply: comparison.reply,
+      nextState: {
+        lastMissingOrderId: null,
+        lastReferencedProductId: comparison.preferredProduct.id,
+        lastReferencedProductName: comparison.preferredProduct.name,
+      },
+    });
+  }
 
   const filteredProducts =
     requestedProductTypes.length > 0
@@ -200,6 +301,34 @@ export async function handle_catalog_list(ctx: ChatContext) {
       carouselProducts: availableProducts.length > 0 ? toCarouselProducts(availableProducts) : undefined,
       nextState: {
         lastMissingOrderId: null,
+        lastRecommendedProductIds: [],
+        lastRecommendationConstraints: null,
+      },
+    });
+  }
+
+  if (looksLikeRecommendationRequest(input.currentMessage)) {
+    const recommendation = buildCatalogRecommendationReply(
+      availableFilteredProducts,
+      input.currentMessage
+    );
+    const topProduct = recommendation.products[0];
+    const logisticsSupplement = buildCatalogLogisticsSupplement(ctx);
+
+    return finalizeReply({
+      reply: logisticsSupplement
+        ? `${recommendation.reply}\n\n${logisticsSupplement}`
+        : recommendation.reply,
+      carouselProducts:
+        recommendation.products.length > 0
+          ? toCarouselProducts(recommendation.products)
+          : undefined,
+      nextState: {
+        lastMissingOrderId: null,
+        lastReferencedProductId: topProduct?.id ?? null,
+        lastReferencedProductName: topProduct?.name ?? null,
+        lastRecommendedProductIds: recommendation.products.map((product) => product.id),
+        lastRecommendationConstraints: recommendation.constraints,
       },
     });
   }
@@ -212,17 +341,36 @@ export async function handle_catalog_list(ctx: ChatContext) {
         : undefined,
     nextState: {
       lastMissingOrderId: null,
+      lastRecommendedProductIds: [],
+      lastRecommendationConstraints: null,
     },
   });
 }
 
 export async function handle_product_question(ctx: ChatContext) {
-  const { aiAction, brandFilter, globalProducts, products, requestedProductTypes, state } = ctx;
+  const { aiAction, brandFilter, globalProducts, input, products, requestedProductTypes, state } = ctx;
   const { findProductByName, finalizeReply } = ctx.helpers;
+
+  const comparison = buildProductComparisonReply(products, input.currentMessage);
+  if (comparison) {
+    return finalizeReply({
+      reply: comparison.reply,
+      nextState: {
+        lastMissingOrderId: null,
+        lastReferencedProductId: comparison.preferredProduct.id,
+        lastReferencedProductName: comparison.preferredProduct.name,
+      },
+    });
+  }
 
   const selectedProduct =
     findProductByName(aiAction.productName) ||
-    (state.orderDraft ? products.find((product) => product.id === state.orderDraft?.productId) || null : null);
+    (!aiAction.productName && state.lastReferencedProductId
+      ? products.find((product) => product.id === state.lastReferencedProductId) || null
+      : null) ||
+    (!aiAction.productName && state.orderDraft
+      ? products.find((product) => product.id === state.orderDraft?.productId) || null
+      : null);
 
   if (!selectedProduct) {
     if (requestedProductTypes.length === 1) {
@@ -274,11 +422,42 @@ export async function handle_product_question(ctx: ChatContext) {
     });
   }
 
+  const requestedVariant = resolveRequestedVariant(
+    selectedProduct,
+    input.currentMessage,
+    aiAction.size,
+    aiAction.color
+  );
+  const unavailableVariantReply = buildUnavailableVariantReply(
+    selectedProduct,
+    requestedVariant.size,
+    requestedVariant.color
+  );
+
+  if (unavailableVariantReply) {
+    return finalizeReply({
+      reply: unavailableVariantReply,
+      imagePaths: productImageUrls(selectedProduct, 4, requestedVariant.color),
+      nextState: {
+        lastMissingOrderId: null,
+        lastReferencedProductId: selectedProduct.id,
+        lastReferencedProductName: selectedProduct.name,
+      },
+    });
+  }
+
   return finalizeReply({
-    reply: buildProductQuestionReply(selectedProduct, aiAction.questionType),
+    reply: buildProductQuestionReply(
+      selectedProduct,
+      aiAction.questionType,
+      input.currentMessage,
+      requestedVariant
+    ),
     imagePaths: productImageUrls(selectedProduct, 4, aiAction.color),
     nextState: {
       lastMissingOrderId: null,
+      lastReferencedProductId: selectedProduct.id,
+      lastReferencedProductName: selectedProduct.name,
     },
   });
 }

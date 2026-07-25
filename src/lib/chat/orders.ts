@@ -334,6 +334,22 @@ export async function handle_place_order(ctx: ChatContext) {
   }
 
   const nextDraft = buildDraftFromSource(sourceProduct, existingDraft);
+  const changedSelectionParts: string[] = [];
+
+  if (existingDraft && nextDraft.color && nextDraft.color !== existingDraft.color) {
+    changedSelectionParts.push(nextDraft.color);
+  }
+  if (existingDraft && nextDraft.size && nextDraft.size !== existingDraft.size) {
+    changedSelectionParts.push(`size ${nextDraft.size}`);
+  }
+  if (existingDraft && nextDraft.quantity !== existingDraft.quantity) {
+    changedSelectionParts.push(`quantity ${nextDraft.quantity}`);
+  }
+
+  const withSelectionChangeAcknowledgement = (reply: string) =>
+    changedSelectionParts.length > 0
+      ? `Got it — I've updated the selection to ${changedSelectionParts.join(', ')}.\n\n${reply}`
+      : reply;
 
   // Validate variant combo if both size and color are known
   const hasSize = Boolean(nextDraft.size);
@@ -462,7 +478,7 @@ export async function handle_place_order(ctx: ChatContext) {
   if (missingVariantReply) {
     const variantOptions = buildVariantReplyOptions(sourceProduct, nextDraft);
     return finalizeReply({
-      reply: missingVariantReply,
+      reply: withSelectionChangeAcknowledgement(missingVariantReply),
       imagePath: variantOptions.imagePath,
       quickReplies: variantOptions.quickReplies,
       nextState: {
@@ -485,7 +501,9 @@ export async function handle_place_order(ctx: ChatContext) {
 
   if (missingContactFields.length > 0) {
     return finalizeReply({
-      reply: buildMissingContactPrompt(missingContactFields),
+      reply: withSelectionChangeAcknowledgement(
+        buildMissingContactPrompt(missingContactFields)
+      ),
       nextState: {
         pendingStep: 'contact_collection',
         orderDraft: nextDraft,
@@ -496,7 +514,9 @@ export async function handle_place_order(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone, nextDraft),
+    reply: withSelectionChangeAcknowledgement(
+      buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone, nextDraft)
+    ),
     assistantReplyKind: 'contact_confirmation',
     nextState: {
       pendingStep: 'contact_confirmation',

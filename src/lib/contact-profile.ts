@@ -50,6 +50,9 @@ const NON_CONTACT_ONLY_PATTERN =
 const ORDER_DETAIL_WORD_PATTERN =
   /\b(size|sizes|color|colors|colour|colours|grey|gray|black|white|red|blue|green|pink|yellow|brown|beige|large|medium|small|xl|xxl|2xl|3xl|4xl|order|product|price|stock|available|cod|cash|payment|delivery)\b/i;
 
+const ORDER_SELECTION_TEXT_PATTERN =
+  /\b(order|orders|buy|purchase|product|products|item|items|quantity|qty|size|sizes|color|colors|colour|colours|price|stock|available|cod|cash|payment)\b/i;
+
 const STREET_ADDRESS_HINT_PATTERN =
   /(?:\d|[,/]|(?:^|\b)(?:no|number|road|rd|street|st|lane|mawatha|avenue|ave|drive|dr|place|pl|gardens?|apartment|apt|flat|floor|house|building|junction|cross|path|terrace|estate|watta)(?:\b|$))/i;
 
@@ -433,8 +436,8 @@ function extractAddressFromSentence(message: string): string {
     /\bdelivery address is\b[:\s-]*(.+)$/i,
     /\bmy address is\b[:\s-]*(.+)$/i,
     /\baddress is\b[:\s-]*(.+)$/i,
-    /\bdeliver to\b[:\s-]*(.+)$/i,
-    /\bsend to\b[:\s-]*(.+)$/i,
+    /\bdeliver(?:\s+(?:my|the))?(?:\s+order)?\s+to\b[:\s-]*(.+)$/i,
+    /\bsend(?:\s+(?:my|the))?(?:\s+order)?\s+to\b[:\s-]*(.+)$/i,
   ];
 
   for (const pattern of patterns) {
@@ -451,7 +454,7 @@ function extractAddressFromSentence(message: string): string {
 function extractFreeformAddress(message: string): string {
   const flattened = normalizeWhitespace(message.replace(/\r?\n/g, ' '));
 
-  if (!flattened.includes(',')) {
+  if (!flattened.includes(',') || ORDER_SELECTION_TEXT_PATTERN.test(flattened)) {
     return '';
   }
 

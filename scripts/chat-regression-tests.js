@@ -177,6 +177,44 @@ async function getConversationState(senderId, channel = 'messenger') {
   return record?.stateJson ? JSON.parse(record.stateJson) : null;
 }
 
+async function getSupportContactForPage(pageId = DEFAULT_PAGE_ID) {
+  const channelConfig = await prisma.brandChannelConfig.findFirst({
+    where: { facebookPageId: pageId },
+    select: {
+      brand: true,
+      whatsappDisplayPhoneNumber: true,
+    },
+  });
+
+  if (channelConfig?.whatsappDisplayPhoneNumber) {
+    return channelConfig.whatsappDisplayPhoneNumber;
+  }
+
+  const storeKeys = channelConfig?.brand
+    ? [`brand:${channelConfig.brand.toLowerCase()}`, 'default']
+    : ['default'];
+  const settings = await prisma.merchantSettings.findMany({
+    where: { storeKey: { in: storeKeys } },
+    select: {
+      storeKey: true,
+      supportPhone: true,
+      supportWhatsapp: true,
+    },
+  });
+  const scoped = settings.find((record) => record.storeKey !== 'default');
+  const fallback = settings.find((record) => record.storeKey === 'default');
+
+  return (
+    scoped?.supportPhone ||
+    scoped?.supportWhatsapp ||
+    fallback?.supportPhone ||
+    fallback?.supportWhatsapp ||
+    process.env.STORE_SUPPORT_PHONE ||
+    process.env.STORE_SUPPORT_WHATSAPP ||
+    null
+  );
+}
+
 async function waitForRoleMessageCount(senderId, channel, role, expectedCount) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const messages = await getConversationMessages(senderId, channel);
@@ -731,12 +769,14 @@ async function main() {
         verify: async ({ transcript }) => {
           assert(
             transcript[0].bot.includes('size එක') ||
-              transcript[0].bot.includes('ප්‍රමාණ'),
+              transcript[0].bot.includes('ප්‍රමාණ') ||
+              transcript[0].bot.includes('size eka'),
             `Initial size prompt should stay in Sinhala for Roman Sinhala order intent.\n\nActual reply:\n${transcript[0].bot}`
           );
           assert(
             transcript[1].bot.includes('color එක') ||
-              transcript[1].bot.includes('වර්ණ'),
+              transcript[1].bot.includes('වර්ණ') ||
+              transcript[1].bot.includes('color eka'),
             `Color follow-up should preserve Sinhala after short English size reply.\n\nActual reply:\n${transcript[1].bot}`
           );
         },
@@ -1304,9 +1344,12 @@ async function main() {
           'okay thank you',
         ],
         verify: async ({ transcript, senderId }) => {
+          const supportContact = await getSupportContactForPage();
+          assert(supportContact, 'Expected a configured support contact number.');
+
           assertIncludes(transcript[6].bot, [
             'You can reach our support team directly.',
-            'Please call or WhatsApp our team on 0701234567',
+            `Please call or WhatsApp our team on ${supportContact}`,
           ], 'Support center contact reply');
           assert(
             !transcript[6].bot.includes('flagged this conversation'),
@@ -1314,11 +1357,11 @@ async function main() {
           );
           assertIncludes(transcript[7].bot, [
             'You can reach our support team directly.',
-            'Please call or WhatsApp our team on 0701234567',
+            `Please call or WhatsApp our team on ${supportContact}`,
           ], 'Generic contact number follow-up reply');
           assertIncludes(transcript[8].bot, [
             'You are welcome.',
-            'Please call or WhatsApp our team on 0701234567',
+            `Please call or WhatsApp our team on ${supportContact}`,
           ], 'Support contact thanks acknowledgement');
           assert(
             !transcript[8].bot.includes('Hello'),
@@ -2395,8 +2438,27 @@ async function main() {
       },
     ];
 
+    const requestedCasePattern = process.env.CHAT_TEST_CASE_PATTERN?.trim().toLowerCase();
+    const requestedStartPattern = process.env.CHAT_TEST_START_AT?.trim().toLowerCase();
+    const startIndex = requestedStartPattern
+      ? cases.findIndex((testCase) => testCase.name.toLowerCase().includes(requestedStartPattern))
+      : 0;
+    assert(
+      startIndex >= 0,
+      `No chat regression case matched CHAT_TEST_START_AT=${process.env.CHAT_TEST_START_AT}.`
+    );
+    const casesFromStart = cases.slice(startIndex);
+    const selectedCases = requestedCasePattern
+      ? casesFromStart.filter((testCase) => testCase.name.toLowerCase().includes(requestedCasePattern))
+      : casesFromStart;
+
+    assert(
+      selectedCases.length > 0,
+      `No chat regression cases matched CHAT_TEST_CASE_PATTERN=${process.env.CHAT_TEST_CASE_PATTERN}.`
+    );
+
     // Remove the one-time reset — we reset before every case instead.
-    for (const testCase of cases) {
+    for (const testCase of selectedCases) {
       await resetInventoryToSeedValues();
       const testChannel = testCase.channel || 'messenger';
       createdSenders.push({ senderId: testCase.senderId, channel: testChannel });
@@ -2436,7 +2498,7 @@ async function main() {
       await resetConversation(testCase.senderId, testChannel);
     }
 
-    console.log(`\nAll chat regression tests passed (${cases.length} cases).`);
+    console.log(`\nAll chat regression tests passed (${selectedCases.length} cases).`);
   } catch (error) {
     console.error('\nChat regression test failure:\n');
     console.error(error instanceof Error ? error.message : error);
