@@ -643,10 +643,10 @@ export function looksLikeDeliveryChargeQuestion(message: string): boolean {
   const normalized = normalizeText(message);
 
   return (
-    /\b(?:delivery|shipping)\b.*\b(?:charge|charges|fee|fees|cost|price|how much)\b/i.test(
+    /\b(?:delivery|deliver|courier|shipping)\b.*\b(?:charge|charges|fee|fees|cost|price|how much)\b/i.test(
       normalized
     ) ||
-    /\bhow much\b.*\b(?:delivery|shipping)\b/i.test(normalized) ||
+    /\bhow much\b.*\b(?:delivery|deliver|courier|shipping)\b/i.test(normalized) ||
     /(ඩිලිවරි|delivery).*(කීයක්|ගාන|ගාස්තු|මුදල|ගන්නව|ගන්නේ|කොච්චර)/i.test(message) ||
     /(කීයක්|ගාන|ගාස්තු|මුදල|කොච්චර).*(ඩිලිවරි|delivery)/i.test(message) ||
     /(டெலிவரி|delivery).*(எவ்வளவு|கட்டணம்|செலவு|பணம்)/i.test(message) ||

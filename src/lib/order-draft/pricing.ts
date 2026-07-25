@@ -4,12 +4,23 @@ import {
   type MerchantDeliverySettings,
 } from '@/lib/runtime-config';
 import koombiyoDeliveryRatesData from '@/lib/data/koombiyo-delivery-rates.json';
+import royalExpressCitiesData from '@/data/royalexpress-city-list.json';
 
 type KoombiyoDeliveryRateTuple = [string, string, number, number];
 
 interface KoombiyoDeliveryRateTable {
   origin: string;
   rates: KoombiyoDeliveryRateTuple[];
+}
+
+interface RoyalExpressCity {
+  id: number;
+  name: string;
+}
+
+export interface RoyalExpressDeliveryRateMatch {
+  destination: string;
+  chargeFirstKg: number;
 }
 
 export interface KoombiyoDeliveryRateMatch {
@@ -26,6 +37,9 @@ export interface DeliveryDestinationResolution {
 
 const KOOMBIYO_DELIVERY_RATE_TABLE = koombiyoDeliveryRatesData as KoombiyoDeliveryRateTable;
 const KOOMBIYO_DELIVERY_RATES = KOOMBIYO_DELIVERY_RATE_TABLE.rates;
+const ROYALEXPRESS_CITIES = royalExpressCitiesData as RoyalExpressCity[];
+// RoyalExpress's agreed flat delivery charge for serviceable destinations.
+const ROYALEXPRESS_FLAT_DELIVERY_CHARGE = 425;
 const LOCALIZED_DESTINATION_ALIASES: Record<string, string> = {
   'කොළඹ': 'colombo',
   'ගාල්ල': 'galle',
@@ -169,6 +183,88 @@ function titleCaseDestination(value: string): string {
     .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 }
 
+function getNormalizedRoyalExpressCities(): Array<{ name: string; normalized: string }> {
+  return ROYALEXPRESS_CITIES.map((city) => ({
+    name: city.name,
+    normalized: normalizeDeliveryRateText(city.name),
+  }));
+}
+
+const NORMALIZED_ROYALEXPRESS_CITIES = getNormalizedRoyalExpressCities();
+
+export function getRoyalExpressDeliveryRateForAddress(
+  address?: string,
+): RoyalExpressDeliveryRateMatch | null {
+  const rawAddress = address ?? '';
+  const normalizedAddress = normalizeDeliveryRateText(rawAddress);
+
+  if (!normalizedAddress || isOutsideColomboDeliveryArea(rawAddress)) {
+    return null;
+  }
+
+  const addressSegments = getNormalizedAddressSegments(rawAddress);
+  const exactMatch = NORMALIZED_ROYALEXPRESS_CITIES.find((city) =>
+    addressSegments.includes(city.normalized)
+  );
+  const phraseMatch = exactMatch || NORMALIZED_ROYALEXPRESS_CITIES.find((city) =>
+    includesNormalizedPhrase(normalizedAddress, city.normalized)
+  );
+  // RoyalExpress has duplicate/qualified names such as "Aluthgama (Kalutara)".
+  // Accept the unqualified town only when it is the leading city-name segment.
+  const qualifiedMatch = phraseMatch || NORMALIZED_ROYALEXPRESS_CITIES.find((city) =>
+    addressSegments.some((segment) => city.normalized.startsWith(`${segment} `))
+  );
+
+  if (!qualifiedMatch) {
+    return null;
+  }
+
+  return {
+    destination: qualifiedMatch.name,
+    chargeFirstKg: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+  };
+}
+
+export function resolveDeliveryDestination(
+  address?: string
+): DeliveryDestinationResolution {
+  const royalExpressMatch = getRoyalExpressDeliveryRateForAddress(address);
+  if (royalExpressMatch) {
+    return {
+      match: {
+        origin: 'RoyalExpress',
+        destination: royalExpressMatch.destination,
+        chargeFirstKg: royalExpressMatch.chargeFirstKg,
+        chargeAdditionalKg: 0,
+      },
+      suggestion: null,
+    };
+  }
+
+  const normalizedAddress = normalizeDeliveryRateText(address ?? '');
+  if (!normalizedAddress || normalizedAddress.length < 4) {
+    return { match: null, suggestion: null };
+  }
+
+  const maximumDistance = normalizedAddress.length <= 6 ? 2 : 3;
+  let best: { label: string; distance: number } | null = null;
+
+  for (const city of NORMALIZED_ROYALEXPRESS_CITIES) {
+    const comparableName = city.normalized.replace(/\s+(?:galle|kalutara)$/, '');
+    if (Math.abs(comparableName.length - normalizedAddress.length) > maximumDistance) continue;
+    const distance = editDistance(normalizedAddress, comparableName);
+
+    if (distance <= maximumDistance && (!best || distance < best.distance)) {
+      best = { label: comparableName, distance };
+    }
+  }
+
+  return {
+    match: null,
+    suggestion: best ? titleCaseDestination(best.label) : null,
+  };
+}
+
 export function getKoombiyoDeliveryRateForAddress(
   address?: string,
 ): KoombiyoDeliveryRateMatch | null {
@@ -247,31 +343,15 @@ export function resolveKoombiyoDeliveryDestination(
 
 export function getDeliveryChargeForAddress(
   address?: string,
-  settings?: MerchantDeliverySettings
+  _settings?: MerchantDeliverySettings
 ): number {
   const normalized = normalizeText(address ?? '');
-  const delivery = getDeliverySettings(settings);
-  const koombiyoRate = getKoombiyoDeliveryRateForAddress(address);
 
   if (!normalized) {
     return 0;
   }
 
-  if (isOutsideColomboDeliveryArea(address)) {
-    return delivery.outsideColomboCharge;
-  }
-
-  if (hasColomboCitySegment(address ?? '')) {
-    return delivery.colomboCharge;
-  }
-
-  if (koombiyoRate) {
-    return koombiyoRate.chargeFirstKg;
-  }
-
-  return normalized.includes('colombo')
-    ? delivery.colomboCharge
-    : delivery.outsideColomboCharge;
+  return ROYALEXPRESS_FLAT_DELIVERY_CHARGE;
 }
 
 export function getDeliveryEstimateForAddress(

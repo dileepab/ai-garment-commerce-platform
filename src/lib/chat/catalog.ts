@@ -34,7 +34,7 @@ import {
   getDeliveryChargeForAddress,
   getDeliveryEstimateForAddress,
   isOutsideColomboDeliveryArea,
-  resolveKoombiyoDeliveryDestination,
+  resolveDeliveryDestination,
 } from '@/lib/order-draft';
 import { getSriLankaToday } from '@/lib/delivery-calendar';
 import { describeDeliveryEstimates } from '@/lib/runtime-config';
@@ -193,7 +193,7 @@ function buildCatalogLogisticsSupplement(ctx: ChatContext): string | null {
 
   const location = extractDeliveryLocationHint(input.currentMessage);
   if (location && !isOutsideColomboDeliveryArea(location)) {
-    const destinationResolution = resolveKoombiyoDeliveryDestination(location);
+    const destinationResolution = resolveDeliveryDestination(location);
 
     if (!destinationResolution.match) {
       const clarification = destinationResolution.suggestion

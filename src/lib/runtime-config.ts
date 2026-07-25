@@ -519,7 +519,8 @@ export function getMerchantAutomationPolicy(
 }
 
 export function describeDeliveryCharges(settings: MerchantSettings): string {
-  return `Delivery charges are calculated by Koombiyo destination rates when a city/town is provided. If a destination cannot be matched, the fallback charge is Rs ${settings.delivery.colomboCharge} within Colombo and Rs ${settings.delivery.outsideColomboCharge} outside Colombo.`;
+  void settings;
+  return 'RoyalExpress delivery has a flat charge of Rs 425 for serviceable destinations.';
 }
 
 export function describeDeliveryEstimates(settings: MerchantSettings): string {
