@@ -76,6 +76,7 @@ const {
 const {
   extractDeliveryLocationHint,
   looksLikeDeliveryChargeQuestion,
+  shouldIncludeDeliveryCharge,
 } = loadModule(MESSAGE_UTILS_FILE, {
   '@/lib/contact-profile': {
     cleanStoredContactName: (value) => value || '',
@@ -257,6 +258,48 @@ test('courier charge wording and common deliver typo request a price', () => {
   assert.equal(looksLikeDeliveryChargeQuestion('Courier charges to the Bingiriya?'), true);
   assert.equal(looksLikeDeliveryChargeQuestion('Deliver charges to Bingiriya'), true);
   assert.equal(looksLikeDeliveryChargeQuestion('Delivery cost?'), true);
+  assert.equal(
+    looksLikeDeliveryChargeQuestion('How much is delivery to Negombo, how long will it take?'),
+    true
+  );
+});
+
+test('Sinhala delivery-charge wording and contextual location follow-ups request a price', () => {
+  const chargeQuestion = 'ඩිලිවරි චාජස් කොහොමද රත්නපුරෙට';
+  const locationFollowUp = 'ගාල්ලට කොහොමද';
+
+  assert.equal(looksLikeDeliveryChargeQuestion(chargeQuestion), true);
+  assert.equal(looksLikeDeliveryChargeQuestion('ගාන කීයද කුරිය එකට'), true);
+  assert.equal(getRoyalExpressDeliveryRateForAddress('රත්නපුරෙ')?.chargeFirstKg, 425);
+  assert.equal(extractDeliveryLocationHint(locationFollowUp), 'ගාල්ල');
+  assert.equal(
+    shouldIncludeDeliveryCharge({
+      currentMessage: locationFollowUp,
+      previousCustomerMessage: chargeQuestion,
+      currentLocation: 'Galle',
+    }),
+    true
+  );
+  assert.equal(looksLikeDeliveryChargeQuestion('ඩිලිවරි එකට දවස් කීයක් යනවද'), false);
+});
+
+test('Tamil delivery-charge wording and contextual location follow-ups request a price', () => {
+  const chargeQuestion = 'ரத்தினபுரிக்கு டெலிவரி சார்ஜ் எவ்வளவு?';
+  const locationFollowUp = 'காலிக்கு எப்படி?';
+
+  assert.equal(looksLikeDeliveryChargeQuestion(chargeQuestion), true);
+  assert.equal(looksLikeDeliveryChargeQuestion('கூரியர் கட்டணம் எவ்வளவு?'), true);
+  assert.equal(getRoyalExpressDeliveryRateForAddress('ரத்தினபுரி')?.chargeFirstKg, 425);
+  assert.equal(extractDeliveryLocationHint(locationFollowUp), 'காலி');
+  assert.equal(
+    shouldIncludeDeliveryCharge({
+      currentMessage: locationFollowUp,
+      previousCustomerMessage: chargeQuestion,
+      currentLocation: 'Galle',
+    }),
+    true
+  );
+  assert.equal(looksLikeDeliveryChargeQuestion('டெலிவரி எத்தனை நாட்கள் ஆகும்?'), false);
 });
 
 test('native-script city names resolve to their configured Koombiyo rate', () => {

@@ -17,6 +17,7 @@ import {
   looksLikeCourierProviderQuestion,
   looksLikeDeliveryQuestion,
   looksLikeDeliveryChargeQuestion,
+  shouldIncludeDeliveryCharge,
   looksLikeGiftRequest,
   looksLikeHumanEscalationRequest,
   looksLikeMissingOrderFollowUp,
@@ -488,6 +489,10 @@ export async function routeCustomerMessage(
     scopedOrders.find((order) => isActiveOrderStatus(order.orderStatus)) || null;
   const latestAssistantMessage = recentMessages.find((message) => message.role === 'assistant');
   const latestAssistantText = latestAssistantMessage?.message || '';
+  const recentCustomerTexts = recentMessages
+    .filter((message) => message.role === 'user')
+    .map((message) => message.message);
+  const latestCustomerText = recentCustomerTexts[0] || '';
   const explicitOrderId = extractExplicitOrderIdFromMessage(input.currentMessage);
   const requestedProductTypes = extractRequestedProductTypes(input.currentMessage);
   const followUpMissingOrderId =
@@ -1581,6 +1586,29 @@ export async function routeCustomerMessage(
     };
   }
 
+  const currentDeliveryLocation =
+    effectiveAiAction.deliveryLocation || extractDeliveryLocationHint(input.currentMessage);
+  const shouldQuoteDeliveryCharge = shouldIncludeDeliveryCharge({
+    currentMessage: input.currentMessage,
+    previousCustomerMessage: latestCustomerText,
+    currentLocation: currentDeliveryLocation,
+  });
+
+  if (
+    shouldQuoteDeliveryCharge &&
+    ['fallback', 'support_contact_request', 'greeting', 'delivery_question', 'payment_question'].includes(
+      effectiveAction
+    )
+  ) {
+    effectiveAction = 'delivery_question';
+    effectiveAiAction = {
+      ...effectiveAiAction,
+      action: 'delivery_question',
+      confidence: Math.max(effectiveAiAction.confidence, 0.95),
+      deliveryLocation: currentDeliveryLocation,
+    };
+  }
+
   if (
     effectiveAction !== 'update_order_contact' &&
     !state.orderDraft &&
@@ -1838,7 +1866,8 @@ export async function routeCustomerMessage(
 
   const ctx: ChatContext = {
     input, state, customer, brandFilter, globalProducts, products,
-    latestOrder, latestActiveOrder, latestAssistantText, explicitOrderId,
+    latestOrder, latestActiveOrder, latestAssistantText, latestCustomerText, recentCustomerTexts,
+    explicitOrderId,
     requestedProductTypes, followUpMissingOrderId, mergedContact, aiAction: effectiveAiAction,
     settings,
     helpers: {

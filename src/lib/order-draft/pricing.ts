@@ -50,6 +50,8 @@ const LOCALIZED_DESTINATION_ALIASES: Record<string, string> = {
   'අනුරාධපුර': 'anuradhapura',
   'බදුල්ල': 'badulla',
   'රත්නපුර': 'ratnapura',
+  'රත්නපුරෙ': 'ratnapura',
+  'රත්නපුරේ': 'ratnapura',
   'ත්‍රිකුණාමලය': 'trincomalee',
   'මඩකලපුව': 'batticaloa',
   'கொழும்பு': 'colombo',
@@ -62,6 +64,8 @@ const LOCALIZED_DESTINATION_ALIASES: Record<string, string> = {
   'அனுராதபுரம்': 'anuradhapura',
   'பதுளை': 'badulla',
   'இரத்தினபுரி': 'ratnapura',
+  'ரத்தினபுரி': 'ratnapura',
+  'ரத்னபுரி': 'ratnapura',
   'திருகோணமலை': 'trincomalee',
   'மட்டக்களப்பு': 'batticaloa',
 };

@@ -211,7 +211,10 @@ export function extractDeliveryLocationHint(message: string): string | null {
     /\b([A-Za-z][A-Za-z.'-]{1,50}?)(?:ta|walata)\s+(?:delivery|shipping|courier)/i,
     /\b([A-Za-z][A-Za-z\s.'-]{1,50})\s*(?:වලට|ට|වෙත)\s*(?:එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery|කරන්න)/i,
     /([\u0D80-\u0DFF\s]{2,}?)(?:ට|වෙත)\s*(?:එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i,
-    /([\u0B80-\u0BFF\s]{2,}?)(?:க்கு|இற்கு)\s*(?:அனுப்ப|அனுப்புவதற்கு|டெலிவரி|delivery)/i,
+    /([\u0B80-\u0BFF\s]{2,}?)(?:க்கு|இற்கு)\s*(?:அனுப்ப|அனுப்புவதற்கு|டெலிவரி|டெலிவரி|கூரியர்|குரியர்|delivery|courier)/i,
+    /([\u0D80-\u0DFF]{2,})(?:ට|වෙත)\s*(?:කොහොමද|කොහොම|කීයද|කීයක්)?\s*[?!.]*$/i,
+    /([\u0B80-\u0BFF]{2,}?)(?:க்கு|இற்கு)\s*(?:எப்படி|எவ்வளவு)?\s*[?!.]*$/i,
+    /\b([A-Za-z][A-Za-z\s.'-]{1,50}?)(?:ta|walata)\s+(?:kohomada|kohomadha|kiyada|kiyakda)\s*[?!.]*$/i,
   ];
 
   for (const pattern of patterns) {
@@ -641,16 +644,51 @@ export function looksLikeCourierProviderQuestion(message: string): boolean {
 
 export function looksLikeDeliveryChargeQuestion(message: string): boolean {
   const normalized = normalizeText(message);
-
-  return (
-    /\b(?:delivery|deliver|courier|shipping)\b.*\b(?:charge|charges|fee|fees|cost|price|how much)\b/i.test(
+  const mentionsEnglishDelivery = /\b(?:delivery|deliver|courier|shipping)\b/i.test(normalized);
+  const mentionsSinhalaDelivery = /(ඩිලිවරි|ඩෙලිවරි|කුරියර්|කූරියර්|කුරිය)/i.test(message);
+  const mentionsTamilDelivery = /(டெலிவரி|டெலிவரி|கூரியர்|குரியர்|கொரியர்)/i.test(message);
+  const mentionsStrongPriceTerm =
+    /\b(?:charge|charges|fee|fees|cost|price|how much|gana|gaana|gasthu|kiyada|kiyakda|kochchara|evvalavu)\b/i.test(
       normalized
     ) ||
-    /\bhow much\b.*\b(?:delivery|deliver|courier|shipping)\b/i.test(normalized) ||
-    /(ඩිලිවරි|delivery).*(කීයක්|ගාන|ගාස්තු|මුදල|ගන්නව|ගන්නේ|කොච්චර)/i.test(message) ||
-    /(කීයක්|ගාන|ගාස්තු|මුදල|කොච්චර).*(ඩිලිවරි|delivery)/i.test(message) ||
-    /(டெலிவரி|delivery).*(எவ்வளவு|கட்டணம்|செலவு|பணம்)/i.test(message) ||
-    /(எவ்வளவு|கட்டணம்|செலவு|பணம்).*(டெலிவரி|delivery)/i.test(message)
+    /(චාජ්|චාජස්|චාර්ජ්|චාර්ජස්|ගාන|ගාණ|ගාස්තු|ගාස්තුව|මුදල|මිල)/i.test(message) ||
+    /(சார்ஜ்|சார்ஜஸ்|கட்டணம்|செலவு|பணம்|விலை)/i.test(message);
+  const mentionsWeakPriceTerm =
+    /(කීයක්|කීයද|කොච්චර|කොහොමද)/i.test(message) ||
+    /(எவ்வளவு|எவ்வளவ|எப்படி)/i.test(message);
+  const asksExplicitlyAboutTiming =
+    /\b(?:how long|when|days?|duration|estimate|eta|arrive)\b/i.test(normalized) ||
+    /(දවස්|කල්|කවදා|වේලාව|කාලය|ලැබෙයි|එයි)/i.test(message) ||
+    /(நாட்கள்|நேரம்|எப்போது|காலம்|வரும்|கிடைக்கும்)/i.test(message);
+
+  return (
+    (mentionsEnglishDelivery || mentionsSinhalaDelivery || mentionsTamilDelivery) &&
+    (mentionsStrongPriceTerm || (mentionsWeakPriceTerm && !asksExplicitlyAboutTiming))
+  );
+}
+
+export function shouldIncludeDeliveryCharge(params: {
+  currentMessage: string;
+  previousCustomerMessage?: string | null;
+  currentLocation?: string | null;
+}): boolean {
+  if (looksLikeDeliveryChargeQuestion(params.currentMessage)) {
+    return true;
+  }
+
+  if (!params.currentLocation || !params.previousCustomerMessage) {
+    return false;
+  }
+
+  const normalized = normalizeText(params.currentMessage);
+  const asksExplicitlyAboutTiming =
+    /\b(?:how long|when|days?|duration|estimate|eta|arrive)\b/i.test(normalized) ||
+    /(දවස්|කල්|කවදා|වේලාව|කාලය|ලැබෙයි|එයි)/i.test(params.currentMessage) ||
+    /(நாட்கள்|நேரம்|எப்போது|காலம்|வரும்|கிடைக்கும்)/i.test(params.currentMessage);
+
+  return (
+    !asksExplicitlyAboutTiming &&
+    looksLikeDeliveryChargeQuestion(params.previousCustomerMessage)
   );
 }
 

@@ -3,11 +3,11 @@ import {
   extractDeliveryLocationHint,
   extractGiftNoteFromText,
   inferSupportIssueReason,
-  looksLikeDeliveryChargeQuestion,
   looksLikeDeliveryLogisticsQuestion,
   looksLikeCasualWellbeingQuestion,
   looksLikeCourierProviderQuestion,
   looksLikePaymentQuestion,
+  shouldIncludeDeliveryCharge,
   mentionsCurrentOrderReference,
   mentionsLatestOrderReference,
   mentionsOwnedOrderReference,
@@ -259,6 +259,8 @@ export async function handle_delivery_question(
     aiAction,
     input,
     latestActiveOrder,
+    latestCustomerText,
+    recentCustomerTexts,
     mergedContact,
     settings,
     state,
@@ -268,7 +270,6 @@ export async function handle_delivery_question(
     getDeliveryEstimateForAddress(address, settings.delivery);
   const deliveryChargeForAddress = (address: string) =>
     getDeliveryChargeForAddress(address, settings.delivery);
-  const includeCharge = looksLikeDeliveryChargeQuestion(input.currentMessage);
   const includesPaymentQuestion = looksLikePaymentQuestion(input.currentMessage);
 
   if (
@@ -322,13 +323,37 @@ export async function handle_delivery_question(
     });
   }
 
-  const locationHint = aiAction.deliveryLocation || extractDeliveryLocationHint(input.currentMessage);
+  const extractedCurrentLocation = extractDeliveryLocationHint(input.currentMessage);
+  const rawLocationHint = aiAction.deliveryLocation || extractedCurrentLocation;
+  const previousLocationHint = recentCustomerTexts
+    .map((message) => extractDeliveryLocationHint(message))
+    .find((location): location is string => Boolean(location && resolveDeliveryDestination(location).match)) || null;
+  const locationReference = rawLocationHint?.trim().toLowerCase() || '';
+  const currentLocationIsReference = /^(?:it|that|there|same|එක|ඒක|මේක|එතන|அது|அங்கே|அதே)$/.test(
+    locationReference
+  );
+  const currentLocationIsVerified = Boolean(
+    rawLocationHint && resolveDeliveryDestination(rawLocationHint).match
+  );
+  const shouldReusePreviousLocation = Boolean(
+    previousLocationHint &&
+    (!rawLocationHint ||
+      currentLocationIsReference ||
+      (!currentLocationIsVerified && !extractedCurrentLocation))
+  );
+  const locationHint = shouldReusePreviousLocation ? previousLocationHint : rawLocationHint;
+  const includeCharge = shouldIncludeDeliveryCharge({
+    currentMessage: input.currentMessage,
+    previousCustomerMessage: latestCustomerText,
+    currentLocation: locationHint,
+  });
   const requestedDate =
     parseRequestedDateFromMessage(input.currentMessage, getSriLankaToday()) ||
     (aiAction.requestedDate ? new Date(aiAction.requestedDate) : null);
 
   const effectiveAddress =
     locationHint ||
+    (includeCharge ? previousLocationHint : null) ||
     state.orderDraft?.address ||
     latestActiveOrder?.deliveryAddress ||
     mergedContact.address ||

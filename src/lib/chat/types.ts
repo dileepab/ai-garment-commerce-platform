@@ -98,6 +98,8 @@ export interface ChatContext {
   latestOrder: ChatOrder | null;
   latestActiveOrder: ChatOrder | null;
   latestAssistantText: string;
+  latestCustomerText: string;
+  recentCustomerTexts: string[];
   explicitOrderId: number | null;
   requestedProductTypes: SizeChartCategory[];
   followUpMissingOrderId: number | null;

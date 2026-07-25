@@ -207,6 +207,64 @@ function buildCases(runId) {
       },
     },
     {
+      slug: 'delivery-charge-sinhala-context',
+      name: 'Sinhala delivery-charge follow-ups retain the destination and price intent',
+      messages: [
+        'ඩිලිවරි චාජස් කොහොමද රත්නපුරෙට',
+        'ගාල්ලට කොහොමද',
+        'ගාන කීයද කුරිය එකට',
+      ],
+      validate: ({ transcript, failures }) => {
+        for (const [index, entry] of transcript.entries()) {
+          check(
+            failures,
+            /Rs\s*425/i.test(entry.bot),
+            `Expected message ${index + 1} to quote the RoyalExpress Rs 425 charge.`
+          );
+        }
+
+        check(
+          failures,
+          includesAny(transcript[1].bot, ['Galle', 'ගාල්ල']),
+          'Expected the Galle follow-up destination to be retained.'
+        );
+        check(
+          failures,
+          includesAny(transcript[2].bot, ['Galle', 'ගාල්ල']),
+          'Expected the courier-cost follow-up to reuse Galle.'
+        );
+      },
+    },
+    {
+      slug: 'delivery-charge-tamil-context',
+      name: 'Tamil delivery-charge follow-ups retain the destination and price intent',
+      messages: [
+        'ரத்தினபுரிக்கு டெலிவரி சார்ஜ் எவ்வளவு?',
+        'காலிக்கு எப்படி?',
+        'கூரியர் கட்டணம் எவ்வளவு?',
+      ],
+      validate: ({ transcript, failures }) => {
+        for (const [index, entry] of transcript.entries()) {
+          check(
+            failures,
+            /Rs\s*425/i.test(entry.bot),
+            `Expected message ${index + 1} to quote the RoyalExpress Rs 425 charge.`
+          );
+        }
+
+        check(
+          failures,
+          includesAny(transcript[1].bot, ['Galle', 'காலி']),
+          'Expected the Galle follow-up destination to be retained.'
+        );
+        check(
+          failures,
+          includesAny(transcript[2].bot, ['Galle', 'காலி']),
+          'Expected the courier-cost follow-up to reuse Galle.'
+        );
+      },
+    },
+    {
       slug: 'product-comparison',
       name: 'Product comparison uses both named products and their stored fabrics',
       messages: ['Which is better for hot weather, the Breezy Summer Dress or the Relaxed Linen Pants?'],
