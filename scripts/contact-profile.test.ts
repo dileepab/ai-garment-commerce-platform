@@ -113,3 +113,16 @@ test('an explicit send phrase still extracts an address from an order message', 
   assert.equal(contact.district, 'Gampaha');
   assert.equal(contact.address, '42 Test Lane, Negombo, Gampaha');
 });
+
+test('order message keeps district, phone, and payment outside the delivery address', () => {
+  const contact = extractContactDetailsFromText(
+    'I want 1 Preview Linen Top, size M, black. My name is Nimal Perera. Deliver to 10 Temple Road, Colombo 03, Colombo District. Phone 0771234567. Cash on delivery.'
+  );
+
+  assert.equal(contact.name, 'Nimal Perera');
+  assert.equal(contact.streetAddress, '10 Temple Road');
+  assert.equal(contact.city, 'Colombo 03');
+  assert.equal(contact.district, 'Colombo');
+  assert.equal(contact.phone, '0771234567');
+  assert.equal(contact.address, '10 Temple Road, Colombo 03, Colombo');
+});
