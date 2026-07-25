@@ -1,0 +1,2 @@
+export const PRIMARY_COURIER_PROVIDER = 'RoyalExpress';
+export const ROYALEXPRESS_FLAT_DELIVERY_CHARGE = 425;

@@ -4,12 +4,16 @@ Merchant settings allow owners and admins to manage business behavior from the a
 
 ## Settings Precedence
 
-GarmentOS resolves settings in this order:
+GarmentOS resolves shared support and automation settings in this order:
 
 1. brand-specific merchant settings
 2. global merchant settings
 3. environment variable fallbacks
 4. built-in safe defaults
+
+Delivery windows and payment methods are configured per store. They do not
+inherit from the global settings form. RoyalExpress is the primary courier and
+its current flat delivery charge is Rs 425 for serviceable destinations.
 
 ## Main Setting Groups
 
@@ -22,14 +26,13 @@ GarmentOS resolves settings in this order:
 - optional custom human handoff message
 - processing error fallback message
 
-### Delivery
+### Store Delivery
 
-- Colombo delivery charge
-- outside Colombo delivery charge
+- RoyalExpress flat delivery charge (read-only)
 - Colombo estimate window
 - outside Colombo estimate window
 
-### Payments
+### Store Payments
 
 - payment methods list
 - default payment method
@@ -70,15 +73,16 @@ support WhatsApp number. Configure that number in the brand's Meta Channels
 settings. The global support phone and WhatsApp values are only fallbacks for
 brands that do not yet have a WhatsApp display number.
 
-Each brand can also override the other global defaults. This is useful when:
+Each brand has its own delivery windows and payment methods. Other settings can
+still override the global defaults. This is useful when:
 
-- delivery charges differ by brand
 - payment wording differs
 - automation tone or timing differs
 
 ## Recommended Usage
 
-- use global defaults for shared business rules
+- use global defaults for shared support and automation rules
+- configure delivery windows and payment methods on each store
 - keep each brand's WhatsApp display number current; it is the brand's support-center number
 - override only the settings that genuinely differ by brand
 - keep at least one valid support contact configured in production

@@ -66,6 +66,9 @@ const {
   '@/lib/runtime-config': {
     getDefaultMerchantSettings: () => ({ delivery: deliverySettings }),
   },
+  '@/lib/delivery-policy': {
+    ROYALEXPRESS_FLAT_DELIVERY_CHARGE: 425,
+  },
   '@/lib/data/koombiyo-delivery-rates.json': require('../src/lib/data/koombiyo-delivery-rates.json'),
   '@/data/royalexpress-city-list.json': require('../src/data/royalexpress-city-list.json'),
 });
@@ -192,6 +195,9 @@ function loadOrderHandlers() {
     },
     '@/lib/customer-support': {
       buildSupportContactLineFromConfig: () => '',
+    },
+    '@/lib/app-log': {
+      logError: noOp,
     },
     '@/lib/size-charts': {
       getSizeChartCategoryFromStyle: noOp,

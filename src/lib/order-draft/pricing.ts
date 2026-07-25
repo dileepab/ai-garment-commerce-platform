@@ -5,6 +5,7 @@ import {
 } from '@/lib/runtime-config';
 import koombiyoDeliveryRatesData from '@/lib/data/koombiyo-delivery-rates.json';
 import royalExpressCitiesData from '@/data/royalexpress-city-list.json';
+import { ROYALEXPRESS_FLAT_DELIVERY_CHARGE } from '@/lib/delivery-policy';
 
 type KoombiyoDeliveryRateTuple = [string, string, number, number];
 
@@ -38,8 +39,6 @@ export interface DeliveryDestinationResolution {
 const KOOMBIYO_DELIVERY_RATE_TABLE = koombiyoDeliveryRatesData as KoombiyoDeliveryRateTable;
 const KOOMBIYO_DELIVERY_RATES = KOOMBIYO_DELIVERY_RATE_TABLE.rates;
 const ROYALEXPRESS_CITIES = royalExpressCitiesData as RoyalExpressCity[];
-// RoyalExpress's agreed flat delivery charge for serviceable destinations.
-const ROYALEXPRESS_FLAT_DELIVERY_CHARGE = 425;
 const LOCALIZED_DESTINATION_ALIASES: Record<string, string> = {
   'කොළඹ': 'colombo',
   'ගාල්ල': 'galle',
@@ -343,8 +342,9 @@ export function resolveKoombiyoDeliveryDestination(
 
 export function getDeliveryChargeForAddress(
   address?: string,
-  _settings?: MerchantDeliverySettings
+  settings?: MerchantDeliverySettings
 ): number {
+  void settings;
   const normalized = normalizeText(address ?? '');
 
   if (!normalized) {

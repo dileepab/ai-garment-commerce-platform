@@ -36,6 +36,10 @@ import {
 } from '@/lib/royal-express-courier';
 import { brandsMatch, getBrandLookupAliases, normalizeBrandKey } from '@/lib/brand-aliases';
 import { BRAND_QUERY_PARAM, resolveSelectedBrand } from '@/lib/brand-context';
+import {
+  PRIMARY_COURIER_PROVIDER,
+  ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+} from '@/lib/delivery-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -869,29 +873,44 @@ function SettingsForm({
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection title="Delivery and Payments">
-              <div style={gridStyle}>
-                <NumberField label="Colombo charge" name="deliveryColomboCharge" value={settings.delivery.colomboCharge} disabled={!canManage} suffix="Rs" />
-                <NumberField label="Outside charge" name="deliveryOutsideColomboCharge" value={settings.delivery.outsideColomboCharge} disabled={!canManage} suffix="Rs" />
-                <TextField label="Colombo window" name="deliveryColomboEstimate" value={settings.delivery.colomboEstimate} disabled={!canManage} />
-                <TextField label="Outside window" name="deliveryOutsideColomboEstimate" value={settings.delivery.outsideColomboEstimate} disabled={!canManage} />
-              </div>
-              <div style={{ ...gridStyle, marginTop: 12 }}>
-                <label style={fieldStyle}>
-                  <span style={labelStyle}>Payment methods</span>
-                  <textarea
-                    className="app-textarea"
-                    name="paymentMethods"
-                    defaultValue={settings.payment.methods.join('\n')}
-                    disabled={!canManage}
-                  />
-                </label>
-                <div style={{ display: 'grid', gap: 12 }}>
-                  <TextField label="Default payment" name="defaultPaymentMethod" value={settings.payment.defaultMethod} disabled={!canManage} />
-                  <TextField label="Online transfer label" name="onlineTransferLabel" value={settings.payment.onlineTransferLabel} disabled={!canManage} />
+            {settings.brand && (
+              <CollapsibleSection title="Delivery and Payments">
+                <p className="app-muted" style={{ marginBottom: 12 }}>
+                  Delivery and payment rules are store-specific. The delivery fee is fixed by the primary courier configuration and cannot be overridden here.
+                </p>
+                <div style={gridStyle}>
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>Primary courier</span>
+                    <input className="app-input" value={PRIMARY_COURIER_PROVIDER} readOnly />
+                  </label>
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>Flat delivery charge</span>
+                    <input
+                      className="app-input"
+                      value={`Rs ${ROYALEXPRESS_FLAT_DELIVERY_CHARGE}`}
+                      readOnly
+                    />
+                  </label>
+                  <TextField label="Colombo window" name="deliveryColomboEstimate" value={settings.delivery.colomboEstimate} disabled={!canManage} />
+                  <TextField label="Outside window" name="deliveryOutsideColomboEstimate" value={settings.delivery.outsideColomboEstimate} disabled={!canManage} />
                 </div>
-              </div>
-            </CollapsibleSection>
+                <div style={{ ...gridStyle, marginTop: 12 }}>
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>Payment methods</span>
+                    <textarea
+                      className="app-textarea"
+                      name="paymentMethods"
+                      defaultValue={settings.payment.methods.join('\n')}
+                      disabled={!canManage}
+                    />
+                  </label>
+                  <div style={{ display: 'grid', gap: 12 }}>
+                    <TextField label="Default payment" name="defaultPaymentMethod" value={settings.payment.defaultMethod} disabled={!canManage} />
+                    <TextField label="Online transfer label" name="onlineTransferLabel" value={settings.payment.onlineTransferLabel} disabled={!canManage} />
+                  </div>
+                </div>
+              </CollapsibleSection>
+            )}
 
             <CollapsibleSection title="Automations">
               <div style={gridStyle}>
@@ -1201,14 +1220,14 @@ export default async function SettingsPage({
           courierWebhookSecretSaved={Boolean(globalSettingsRow?.courierWebhookSecret)}
           courierWebhookHealth={courierWebhookHealth}
           title="Global defaults"
-          subtitle="Used when a brand-specific setting has not been saved."
+          subtitle="Shared support, automation, and webhook defaults. Delivery and payments are configured per store."
           canManage={canManage}
         />
 
         {scopedSettings.length > 0 && (
           <section style={{ display: 'grid', gap: 14 }}>
             <div>
-              <p className="app-section-label">Brand Overrides</p>
+              <p className="app-section-label">Store Settings</p>
               <h2 style={{ marginTop: 4, fontSize: 18, fontWeight: 800, color: 'var(--color-fg-1)' }}>
                 {selectedBrand ? `${selectedBrand} settings` : 'Store-specific settings'}
               </h2>
@@ -1222,7 +1241,7 @@ export default async function SettingsPage({
                 koombiyoLocationCount={koombiyoLocationCount}
                 royalExpressSettings={royalExpressSettings}
                 title={settings.displayName}
-                subtitle={`Overrides customer-facing behavior for ${settings.brand}.`}
+                subtitle={`Customer-facing support, delivery, payment, and automation settings for ${settings.brand}.`}
                 canManage={canManage}
                 defaultOpen={Boolean(selectedBrand)}
               />

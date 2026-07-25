@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { getBrandChannelConfigView } from '@/lib/brand-channel-config';
+import { ROYALEXPRESS_FLAT_DELIVERY_CHARGE } from '@/lib/delivery-policy';
 
 const warnedKeys = new Set<string>();
 
@@ -189,8 +190,8 @@ export function getDefaultMerchantSettings(): MerchantSettings {
         'Sorry, something went wrong while handling your last message. Please reply once more, or contact support if it is urgent.',
     },
     delivery: {
-      colomboCharge: 150,
-      outsideColomboCharge: 200,
+      colomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+      outsideColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
       colomboEstimate: '1-2 business days',
       outsideColomboEstimate: '2-3 business days',
     },
@@ -286,11 +287,8 @@ function overlayMerchantSettings(
         base.support.processingErrorMessage,
     },
     delivery: {
-      colomboCharge: normalizePositiveInteger(record.deliveryColomboCharge, base.delivery.colomboCharge),
-      outsideColomboCharge: normalizePositiveInteger(
-        record.deliveryOutsideColomboCharge,
-        base.delivery.outsideColomboCharge
-      ),
+      colomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+      outsideColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
       colomboEstimate: textValue(record.deliveryColomboEstimate, base.delivery.colomboEstimate) || base.delivery.colomboEstimate,
       outsideColomboEstimate:
         textValue(record.deliveryOutsideColomboEstimate, base.delivery.outsideColomboEstimate) ||
@@ -378,9 +376,16 @@ export async function getMerchantSettings(brand?: string | null): Promise<Mercha
     const scopedRecord = cleanedBrand
       ? records.find((record) => record.storeKey === storeKey) as MerchantSettingsRecord | undefined
       : null;
-    const globalSettings = globalRecord
+    const legacyGlobalSettings = globalRecord
       ? overlayMerchantSettings(defaults, globalRecord, false)
       : defaults;
+    // Global settings are only the fallback for shared support and automation
+    // behavior. Delivery and payment policy belongs to each store.
+    const globalSettings = {
+      ...legacyGlobalSettings,
+      delivery: defaults.delivery,
+      payment: defaults.payment,
+    };
 
     const settings = scopedRecord
       ? overlayMerchantSettings(globalSettings, scopedRecord, true)
@@ -437,14 +442,8 @@ export function buildMerchantSettingsPersistenceInput(input: MerchantSettingsFor
     paymentMethods: paymentMethods.join(','),
     defaultPaymentMethod,
     onlineTransferLabel,
-    deliveryColomboCharge: normalizePositiveInteger(
-      input.deliveryColomboCharge,
-      defaults.delivery.colomboCharge
-    ),
-    deliveryOutsideColomboCharge: normalizePositiveInteger(
-      input.deliveryOutsideColomboCharge,
-      defaults.delivery.outsideColomboCharge
-    ),
+    deliveryColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+    deliveryOutsideColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
     deliveryColomboEstimate: cleanText(
       input.deliveryColomboEstimate,
       defaults.delivery.colomboEstimate
@@ -520,7 +519,7 @@ export function getMerchantAutomationPolicy(
 
 export function describeDeliveryCharges(settings: MerchantSettings): string {
   void settings;
-  return 'RoyalExpress delivery has a flat charge of Rs 425 for serviceable destinations.';
+  return `RoyalExpress delivery has a flat charge of Rs ${ROYALEXPRESS_FLAT_DELIVERY_CHARGE} for serviceable destinations.`;
 }
 
 export function describeDeliveryEstimates(settings: MerchantSettings): string {
