@@ -635,11 +635,14 @@ export function getRuntimeWarnings(): RuntimeWarning[] {
     });
   }
 
-  if (!hasConfiguredValue(process.env.DIRECT_URL)) {
+  if (
+    !hasConfiguredValue(process.env.POSTGRES_URL) &&
+    !hasConfiguredValue(process.env.DIRECT_URL)
+  ) {
     warnings.push({
-      key: 'DIRECT_URL',
+      key: 'POSTGRES_URL',
       level: 'info',
-      message: 'DIRECT_URL is missing or still set to a placeholder. Prisma migrations should use a direct database URL in production.',
+      message: 'POSTGRES_URL is missing or still set to a placeholder. Prisma migrations should use a direct database URL in production.',
     });
   }
 
