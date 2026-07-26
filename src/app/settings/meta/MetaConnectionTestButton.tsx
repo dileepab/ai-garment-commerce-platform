@@ -110,7 +110,15 @@ export function MetaConnectionTestButton({
           {result.ok ? (
             <>
               Connected
-              {result.name ? `: ${result.name}` : result.username ? `: @${result.username}` : ''}
+              {channel === 'instagram' ? (
+                <>
+                  {result.name ? `: ${result.name}` : ''}
+                  {result.username ? `${result.name ? ' · ' : ': '}@${result.username}` : ''}
+                  {result.id ? ` · Account ID ${result.id}` : ''}
+                </>
+              ) : (
+                result.name ? `: ${result.name}` : result.username ? `: @${result.username}` : ''
+              )}
               {result.host ? ` via ${result.host}` : ''}
             </>
           ) : (
