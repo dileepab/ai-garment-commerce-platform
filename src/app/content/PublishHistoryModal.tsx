@@ -106,6 +106,41 @@ function OutcomeBadge({ ok }: { ok: boolean }) {
   );
 }
 
+function PublishedPostLink({
+  brand,
+  channel,
+  externalPostId,
+}: {
+  brand: string;
+  channel: string;
+  externalPostId: string;
+}) {
+  const query = new URLSearchParams({ brand, channel, postId: externalPostId });
+
+  return (
+    <a
+      href={`/api/content/meta-post?${query.toString()}`}
+      target="_blank"
+      rel="noreferrer"
+      title="Open live post"
+      style={{
+        color: 'var(--color-accent)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        textDecoration: 'none',
+      }}
+    >
+      {Ic.external}
+      Post ID: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{externalPostId}</code>
+      <span>Open live post</span>
+    </a>
+  );
+}
+
 // ── Publish confirmation panel ────────────────────────────────────────────────
 
 interface ConfirmPublishProps {
@@ -451,10 +486,11 @@ export default function PublishHistoryModal({
                     )}
                   </div>
                   {summary.externalPostId && (
-                    <div style={{ fontSize: 11, color: 'var(--color-fg-2)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {Ic.external}
-                      Post ID: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{summary.externalPostId}</code>
-                    </div>
+                    <PublishedPostLink
+                      brand={brand}
+                      channel={summary.channel}
+                      externalPostId={summary.externalPostId}
+                    />
                   )}
                   {summary.errorMessage && (
                     <div style={{ fontSize: 11, color: 'var(--color-error)', lineHeight: 1.45 }}>
@@ -504,10 +540,11 @@ export default function PublishHistoryModal({
                   </div>
 
                   {log.externalPostId && (
-                    <div style={{ fontSize: 11, color: 'var(--color-fg-2)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {Ic.external}
-                      Post ID: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{log.externalPostId}</code>
-                    </div>
+                    <PublishedPostLink
+                      brand={brand}
+                      channel={log.channel}
+                      externalPostId={log.externalPostId}
+                    />
                   )}
 
                   {log.errorMessage && (

@@ -33,6 +33,8 @@ interface MetaMediaStatusResponse extends MetaErrorPayload {
   id?: string;
   status?: string;
   status_code?: string;
+  permalink?: string;
+  permalink_url?: string;
 }
 
 interface FbAttachedMedia {
@@ -217,6 +219,39 @@ async function waitForInstagramMediaReady(
     errorCode: 'MEDIA_NOT_READY',
     errorMessage: 'Instagram is still processing the image. Please wait a few seconds, then retry the failed Instagram channel.',
   };
+}
+
+export async function resolvePublishedPostUrl(
+  brand: string,
+  channel: 'facebook' | 'instagram',
+  externalPostId: string,
+): Promise<string | null> {
+  if (channel === 'facebook') {
+    const config = await resolveFacebookConfigForBrand(brand);
+    if (!config) return null;
+
+    const url = new URL(`https://graph.facebook.com/${META_GRAPH_VERSION}/${externalPostId}`);
+    url.searchParams.set('fields', 'permalink_url');
+    url.searchParams.set('access_token', config.pageAccessToken.replace(/\s+/g, '').trim());
+    const { response, data } = await getMetaJson(url.toString());
+
+    if (response.ok && data.permalink_url) {
+      return data.permalink_url;
+    }
+
+    const [pageId, postId] = externalPostId.split('_');
+    return pageId && postId
+      ? `https://www.facebook.com/${encodeURIComponent(pageId)}/posts/${encodeURIComponent(postId)}`
+      : null;
+  }
+
+  const config = await resolveInstagramConfigForBrand(brand);
+  if (!config) return null;
+
+  const { response, data } = await getInstagramGraph(externalPostId, config.accessToken, {
+    fields: 'permalink',
+  });
+  return response.ok && data.permalink ? data.permalink : null;
 }
 
 // ── Facebook Page post ───────────────────────────────────────────────────────
