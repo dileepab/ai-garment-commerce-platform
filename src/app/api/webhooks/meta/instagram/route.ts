@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import {
+  getInstagramUserProfile,
   sendInstagramMessage,
   type MetaSendResult,
 } from '@/lib/meta';
+import { getInstagramProfileDisplayName } from '@/lib/meta-profile';
+import { persistMetaCustomerProfile } from '@/lib/meta-customer-profile';
 import { sendInstagramCommentReply, sendInstagramPrivateReply } from '@/lib/meta-comments';
 import { getErrorMessage } from '@/lib/error-message';
 import { routeCustomerMessage } from '@/lib/chat-orchestrator';
@@ -307,11 +310,31 @@ async function processInstagramEvent(params: {
       isPostback: normalized.isPostback,
     });
 
+    const profile = IS_CHAT_TEST_MODE ? null : await getInstagramUserProfile(normalized.senderId, {
+      pageAccessToken: params.pageAccessToken,
+    });
+    const customerName = profile ? getInstagramProfileDisplayName(profile) : undefined;
+
+    if (customerName) {
+      await persistMetaCustomerProfile({
+        senderId: normalized.senderId,
+        channel: normalized.channel,
+        brand: params.brand,
+        displayName: customerName,
+      }).catch((error) => {
+        logWarn('Instagram Webhook', 'Could not persist Instagram customer profile.', {
+          eventId: normalized.eventId,
+          error: getErrorMessage(error),
+        });
+      });
+    }
+
     const result = await routeCustomerMessage({
       senderId: normalized.senderId,
       channel: normalized.channel,
       currentMessage: normalized.messageText,
       brand: params.brand || undefined,
+      customerName,
       imageUrl: normalized.imageUrl,
     });
 
