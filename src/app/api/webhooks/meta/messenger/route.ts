@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import {
-  getUserProfile,
+  getMessengerUserProfile,
   sendMessengerCarousel,
   sendMessengerImage,
   sendMessengerMessage,
   type MetaSendResult,
 } from '@/lib/meta';
+import { getMessengerProfileDisplayName } from '@/lib/meta-profile';
+import { persistMetaCustomerProfile } from '@/lib/meta-customer-profile';
 import { getErrorMessage } from '@/lib/error-message';
 import { routeCustomerMessage } from '@/lib/chat-orchestrator';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
@@ -357,11 +359,24 @@ async function processMessengerEvent(params: {
       isPostback: normalized.isPostback,
     });
 
-    const profile = IS_CHAT_TEST_MODE ? null : await getUserProfile(normalized.senderId, {
+    const profile = IS_CHAT_TEST_MODE ? null : await getMessengerUserProfile(normalized.senderId, {
       pageAccessToken: params.pageAccessToken,
     });
-    const customerName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : undefined;
-    const customerGender = profile?.gender;
+    const customerName = profile ? getMessengerProfileDisplayName(profile) : undefined;
+
+    if (customerName) {
+      await persistMetaCustomerProfile({
+        senderId: normalized.senderId,
+        channel: normalized.channel,
+        brand: params.brand,
+        displayName: customerName,
+      }).catch((error) => {
+        logWarn('Meta Webhook', 'Could not persist Messenger customer profile.', {
+          eventId: normalized.eventId,
+          error: getErrorMessage(error),
+        });
+      });
+    }
 
     const result = await routeCustomerMessage({
       senderId: normalized.senderId,
@@ -369,7 +384,6 @@ async function processMessengerEvent(params: {
       currentMessage: normalized.messageText,
       brand: params.brand || undefined,
       customerName,
-      customerGender,
       imageUrl: normalized.imageUrl,
     });
 

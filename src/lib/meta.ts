@@ -9,6 +9,14 @@ import {
 } from '@/lib/chat/language';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
+import {
+  buildInstagramProfileRequest,
+  buildMessengerProfileRequest,
+  parseInstagramUserProfile,
+  parseMessengerUserProfile,
+  type InstagramUserProfile,
+  type MessengerUserProfile,
+} from '@/lib/meta-profile';
 
 const reusableAttachmentCache = new Map<string, string>();
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
@@ -509,34 +517,79 @@ export async function sendMessengerImage(
   } satisfies MetaSendResult;
 }
 
-export async function getUserProfile(
+export async function getMessengerUserProfile(
   senderId: string,
   options?: MetaPageTokenOptions,
-): Promise<{ firstName: string; lastName: string; gender: string } | null> {
-  const PAGE_ACCESS_TOKEN = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
+): Promise<MessengerUserProfile | null> {
+  const accessToken = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
 
-  if (!PAGE_ACCESS_TOKEN) return null;
+  if (!accessToken) return null;
 
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/${META_GRAPH_VERSION}/${senderId}?fields=first_name,last_name,gender&access_token=${PAGE_ACCESS_TOKEN}`
-    );
-    const data = await response.json();
+    const request = buildMessengerProfileRequest({
+      graphVersion: META_GRAPH_VERSION,
+      senderId,
+      accessToken,
+    });
+    const response = await fetch(request.url, request.init);
+    const data = await readGraphResponseBody(response);
+    const profile = response.ok ? parseMessengerUserProfile(data) : null;
 
-    if (response.ok && data.first_name) {
-      logDebug(
-        'Meta',
-        `Loaded Messenger profile for ${data.first_name} ${data.last_name || ''} (${data.gender || 'unknown'}).`
-      );
-      return {
-        firstName: data.first_name,
-        lastName: data.last_name || '',
-        gender: data.gender || 'unknown',
-      };
+    if (profile) {
+      logDebug('Meta', 'Loaded Messenger customer profile.');
+      return profile;
     }
+
+    logWarn('Meta', 'Messenger customer profile lookup was unavailable.', {
+      status: response.status,
+      error: getPayloadError(data),
+    });
     return null;
   } catch (error) {
-    logError('Meta', `Error fetching user profile for sender ${senderId}.`, error);
+    logWarn('Meta', 'Messenger customer profile lookup failed.', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+export async function getInstagramUserProfile(
+  senderId: string,
+  options?: MetaPageTokenOptions,
+): Promise<InstagramUserProfile | null> {
+  const accessToken = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
+
+  if (!accessToken) return null;
+
+  try {
+    const useInstagramGraph = isInstagramLoginAccessToken(accessToken);
+    const request = buildInstagramProfileRequest({
+      graphVersion: META_GRAPH_VERSION,
+      senderId,
+      accessToken,
+      useInstagramGraph,
+    });
+    const response = await fetch(request.url, request.init);
+    const data = await readGraphResponseBody(response);
+    const profile = response.ok ? parseInstagramUserProfile(data) : null;
+
+    if (profile) {
+      logDebug('Meta', 'Loaded Instagram customer profile.', {
+        endpointHost: useInstagramGraph ? 'graph.instagram.com' : 'graph.facebook.com',
+      });
+      return profile;
+    }
+
+    logWarn('Meta', 'Instagram customer profile lookup was unavailable.', {
+      endpointHost: useInstagramGraph ? 'graph.instagram.com' : 'graph.facebook.com',
+      status: response.status,
+      error: getPayloadError(data),
+    });
+    return null;
+  } catch (error) {
+    logWarn('Meta', 'Instagram customer profile lookup failed.', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }

@@ -80,6 +80,7 @@ import {
   isNonContactOnlyMessage,
   mergeContactDetails,
 } from '@/lib/contact-profile';
+import { preferStoredMetaProfileName } from '@/lib/meta-profile';
 import { isClearConfirmation } from '@/lib/order-confirmation';
 import {
   buildHumanSupportReply,
@@ -504,7 +505,10 @@ export async function routeCustomerMessage(
       : null;
   const baseContact = mergeContactDetails(
     {
-      name: state.orderDraft?.name || customer?.name || input.customerName || '',
+      name:
+        state.orderDraft?.name ||
+        preferStoredMetaProfileName(customer?.name, input.customerName) ||
+        '',
       address:
         state.orderDraft?.address ||
         latestActiveOrder?.deliveryAddress ||
