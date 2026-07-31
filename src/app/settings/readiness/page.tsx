@@ -228,6 +228,7 @@ function ReliabilitySection({
         {recentFailures.length === 0 ? (
           <p className="app-muted" style={{ marginTop: 8 }}>No recent reliability failures found.</p>
         ) : (
+          <div className="table-scroll">
           <table className="data-table" style={{ marginTop: 8, minWidth: 760 }}>
             <thead>
               <tr>
@@ -248,6 +249,7 @@ function ReliabilitySection({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </Section>

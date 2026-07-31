@@ -17,8 +17,12 @@ const cormorantGaramond = Cormorant_Garamond({
   style: ["normal", "italic"],
 });
 
+// Named --font-jetbrains, not --font-mono: globals.css defines
+// `--font-mono: var(--font-jetbrains), monospace`, and reusing the same
+// name there made the declaration self-referential (so it resolved to
+// nothing and every mono element silently fell back to the default).
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-mono",
+  variable: "--font-jetbrains",
   subsets: ["latin"],
   weight: ["400", "500"],
 });

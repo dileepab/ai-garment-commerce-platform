@@ -150,7 +150,7 @@ function ChannelHealthBlock({
         <StatusChip label={ready ? 'Configured' : 'Needs setup'} tone={readinessTone(ready)} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+      <div className="grid-3-mobile1" style={{ gap: 8 }}>
         <div>
           <div className="app-section-label">Token</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: hasToken ? 'var(--color-success)' : 'var(--color-warning)' }}>

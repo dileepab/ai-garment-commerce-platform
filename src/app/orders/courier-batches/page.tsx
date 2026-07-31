@@ -136,7 +136,8 @@ export default async function CourierBatchesPage() {
             </div>
           </div>
 
-          <table className="data-table">
+          <div className="table-scroll">
+          <table className="data-table" style={{ minWidth: 720 }}>
             <thead>
               <tr>
                 <th>Batch</th>
@@ -223,6 +224,7 @@ export default async function CourierBatchesPage() {
               )}
             </tbody>
           </table>
+          </div>
         </section>
       </div>
     </main>

@@ -404,7 +404,7 @@ export default function CreativeStudioModal({
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Brand + Persona row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="grid-2-mobile1" style={{ gap: 14 }}>
             <div>
               <label style={labelStyle}>Brand</label>
               <select className="app-input" value={brand} onChange={(e) => {
@@ -452,7 +452,7 @@ export default function CreativeStudioModal({
           {/* Persona selector (Visual) */}
           <div>
             <label style={labelStyle}>Model Persona</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <div className="grid-4-mobile2" style={{ gap: 10 }}>
               {[{ id: 'none', label: 'Product only', imageUrl: null, height: '', bodyShape: '', skinTone: '' }, ...(PERSONAS_BY_BRAND[brand] || [])].map((p) => (
                 <div
                   key={p.id}
@@ -675,7 +675,7 @@ export default function CreativeStudioModal({
           {/* Generation mode */}
           <div>
             <label style={labelStyle}>Generation Mode</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div className="grid-2-mobile1" style={{ gap: 8 }}>
               {([
                 { id: 'standard', label: 'Standard', help: 'Faster and cheaper for normal posts.' },
                 { id: 'high_accuracy', label: 'High accuracy', help: 'Better for exact colour, stripes, hems, slits, and print placement.' },
@@ -716,7 +716,7 @@ export default function CreativeStudioModal({
                   ({existingCreatives.length} saved for this product)
                 </span>
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div className="grid-4-mobile2" style={{ gap: 8 }}>
                 {existingCreatives.slice(0, 8).map(c => (
                   <div key={c.id} style={{
                     border: '1px solid var(--color-border)',

@@ -289,7 +289,7 @@ export default async function Dashboard({
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
 
           {/* ── KPI Grid ─────────────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 16 }}>
+          <div className="kpi-grid-6">
             {[
               { label: 'Revenue Today', value: formatLkr(revenueToday.netRevenue), note: `${fmt(revenueToday.paidOrderCount)} paid orders`, iconBg: '#D4EDE0', iconColor: '#1E6B45', Icon: ShirtIcon },
               { label: 'Revenue · 30d', value: formatLkr(revenue30.netRevenue), note: `AOV ${formatLkr(revenue30.averageOrderValue)}`, iconBg: '#F2E4D8', iconColor: '#C4622D', Icon: BoxIcon },
@@ -303,7 +303,7 @@ export default async function Dashboard({
                   <k.Icon />
                 </div>
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9C9188', marginBottom: 4 }}>{k.label}</div>
-                <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: '#18160F', lineHeight: 1, marginBottom: 6 }}>{k.value}</div>
+                <div className="kpi-value-lg" style={{ fontWeight: 700, letterSpacing: '-0.04em', color: '#18160F', lineHeight: 1, marginBottom: 6 }}>{k.value}</div>
                 <div style={{ fontSize: 11, color: '#9C9188' }}>{k.note}</div>
               </div>
             ))}
@@ -322,7 +322,7 @@ export default async function Dashboard({
                 </Link>
               )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0 }}>
+            <div className="metric-row-6">
               {[
                 { val: formatPct(ai30.responseRate), label: 'Response Rate', note: `${fmt(ai30.assistantMessages)} replies`, good: ai30.responseRate >= 0.9, bad: false },
                 { val: formatPct(ai30.escalationRate), label: 'Escalation Rate', note: `${fmt(ai30.escalationCount)} cases`, good: ai30.escalationRate < 0.1, bad: ai30.escalationRate >= 0.25 },
@@ -331,7 +331,7 @@ export default async function Dashboard({
                 { val: fmt(todayEscalations), label: 'Handed Off Today', note: 'New escalations today', good: todayEscalations === 0, bad: false },
                 { val: fmt(openEscalationCount), label: 'Open Cases', note: 'Awaiting follow-up', good: openEscalationCount === 0, bad: openEscalationCount > 5 },
               ].map((m, i) => (
-                <div key={i} style={{ padding: '14px 16px', borderLeft: i > 0 ? '1px solid #EAE6E0' : 'none' }}>
+                <div key={i} style={{ padding: '14px 16px' }}>
                   <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 3, color: m.bad ? '#8B2020' : m.good ? '#1E6B45' : '#18160F' }}>
                     {m.val}
                   </div>
@@ -357,7 +357,8 @@ export default async function Dashboard({
                   No sales recorded in the last 30 days.
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-scroll">
+                <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
                       {['Product', 'Brand', 'Units Sold', 'Revenue', 'Orders'].map(h => (
@@ -377,6 +378,7 @@ export default async function Dashboard({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>
@@ -429,7 +431,7 @@ export default async function Dashboard({
           )}
 
           {/* ── Order Pipeline + Support ───────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div className="two-col">
 
             {/* Order Pipeline */}
             <div style={card}>
@@ -454,7 +456,8 @@ export default async function Dashboard({
                   ))}
                 </div>
                 {/* Recent orders table */}
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-scroll">
+                <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
                       {['Order', 'Customer', 'Item', 'Status', 'When'].map(h => (
@@ -482,6 +485,7 @@ export default async function Dashboard({
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
 
@@ -558,7 +562,8 @@ export default async function Dashboard({
                 </div>
               </div>
               <div style={{ padding: '0 16px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-scroll">
+                <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
                       {['Product', 'Brand', 'Variant', 'Available', 'Reserved', 'Reorder At', 'Suggest', 'Status'].map(h => (
@@ -594,12 +599,13 @@ export default async function Dashboard({
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
 
           {/* ── Production + Operators ────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="two-col" style={{ marginBottom: 0 }}>
 
             {/* Production Health */}
             <div style={card}>

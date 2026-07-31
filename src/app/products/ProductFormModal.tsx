@@ -594,7 +594,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
               </div>
 
               {/* Brand + Style */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid-2-mobile1" style={{ gap: 12 }}>
                 <div>
                   <label style={lbl}>Brand *</label>
                   {brandIsCustom ? (
@@ -637,7 +637,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
               </div>
 
               {/* Fabric + Price */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid-2-mobile1" style={{ gap: 12 }}>
                 <div>
                   <label style={lbl}>Fabric</label>
                   {fabricIsCustom ? (
@@ -677,7 +677,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
               </div>
 
               {/* Status */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid-2-mobile1" style={{ gap: 12 }}>
                 <div>
                   <label style={lbl}>Status</label>
                   <select style={{ ...inp, cursor: 'pointer' }} value={status} onChange={(e) => set('status', e.target.value)} disabled={isPending}>

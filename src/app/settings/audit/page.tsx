@@ -51,6 +51,7 @@ export default async function AuditLogPage() {
               No audit entries found.
             </div>
           ) : (
+            <div className="table-scroll">
             <table className="data-table" style={{ minWidth: 820 }}>
               <thead>
                 <tr>
@@ -95,6 +96,7 @@ export default async function AuditLogPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </section>
       </div>
