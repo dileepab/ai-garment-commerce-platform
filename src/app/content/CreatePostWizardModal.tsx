@@ -1276,7 +1276,7 @@ function Step1Setup(props: Step1Props) {
       {/* Generation mode */}
       <div>
         <label style={labelStyle}>Generation Mode</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div className="grid-2-mobile1" style={{ gap: 8 }}>
           {([
             { id: 'standard', label: 'Standard', help: 'Faster and cheaper for normal posts.' },
             { id: 'high_accuracy', label: 'High accuracy', help: 'Better for exact colour, stripes, hems, slits, and print placement.' },
@@ -1317,7 +1317,7 @@ function Step1Setup(props: Step1Props) {
               ({props.existingCreatives.length} saved for this product — click to skip generation)
             </span>
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          <div className="grid-4-mobile2" style={{ gap: 8 }}>
             {props.existingCreatives.slice(0, 8).map(c => (
               <div
                 key={c.id}
@@ -1348,7 +1348,7 @@ function Step1Setup(props: Step1Props) {
       {/* Persona */}
       <div>
         <label style={labelStyle}>Model Persona</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <div className="grid-4-mobile2" style={{ gap: 10 }}>
           {personaList.map((p) => (
             <div
               key={p.id}

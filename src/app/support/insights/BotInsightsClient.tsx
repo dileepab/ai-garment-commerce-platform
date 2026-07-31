@@ -309,7 +309,7 @@ export function BotInsightsClient({ report }: { report: BotInsightsReport }) {
         ))}
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1.2fr) minmax(260px, 0.8fr)', gap: 16 }}>
+      <section className="split-main-side" style={{ '--split-cols': 'minmax(280px, 1.2fr) minmax(260px, 0.8fr)', gap: 16 } as React.CSSProperties}>
         <div className="app-panel" style={{ padding: 16, display: 'grid', gap: 14 }}>
           <div>
             <p className="app-section-label">Conversation Funnel</p>
@@ -352,6 +352,7 @@ export function BotInsightsClient({ report }: { report: BotInsightsReport }) {
             No repeated questions found in this range.
           </div>
         ) : (
+          <div className="table-scroll">
           <table className="data-table" style={{ minWidth: 760 }}>
             <thead>
               <tr>
@@ -372,10 +373,11 @@ export function BotInsightsClient({ report }: { report: BotInsightsReport }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 0.9fr) minmax(360px, 1.1fr)', gap: 16 }}>
+      <section className="split-main-side" style={{ '--split-cols': 'minmax(300px, 0.9fr) minmax(360px, 1.1fr)', gap: 16 } as React.CSSProperties}>
         <div className="app-panel" style={{ padding: 16, display: 'grid', gap: 12, alignSelf: 'start' }}>
           <div>
             <p className="app-section-label">Problem Queue</p>
@@ -414,6 +416,7 @@ export function BotInsightsClient({ report }: { report: BotInsightsReport }) {
             No failed webhook or delivery events found in this range.
           </div>
         ) : (
+          <div className="table-scroll">
           <table className="data-table" style={{ minWidth: 840 }}>
             <thead>
               <tr>
@@ -436,6 +439,7 @@ export function BotInsightsClient({ report }: { report: BotInsightsReport }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>

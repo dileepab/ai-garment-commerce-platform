@@ -174,7 +174,7 @@ export default async function BotTrainingPage({ searchParams }: { searchParams: 
       />
 
       <div className="content" style={{ display: 'grid', gap: 16 }}>
-        <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.95fr) minmax(360px, 1.05fr)', gap: 16 }}>
+        <section className="split-main-side" style={{ '--split-cols': 'minmax(320px, 0.95fr) minmax(360px, 1.05fr)', gap: 16 } as React.CSSProperties}>
           <div className="app-panel" style={{ padding: 16, display: 'grid', gap: 14, alignSelf: 'start' }}>
             <div>
               <p className="app-section-label">Demand signals</p>
@@ -257,7 +257,7 @@ export default async function BotTrainingPage({ searchParams }: { searchParams: 
               </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 0.7fr) minmax(110px, 0.3fr)', gap: 10 }}>
+            <div className="split-main-side" style={{ '--split-cols': 'minmax(150px, 0.7fr) minmax(110px, 0.3fr)', gap: 10 } as React.CSSProperties}>
               <label className="app-field">
                 <span>Match type</span>
                 <select className="app-input" name="matchType" defaultValue={formRule?.matchType ?? 'contains'} disabled={!canEdit}>
@@ -338,6 +338,7 @@ export default async function BotTrainingPage({ searchParams }: { searchParams: 
               No training rules yet. Use repeated questions above to create the first one.
             </div>
           ) : (
+            <div className="table-scroll">
             <table className="data-table" style={{ minWidth: 1060 }}>
               <thead>
                 <tr>
@@ -402,6 +403,7 @@ export default async function BotTrainingPage({ searchParams }: { searchParams: 
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </section>
       </div>

@@ -441,7 +441,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px' }}>
 
           {/* Brand + Channels */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <div className="grid-2-mobile1" style={{ gap: 14, marginBottom: 16 }}>
             {/* Brand */}
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 6 }}>
@@ -902,7 +902,7 @@ export default function ContentPageClient({
       />
 
       {/* KPI strip */}
-      <div className="kpi-strip" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      <div className="kpi-strip kpi-strip-5">
         <div className="kpi-strip-card">
           <div className="kpi-strip-label">Total Posts</div>
           <div className="kpi-strip-val">{stats.total}</div>
@@ -1013,7 +1013,8 @@ export default function ContentPageClient({
               </div>
             ) : (
               <div className="card">
-                <table className="data-table">
+                <div className="table-scroll">
+                <table className="data-table" style={{ minWidth: 760 }}>
                   <thead>
                     <tr>
                       <th style={{ width: 60 }}>Asset</th>
@@ -1105,6 +1106,7 @@ export default function ContentPageClient({
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </div>

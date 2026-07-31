@@ -303,7 +303,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
                 <Link href="/products" style={cardAction}>Catalog →</Link>
               </div>
               <div style={{ padding: '0 16px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-scroll">
+                <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
                       {['Product', 'Brand', 'Units', 'Revenue', 'Orders'].map((h) => (
@@ -325,6 +326,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </div>
@@ -437,7 +439,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#9C9188', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8 }}>
                     Top Restock Priorities
                   </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <div className="table-scroll">
+                  <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
                         {['Product', 'Brand', 'Variant', 'Available', 'In Prod', 'Reorder At', 'Suggest +', 'Status'].map((h) => (
@@ -473,6 +476,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Se
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
 

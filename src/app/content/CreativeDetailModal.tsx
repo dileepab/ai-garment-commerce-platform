@@ -130,12 +130,11 @@ export default function CreativeDetailModal({ creative, canWrite, onClose, onDel
         </div>
 
         {/* Body — two-column on wide screens */}
-        <div style={{
+        <div className="split-main-side" style={{
           flex: 1, overflowY: 'auto',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0,3fr) minmax(0,2fr)',
+          '--split-cols': 'minmax(0,3fr) minmax(0,2fr)',
           gap: 0,
-        }}>
+        } as React.CSSProperties}>
 
           {/* Image panel */}
           <div style={{

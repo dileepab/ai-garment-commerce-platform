@@ -14,7 +14,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="app-viewport" style={{ display: 'flex', overflow: 'hidden' }}>
       <Suspense fallback={null}>
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </Suspense>

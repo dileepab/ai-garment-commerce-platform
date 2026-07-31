@@ -26,7 +26,7 @@ export function RoyalExpressBatchForm({
 
   return (
     <form action={formAction} className="app-panel" style={{ padding: 20, display: 'grid', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) minmax(220px, 1fr) auto', gap: 12, alignItems: 'end' }}>
+      <div className="form-row-cols" style={{ '--form-cols': 'minmax(160px, 1fr) minmax(220px, 1fr) auto', gap: 12, alignItems: 'end' } as React.CSSProperties}>
         <label style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--color-fg-2)' }}>
           Brand
           <select

@@ -357,6 +357,7 @@ function CourierWebhookHealthPanel({
         {health.recentEvents.length === 0 ? (
           <p className="app-muted" style={{ marginTop: 8 }}>No courier webhook callbacks have been received yet.</p>
         ) : (
+          <div className="table-scroll">
           <table className="data-table" style={{ marginTop: 8, minWidth: 640 }}>
             <thead>
               <tr>
@@ -386,6 +387,7 @@ function CourierWebhookHealthPanel({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
