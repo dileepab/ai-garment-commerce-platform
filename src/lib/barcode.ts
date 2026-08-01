@@ -21,7 +21,16 @@ const CODE_128_PATTERNS = [
   '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
 ];
 
-export function buildCode128BarcodeSvg(value: string): string {
+export type Code128Bars = {
+  /** Total width of the barcode in module units. */
+  width: number;
+  /** Flattened `[x, width, x, width, ...]` pairs, in module units. */
+  bars: number[];
+  /** The sanitised value the bars encode. */
+  value: string;
+};
+
+export function buildCode128Bars(value: string): Code128Bars {
   const cleaned = value.replace(/[^\x20-\x7E]/g, '').trim() || '0';
   const codes = [104, ...cleaned.split('').map((char) => char.charCodeAt(0) - 32)];
   const checksum = codes.reduce((sum, code, index) => (
@@ -29,7 +38,7 @@ export function buildCode128BarcodeSvg(value: string): string {
   ), 0) % 103;
   const allCodes = [...codes, checksum, 106];
   let x = 0;
-  const bars: string[] = [];
+  const bars: number[] = [];
 
   for (const code of allCodes) {
     const pattern = CODE_128_PATTERNS[code];
@@ -37,16 +46,25 @@ export function buildCode128BarcodeSvg(value: string): string {
 
     for (let index = 0; index < pattern.length; index += 1) {
       const width = Number.parseInt(pattern[index], 10);
-      if (index % 2 === 0) {
-        bars.push(`<rect x="${x}" y="0" width="${width}" height="42" />`);
-      }
+      if (index % 2 === 0) bars.push(x, width);
       x += width;
     }
   }
 
+  return { width: x, bars, value: cleaned };
+}
+
+export function buildCode128BarcodeSvg(value: string): string {
+  const { width, bars, value: cleaned } = buildCode128Bars(value);
+  const rects: string[] = [];
+
+  for (let index = 0; index < bars.length; index += 2) {
+    rects.push(`<rect x="${bars[index]}" y="0" width="${bars[index + 1]}" height="42" />`);
+  }
+
   return [
-    `<svg class="barcode-svg" viewBox="0 0 ${x} 42" role="img" aria-label="Waybill barcode ${escapeHtml(cleaned)}" preserveAspectRatio="none">`,
-    bars.join(''),
+    `<svg class="barcode-svg" viewBox="0 0 ${width} 42" role="img" aria-label="Waybill barcode ${escapeHtml(cleaned)}" preserveAspectRatio="none">`,
+    rects.join(''),
     '</svg>',
   ].join('');
 }

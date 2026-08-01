@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { canAccessBrand } from '@/lib/access-control';
 import { requirePagePermission } from '@/lib/authz';
-import { buildCode128BarcodeSvg } from '@/lib/barcode';
+import { buildCode128BarcodeSvg, buildCode128Bars } from '@/lib/barcode';
 import { getBrandLookupAliases } from '@/lib/brand-aliases';
 import {
   buildRoyalExpressLabelAddressLines,
@@ -12,6 +12,8 @@ import {
   resolveRoyalExpressLabelLocation,
 } from '@/lib/royal-express-label';
 import { getMerchantSettings } from '@/lib/runtime-config';
+import { encodeQrBits, type WaybillLabelData } from '@/lib/waybill-label';
+import { MobilePrintPanel } from './MobilePrintPanel';
 import { PrintButton } from './PrintButton';
 
 export const dynamic = 'force-dynamic';
@@ -105,6 +107,58 @@ export default async function RoyalExpressBatchLabelsPage({
     : null;
   const brandSettings = batchBrand ? await getMerchantSettings(batchBrand) : null;
 
+  const sheets = batch.shipments.map((shipment) => {
+    const order = shipment.order;
+    const { city, postalCode } = resolveRoyalExpressLabelLocation({
+      receiverCityId: shipment.receiverCityId,
+      deliveryCity: order.deliveryCity,
+      deliveryDistrict: order.deliveryDistrict,
+      addressParts: [shipment.receiverStreet, order.deliveryStreetAddress, order.deliveryAddress],
+    });
+    const addressLines = buildRoyalExpressLabelAddressLines([
+      shipment.receiverStreet,
+      order.deliveryStreetAddress,
+      order.deliveryAddress,
+    ], [city, order.deliveryCity, order.deliveryDistrict]);
+    const phone = formatRoyalExpressLabelPhone(
+      shipment.receiverPhone || order.customer.phone || 'No phone',
+    );
+    const description = shipment.description || orderDescription(order.orderItems);
+    const qr = buildRoyalExpressQrMatrix(shipment.waybillId);
+    const merchantName = courierSetting?.senderName || shipment.brand || order.brand || batchBrand || 'DEEZ';
+    const merchantPhone = formatRoyalExpressLabelPhone(
+      brandSettings?.support.whatsapp ||
+      brandSettings?.support.phone ||
+      courierSetting?.senderPhone ||
+      '-',
+    );
+    const orderNumber = (shipment.orderReference || String(order.id)).replace(/^ORD-/i, '');
+    const codAmount = shipment.codAmount ?? order.totalAmount;
+    const specialNote = shipment.specialNote?.trim();
+    const showSpecialNote = Boolean(specialNote && !/^DEEZ\s+.+\s+order\s+#\d+$/i.test(specialNote));
+
+    const data: WaybillLabelData = {
+      shipmentId: shipment.id,
+      waybillId: shipment.waybillId,
+      merchantName,
+      merchantPhone,
+      recipientName: shipment.receiverName || order.customer.name,
+      addressLines,
+      city,
+      postalCode,
+      recipientPhone: phone,
+      orderNumber,
+      orderDate: formatRoyalExpressDateTime(order.createdAt),
+      description: description || 'Garment order',
+      specialNote: showSpecialNote && specialNote ? specialNote : null,
+      codText: `COD: LKR ${formatMoney(codAmount)}`,
+      barcode: buildCode128Bars(shipment.waybillId),
+      qr: { size: qr.size, bits: encodeQrBits(qr.cells) },
+    };
+
+    return { data, qr, barcodeSvg: buildCode128BarcodeSvg(shipment.waybillId) };
+  });
+
   return (
     <main className="batch-label-page">
       <div className="screen-toolbar">
@@ -118,40 +172,12 @@ export default async function RoyalExpressBatchLabelsPage({
         </div>
       </div>
 
-      <section className="label-grid">
-        {batch.shipments.map((shipment) => {
-          const order = shipment.order;
-          const { city, postalCode } = resolveRoyalExpressLabelLocation({
-            receiverCityId: shipment.receiverCityId,
-            deliveryCity: order.deliveryCity,
-            deliveryDistrict: order.deliveryDistrict,
-            addressParts: [shipment.receiverStreet, order.deliveryStreetAddress, order.deliveryAddress],
-          });
-          const addressLines = buildRoyalExpressLabelAddressLines([
-            shipment.receiverStreet,
-            order.deliveryStreetAddress,
-            order.deliveryAddress,
-          ], [city, order.deliveryCity, order.deliveryDistrict]);
-          const phone = formatRoyalExpressLabelPhone(
-            shipment.receiverPhone || order.customer.phone || 'No phone',
-          );
-          const description = shipment.description || orderDescription(order.orderItems);
-          const barcode = buildCode128BarcodeSvg(shipment.waybillId);
-          const qr = buildRoyalExpressQrMatrix(shipment.waybillId);
-          const merchantName = courierSetting?.senderName || shipment.brand || order.brand || batchBrand || 'DEEZ';
-          const merchantPhone = formatRoyalExpressLabelPhone(
-            brandSettings?.support.whatsapp ||
-            brandSettings?.support.phone ||
-            courierSetting?.senderPhone ||
-            '-',
-          );
-          const orderNumber = (shipment.orderReference || String(order.id)).replace(/^ORD-/i, '');
-          const codAmount = shipment.codAmount ?? order.totalAmount;
-          const specialNote = shipment.specialNote?.trim();
-          const showSpecialNote = Boolean(specialNote && !/^DEEZ\s+.+\s+order\s+#\d+$/i.test(specialNote));
+      <MobilePrintPanel batchId={batch.id} labels={sheets.map((sheet) => sheet.data)} />
 
+      <section className="label-grid">
+        {sheets.map(({ data, qr, barcodeSvg }) => {
           return (
-            <article className="waybill-sheet" key={shipment.id}>
+            <article className="waybill-sheet" key={data.shipmentId}>
               <div className="waybill-top">
                 <div className="carrier">
                   <div className="royal-logo">
@@ -167,14 +193,14 @@ export default async function RoyalExpressBatchLabelsPage({
                 <div className="tracking">
                   <div className="waybill-heading">
                     <span>WAYBILL</span>
-                    <strong>{shipment.waybillId}</strong>
+                    <strong>{data.waybillId}</strong>
                   </div>
                   <div className="barcode-panel">
-                    <div className="barcode" dangerouslySetInnerHTML={{ __html: barcode }} />
+                    <div className="barcode" dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
                   </div>
                   <div
                     className="qr-code"
-                    aria-label={`Waybill QR ${shipment.waybillId}`}
+                    aria-label={`Waybill QR ${data.waybillId}`}
                     style={{
                       gridTemplateColumns: `repeat(${qr.size}, 1fr)`,
                       gridTemplateRows: `repeat(${qr.size}, 1fr)`,
@@ -194,49 +220,49 @@ export default async function RoyalExpressBatchLabelsPage({
               <div className="two-col details-row">
                 <div className="cell merchant-details">
                   <span className="field-label">Name</span>
-                  <span className="field-value merchant-name">{merchantName}</span>
+                  <span className="field-value merchant-name">{data.merchantName}</span>
                   <span className="field-label">Telephone</span>
-                  <span className="field-value merchant-phone">{merchantPhone}</span>
+                  <span className="field-value merchant-phone">{data.merchantPhone}</span>
                 </div>
                 <div className="cell">
                   <span className="field-label">Name</span>
-                  <span className="field-value recipient-name">{shipment.receiverName || order.customer.name}</span>
+                  <span className="field-value recipient-name">{data.recipientName}</span>
                   <span className="field-label">Address</span>
-                  <span className="field-value recipient-address">{addressLines.map((line) => <span key={line}>{line}<br /></span>)}</span>
+                  <span className="field-value recipient-address">{data.addressLines.map((line) => <span key={line}>{line}<br /></span>)}</span>
                   <div className="location-row">
                     <span>
                       <span className="field-label">City</span>
-                      <span className="field-value">{city}</span>
+                      <span className="field-value">{data.city}</span>
                     </span>
                     <span>
                       <span className="field-label">Postal / Zip</span>
-                      <span className="field-value">{postalCode}</span>
+                      <span className="field-value">{data.postalCode}</span>
                     </span>
                   </div>
                   <span className="field-label">Telephone</span>
-                  <span className="field-value recipient-phone">{phone}</span>
+                  <span className="field-value recipient-phone">{data.recipientPhone}</span>
                 </div>
               </div>
               <div className="section-title order-title">Order Details</div>
               <div className="two-col order-details">
                 <div className="cell">
                   <span className="field-label">Order Number</span>
-                  <span className="field-value">{orderNumber}</span>
+                  <span className="field-value">{data.orderNumber}</span>
                   <span className="field-label">Order Date</span>
-                  <span className="field-value">{formatRoyalExpressDateTime(order.createdAt)}</span>
+                  <span className="field-value">{data.orderDate}</span>
                   <span className="field-label">Weight</span>
                   <span className="field-value">1 kg</span>
                 </div>
                 <div className="cell">
                   <span className="field-label">Description</span>
-                  <span className="field-value">{description || 'Garment order'}</span>
-                  {showSpecialNote && (
+                  <span className="field-value">{data.description}</span>
+                  {data.specialNote && (
                     <>
                       <span className="field-label">Special Note</span>
-                      <span className="field-value special-note">{specialNote}</span>
+                      <span className="field-value special-note">{data.specialNote}</span>
                     </>
                   )}
-                  <span className="field-value cod-value">COD: LKR {formatMoney(codAmount)}</span>
+                  <span className="field-value cod-value">{data.codText}</span>
                 </div>
               </div>
               <div className="footer">Powered By Curfox.com</div>
