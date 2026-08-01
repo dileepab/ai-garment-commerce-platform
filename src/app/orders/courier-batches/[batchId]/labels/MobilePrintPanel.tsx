@@ -8,8 +8,15 @@ import {
   renderWaybillPng,
   waybillFileName,
 } from './waybill-image';
+import {
+  assembleWaybillPdf,
+  buildWaybillPdfPage,
+  waybillPdfName,
+  type WaybillPdfPage,
+} from './waybill-pdf';
 
 type Busy = { done: number; total: number; action: 'save' | 'share' } | null;
+type Format = 'pdf' | 'png';
 
 function triggerDownload(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -35,15 +42,17 @@ export function MobilePrintPanel({
   labels: WaybillLabelData[];
 }) {
   const [selected, setSelected] = useState<number[]>(() => labels.map((label) => label.shipmentId));
+  const [format, setFormat] = useState<Format>('pdf');
   const [dpi, setDpi] = useState<number>(DEFAULT_WAYBILL_DPI);
   const [busy, setBusy] = useState<Busy>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [canShareFiles, setCanShareFiles] = useState(false);
-  // Rendered PNGs keyed by `shipmentId:dpi`. Keeping them means a repeat tap is
+  // Rendered output keyed by `shipmentId:dpi`. Keeping it means a repeat tap is
   // instant, which matters on iOS where navigator.share() is refused once the
   // tap's user activation has expired.
-  const rendered = useRef(new Map<string, File>());
+  const pngCache = useRef(new Map<string, File>());
+  const pdfCache = useRef(new Map<string, WaybillPdfPage>());
 
   useEffect(() => {
     try {
@@ -71,12 +80,37 @@ export function MobilePrintPanel({
     );
   };
 
+  /** One PDF holding every selected waybill, or one PNG per waybill. */
   const renderAll = async (targets: WaybillLabelData[], action: 'save' | 'share') => {
     const files: File[] = [];
 
+    if (format === 'pdf') {
+      const pages: WaybillPdfPage[] = [];
+
+      for (const [index, label] of targets.entries()) {
+        const key = `${label.shipmentId}:${dpi}`;
+        const cached = pdfCache.current.get(key);
+        if (cached) {
+          pages.push(cached);
+          continue;
+        }
+
+        setBusy({ done: index, total: targets.length, action });
+        const page = await buildWaybillPdfPage(label, dpi);
+        pdfCache.current.set(key, page);
+        pages.push(page);
+        // Yield to the browser so the progress counter can paint between pages.
+        await pause(0);
+      }
+
+      const name = waybillPdfName(targets, batchId);
+      files.push(new File([assembleWaybillPdf(pages)], name, { type: 'application/pdf' }));
+      return files;
+    }
+
     for (const [index, label] of targets.entries()) {
       const key = `${label.shipmentId}:${dpi}`;
-      const cached = rendered.current.get(key);
+      const cached = pngCache.current.get(key);
       if (cached) {
         files.push(cached);
         continue;
@@ -85,9 +119,8 @@ export function MobilePrintPanel({
       setBusy({ done: index, total: targets.length, action });
       const blob = await renderWaybillPng(label, dpi);
       const file = new File([blob], waybillFileName(label), { type: 'image/png' });
-      rendered.current.set(key, file);
+      pngCache.current.set(key, file);
       files.push(file);
-      // Yield to the browser so the progress counter can paint between labels.
       await pause(0);
     }
 
@@ -107,12 +140,12 @@ export function MobilePrintPanel({
         if (index < files.length - 1) await pause(350);
       }
       setMessage(
-        files.length === 1
-          ? `Saved ${files[0].name}. Open MarkLife → print from photos.`
-          : `Saved ${files.length} waybill images. Open MarkLife → print from photos.`,
+        format === 'pdf'
+          ? `Saved ${files[0].name} — ${targets.length} page${targets.length === 1 ? '' : 's'}. Open it in MarkLife to print.`
+          : `Saved ${files.length} waybill image${files.length === 1 ? '' : 's'}. Open MarkLife → print from photos.`,
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not build the waybill images.');
+      setError(cause instanceof Error ? cause.message : 'Could not build the waybill file.');
     } finally {
       setBusy(null);
     }
@@ -134,16 +167,20 @@ export function MobilePrintPanel({
         files,
         title: `RoyalExpress batch #${batchId}`,
       });
-      setMessage('Sent to the share sheet. Pick MarkLife, or save to Photos and print from the app.');
+      setMessage(
+        format === 'pdf'
+          ? 'Sent to the share sheet. Pick MarkLife, or "Save to Files" and open it from there.'
+          : 'Sent to the share sheet. Pick MarkLife, or save to Photos and print from the app.',
+      );
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === 'AbortError') {
         setMessage(null);
       } else if (cause instanceof DOMException && cause.name === 'NotAllowedError') {
         // iOS refuses share() once the tap that started the render has expired.
-        // The images are cached now, so a second tap opens the sheet instantly.
-        setMessage('Images are ready — tap the same button again to open the share sheet.');
+        // The pages are cached now, so a second tap opens the sheet instantly.
+        setMessage('Ready — tap the same button again to open the share sheet.');
       } else {
-        setError(cause instanceof Error ? cause.message : 'Could not share the waybill images.');
+        setError(cause instanceof Error ? cause.message : 'Could not share the waybills.');
       }
     } finally {
       setBusy(null);
@@ -159,20 +196,34 @@ export function MobilePrintPanel({
         <div>
           <h2 id="mobile-print-title">Print from phone (MarkLife)</h2>
           <p>
-            Saves each waybill as a 4×6in PNG at {dpi} dpi. Open the MarkLife app, choose image /
-            album printing, and pick the saved file.
+            {format === 'pdf'
+              ? `One PDF, one 4×6in page per waybill at ${dpi} dpi. Open it in the MarkLife app and print the batch.`
+              : `One 4×6in PNG per waybill at ${dpi} dpi. Open MarkLife, choose image / album printing, and pick the saved file.`}
           </p>
         </div>
-        <label className="dpi-picker">
-          <span>Printer dpi</span>
-          <select value={dpi} onChange={(event) => setDpi(Number(event.target.value))} disabled={isBusy}>
-            {WAYBILL_DPI_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option} dpi
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="pickers">
+          <label>
+            <span>Format</span>
+            <select
+              value={format}
+              onChange={(event) => setFormat(event.target.value as Format)}
+              disabled={isBusy}
+            >
+              <option value="pdf">PDF (all pages)</option>
+              <option value="png">PNG images</option>
+            </select>
+          </label>
+          <label>
+            <span>Printer dpi</span>
+            <select value={dpi} onChange={(event) => setDpi(Number(event.target.value))} disabled={isBusy}>
+              {WAYBILL_DPI_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option} dpi
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </header>
 
       <div className="mobile-print-actions">
@@ -183,7 +234,9 @@ export function MobilePrintPanel({
             onClick={() => runShare(selectedLabels)}
             disabled={isBusy || selectedLabels.length === 0}
           >
-            Send {selectedLabels.length} to MarkLife
+            {format === 'pdf'
+              ? `Send PDF (${selectedLabels.length}) to MarkLife`
+              : `Send ${selectedLabels.length} to MarkLife`}
           </button>
         )}
         <button
@@ -192,7 +245,9 @@ export function MobilePrintPanel({
           onClick={() => runSave(selectedLabels)}
           disabled={isBusy || selectedLabels.length === 0}
         >
-          Save {selectedLabels.length} image{selectedLabels.length === 1 ? '' : 's'}
+          {format === 'pdf'
+            ? `Save PDF (${selectedLabels.length} page${selectedLabels.length === 1 ? '' : 's'})`
+            : `Save ${selectedLabels.length} image${selectedLabels.length === 1 ? '' : 's'}`}
         </button>
         <button
           type="button"
@@ -253,8 +308,9 @@ export function MobilePrintPanel({
         }
         .mobile-print h2 { font-size: 14px; font-weight: 700; margin: 0; }
         .mobile-print p { color: #6b7280; font-size: 12px; line-height: 1.4; margin: 4px 0 0; max-width: 52ch; }
-        .dpi-picker { align-items: center; display: flex; font-size: 12px; gap: 6px; }
-        .dpi-picker select {
+        .pickers { display: flex; flex-wrap: wrap; gap: 10px; }
+        .pickers label { align-items: center; display: flex; font-size: 12px; gap: 6px; }
+        .pickers select {
           background: #fff;
           border: 1px solid #d1d5db;
           border-radius: 6px;
