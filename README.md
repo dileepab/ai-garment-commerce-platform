@@ -154,6 +154,29 @@ Webhook behavior:
 
 Instagram DMs share the same orchestration pipeline as Messenger. Unsupported templates are logged and safely downgraded to text replies.
 
+## TikTok Ads Setup
+
+GarmentOS includes the secure TikTok API for Business authorization foundation
+for advertiser accounts, campaigns, reporting, creatives, and product catalogs.
+Live feature calls are enabled only after TikTok approval and account access are
+verified. This Marketing API connection does not enable organic TikTok
+publishing, comments, direct messages, or TikTok Shop.
+
+1. Register and obtain approval for a TikTok API for Business developer app.
+2. Configure the advertiser redirect URL as
+   `https://app.deez.lk/api/integrations/tiktok/callback`.
+3. Set `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET`,
+   `TIKTOK_TOKEN_ENCRYPTION_KEY`, and `TIKTOK_REDIRECT_URI` in the server
+   environment. Never use `NEXT_PUBLIC_*` for these values.
+4. Deploy the database migration, then open **Settings → TikTok Ads**.
+5. Connect each brand, select its authorized advertiser account, and run the
+   connection test.
+
+OAuth state expires after ten minutes and is bound to an HttpOnly nonce cookie.
+Long-term TikTok access tokens are encrypted with AES-256-GCM before database
+storage. Disconnect attempts to revoke the token at TikTok before removing the
+local credential.
+
 ## Fulfillment And Customer Self-Service
 
 Confirmed orders can move through richer fulfillment stages such as packing, shipped, out-for-delivery, delivered, failed delivery, returned, and cancelled. Customers can safely self-serve supported actions such as status lookup and pre-shipment contact updates, while risky requests still escalate to human support.
