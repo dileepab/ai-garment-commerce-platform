@@ -4,6 +4,18 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
+function getSafeCallbackPath(value: string | null): string {
+  if (!value) return '/';
+
+  try {
+    const callback = new URL(value, window.location.origin);
+    if (callback.origin !== window.location.origin || callback.pathname === '/login') return '/';
+    return `${callback.pathname}${callback.search}${callback.hash}`;
+  } catch {
+    return '/';
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -26,7 +38,8 @@ export default function LoginPage() {
       setError('Invalid email or password.');
       setLoading(false);
     } else {
-      router.push('/');
+      const callbackUrl = new URLSearchParams(window.location.search).get('callbackUrl');
+      router.push(getSafeCallbackPath(callbackUrl));
       router.refresh();
     }
   }

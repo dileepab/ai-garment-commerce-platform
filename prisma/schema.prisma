@@ -601,6 +601,22 @@ model BrandChannelConfig {
   @@index([instagramAccountId])
 }
 
+model TikTokConnection {
+  id                   Int       @id @default(autoincrement())
+  brand                String    @unique
+  advertiserId         String?
+  advertiserName       String?
+  accessTokenEncrypted String
+  grantedScopes        String?
+  authorizedAt         DateTime  @default(now())
+  lastVerifiedAt       DateTime?
+  lastError            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([advertiserId])
+}
+
 model SocialPost {
   id                Int                    @id @default(autoincrement())
   brand             String

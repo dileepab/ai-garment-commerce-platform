@@ -1208,6 +1208,16 @@ export default async function SettingsPage({
             >
               Meta status
             </Link>
+            <Link
+              className="btn btn-secondary"
+              href={
+                selectedBrand
+                  ? `/settings/tiktok?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
+                  : '/settings/tiktok'
+              }
+            >
+              TikTok Ads
+            </Link>
             <Link className="btn btn-secondary" href="/settings/audit">Audit log</Link>
             <span className="app-chip app-chip-neutral">{describeScope(scope)}</span>
           </div>
