@@ -45,7 +45,7 @@ export interface ProductFormInput {
   referenceModelHeightCm?: number | null;
   wornLengthNote?: string | null;
   aiFidelityNotes?: string | null;
-  colorImages?: Array<{ color: string; imageUrl: string | null }>;
+  colorImages?: Array<{ color: string; angle?: string | null; imageUrl: string | null }>;
   variants: VariantInput[];
 }
 
@@ -95,18 +95,29 @@ function productGarmentSpecData(input: ProductFormInput) {
   };
 }
 
-function cleanColorImages(input: ProductFormInput): Array<{ color: string; imageUrl: string }> {
+const PRODUCT_IMAGE_ANGLES = ['front', 'side', 'back', 'closeup'] as const;
+
+function normalizeAngle(angle: string | null | undefined): string {
+  const value = angle?.trim().toLowerCase();
+  return PRODUCT_IMAGE_ANGLES.includes(value as (typeof PRODUCT_IMAGE_ANGLES)[number])
+    ? (value as string)
+    : 'front';
+}
+
+function cleanColorImages(input: ProductFormInput): Array<{ color: string; angle: string; imageUrl: string }> {
   const seen = new Set<string>();
-  const rows: Array<{ color: string; imageUrl: string }> = [];
+  const rows: Array<{ color: string; angle: string; imageUrl: string }> = [];
 
   for (const image of input.colorImages ?? []) {
     const color = image.color.trim();
     const imageUrl = image.imageUrl?.trim();
     if (!color || !imageUrl) continue;
-    const key = color.toLowerCase();
+    const angle = normalizeAngle(image.angle);
+    // A colour may now carry one photo per angle, so the identity is the pair.
+    const key = `${color.toLowerCase()}::${angle}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({ color, imageUrl });
+    rows.push({ color, angle, imageUrl });
   }
 
   return rows;
@@ -314,24 +325,34 @@ export async function updateProduct(
         });
       }
 
-      await tx.productColorImage.deleteMany({
-        where: {
-          productId,
-          color: colorImages.length > 0 ? { notIn: colorImages.map((image) => image.color) } : undefined,
-        },
+      // Identity is now the colour/angle pair, which Prisma cannot express as a
+      // composite NOT IN — resolve the rows to drop by id instead.
+      const submittedKeys = new Set(colorImages.map((image) => `${image.color}::${image.angle}`));
+      const existingImages = await tx.productColorImage.findMany({
+        where: { productId },
+        select: { id: true, color: true, angle: true },
       });
+      const staleIds = existingImages
+        .filter((image) => !submittedKeys.has(`${image.color}::${image.angle}`))
+        .map((image) => image.id);
+
+      if (staleIds.length > 0) {
+        await tx.productColorImage.deleteMany({ where: { id: { in: staleIds } } });
+      }
 
       for (const image of colorImages) {
         await tx.productColorImage.upsert({
           where: {
-            productId_color: {
+            productId_color_angle: {
               productId,
               color: image.color,
+              angle: image.angle,
             },
           },
           create: {
             productId,
             color: image.color,
+            angle: image.angle,
             imageUrl: image.imageUrl,
           },
           update: {

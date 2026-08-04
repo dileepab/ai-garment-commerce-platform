@@ -3,7 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND } from '@/lib/persona-data';
 import { deleteGeneratedCreative } from './actions';
-import type { CreativeRecord } from './ContentPageClient';
+import { creativeSrc, type CreativeRecord } from './ContentPageClient';
 
 interface Props {
   creative: CreativeRecord;
@@ -144,7 +144,7 @@ export default function CreativeDetailModal({ creative, canWrite, onClose, onDel
           }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={creative.generatedImageData}
+              src={creativeSrc(creative)}
               alt={`Creative for ${creative.brand}`}
               style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', maxHeight: '80vh' }}
             />
@@ -218,7 +218,7 @@ export default function CreativeDetailModal({ creative, canWrite, onClose, onDel
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* Download */}
               <a
-                href={creative.generatedImageData}
+                href={creativeSrc(creative)}
                 download={filename}
                 style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,

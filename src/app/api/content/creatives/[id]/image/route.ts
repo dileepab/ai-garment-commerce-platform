@@ -1,23 +1,54 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { accessDeniedResponse, requireApiPermission } from '@/lib/authz';
+import { verifyCreativeImageToken } from '@/lib/creative-image-token';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  
+
   if (!id || isNaN(Number(id))) {
     return new NextResponse('Invalid creative ID', { status: 400 });
+  }
+  const creativeId = Number(id);
+
+  // Meta fetches this URL while publishing and cannot carry a session, so a
+  // signed link stands in for one. Every other caller must be an authenticated
+  // user — without this, sequential IDs exposed every creative, drafts included.
+  const url = new URL(request.url);
+  const signed = verifyCreativeImageToken(
+    creativeId,
+    url.searchParams.get('exp'),
+    url.searchParams.get('token'),
+  );
+
+  if (!signed) {
+    try {
+      await requireApiPermission('content:view');
+    } catch (error) {
+      return accessDeniedResponse(error);
+    }
   }
 
   try {
     const creative = await prisma.generatedCreative.findUnique({
-      where: { id: Number(id) },
-      select: { generatedImageData: true },
+      where: { id: creativeId },
+      select: { imageUrl: true, generatedImageData: true },
     });
 
-    if (!creative || !creative.generatedImageData) {
+    if (!creative) {
+      return new NextResponse('Creative not found', { status: 404 });
+    }
+
+    // Newer creatives live in blob storage; hand the caller straight to the CDN
+    // rather than pulling megabytes through this route.
+    if (creative.imageUrl) {
+      return NextResponse.redirect(creative.imageUrl, 302);
+    }
+
+    if (!creative.generatedImageData) {
       return new NextResponse('Creative not found', { status: 404 });
     }
 
@@ -34,7 +65,9 @@ export async function GET(
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': mimeType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        // Private: these bytes sit behind a session or a signed link, so shared
+        // caches must not retain them.
+        'Cache-Control': 'private, max-age=31536000, immutable',
       },
     });
   } catch (error) {

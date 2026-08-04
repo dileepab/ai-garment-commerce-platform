@@ -51,11 +51,12 @@ model ProductColorImage {
   productId Int
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   color     String
+  angle     String   @default("front") // front | side | back | closeup
   imageUrl  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([productId, color])
+  @@unique([productId, color, angle])
   @@index([productId])
 }
 
@@ -621,7 +622,8 @@ model SocialPost {
   id                Int                    @id @default(autoincrement())
   brand             String
   channels          String // comma-separated: "facebook", "instagram", or "facebook,instagram"
-  caption           String
+  caption           String // shared/fallback caption
+  captionsByChannel String? // JSON: { facebook: "...", instagram: "..." } — overrides caption per channel
   generatedCaptions String? // JSON array of AI-generated suggestions
   productContext    String? // optional context used for generation
   status            String                 @default("draft") // draft | ready
@@ -674,7 +676,11 @@ model GeneratedCreative {
   product             Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
   viewAngle           String? // front | side | back | closeup
   sourceImageUrl      String?
-  generatedImageData  String // base64 data URL
+  referenceImages     String? // JSON: [{ url, angle }] — every angle reference used for this generation
+  aspectRatio         String? // 4:5 | 1:1 | 4:3 | 9:16
+  corrections         String? // JSON: string[] — cumulative user correction notes, replayed on regenerate
+  imageUrl            String? // blob URL — preferred storage
+  generatedImageData  String? // base64 data URL — legacy rows and blob-less fallback
   prompt              String
   personaStyle        String?
   productContext      String?

@@ -1,3 +1,4 @@
+import { creativeImagePath, CATALOG_TTL_SECONDS } from '@/lib/creative-image-token';
 import {
   getSizeChartCategoryFromStyle,
   getSizeChartCategoryFromText,
@@ -51,6 +52,7 @@ type ProductImageSource = {
     status?: string | null;
     viewAngle?: string | null;
     sourceImageUrl?: string | null;
+    imageUrl?: string | null;
     createdAt?: Date | string;
   }>;
 };
@@ -61,8 +63,13 @@ function absoluteImageUrl(imageUrl?: string | null): string | undefined {
   return getPublicAssetUrl(imageUrl) ?? undefined;
 }
 
-function creativeImageUrl(creativeId: number): string | undefined {
-  return getPublicAssetUrl(`/api/content/creatives/${creativeId}/image`) ?? undefined;
+function creativeImageUrl(creative: { id: number; imageUrl?: string | null }): string | undefined {
+  // Blob-backed creatives are already on a public CDN. Older rows serve from
+  // the app route, which Meta fetches without a session, so that link has to
+  // carry its own signature.
+  const blobUrl = creative.imageUrl?.trim();
+  if (blobUrl) return blobUrl;
+  return getPublicAssetUrl(creativeImagePath(creative.id, CATALOG_TTL_SECONDS)) ?? undefined;
 }
 
 function colorImageUrl(product: ProductImageSource, preferredColor?: string | null): string | undefined {
@@ -100,14 +107,14 @@ function productImageUrls(product: ProductImageSource, limit = 4, preferredColor
   const preferredColorUrl = colorImageUrl(product, preferredColor);
   if (preferredColorUrl && preferredColor) {
     const matchedCreativeUrls = sortedSavedCreatives(product, preferredColorUrl)
-      .map((creative) => creativeImageUrl(creative.id))
+      .map((creative) => creativeImageUrl(creative))
       .filter((url): url is string => Boolean(url))
       .slice(0, limit);
     return matchedCreativeUrls.length > 0 ? matchedCreativeUrls : [preferredColorUrl];
   }
 
   const creativeUrls = sortedSavedCreatives(product)
-    .map((creative) => creativeImageUrl(creative.id))
+    .map((creative) => creativeImageUrl(creative))
     .filter((url): url is string => Boolean(url))
     .slice(0, limit);
 

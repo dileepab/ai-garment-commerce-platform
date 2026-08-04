@@ -5,22 +5,7 @@ import { logDebug, logError } from '@/lib/app-log';
 
 // ── Brand style system ───────────────────────────────────────────────────────
 
-interface BrandStyle {
-  colorPalette: string;
-  aesthetic: string;
-  mood: string;
-}
-
-const DEFAULT_STYLE: BrandStyle = {
-  colorPalette: 'warm neutrals, soft pinks, ivory, dusty rose',
-  aesthetic: 'feminine, elegant, modern',
-  mood: 'aspirational yet accessible',
-};
-
-function getBrandStyle(brand: string): BrandStyle {
-  void brand; // placeholder for per-brand style lookup in a later phase
-  return DEFAULT_STYLE;
-}
+import { getBrandStyle, type BrandStyle } from './brand-style';
 
 // ── Persona system ───────────────────────────────────────────────────────────
 
@@ -35,7 +20,9 @@ function getPersona(brand: string, personaId: string): PersonaDef | undefined {
 
 // Accepts image input AND generates image output via generateContent.
 // This enables the virtual try-on path (product photo → model wearing it).
-const IMAGE_EDIT_MODEL = 'gemini-2.5-flash-image';
+// Google now labels gemini-2.5-flash-image legacy; override to move off it
+// without a code change once the cost/quality trade-off has been checked.
+const IMAGE_EDIT_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const HIGH_ACCURACY_IMAGE_MODEL =
   process.env.GEMINI_HIGH_ACCURACY_IMAGE_MODEL || 'gemini-3-pro-image';
 
@@ -47,19 +34,79 @@ const TEXT_TO_IMAGE_MODEL = 'gemini-3.1-flash-image';
 export type ViewAngle = 'front' | 'side' | 'back' | 'closeup';
 export type CreativeGenerationQuality = 'standard' | 'high_accuracy';
 
+// Instagram feed crops anything narrower than 4:5, so that is the default.
+export type CreativeAspectRatio = '4:5' | '1:1' | '4:3' | '9:16';
+export const DEFAULT_ASPECT_RATIO: CreativeAspectRatio = '4:5';
+
+// A real photograph of the garment from one angle. Supplying the angle the user
+// asked for is what keeps generation faithful — anything not photographed has
+// to be invented by the model.
+export interface ReferenceImage {
+  base64: string;
+  mimeType: string;
+  angle: ViewAngle;
+}
+
 export interface CreativeGenerationInput {
   brand: string;
   personaId: PersonaId;
   productContext: string;
   garmentFitNotes?: string;
+  referenceImages?: ReferenceImage[];
+  // Legacy single-image entry point — treated as a front reference.
   sourceImageBase64?: string;
   sourceImageMimeType?: string;
   viewAngle?: ViewAngle;
   quality?: CreativeGenerationQuality;
+  aspectRatio?: CreativeAspectRatio;
   poseInstruction?: string;
-  // Free-form correction note appended to the prompt as a final user instruction.
+  // Free-form correction notes appended to the prompt as final user instructions.
   // Used by per-tile regenerate to fix specific issues (e.g. "no buttons on back").
-  correctionText?: string;
+  // Every past correction is replayed so a new one never undoes an earlier fix.
+  corrections?: string[];
+}
+
+const ANGLE_NOUN: Record<ViewAngle, string> = {
+  front: 'FRONT',
+  side: 'SIDE',
+  back: 'BACK',
+  closeup: 'DETAIL',
+};
+
+interface ResolvedReferences {
+  primary?: ReferenceImage;
+  supporting: ReferenceImage[];
+  // True when the requested angle is backed by a real photo instead of inferred.
+  grounded: boolean;
+}
+
+function resolveReferences(input: CreativeGenerationInput): ResolvedReferences {
+  const provided = input.referenceImages?.length
+    ? input.referenceImages
+    : input.sourceImageBase64 && input.sourceImageMimeType
+      ? [{
+          base64: input.sourceImageBase64,
+          mimeType: input.sourceImageMimeType,
+          angle: 'front' as ViewAngle,
+        }]
+      : [];
+
+  // One reference per angle — later duplicates for the same angle are ignored.
+  const byAngle = new Map<ViewAngle, ReferenceImage>();
+  for (const ref of provided) {
+    if (!byAngle.has(ref.angle)) byAngle.set(ref.angle, ref);
+  }
+
+  const requested = input.viewAngle ?? 'front';
+  const exact = byAngle.get(requested);
+  // A close-up is a crop of the front surface, so a front photo grounds it just
+  // as well. Back and side show surfaces a front photo never captured.
+  const closeupFallback = requested === 'closeup' ? byAngle.get('front') : undefined;
+
+  const primary = exact ?? closeupFallback ?? byAngle.get('front') ?? provided[0];
+  const supporting = [...byAngle.values()].filter(ref => ref !== primary);
+
+  return { primary, supporting, grounded: Boolean(exact ?? closeupFallback) };
 }
 
 // Camera + composition guidance per view angle.
@@ -115,7 +162,27 @@ function poseVariationClause(angle: ViewAngle | undefined, poseInstruction?: str
   );
 }
 
-function garmentAccuracyClause(viewAngle: ViewAngle | undefined): string {
+// When the requested angle is backed by a real photo there is nothing to infer,
+// so the model gets a short "reproduce what you see" instruction instead of the
+// long list of invented details it must avoid. Fewer, non-contradictory rules
+// produce more faithful output than a wall of prohibitions.
+function groundedAccuracyClause(viewAngle: ViewAngle | undefined, hasSupporting: boolean): string {
+  const angle = ANGLE_NOUN[viewAngle ?? 'front'];
+  const supportingLine = hasSupporting
+    ? `- The additional reference images show the same garment from other angles. Use them to stay consistent where Image B is unclear, and never contradict them.\n`
+    : `- Where Image B leaves a region unclear, keep it simple and consistent with what is visible. Never invent a detail no reference shows.\n`;
+
+  return (
+    `GARMENT FIDELITY - HIGHEST PRIORITY:\n` +
+    `- Image B is a real photograph of the ${angle} of the exact garment to render. Reproduce what it shows; do not redesign, recolour, or re-interpret it.\n` +
+    `- Copy the neckline, seams, stripe sequence and order, artwork placement and scale, button line, cuffs, sleeve length, hem shape, fabric colour and texture exactly as photographed.\n` +
+    supportingLine +
+    `- Preserve the exact base colour and hue under realistic lighting. Brand palette, golden-hour sunlight, shadows, and colour grading must never shift the garment into a different colour family.\n` +
+    `- Fit the garment onto the model naturally with realistic drape, folds, and shadows. Only the model pose, background, and companion clothing may change.`
+  );
+}
+
+function inferredAccuracyClause(viewAngle: ViewAngle | undefined): string {
   const angleSpecific = viewAngle === 'back'
     ? '- For the back view, infer only the hidden back shape from the same garment. Keep color, fabric, sleeve shape, neckline style, and hem shape consistent; do not transplant front-only decoration to the back. Do not add vertical black back contour lines, princess seams, darts, piping, or panel lines unless Image B clearly shows them.\n'
     : viewAngle === 'side'
@@ -148,10 +215,28 @@ function garmentAccuracyClause(viewAngle: ViewAngle | undefined): string {
   );
 }
 
-function hardRejectClause(garmentFitNotes: string | undefined): string {
+function garmentAccuracyClause(viewAngle: ViewAngle | undefined, grounded: boolean, hasSupporting: boolean): string {
+  return grounded
+    ? groundedAccuracyClause(viewAngle, hasSupporting)
+    : inferredAccuracyClause(viewAngle);
+}
+
+function hardRejectClause(garmentFitNotes: string | undefined, grounded: boolean): string {
   const noSideSlit = garmentFitNotes?.toLowerCase().includes('no side slit')
     ? '- The user explicitly says "no side slit": the rendered dress must have fully closed side seams with no leg/skin visible through the side.\n'
     : '';
+
+  // With a real photo of this angle, a direct comparison catches errors better
+  // than enumerating the specific artefacts inference tends to produce.
+  if (grounded) {
+    return (
+      `FINAL SELF-CHECK BEFORE OUTPUT:\n` +
+      noSideSlit +
+      `- Compare the rendered garment against Image B: colour family, stripe order and thickness, neckline, placket and buttons, sleeve length and cuffs, hem, artwork position, and side seams must all match.\n` +
+      `- Remove any seam, panel line, band, trim, slit, or opening you added that no reference image shows.\n` +
+      `If anything differs from Image B, fix it before returning the image.`
+    );
+  }
 
   return (
     `FINAL SELF-CHECK BEFORE OUTPUT - REJECT AND FIX IF PRESENT:\n` +
@@ -194,6 +279,9 @@ export interface CreativeGenerationResult {
   imageData: string; // data URL: data:<mimeType>;base64,<data>
   mimeType: string;
   prompt: string;
+  // False when the requested angle had no photo and had to be inferred — the
+  // UI surfaces this so the user knows which tiles need the closest review.
+  grounded: boolean;
 }
 
 type GeminiContentPart =
@@ -202,35 +290,78 @@ type GeminiContentPart =
 
 // ── Prompt builders ──────────────────────────────────────────────────────────
 
-function buildTryOnPrompt(
-  brand: string,
-  personaId: PersonaId,
-  productContext: string,
-  style: BrandStyle,
-  hasPersonaImage: boolean,
-  viewAngle: ViewAngle | undefined,
-  garmentFitNotes: string | undefined,
-  poseInstruction: string | undefined,
-  correctionText: string | undefined,
-): string {
-  const correctionLine = correctionText?.trim()
-    ? `\n\nUSER CORRECTION (highest priority — fix this in the new image): ${correctionText.trim()}`
-    : '';
-  const persona = getPersona(brand, personaId);
+interface PromptOptions {
+  brand: string;
+  personaId: PersonaId;
+  productContext: string;
+  style: BrandStyle;
+  viewAngle?: ViewAngle;
+  garmentFitNotes?: string;
+  poseInstruction?: string;
+  corrections?: string[];
+  // Whether the requested angle is backed by a real photo.
+  grounded: boolean;
+  hasSupporting: boolean;
+  hasPersonaImage?: boolean;
+}
 
-  // If we have a persona image, we use a two-image workflow with explicit labels
-  if (persona && persona.id !== 'none' && hasPersonaImage) {
+// Every past correction is replayed, so fixing one issue never silently undoes
+// a fix the user asked for earlier.
+function correctionClause(corrections: string[] | undefined): string {
+  const notes = corrections?.map(note => note.trim()).filter(Boolean) ?? [];
+  if (notes.length === 0) return '';
+
+  return (
+    `\n\nUSER CORRECTIONS (highest priority — every one must hold in the new image):\n` +
+    notes.map((note, index) => `${index + 1}. ${note}`).join('\n')
+  );
+}
+
+// Describes the reference images supplied after the prompt, so the labels in the
+// prompt line up with the parts actually sent.
+function referenceManifest(
+  primaryAngle: ViewAngle,
+  supportingAngles: ViewAngle[],
+  hasPersonaImage: boolean,
+): string {
+  const lines: string[] = [];
+  if (hasPersonaImage) {
+    lines.push(`[IMAGE A — THE MODEL]: photo of the model. Use her EXACT face, skin tone, hair, and body.`);
+  }
+  lines.push(
+    `[IMAGE B — THE GARMENT, ${ANGLE_NOUN[primaryAngle]} VIEW]: the garment to render, photographed from the angle you must produce. ` +
+    `Use ONLY the clothing from this image — completely ignore any person wearing it.`,
+  );
+  supportingAngles.forEach((angle, index) => {
+    lines.push(
+      `[IMAGE ${String.fromCharCode(67 + index)} — SAME GARMENT, ${ANGLE_NOUN[angle]} VIEW]: the same physical garment from another angle. ` +
+      `Use it for construction consistency only; do not copy its camera angle.`,
+    );
+  });
+  return lines.join('\n');
+}
+
+function buildTryOnPrompt(o: PromptOptions, supportingAngles: ViewAngle[]): string {
+  const {
+    brand, personaId, productContext, style, viewAngle,
+    garmentFitNotes, poseInstruction, corrections, grounded, hasSupporting,
+  } = o;
+  const correctionLine = correctionClause(corrections);
+  const persona = getPersona(brand, personaId);
+  const primaryAngle = viewAngle ?? 'front';
+
+  // If we have a persona image, we use a multi-image workflow with explicit labels
+  if (persona && persona.id !== 'none' && o.hasPersonaImage) {
     return (
       `You are a world-class fashion photographer creating a virtual try-on. ` +
-      `I am providing two reference images:\n` +
-      `[IMAGE A — THIS IS THE MODEL]: The FIRST image is a photo of the model. Use her EXACT face, skin tone, hair, and body.\n` +
-      `[IMAGE B — THIS IS THE GARMENT]: The SECOND image shows the dress/garment to put on her. ONLY use the clothing from this image — COMPLETELY IGNORE any person wearing it.\n\n` +
+      `I am providing these reference images:\n` +
+      `${referenceManifest(primaryAngle, supportingAngles, true)}\n\n` +
       `YOUR TASK: Generate a brand-new, high-quality fashion photograph of the MODEL from Image A wearing the GARMENT from Image B.\n\n` +
       `CRITICAL — MODEL IDENTITY:\n` +
       `- The person in the output MUST be the model from Image A. Same face, same hair, same skin tone (${persona.skinTone}).\n` +
       `- If Image B shows a different person wearing the garment, IGNORE that person completely. Only use Image B for the garment design.\n` +
       `- Model height: ${persona.height}. Body type: ${persona.bodyShape}.\n\n` +
-      `${garmentAccuracyClause(viewAngle)}\n` +
+      `${garmentAccuracyClause(viewAngle, grounded, hasSupporting)}\n` +
       `${fitCalibrationClause(persona, garmentFitNotes)}\n` +
       `${poseVariationClause(viewAngle, poseInstruction)}\n` +
       `- The garment must drape naturally on the model's body with realistic folds and shadows.\n` +
@@ -245,7 +376,7 @@ function buildTryOnPrompt(
       `- Subtle film grain for an authentic editorial feel. NOT overly smooth or airbrushed.\n` +
       `- ${viewAngleClause(viewAngle)}\n` +
       `- Style: Premium ${brand} brand campaign. ${style.mood}.\n` +
-      `${hardRejectClause(garmentFitNotes)}\n` +
+      `${hardRejectClause(garmentFitNotes, grounded)}\n` +
       `- Absolutely NO text, logos, or watermarks.` +
       correctionLine
     );
@@ -257,31 +388,25 @@ function buildTryOnPrompt(
 
   return (
     `Generate a professional fashion marketing photo showing the exact source garment in a premium setting.\n\n` +
-    `${garmentAccuracyClause(viewAngle)}\n\n` +
+    `${referenceManifest(primaryAngle, supportingAngles, false)}\n\n` +
+    `${garmentAccuracyClause(viewAngle, grounded, hasSupporting)}\n\n` +
     `${fitCalibrationClause(persona, garmentFitNotes)}\n\n` +
     `${poseVariationClause(viewAngle, poseInstruction)}\n\n` +
     `${contextNote} ` +
     `Brand: ${brand}. Visual style: ${style.aesthetic}. Mood: ${style.mood}. ` +
     `High-end editorial composition. Sharp focus, beautiful lighting. ` +
-    `${hardRejectClause(garmentFitNotes)} ` +
+    `${hardRejectClause(garmentFitNotes, grounded)} ` +
     `No text, logos, or watermarks.` +
     correctionLine
   );
 }
 
-function buildTextToImagePrompt(
-  brand: string,
-  personaId: PersonaId,
-  productContext: string,
-  style: BrandStyle,
-  viewAngle: ViewAngle | undefined,
-  garmentFitNotes: string | undefined,
-  poseInstruction: string | undefined,
-  correctionText: string | undefined,
-): string {
-  const correctionLine = correctionText?.trim()
-    ? ` USER CORRECTION (highest priority — fix this in the new image): ${correctionText.trim()}.`
-    : '';
+function buildTextToImagePrompt(o: PromptOptions): string {
+  const {
+    brand, personaId, productContext, style, viewAngle,
+    garmentFitNotes, poseInstruction, corrections, grounded,
+  } = o;
+  const correctionLine = correctionClause(corrections);
   const persona = getPersona(brand, personaId);
   const garment = productContext.trim() || 'a fashion garment';
 
@@ -302,7 +427,7 @@ function buildTextToImagePrompt(
     `Visual aesthetic: ${style.aesthetic}. Color palette: ${style.colorPalette}. Mood: ${style.mood}. ` +
     `${viewAngleClause(viewAngle)} The garment is the hero — all key design details clearly visible. ` +
     `Professional studio or natural fashion lighting. Sharp focus on the outfit. ` +
-    `${hardRejectClause(garmentFitNotes)} ` +
+    `${hardRejectClause(garmentFitNotes, grounded)} ` +
     `Post-ready social media marketing composition. No text, logos, or watermarks.` +
     correctionLine
   );
@@ -320,21 +445,41 @@ export async function generateCreative(
 
   const ai = new GoogleGenAI({ apiKey });
   const style = getBrandStyle(input.brand);
-  const hasSourceImage = !!(input.sourceImageBase64 && input.sourceImageMimeType);
+  const aspectRatio = input.aspectRatio ?? DEFAULT_ASPECT_RATIO;
+  const { primary, supporting, grounded } = resolveReferences(input);
 
   // ── Path A: image-in → image-out (virtual try-on) ────────────────────────
-  // gemini-2.5-flash-image accepts the product photo and generates a new image
+  // The image-edit model accepts the product photos and generates a new image
   // of a model wearing exactly that garment.
 
-  if (hasSourceImage) {
+  if (primary) {
     const selectedPersona = getPersona(input.brand, input.personaId);
     const hasPersonaImage = !!(selectedPersona?.imageUrl);
     const imageModel = input.quality === 'high_accuracy' ? HIGH_ACCURACY_IMAGE_MODEL : IMAGE_EDIT_MODEL;
-    const prompt = buildTryOnPrompt(input.brand, input.personaId, input.productContext, style, hasPersonaImage, input.viewAngle, input.garmentFitNotes, input.poseInstruction, input.correctionText);
+    const supportingAngles = supporting.map(ref => ref.angle);
+    const prompt = buildTryOnPrompt({
+      brand: input.brand,
+      personaId: input.personaId,
+      productContext: input.productContext,
+      style,
+      viewAngle: input.viewAngle,
+      garmentFitNotes: input.garmentFitNotes,
+      poseInstruction: input.poseInstruction,
+      corrections: input.corrections,
+      grounded,
+      hasSupporting: supporting.length > 0,
+      hasPersonaImage,
+    }, supportingAngles);
 
-    logDebug('CreativeGen', `Try-on generation via ${imageModel} — brand "${input.brand}" persona "${input.personaId}".`);
+    logDebug(
+      'CreativeGen',
+      `Try-on generation via ${imageModel} — brand "${input.brand}" persona "${input.personaId}" ` +
+      `angle "${input.viewAngle ?? 'front'}" (${grounded ? 'photo-grounded' : 'inferred'}), ` +
+      `${supporting.length} supporting reference(s).`,
+    );
 
-    // Parts order: [prompt] -> [Image A: persona/model] -> [Image B: garment]
+    // Parts order: [prompt] -> [Image A: persona/model] -> [Image B: primary
+    // garment reference] -> [Image C..: same garment, other angles].
     // Persona goes FIRST so the AI anchors on the model's identity before seeing the garment.
     const parts: GeminiContentPart[] = [
       { text: prompt },
@@ -371,19 +516,34 @@ export async function generateCreative(
       }
     }
 
-    // Image B — GARMENT (product photo) — goes second
+    // Image B — GARMENT, photographed from the angle being generated
+    const primaryAngleNoun = ANGLE_NOUN[primary.angle];
     parts.push({
       text: selectedPersona?.imageUrl
-        ? 'IMAGE B - GARMENT PRODUCT REFERENCE. Duplicate this garment exactly on Image A model.'
-        : 'IMAGE B - GARMENT PRODUCT REFERENCE. Generate this exact garment/product without changing design or color.',
+        ? `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Duplicate this garment exactly on the Image A model.`
+        : `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Generate this exact garment/product without changing design or color.`,
     });
     parts.push({
-      inlineData: {
-        data: input.sourceImageBase64!,
-        mimeType: input.sourceImageMimeType!,
-      },
+      inlineData: { data: primary.base64, mimeType: primary.mimeType },
     });
-    logDebug('CreativeGen', `[Image B — GARMENT] Added product source image.`);
+
+    // Image C onward — the same garment from other angles. These resolve
+    // construction details the primary photo cannot show, so the model no
+    // longer has to invent a back or side it has never seen.
+    supporting.forEach((ref, index) => {
+      parts.push({
+        text: `IMAGE ${String.fromCharCode(67 + index)} - SAME GARMENT, ${ANGLE_NOUN[ref.angle]} VIEW. ` +
+          `Use for construction, colour, and trim consistency only. Do not reproduce this camera angle.`,
+      });
+      parts.push({
+        inlineData: { data: ref.base64, mimeType: ref.mimeType },
+      });
+    });
+    logDebug(
+      'CreativeGen',
+      `[Image B — GARMENT ${primaryAngleNoun}] plus ${supporting.length} supporting angle(s): ` +
+      `${supporting.map(ref => ref.angle).join(', ') || 'none'}.`,
+    );
 
     const response = await ai.models.generateContent({
       model: imageModel,
@@ -393,6 +553,7 @@ export async function generateCreative(
       }],
       config: {
         responseModalities: [Modality.IMAGE, Modality.TEXT],
+        imageConfig: { aspectRatio, imageSize: '1K' },
       },
     });
 
@@ -403,7 +564,7 @@ export async function generateCreative(
           const mimeType = part.inlineData.mimeType;
           const imageData = `data:${mimeType};base64,${part.inlineData.data}`;
           logDebug('CreativeGen', 'Try-on creative generated successfully.');
-          return { imageData, mimeType, prompt };
+          return { imageData, mimeType, prompt, grounded };
         }
       }
     }
@@ -422,7 +583,19 @@ export async function generateCreative(
   // Gemini native image models use generateContent. generateImages targets the
   // legacy predict endpoint and is only supported by Imagen models.
 
-  const prompt = buildTextToImagePrompt(input.brand, input.personaId, input.productContext, style, input.viewAngle, input.garmentFitNotes, input.poseInstruction, input.correctionText);
+  const prompt = buildTextToImagePrompt({
+    brand: input.brand,
+    personaId: input.personaId,
+    productContext: input.productContext,
+    style,
+    viewAngle: input.viewAngle,
+    garmentFitNotes: input.garmentFitNotes,
+    poseInstruction: input.poseInstruction,
+    corrections: input.corrections,
+    // Nothing was photographed, so every detail is inferred.
+    grounded: false,
+    hasSupporting: false,
+  });
 
   logDebug('CreativeGen', `Text-to-image via ${TEXT_TO_IMAGE_MODEL} — brand "${input.brand}" persona "${input.personaId}".`);
 
@@ -432,7 +605,7 @@ export async function generateCreative(
     config: {
       responseModalities: [Modality.IMAGE],
       imageConfig: {
-        aspectRatio: '4:3',
+        aspectRatio,
         imageSize: '1K',
       },
     },
@@ -445,7 +618,7 @@ export async function generateCreative(
         const mimeType = part.inlineData.mimeType;
         const imageData = `data:${mimeType};base64,${part.inlineData.data}`;
         logDebug('CreativeGen', 'Text-to-image creative generated successfully.');
-        return { imageData, mimeType, prompt };
+        return { imageData, mimeType, prompt, grounded: false };
       }
     }
   }
