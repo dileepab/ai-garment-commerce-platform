@@ -2,8 +2,14 @@
 
 import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
-import type { CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
+import type { CreativeAspectRatio, CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
+import ReferenceImagePicker, {
+  hasAnyReference,
+  inferredAngles,
+  referenceSetToInputs,
+  type ReferenceSet,
+} from './ReferenceImagePicker';
 import {
   generateCreativeBatchAction,
   regenerateCreativeAction,
@@ -11,6 +17,7 @@ import {
   discardCreativeDraft,
   searchProductsForContent,
   getCreativesForProduct,
+  type BatchSourceImage,
 } from './actions';
 
 const VIEW_ANGLES: { id: ViewAngle; label: string }[] = [
@@ -20,13 +27,40 @@ const VIEW_ANGLES: { id: ViewAngle; label: string }[] = [
   { id: 'closeup', label: 'Close-up' },
 ];
 
+const ASPECT_RATIOS: { id: CreativeAspectRatio; label: string }[] = [
+  { id: '4:5', label: 'Portrait 4:5' },
+  { id: '1:1', label: 'Square 1:1' },
+  { id: '9:16', label: 'Story 9:16' },
+  { id: '4:3', label: 'Landscape 4:3' },
+];
+
 interface DraftResult {
   creativeId: number;
   imageData: string;
   prompt: string;
   viewAngle?: ViewAngle;
   sourceColor?: string;
+  grounded?: boolean;
+  corrections?: string[];
   saved: boolean;
+}
+
+// Product photos arrive as flat colour/angle rows; generation needs one
+// reference set per colour.
+function groupColorReferences(
+  colorImages: Array<{ color: string; angle?: string | null; imageUrl: string }>,
+): Record<string, ReferenceSet> {
+  const grouped: Record<string, ReferenceSet> = {};
+  for (const image of colorImages) {
+    if (!image.imageUrl?.trim()) continue;
+    const angle = (image.angle ?? 'front') as ViewAngle;
+    grouped[image.color] = { ...grouped[image.color], [angle]: image.imageUrl };
+  }
+  return grouped;
+}
+
+function referenceColors(references: Record<string, ReferenceSet>): string[] {
+  return Object.keys(references).filter(color => hasAnyReference(references[color])).sort();
 }
 
 interface ExistingCreative {
@@ -46,7 +80,7 @@ interface ProductSearchResult {
   colors: string | null;
   sizes: string | null;
   imageUrl: string | null;
-  colorImages?: Array<{ id: number; color: string; imageUrl: string }>;
+  colorImages?: Array<{ id: number; color: string; angle?: string | null; imageUrl: string }>;
   garmentLengthCm?: number | null;
   sleeveLengthCm?: number | null;
   sleeveType?: string | null;
@@ -124,15 +158,19 @@ export default function CreativeStudioModal({
   const [, startSearching] = useTransition();
   const [productContext, setProductContext] = useState('');
   const [garmentFitNotes, setGarmentFitNotes] = useState('');
-  const [sourceImageUrl, setSourceImageUrl] = useState('');
+  // Reference photos when no product is linked, keyed by angle.
+  const [references, setReferences] = useState<ReferenceSet>({});
   const [sourceImgError, setSourceImgError] = useState(false);
   const [linkedProductId, setLinkedProductId] = useState<number | null>(null);
   const [linkedProductName, setLinkedProductName] = useState<string | null>(null);
-  const [linkedColorImages, setLinkedColorImages] = useState<Array<{ color: string; imageUrl: string }>>([]);
+  // Reference photos per colour once a product is linked.
+  const [colorReferences, setColorReferences] = useState<Record<string, ReferenceSet>>({});
+  const [expandedColor, setExpandedColor] = useState<string | null>(null);
   const [colorViewAngles, setColorViewAngles] = useState<Record<string, ViewAngle[]>>({});
 
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
   const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('standard');
+  const [aspectRatio, setAspectRatio] = useState<CreativeAspectRatio>('4:5');
 
   const [drafts, setDrafts] = useState<DraftResult[]>([]);
   const [correctionTextById, setCorrectionTextById] = useState<Record<number, string>>({});
@@ -146,10 +184,18 @@ export default function CreativeStudioModal({
 
   const isLoading = isGenerating || isRegeneratingDraft || isSaving;
   const hasUnsavedDrafts = drafts.some(d => !d.saved);
-  const colorImagesWithUrls = linkedColorImages.filter(image => image.imageUrl.trim());
-  const plannedGenerationCount = colorImagesWithUrls.length > 0
-    ? colorImagesWithUrls.reduce((sum, image) => sum + (colorViewAngles[image.color] ?? viewAngles).length, 0)
+  const colorsWithReferences = referenceColors(colorReferences);
+  const plannedGenerationCount = colorsWithReferences.length > 0
+    ? colorsWithReferences.reduce((sum, color) => sum + (colorViewAngles[color] ?? viewAngles).length, 0)
     : Math.max(1, viewAngles.length);
+  // Angles queued for generation that no photo covers — these get invented.
+  const missingAngles = colorsWithReferences.length > 0
+    ? [...new Set(colorsWithReferences.flatMap(color =>
+        inferredAngles(colorReferences[color], colorViewAngles[color] ?? viewAngles)))]
+    : inferredAngles(references, viewAngles);
+  const previewReferenceUrl = references.front
+    ?? colorReferences[colorsWithReferences[0]]?.front
+    ?? '';
 
   async function discardAllUnsavedDrafts() {
     const unsaved = drafts.filter(d => !d.saved);
@@ -159,8 +205,8 @@ export default function CreativeStudioModal({
   function handleGenerate() {
     setFormError(null);
     if (!brand.trim()) { setFormError('Select a brand before generating.'); return; }
-    if (colorImagesWithUrls.length === 0 && viewAngles.length === 0) { setFormError('Select at least one view angle.'); return; }
-    if (colorImagesWithUrls.length > 0 && plannedGenerationCount === 0) {
+    if (colorsWithReferences.length === 0 && viewAngles.length === 0) { setFormError('Select at least one view angle.'); return; }
+    if (colorsWithReferences.length > 0 && plannedGenerationCount === 0) {
       setFormError('Select at least one view angle for a colour variant.');
       return;
     }
@@ -170,23 +216,24 @@ export default function CreativeStudioModal({
       setDrafts([]);
       setCorrectionTextById({});
 
-      const colorSources = colorImagesWithUrls
-        .map((image) => ({
-          color: image.color,
-          imageUrl: image.imageUrl,
-          viewAngles: colorViewAngles[image.color] ?? viewAngles,
+      const colorSources: BatchSourceImage[] = colorsWithReferences
+        .map((color) => ({
+          color,
+          referenceImages: referenceSetToInputs(colorReferences[color]),
+          viewAngles: colorViewAngles[color] ?? viewAngles,
         }))
-        .filter((image) => image.viewAngles.length > 0);
+        .filter((source) => source.viewAngles.length > 0);
       const result = await generateCreativeBatchAction({
         brand: brand.trim(),
         personaId,
         productContext,
         garmentFitNotes,
-        sourceImageUrl: sourceImageUrl.trim() || undefined,
+        referenceImages: referenceSetToInputs(references),
         sourceImages: colorSources.length > 0 ? colorSources : undefined,
         productId: linkedProductId ?? undefined,
         viewAngles,
         quality: generationQuality,
+        aspectRatio,
       });
 
       const newDrafts: DraftResult[] = [];
@@ -199,6 +246,8 @@ export default function CreativeStudioModal({
             prompt: r.prompt ?? '',
             viewAngle: r.viewAngle,
             sourceColor: r.sourceColor,
+            grounded: r.grounded,
+            corrections: r.corrections ?? [],
             saved: false,
           });
         } else if (r.error) {
@@ -238,14 +287,15 @@ export default function CreativeStudioModal({
     setSearchResults([]);
     setLinkedProductId(product.id);
     setLinkedProductName(product.name);
-    const nextColorImages = product.colorImages?.map((image) => ({ color: image.color, imageUrl: image.imageUrl })) ?? [];
-    setLinkedColorImages(nextColorImages);
-    setColorViewAngles(Object.fromEntries(nextColorImages.map(image => [image.color, viewAngles])));
-    const sourceImage = productDisplayImage(product);
-    if (sourceImage) {
-      setSourceImageUrl(sourceImage);
-      setSourceImgError(false);
-    }
+    const grouped = groupColorReferences(product.colorImages ?? []);
+    setColorReferences(grouped);
+    setExpandedColor(null);
+    setColorViewAngles(Object.fromEntries(referenceColors(grouped).map(color => [color, viewAngles])));
+    // Products with no colour rows still have a single main photo — use it as
+    // the front reference so generation is never left with nothing.
+    const mainImage = productDisplayImage(product);
+    setReferences(Object.keys(grouped).length === 0 && mainImage ? { front: mainImage } : {});
+    setSourceImgError(false);
     // Load existing saved generations for this product so the user can reuse them.
     getCreativesForProduct(product.id).then(res => {
       if (res.success && 'creatives' in res && res.creatives) {
@@ -259,11 +309,16 @@ export default function CreativeStudioModal({
   function handleClearProduct() {
     setLinkedProductId(null);
     setLinkedProductName(null);
-    setLinkedColorImages([]);
+    setColorReferences({});
+    setExpandedColor(null);
     setColorViewAngles({});
-    setSourceImageUrl('');
+    setReferences({});
     setGarmentFitNotes('');
     setExistingCreatives([]);
+  }
+
+  function updateColorReferences(color: string, next: ReferenceSet) {
+    setColorReferences(prev => ({ ...prev, [color]: next }));
   }
 
   function toggleAngle(angle: ViewAngle) {
@@ -309,6 +364,8 @@ export default function CreativeStudioModal({
                 imageData: result.imageData!,
                 prompt: result.prompt ?? d.prompt,
                 viewAngle: result.viewAngle ?? d.viewAngle,
+                grounded: result.grounded ?? d.grounded,
+                corrections: result.corrections ?? d.corrections,
                 saved: false,
               }
             : d
@@ -496,10 +553,10 @@ export default function CreativeStudioModal({
                 borderRadius: 'var(--radius-md)',
                 background: 'var(--color-bg)',
               }}>
-                {sourceImageUrl && !sourceImgError ? (
+                {previewReferenceUrl && !sourceImgError ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={sourceImageUrl}
+                    src={previewReferenceUrl}
                     alt={linkedProductName ?? 'Linked product'}
                     onError={() => setSourceImgError(true)}
                     style={{ width: 108, height: 128, objectFit: 'contain', borderRadius: 'var(--radius-sm)', background: 'white', border: '1px solid var(--color-border-subtle)' }}
@@ -531,52 +588,33 @@ export default function CreativeStudioModal({
                 </button>
               </div>
             </div>
-          ) : (
+          ) : null}
+
+          {/* Reference photos — one per angle. Any angle without a photo is
+              invented by the model, which is the main source of wrong output. */}
+          {colorsWithReferences.length === 0 && (
             <div>
               <label style={labelStyle}>
-                Source Product Image URL{' '}
+                Garment Reference Photos{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-                  (optional — or link a product above to auto-fill)
+                  (upload the angles you want generated — front is the minimum)
                 </span>
               </label>
-              <input
-                className="app-input"
-                placeholder="https://example.com/product-photo.jpg"
-                value={sourceImageUrl}
-                onChange={(e) => { setSourceImageUrl(e.target.value); setSourceImgError(false); }}
+              <ReferenceImagePicker
+                references={references}
+                onChange={setReferences}
                 disabled={isLoading}
+                requestedAngles={viewAngles}
               />
-              {sourceImageUrl.trim() && !sourceImgError && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={sourceImageUrl}
-                  alt="Source product"
-                  onError={() => setSourceImgError(true)}
-                  style={{
-                    marginTop: 8,
-                    maxHeight: 180,
-                    maxWidth: '100%',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-border)',
-                    objectFit: 'contain',
-                    background: 'white',
-                  }}
-                />
-              )}
-              {sourceImgError && (
-                <div style={{ fontSize: 11, color: 'var(--color-error)', marginTop: 4 }}>
-                  Could not load image from this URL.
-                </div>
-              )}
             </div>
           )}
 
           {/* View angles */}
           <div>
             <label style={labelStyle}>
-              {colorImagesWithUrls.length > 0 ? 'Default View Angles' : 'View Angles'}{' '}
+              {colorsWithReferences.length > 0 ? 'Default View Angles' : 'View Angles'}{' '}
               <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-                {colorImagesWithUrls.length > 0
+                {colorsWithReferences.length > 0
                   ? '(used as the starting selection for linked colour images)'
                   : '(one image per selected angle — each costs a generation)'}
               </span>
@@ -606,7 +644,7 @@ export default function CreativeStudioModal({
             </div>
           </div>
 
-          {colorImagesWithUrls.length > 0 && (
+          {colorsWithReferences.length > 0 && (
             <div>
               <label style={labelStyle}>
                 Colour Variant Angles{' '}
@@ -615,62 +653,142 @@ export default function CreativeStudioModal({
                 </span>
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {colorImagesWithUrls.map(image => {
-                  const selectedAngles = colorViewAngles[image.color] ?? viewAngles;
+                {colorsWithReferences.map(color => {
+                  const colorRefs = colorReferences[color] ?? {};
+                  const selectedAngles = colorViewAngles[color] ?? viewAngles;
+                  const missing = inferredAngles(colorRefs, selectedAngles);
+                  const isExpanded = expandedColor === color;
+                  const thumbnail = colorRefs.front ?? Object.values(colorRefs).find(Boolean);
+
                   return (
                     <div
-                      key={`${image.color}-${image.imageUrl}`}
+                      key={color}
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '44px minmax(80px, 1fr) 2fr',
-                        gap: 10,
-                        alignItems: 'center',
                         padding: 8,
                         border: '1px solid var(--color-border)',
                         borderRadius: 'var(--radius-md)',
                         background: 'var(--color-bg)',
                       }}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={image.imageUrl}
-                        alt={image.color}
-                        style={{ width: 44, height: 52, objectFit: 'cover', borderRadius: 'var(--radius-sm)', background: 'white', border: '1px solid var(--color-border-subtle)' }}
-                      />
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
-                        {image.color}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '44px minmax(80px, 1fr) 2fr',
+                        gap: 10,
+                        alignItems: 'center',
+                      }}>
+                        {thumbnail ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={thumbnail}
+                            alt={color}
+                            style={{ width: 44, height: 52, objectFit: 'cover', borderRadius: 'var(--radius-sm)', background: 'white', border: '1px solid var(--color-border-subtle)' }}
+                          />
+                        ) : <div />}
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
+                            {color}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => !isLoading && setExpandedColor(isExpanded ? null : color)}
+                            disabled={isLoading}
+                            style={{
+                              marginTop: 2, padding: 0, border: 'none', background: 'none',
+                              fontSize: 10, fontWeight: 600, textAlign: 'left',
+                              color: missing.length > 0 ? 'var(--color-warning, #b45309)' : 'var(--color-fg-3)',
+                              textDecoration: 'underline',
+                              cursor: isLoading ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {missing.length > 0
+                              ? `${missing.length} angle${missing.length > 1 ? 's' : ''} without a photo`
+                              : 'All angles photographed'}
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {VIEW_ANGLES.map(angle => {
+                            const active = selectedAngles.includes(angle.id);
+                            const willInfer = active && missing.includes(angle.id);
+                            return (
+                              <button
+                                key={angle.id}
+                                type="button"
+                                onClick={() => !isLoading && toggleColorAngle(color, angle.id)}
+                                disabled={isLoading}
+                                title={willInfer ? 'No reference photo — this angle will be invented.' : undefined}
+                                style={{
+                                  padding: '5px 9px',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  border: willInfer
+                                    ? '1px dashed var(--color-warning, #b45309)'
+                                    : active
+                                      ? '1px solid var(--color-accent)'
+                                      : '1px solid var(--color-border)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                                  color: willInfer
+                                    ? 'var(--color-warning, #b45309)'
+                                    : active ? 'var(--color-accent)' : 'var(--color-fg-2)',
+                                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                {angle.label}{willInfer ? ' ⚠' : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {VIEW_ANGLES.map(angle => {
-                          const active = selectedAngles.includes(angle.id);
-                          return (
-                            <button
-                              key={angle.id}
-                              type="button"
-                              onClick={() => !isLoading && toggleColorAngle(image.color, angle.id)}
-                              disabled={isLoading}
-                              style={{
-                                padding: '5px 9px',
-                                fontSize: 11,
-                                fontWeight: 700,
-                                border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                                borderRadius: 'var(--radius-sm)',
-                                background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
-                                color: active ? 'var(--color-accent)' : 'var(--color-fg-2)',
-                                cursor: isLoading ? 'not-allowed' : 'pointer',
-                              }}
-                            >
-                              {angle.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+
+                      {isExpanded && (
+                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border-subtle)' }}>
+                          <ReferenceImagePicker
+                            references={colorRefs}
+                            onChange={(next) => updateColorReferences(color, next)}
+                            disabled={isLoading}
+                            requestedAngles={selectedAngles}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
           )}
+
+          {/* Output framing — Instagram crops anything narrower than 4:5 */}
+          <div>
+            <label style={labelStyle}>
+              Image Shape{' '}
+              <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+                (4:5 fills the most feed space without being cropped)
+              </span>
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {ASPECT_RATIOS.map(option => {
+                const active = aspectRatio === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => !isLoading && setAspectRatio(option.id)}
+                    disabled={isLoading}
+                    style={{
+                      padding: '7px 14px', fontSize: 12, fontWeight: 600,
+                      border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                      color: active ? 'var(--color-accent)' : 'var(--color-fg-2)',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Generation mode */}
           <div>
@@ -777,6 +895,18 @@ export default function CreativeStudioModal({
 
           {/* Generate button */}
           <div>
+            {missingAngles.length > 0 && (
+              <div style={{
+                marginBottom: 8, padding: '7px 9px', fontSize: 11, lineHeight: 1.5,
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-warning-subtle, rgba(180,83,9,0.08))',
+                color: 'var(--color-warning, #b45309)',
+              }}>
+                No reference photo for{' '}
+                <span style={{ textTransform: 'capitalize' }}>{missingAngles.join(', ')}</span>
+                {' '}— those views will be invented. Upload the matching photos above for an exact match.
+              </div>
+            )}
             <button
               type="button"
               onClick={handleGenerate}
@@ -835,10 +965,10 @@ export default function CreativeStudioModal({
 
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: drafts.length === 1 && sourceImageUrl.trim() && !sourceImgError ? 'repeat(2, 1fr)' : drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+                gridTemplateColumns: drafts.length === 1 && previewReferenceUrl.trim() && !sourceImgError ? 'repeat(2, 1fr)' : drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
                 gap: 10,
               }}>
-                {sourceImageUrl.trim() && !sourceImgError && (
+                {previewReferenceUrl.trim() && !sourceImgError && (
                   <div style={{
                     background: 'var(--color-bg)',
                     border: '1px solid var(--color-border)',
@@ -847,7 +977,7 @@ export default function CreativeStudioModal({
                   }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={sourceImageUrl}
+                      src={previewReferenceUrl}
                       alt="Source product reference"
                       style={{ display: 'block', width: '100%', height: 320, objectFit: 'contain', background: 'white' }}
                     />
@@ -883,6 +1013,14 @@ export default function CreativeStudioModal({
                     }}>
                       <span style={{ textTransform: 'capitalize' }}>
                         {d.sourceColor ? `${d.sourceColor} · ` : ''}{d.viewAngle ?? 'front'}
+                        {d.grounded === false && (
+                          <span
+                            title="No reference photo for this angle — check it against the real garment."
+                            style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, color: 'var(--color-warning, #b45309)' }}
+                          >
+                            ⚠ guessed
+                          </span>
+                        )}
                       </span>
                       {d.saved && (
                         <span style={{ color: 'var(--color-accent)', fontSize: 10 }}>✓ Saved</span>
@@ -896,6 +1034,14 @@ export default function CreativeStudioModal({
                         flexDirection: 'column',
                         gap: 8,
                       }}>
+                        {(d.corrections?.length ?? 0) > 0 && (
+                          <div style={{ fontSize: 10, lineHeight: 1.5, color: 'var(--color-fg-3)' }}>
+                            <strong style={{ color: 'var(--color-fg-2)' }}>Applied so far:</strong>
+                            <ol style={{ margin: '3px 0 0', paddingLeft: 16 }}>
+                              {d.corrections!.map((note, index) => <li key={index}>{note}</li>)}
+                            </ol>
+                          </div>
+                        )}
                         <textarea
                           className="app-textarea"
                           placeholder="Correction, e.g. make sleeves shorter like source image"

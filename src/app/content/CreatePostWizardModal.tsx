@@ -2,18 +2,25 @@
 
 import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
-import type { CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
+import type { CreativeAspectRatio, CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
+import ReferenceImagePicker, {
+  hasAnyReference,
+  inferredAngles,
+  referenceSetToInputs,
+  type ReferenceSet,
+} from './ReferenceImagePicker';
 import {
   generateCreativeBatchAction,
   regenerateCreativeAction,
   saveGeneratedCreative,
   discardCreativeDraft,
   searchProductsForContent,
-  generatePostCaptions,
+  generateChannelCaptions,
   createSocialPost,
   publishSocialPost,
   getCreativesForProduct,
+  type BatchSourceImage,
 } from './actions';
 
 const VIEW_ANGLES: { id: ViewAngle; label: string }[] = [
@@ -23,12 +30,34 @@ const VIEW_ANGLES: { id: ViewAngle; label: string }[] = [
   { id: 'closeup', label: 'Close-up' },
 ];
 
+const ASPECT_RATIOS: { id: CreativeAspectRatio; label: string; help: string }[] = [
+  { id: '4:5', label: 'Portrait 4:5', help: 'Instagram + Facebook feed. Most screen space.' },
+  { id: '1:1', label: 'Square 1:1', help: 'Safe everywhere, good for carousels.' },
+  { id: '9:16', label: 'Story 9:16', help: 'Stories and Reels.' },
+  { id: '4:3', label: 'Landscape 4:3', help: 'Wide crops and website banners.' },
+];
+
 interface DraftResult {
   creativeId: number;
   imageData: string;
   prompt: string;
   viewAngle?: ViewAngle;
   sourceColor?: string;
+  // False when the angle had no reference photo and was invented.
+  grounded?: boolean;
+  corrections?: string[];
+}
+
+// Product photos arrive as a flat list of colour/angle rows; generation needs
+// them grouped into one reference set per colour.
+function groupColorReferences(product: ProductSearchResult | null): Record<string, ReferenceSet> {
+  const grouped: Record<string, ReferenceSet> = {};
+  for (const image of product?.colorImages ?? []) {
+    if (!image.imageUrl?.trim()) continue;
+    const angle = (image.angle ?? 'front') as ViewAngle;
+    grouped[image.color] = { ...grouped[image.color], [angle]: image.imageUrl };
+  }
+  return grouped;
 }
 
 interface ExistingCreative {
@@ -110,7 +139,7 @@ interface ProductSearchResult {
   colors: string | null;
   sizes: string | null;
   imageUrl: string | null;
-  colorImages?: Array<{ id: number; color: string; imageUrl: string }>;
+  colorImages?: Array<{ id: number; color: string; angle?: string | null; imageUrl: string }>;
   garmentLengthCm?: number | null;
   sleeveLengthCm?: number | null;
   sleeveType?: string | null;
@@ -129,6 +158,11 @@ interface ProductSearchResult {
 
 function productDisplayImage(product: ProductSearchResult | null): string | null {
   return product?.imageUrl || product?.colorImages?.[0]?.imageUrl || null;
+}
+
+// Colours the product has at least one photo for, in a stable order.
+function referenceColors(references: Record<string, ReferenceSet>): string[] {
+  return Object.keys(references).filter(color => hasAnyReference(references[color])).sort();
 }
 
 interface CreatePostWizardModalProps {
@@ -160,11 +194,17 @@ export default function CreatePostWizardModal({
   const [selectedProduct, setSelectedProduct] = useState<ProductSearchResult | null>(null);
   const [productContext, setProductContext] = useState('');
   const [garmentFitNotes, setGarmentFitNotes] = useState('');
-  const [sourceImageUrl, setSourceImageUrl] = useState('');
+  // Reference photos when no product is linked, keyed by angle.
+  const [references, setReferences] = useState<ReferenceSet>({});
+  // Reference photos per colour once a product is linked. Seeded from the
+  // product record; the user can fill in angles the catalogue is missing.
+  const [colorReferences, setColorReferences] = useState<Record<string, ReferenceSet>>({});
+  const [expandedColor, setExpandedColor] = useState<string | null>(null);
 
   // Step 1 cont. — view angles + existing creatives (per linked product)
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
   const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('standard');
+  const [aspectRatio, setAspectRatio] = useState<CreativeAspectRatio>('4:5');
   const [colorViewAngles, setColorViewAngles] = useState<Record<string, ViewAngle[]>>({});
   const [existingCreatives, setExistingCreatives] = useState<ExistingCreative[]>([]);
 
@@ -192,6 +232,9 @@ export default function CreatePostWizardModal({
   const [channels, setChannels] = useState<string[]>(['facebook', 'instagram']);
   const [generatedCaptions, setGeneratedCaptions] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
+  // Per-channel copy. A blank entry means that channel publishes `caption`.
+  const [channelCaptions, setChannelCaptions] = useState<Record<string, string>>({});
+  const [suggestionsByChannel, setSuggestionsByChannel] = useState<Record<string, string[]>>({});
   const [imageDescription, setImageDescription] = useState('');
 
   // Step 4 — Publish (no extra state — uses prior fields)
@@ -205,10 +248,15 @@ export default function CreatePostWizardModal({
   const [isFinishing, startFinishing] = useTransition();
 
   const isLoading = isGenerating || isRegeneratingDraft || isGeneratingCaptions || isFinishing;
-  const selectedColorImagesWithUrls = selectedProduct?.colorImages?.filter(image => image.imageUrl.trim()) ?? [];
-  const plannedGenerationCount = selectedColorImagesWithUrls.length > 0
-    ? selectedColorImagesWithUrls.reduce((sum, image) => sum + (colorViewAngles[image.color] ?? viewAngles).length, 0)
+  const colorsWithReferences = referenceColors(colorReferences);
+  const plannedGenerationCount = colorsWithReferences.length > 0
+    ? colorsWithReferences.reduce((sum, color) => sum + (colorViewAngles[color] ?? viewAngles).length, 0)
     : Math.max(1, viewAngles.length);
+  // Angles queued for generation that no photo covers — these get invented.
+  const missingAngles = colorsWithReferences.length > 0
+    ? [...new Set(colorsWithReferences.flatMap(color =>
+        inferredAngles(colorReferences[color], colorViewAngles[color] ?? viewAngles)))]
+    : inferredAngles(references, viewAngles);
 
   // ── Step 1 helpers ─────────────────────────────────────────────────────────
 
@@ -235,10 +283,18 @@ export default function CreatePostWizardModal({
     setGarmentFitNotes(garmentSpecs);
     setProductSearch(product.name);
     setSearchResults([]);
-    const sourceImage = productDisplayImage(product);
-    if (sourceImage) setSourceImageUrl(sourceImage);
-    const nextColorImages = product.colorImages?.filter(image => image.imageUrl.trim()) ?? [];
-    setColorViewAngles(Object.fromEntries(nextColorImages.map(image => [image.color, viewAngles])));
+    const grouped = groupColorReferences(product);
+    // Products with no colour rows still have a single main photo — treat it as
+    // the front reference so generation is never left with nothing.
+    const mainImage = productDisplayImage(product);
+    if (Object.keys(grouped).length === 0 && mainImage) {
+      setReferences({ front: mainImage });
+    } else {
+      setReferences({});
+    }
+    setColorReferences(grouped);
+    setExpandedColor(null);
+    setColorViewAngles(Object.fromEntries(referenceColors(grouped).map(color => [color, viewAngles])));
     // Load existing saved creatives for this product so the user can reuse them.
     getCreativesForProduct(product.id).then(res => {
       if (res.success && 'creatives' in res && res.creatives) {
@@ -254,10 +310,16 @@ export default function CreatePostWizardModal({
     setProductContext('');
     setGarmentFitNotes('');
     setProductSearch('');
-    setSourceImageUrl('');
+    setReferences({});
+    setColorReferences({});
+    setExpandedColor(null);
     setColorViewAngles({});
     setExistingCreatives([]);
     setReusedExistingId(null);
+  }
+
+  function updateColorReferences(color: string, next: ReferenceSet) {
+    setColorReferences(prev => ({ ...prev, [color]: next }));
   }
 
   function toggleAngle(angle: ViewAngle) {
@@ -305,11 +367,11 @@ export default function CreatePostWizardModal({
       setFormError('A product description is required to generate an image.');
       return;
     }
-    if (selectedColorImagesWithUrls.length === 0 && viewAngles.length === 0) {
+    if (colorsWithReferences.length === 0 && viewAngles.length === 0) {
       setFormError('Select at least one view angle.');
       return;
     }
-    if (selectedColorImagesWithUrls.length > 0 && plannedGenerationCount === 0) {
+    if (colorsWithReferences.length > 0 && plannedGenerationCount === 0) {
       setFormError('Select at least one view angle for a colour variant.');
       return;
     }
@@ -323,23 +385,24 @@ export default function CreatePostWizardModal({
       setSelectedDraftIds([]);
       setReusedExistingId(null);
 
-      const colorSources = selectedColorImagesWithUrls
-        .map((image) => ({
-          color: image.color,
-          imageUrl: image.imageUrl,
-          viewAngles: colorViewAngles[image.color] ?? viewAngles,
+      const colorSources: BatchSourceImage[] = colorsWithReferences
+        .map((color) => ({
+          color,
+          referenceImages: referenceSetToInputs(colorReferences[color]),
+          viewAngles: colorViewAngles[color] ?? viewAngles,
         }))
-        .filter((image) => image.viewAngles.length > 0);
+        .filter((source) => source.viewAngles.length > 0);
       const result = await generateCreativeBatchAction({
         brand: brand.trim(),
         personaId,
         productContext,
         garmentFitNotes,
-        sourceImageUrl: sourceImageUrl.trim() || undefined,
+        referenceImages: referenceSetToInputs(references),
         sourceImages: colorSources.length > 0 ? colorSources : undefined,
         productId: selectedProduct?.id,
         viewAngles,
         quality: generationQuality,
+        aspectRatio,
       });
 
       const newDrafts: DraftResult[] = [];
@@ -352,6 +415,8 @@ export default function CreatePostWizardModal({
             prompt: r.prompt ?? '',
             viewAngle: r.viewAngle,
             sourceColor: r.sourceColor,
+            grounded: r.grounded,
+            corrections: r.corrections ?? [],
           });
         } else if (r.error) {
           errors.push(r.error);
@@ -399,6 +464,8 @@ export default function CreatePostWizardModal({
                 prompt: result.prompt ?? d.prompt,
                 viewAngle: result.viewAngle ?? d.viewAngle,
                 sourceColor: result.sourceColor ?? d.sourceColor,
+                grounded: result.grounded ?? d.grounded,
+                corrections: result.corrections ?? d.corrections,
               }
             : d
         )));
@@ -430,21 +497,40 @@ export default function CreatePostWizardModal({
   function generateCaptionsForImage() {
     if (!brand.trim() || channels.length === 0) return;
     startGeneratingCaptions(async () => {
-      const result = await generatePostCaptions({
+      const result = await generateChannelCaptions({
         brand: brand.trim(),
         channels,
         productContext: productContext.trim() || undefined,
         imageBase64: generatedImageData ?? undefined,
       });
-      if (result.success && result.captions) {
-        setGeneratedCaptions(result.captions);
-        if (!caption.trim() && result.captions.length > 0) {
-          setCaption(result.captions[0]);
-        }
-      } else {
+
+      if (!result.success || !result.captionsByChannel) {
         setFormError(result.error ?? 'Caption generation failed.');
+        return;
       }
+
+      const byChannel = result.captionsByChannel;
+      setSuggestionsByChannel(byChannel);
+      // The first channel's suggestions double as the shared caption, which is
+      // what publishes for any channel the user does not edit.
+      const primary = byChannel[channels[0]] ?? Object.values(byChannel)[0] ?? [];
+      setGeneratedCaptions(primary);
+      if (!caption.trim() && primary.length > 0) setCaption(primary[0]);
+
+      setChannelCaptions(prev => {
+        const next = { ...prev };
+        for (const channel of channels) {
+          if (!next[channel]?.trim() && byChannel[channel]?.length) {
+            next[channel] = byChannel[channel][0];
+          }
+        }
+        return next;
+      });
     });
+  }
+
+  function setChannelCaption(channel: string, value: string) {
+    setChannelCaptions(prev => ({ ...prev, [channel]: value }));
   }
 
   function buildAutoDescription(): string {
@@ -563,6 +649,7 @@ export default function CreatePostWizardModal({
         brand: brand.trim(),
         channels,
         caption: caption.trim(),
+        captionsByChannel: channelCaptions,
         generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
         productContext: productContext.trim() || undefined,
         status: 'draft',
@@ -604,6 +691,7 @@ export default function CreatePostWizardModal({
         brand: brand.trim(),
         channels,
         caption: caption.trim(),
+        captionsByChannel: channelCaptions,
         generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
         productContext: productContext.trim() || undefined,
         status: 'ready',
@@ -725,15 +813,23 @@ export default function CreatePostWizardModal({
               setProductContext={setProductContext}
               garmentFitNotes={garmentFitNotes}
               setGarmentFitNotes={setGarmentFitNotes}
-              sourceImageUrl={sourceImageUrl}
-              setSourceImageUrl={setSourceImageUrl}
+              references={references}
+              setReferences={setReferences}
+              colorReferences={colorReferences}
+              updateColorReferences={updateColorReferences}
+              colorsWithReferences={colorsWithReferences}
+              expandedColor={expandedColor}
+              setExpandedColor={setExpandedColor}
               viewAngles={viewAngles}
               toggleAngle={toggleAngle}
               generationQuality={generationQuality}
               setGenerationQuality={setGenerationQuality}
+              aspectRatio={aspectRatio}
+              setAspectRatio={setAspectRatio}
               colorViewAngles={colorViewAngles}
               toggleColorAngle={toggleColorAngle}
               plannedGenerationCount={plannedGenerationCount}
+              missingAngles={missingAngles}
               existingCreatives={existingCreatives}
               onReuseExisting={handleReuseExisting}
               isLoading={isLoading}
@@ -745,9 +841,10 @@ export default function CreatePostWizardModal({
               brand={brand}
               personaId={personaId}
               productContext={productContext}
-              sourceImageCount={selectedProduct?.colorImages?.length || (sourceImageUrl.trim() ? 1 : 0)}
+              sourceImageCount={colorsWithReferences.length || (hasAnyReference(references) ? 1 : 0)}
               plannedGenerationCount={plannedGenerationCount}
-              sourceImageUrl={sourceImageUrl}
+              primaryReferenceUrl={references.front ?? colorReferences[colorsWithReferences[0]]?.front ?? ''}
+              missingAngles={missingAngles}
               viewAngles={viewAngles}
               generationQuality={generationQuality}
               drafts={drafts}
@@ -778,6 +875,9 @@ export default function CreatePostWizardModal({
               caption={caption}
               setCaption={setCaption}
               generatedCaptions={generatedCaptions}
+              channelCaptions={channelCaptions}
+              setChannelCaption={setChannelCaption}
+              suggestionsByChannel={suggestionsByChannel}
               isGeneratingCaptions={isGeneratingCaptions}
               onRegenerateCaptions={generateCaptionsForImage}
               isLoading={isLoading}
@@ -959,15 +1059,23 @@ interface Step1Props {
   setProductContext: (s: string) => void;
   garmentFitNotes: string;
   setGarmentFitNotes: (s: string) => void;
-  sourceImageUrl: string;
-  setSourceImageUrl: (s: string) => void;
+  references: ReferenceSet;
+  setReferences: (next: ReferenceSet) => void;
+  colorReferences: Record<string, ReferenceSet>;
+  updateColorReferences: (color: string, next: ReferenceSet) => void;
+  colorsWithReferences: string[];
+  expandedColor: string | null;
+  setExpandedColor: (color: string | null) => void;
   viewAngles: ViewAngle[];
   toggleAngle: (a: ViewAngle) => void;
   generationQuality: CreativeGenerationQuality;
   setGenerationQuality: (q: CreativeGenerationQuality) => void;
+  aspectRatio: CreativeAspectRatio;
+  setAspectRatio: (r: CreativeAspectRatio) => void;
   colorViewAngles: Record<string, ViewAngle[]>;
   toggleColorAngle: (color: string, angle: ViewAngle) => void;
   plannedGenerationCount: number;
+  missingAngles: ViewAngle[];
   existingCreatives: ExistingCreative[];
   onReuseExisting: (creativeId: number) => void;
   isLoading: boolean;
@@ -978,7 +1086,7 @@ function Step1Setup(props: Step1Props) {
     { id: 'none', label: 'Product only', imageUrl: null as string | null },
     ...(PERSONAS_BY_BRAND[props.brand] || []).map((p) => ({ id: p.id, label: p.label, imageUrl: p.imageUrl })),
   ];
-  const colorImagesWithUrls = props.selectedProduct?.colorImages?.filter(image => image.imageUrl.trim()) ?? [];
+  const colorsWithReferences = props.colorsWithReferences;
 
   return (
     <>
@@ -1120,38 +1228,22 @@ function Step1Setup(props: Step1Props) {
         />
       </div>
 
-      {/* Source image — auto-filled from linked product, otherwise URL field */}
-      {props.selectedProduct ? null : (
+      {/* Reference photos — one per angle. Any angle without a photo is
+          invented by the model, which is the main source of wrong output. */}
+      {props.colorsWithReferences.length === 0 && (
         <div>
           <label style={labelStyle}>
-            Source Image URL{' '}
+            Garment Reference Photos{' '}
             <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-              (optional — or link a product above to auto-fill)
+              (upload the angles you want generated — front is the minimum)
             </span>
           </label>
-          <input
-            className="app-input"
-            placeholder="https://example.com/product-photo.jpg"
-            value={props.sourceImageUrl}
-            onChange={(e) => props.setSourceImageUrl(e.target.value)}
+          <ReferenceImagePicker
+            references={props.references}
+            onChange={props.setReferences}
             disabled={props.isLoading}
+            requestedAngles={props.viewAngles}
           />
-          {props.sourceImageUrl.trim() && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={props.sourceImageUrl}
-              alt="Source product"
-              style={{
-                marginTop: 8,
-                maxHeight: 180,
-                maxWidth: '100%',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-border)',
-                objectFit: 'contain',
-                background: 'white',
-              }}
-            />
-          )}
         </div>
       )}
 
@@ -1175,9 +1267,9 @@ function Step1Setup(props: Step1Props) {
       {/* View angles */}
       <div>
         <label style={labelStyle}>
-          {colorImagesWithUrls.length > 0 ? 'Default View Angles' : 'View Angles'}{' '}
+          {colorsWithReferences.length > 0 ? 'Default View Angles' : 'View Angles'}{' '}
           <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-            {colorImagesWithUrls.length > 0
+            {colorsWithReferences.length > 0
               ? '(used as the starting selection for linked colour images)'
               : '(one image per selected angle — each costs a generation)'}
           </span>
@@ -1207,7 +1299,7 @@ function Step1Setup(props: Step1Props) {
         </div>
       </div>
 
-      {colorImagesWithUrls.length > 0 && (
+      {colorsWithReferences.length > 0 && (
         <div>
           <label style={labelStyle}>
             Colour Variant Angles{' '}
@@ -1216,62 +1308,150 @@ function Step1Setup(props: Step1Props) {
             </span>
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {colorImagesWithUrls.map(image => {
-              const selectedAngles = props.colorViewAngles[image.color] ?? props.viewAngles;
+            {colorsWithReferences.map(color => {
+              const colorRefs = props.colorReferences[color] ?? {};
+              const selectedAngles = props.colorViewAngles[color] ?? props.viewAngles;
+              const missing = inferredAngles(colorRefs, selectedAngles);
+              const isExpanded = props.expandedColor === color;
+              const thumbnail = colorRefs.front ?? Object.values(colorRefs).find(Boolean);
+
               return (
                 <div
-                  key={`${image.color}-${image.imageUrl}`}
+                  key={color}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '44px minmax(80px, 1fr) 2fr',
-                    gap: 10,
-                    alignItems: 'center',
                     padding: 8,
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--color-bg)',
                   }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={image.imageUrl}
-                    alt={image.color}
-                    style={{ width: 44, height: 52, objectFit: 'cover', borderRadius: 'var(--radius-sm)', background: 'white', border: '1px solid var(--color-border-subtle)' }}
-                  />
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
-                    {image.color}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '44px minmax(80px, 1fr) 2fr',
+                    gap: 10,
+                    alignItems: 'center',
+                  }}>
+                    {thumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={thumbnail}
+                        alt={color}
+                        style={{ width: 44, height: 52, objectFit: 'cover', borderRadius: 'var(--radius-sm)', background: 'white', border: '1px solid var(--color-border-subtle)' }}
+                      />
+                    ) : <div />}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
+                        {color}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => !props.isLoading && props.setExpandedColor(isExpanded ? null : color)}
+                        disabled={props.isLoading}
+                        style={{
+                          marginTop: 2, padding: 0, border: 'none', background: 'none',
+                          fontSize: 10, fontWeight: 600, textAlign: 'left',
+                          color: missing.length > 0 ? 'var(--color-warning, #b45309)' : 'var(--color-fg-3)',
+                          textDecoration: 'underline',
+                          cursor: props.isLoading ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {missing.length > 0
+                          ? `${missing.length} angle${missing.length > 1 ? 's' : ''} without a photo`
+                          : 'All angles photographed'}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {VIEW_ANGLES.map(angle => {
+                        const active = selectedAngles.includes(angle.id);
+                        const willInfer = active && missing.includes(angle.id);
+                        return (
+                          <button
+                            key={angle.id}
+                            type="button"
+                            onClick={() => !props.isLoading && props.toggleColorAngle(color, angle.id)}
+                            disabled={props.isLoading}
+                            title={willInfer ? 'No reference photo — this angle will be invented.' : undefined}
+                            style={{
+                              padding: '5px 9px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              border: willInfer
+                                ? '1px dashed var(--color-warning, #b45309)'
+                                : active
+                                  ? '1px solid var(--color-accent)'
+                                  : '1px solid var(--color-border)',
+                              borderRadius: 'var(--radius-sm)',
+                              background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                              color: willInfer
+                                ? 'var(--color-warning, #b45309)'
+                                : active ? 'var(--color-accent)' : 'var(--color-fg-2)',
+                              cursor: props.isLoading ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {angle.label}{willInfer ? ' ⚠' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {VIEW_ANGLES.map(angle => {
-                      const active = selectedAngles.includes(angle.id);
-                      return (
-                        <button
-                          key={angle.id}
-                          type="button"
-                          onClick={() => !props.isLoading && props.toggleColorAngle(image.color, angle.id)}
-                          disabled={props.isLoading}
-                          style={{
-                            padding: '5px 9px',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                            borderRadius: 'var(--radius-sm)',
-                            background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
-                            color: active ? 'var(--color-accent)' : 'var(--color-fg-2)',
-                            cursor: props.isLoading ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {angle.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+
+                  {isExpanded && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border-subtle)' }}>
+                      <ReferenceImagePicker
+                        references={colorRefs}
+                        onChange={(next) => props.updateColorReferences(color, next)}
+                        disabled={props.isLoading}
+                        requestedAngles={selectedAngles}
+                      />
+                      <div style={{ marginTop: 6, fontSize: 10, color: 'var(--color-fg-3)', lineHeight: 1.5 }}>
+                        Photos added here are used for this post and saved with the generated
+                        image. To reuse them everywhere, add them to the product record.
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      {/* Output framing — Instagram crops anything narrower than 4:5 */}
+      <div>
+        <label style={labelStyle}>
+          Image Shape{' '}
+          <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+            (4:5 fills the most feed space without being cropped)
+          </span>
+        </label>
+        <div className="grid-4-mobile2" style={{ gap: 8 }}>
+          {ASPECT_RATIOS.map(option => {
+            const active = props.aspectRatio === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => !props.isLoading && props.setAspectRatio(option.id)}
+                disabled={props.isLoading}
+                style={{
+                  padding: '8px 9px',
+                  border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: active ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                  color: active ? 'var(--color-accent)' : 'var(--color-fg-2)',
+                  cursor: props.isLoading ? 'not-allowed' : 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 800 }}>{option.label}</div>
+                <div style={{ fontSize: 9, lineHeight: 1.4, color: active ? 'var(--color-accent)' : 'var(--color-fg-3)', marginTop: 2 }}>
+                  {option.help}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Generation mode */}
       <div>
@@ -1397,7 +1577,8 @@ interface Step2Props {
   productContext: string;
   sourceImageCount: number;
   plannedGenerationCount: number;
-  sourceImageUrl: string;
+  primaryReferenceUrl: string;
+  missingAngles: ViewAngle[];
   viewAngles: ViewAngle[];
   generationQuality: CreativeGenerationQuality;
   drafts: DraftResult[];
@@ -1444,6 +1625,13 @@ function Step2Generate(props: Step2Props) {
         <div style={{ marginTop: 4 }}>
           <strong>Description:</strong> {props.productContext.slice(0, 180)}{props.productContext.length > 180 ? '…' : ''}
         </div>
+        {props.missingAngles.length > 0 && (
+          <div style={{ marginTop: 6, color: 'var(--color-warning, #b45309)' }}>
+            <strong>Note:</strong> no reference photo for{' '}
+            <span style={{ textTransform: 'capitalize' }}>{props.missingAngles.join(', ')}</span>
+            {' '}— those views will be invented. Go back and upload them for an exact match.
+          </div>
+        )}
       </div>
 
       {props.drafts.length === 0 ? (
@@ -1532,10 +1720,10 @@ function Step2Generate(props: Step2Props) {
           )}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: props.drafts.length === 1 && props.sourceImageUrl.trim() ? 'repeat(2, 1fr)' : props.drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+            gridTemplateColumns: props.drafts.length === 1 && props.primaryReferenceUrl.trim() ? 'repeat(2, 1fr)' : props.drafts.length === 1 ? '1fr' : 'repeat(2, 1fr)',
             gap: 10,
           }}>
-            {props.sourceImageUrl.trim() && (
+            {props.primaryReferenceUrl.trim() && (
               <div style={{
                 background: 'var(--color-bg)',
                 border: '1px solid var(--color-border)',
@@ -1544,7 +1732,7 @@ function Step2Generate(props: Step2Props) {
               }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={props.sourceImageUrl}
+                  src={props.primaryReferenceUrl}
                   alt="Source product reference"
                   style={{ display: 'block', width: '100%', height: 320, objectFit: 'contain', background: 'white' }}
                 />
@@ -1587,7 +1775,17 @@ function Step2Generate(props: Step2Props) {
                     borderTop: '1px solid var(--color-border-subtle)',
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   }}>
-                    <span style={{ textTransform: 'capitalize' }}>{d.sourceColor ? `${d.sourceColor} · ` : ''}{d.viewAngle ?? 'front'}</span>
+                    <span style={{ textTransform: 'capitalize' }}>
+                      {d.sourceColor ? `${d.sourceColor} · ` : ''}{d.viewAngle ?? 'front'}
+                      {d.grounded === false && (
+                        <span
+                          title="No reference photo for this angle — check it against the real garment."
+                          style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, color: 'var(--color-warning, #b45309)' }}
+                        >
+                          ⚠ guessed
+                        </span>
+                      )}
+                    </span>
                     <span style={{ fontSize: 10 }}>{selected ? '✓ Selected' : 'Click to include'}</span>
                   </div>
                   <div
@@ -1600,6 +1798,14 @@ function Step2Generate(props: Step2Props) {
                       gap: 8,
                     }}
                   >
+                    {(d.corrections?.length ?? 0) > 0 && (
+                      <div style={{ fontSize: 10, lineHeight: 1.5, color: 'var(--color-fg-3)' }}>
+                        <strong style={{ color: 'var(--color-fg-2)' }}>Applied so far:</strong>
+                        <ol style={{ margin: '3px 0 0', paddingLeft: 16 }}>
+                          {d.corrections!.map((note, index) => <li key={index}>{note}</li>)}
+                        </ol>
+                      </div>
+                    )}
                     <textarea
                       className="app-textarea"
                       placeholder="Correction, e.g. make sleeves shorter like source image"
@@ -1689,10 +1895,18 @@ interface Step3Props {
   caption: string;
   setCaption: (s: string) => void;
   generatedCaptions: string[];
+  channelCaptions: Record<string, string>;
+  setChannelCaption: (channel: string, value: string) => void;
+  suggestionsByChannel: Record<string, string[]>;
   isGeneratingCaptions: boolean;
   onRegenerateCaptions: () => void;
   isLoading: boolean;
 }
+
+const CHANNEL_LABEL: Record<string, string> = {
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+};
 
 function Step3CaptionReview(props: Step3Props) {
   return (
@@ -1832,7 +2046,12 @@ function Step3CaptionReview(props: Step3Props) {
 
       {/* Caption editor */}
       <div>
-        <label style={labelStyle}>Caption</label>
+        <label style={labelStyle}>
+          Caption{' '}
+          <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+            (used for any channel you do not customise below)
+          </span>
+        </label>
         <textarea
           className="app-textarea"
           placeholder="Write your caption here, or pick a suggestion above…"
@@ -1847,6 +2066,88 @@ function Step3CaptionReview(props: Step3Props) {
         </div>
       </div>
 
+      {/* Per-channel copy — Instagram wants hashtags, Facebook wants prose */}
+      {props.channels.length > 0 && (
+        <div>
+          <label style={labelStyle}>
+            Per-Channel Copy{' '}
+            <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+              (leave blank to publish the caption above)
+            </span>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {props.channels.map(channel => {
+              const value = props.channelCaptions[channel] ?? '';
+              const suggestions = props.suggestionsByChannel[channel] ?? [];
+              const isInstagram = channel === 'instagram';
+              return (
+                <div
+                  key={channel}
+                  style={{
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 10,
+                    background: 'var(--color-bg)',
+                  }}
+                >
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7,
+                    fontSize: 12, fontWeight: 700,
+                    color: isInstagram ? '#A8276E' : '#0866FF',
+                  }}>
+                    {isInstagram ? Ic.ig : Ic.fb}
+                    {CHANNEL_LABEL[channel] ?? channel}
+                  </div>
+
+                  {suggestions.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 7 }}>
+                      {suggestions.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => props.setChannelCaption(channel, suggestion)}
+                          disabled={props.isLoading}
+                          title={suggestion}
+                          style={{
+                            padding: '4px 9px', fontSize: 10, fontWeight: 700,
+                            border: value === suggestion
+                              ? '1px solid var(--color-accent)'
+                              : '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: value === suggestion ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                            color: value === suggestion ? 'var(--color-accent)' : 'var(--color-fg-2)',
+                            cursor: props.isLoading ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          Option {index + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <textarea
+                    className="app-textarea"
+                    placeholder={isInstagram
+                      ? 'Punchy copy ending with 3-5 hashtags…'
+                      : 'Longer, conversational copy…'}
+                    value={value}
+                    onChange={(e) => props.setChannelCaption(channel, e.target.value)}
+                    disabled={props.isLoading}
+                    rows={3}
+                    style={{ minHeight: 76, fontSize: 12 }}
+                  />
+                  <div style={{ fontSize: 10, color: 'var(--color-fg-3)', marginTop: 3, textAlign: 'right' }}>
+                    {value.trim()
+                      ? `${value.length} characters`
+                      : 'Using the shared caption'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Live preview */}
       {props.caption.trim() && (
         <div>
@@ -1855,6 +2156,7 @@ function Step3CaptionReview(props: Step3Props) {
             brand={props.brand}
             channels={props.channels}
             caption={props.caption}
+            captionsByChannel={props.channelCaptions}
             imageDataList={props.generatedImageDataList}
           />
         </div>
@@ -1925,7 +2227,47 @@ function Step4Publish(props: Step4Props) {
 
 // ── Social media preview ─────────────────────────────────────────────────────
 
+// Renders one card per channel once their copy diverges, so the user can see
+// what each audience will actually get rather than a single blended preview.
 function SocialPreview({
+  brand,
+  channels,
+  caption,
+  captionsByChannel,
+  imageDataList,
+}: {
+  brand: string;
+  channels: string[];
+  caption: string;
+  captionsByChannel?: Record<string, string>;
+  imageDataList: string[];
+}) {
+  const resolved = channels.map(channel => ({
+    channel,
+    caption: captionsByChannel?.[channel]?.trim() || caption,
+  }));
+  const allSame = resolved.every(entry => entry.caption === resolved[0]?.caption);
+
+  if (allSame || resolved.length === 0) {
+    return <PreviewCard brand={brand} channels={channels} caption={caption} imageDataList={imageDataList} />;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {resolved.map(entry => (
+        <PreviewCard
+          key={entry.channel}
+          brand={brand}
+          channels={[entry.channel]}
+          caption={entry.caption}
+          imageDataList={imageDataList}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PreviewCard({
   brand,
   channels,
   caption,
@@ -1994,7 +2336,7 @@ function SocialPreview({
               style={{
                 display: 'block',
                 width: '100%',
-                aspectRatio: imageDataList.length === 1 ? '4/3' : '1/1',
+                aspectRatio: imageDataList.length === 1 ? '4/5' : '1/1',
                 maxHeight: imageDataList.length === 1 ? 360 : 260,
                 objectFit: 'cover',
               }}

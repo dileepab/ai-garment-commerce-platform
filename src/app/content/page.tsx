@@ -40,6 +40,7 @@ export default async function ContentPage({
             creative: {
               select: {
                 id: true,
+                imageUrl: true,
                 generatedImageData: true
               }
             }
@@ -53,6 +54,7 @@ export default async function ContentPage({
       select: {
         id: true,
         brand: true,
+        imageUrl: true,
         generatedImageData: true,
         prompt: true,
         personaStyle: true,

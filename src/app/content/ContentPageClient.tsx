@@ -19,7 +19,10 @@ import { PERSONAS_BY_BRAND } from '@/lib/persona-data';
 export interface CreativeRecord {
   id: number;
   brand: string;
-  generatedImageData: string;
+  // Newer creatives live in blob storage; older rows still carry a base64 data
+  // URL. Read them through creativeSrc rather than either field directly.
+  imageUrl: string | null;
+  generatedImageData: string | null;
   prompt: string;
   personaStyle: string | null;
   productContext: string | null;
@@ -35,8 +38,15 @@ interface PostCreativeRecord {
   displayOrder: number;
   creative: {
     id: number;
-    generatedImageData: string;
+    imageUrl: string | null;
+    generatedImageData: string | null;
   };
+}
+
+export function creativeSrc(
+  creative: { imageUrl?: string | null; generatedImageData?: string | null } | null | undefined,
+): string {
+  return creative?.imageUrl ?? creative?.generatedImageData ?? '';
 }
 
 export interface PostRecord {
@@ -44,6 +54,7 @@ export interface PostRecord {
   brand: string;
   channels: string;
   caption: string;
+  captionsByChannel: string | null;
   generatedCaptions: string | null;
   productContext: string | null;
   status: string;
@@ -142,6 +153,21 @@ function parseGeneratedCaptions(raw: string | null): string[] {
   }
 }
 
+function parseCaptionsByChannel(raw: string | null): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    const result: Record<string, string> = {};
+    for (const [channel, text] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof text === 'string' && text.trim()) result[channel] = text;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -231,6 +257,10 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
   const [generatedCaptions, setGeneratedCaptions] = useState<string[]>(
     parseGeneratedCaptions(post?.generatedCaptions ?? null),
   );
+  // Per-channel overrides. Blank means that channel publishes `caption`.
+  const [channelCaptions, setChannelCaptions] = useState<Record<string, string>>(
+    parseCaptionsByChannel(post?.captionsByChannel ?? null),
+  );
   // Support for multiple creatives per post
   const [postCreatives, setPostCreatives] = useState<PostCreativeFormState[]>(
     post?.postCreatives
@@ -267,8 +297,8 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
     let imageBase64: string | undefined;
     if (postCreatives.length > 0 && postCreatives[0].creativeId > 0) {
       const cr = availableCreatives.find(c => c.id === postCreatives[0].creativeId);
-      if (cr?.generatedImageData) {
-        imageBase64 = cr.generatedImageData;
+      if (creativeSrc(cr)) {
+        imageBase64 = creativeSrc(cr);
       }
     }
 
@@ -319,7 +349,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
 
     // Auto-trigger caption generation when first creative is attached and no captions exist yet
     if (index === 0 && creativeId > 0 && generatedCaptions.length === 0 && channels.length > 0 && brand.trim()) {
-      const imageBase64 = creative?.generatedImageData;
+      const imageBase64 = creativeSrc(creative) || undefined;
       startGenerating(async () => {
         const result = await generatePostCaptions({
           brand: brand.trim(),
@@ -351,6 +381,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
       brand: brand.trim(),
       channels,
       caption: caption.trim(),
+      captionsByChannel: channelCaptions,
       generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
       productContext: productContext.trim() || undefined,
       status: postStatus,
@@ -533,7 +564,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
                     {cr && (
                       <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--color-surface-muted)' }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={cr.generatedImageData} alt="Creative" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={creativeSrc(cr)} alt="Creative" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                     )}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -670,7 +701,10 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
           {/* Caption editor */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 6 }}>
-              Caption
+              Caption{' '}
+              <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+                (used for any channel you do not customise below)
+              </span>
             </label>
             <textarea
               className="app-textarea"
@@ -685,6 +719,56 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
               {caption.length} characters
             </div>
           </div>
+
+          {/* Per-channel copy — Instagram wants hashtags, Facebook wants prose */}
+          {channels.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-fg-3)', marginBottom: 6 }}>
+                Per-Channel Copy{' '}
+                <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+                  (leave blank to publish the caption above)
+                </span>
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {channels.map((channel) => {
+                  const value = channelCaptions[channel] ?? '';
+                  const isInstagram = channel === 'instagram';
+                  return (
+                    <div
+                      key={channel}
+                      style={{
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: 10,
+                        background: 'var(--color-bg)',
+                      }}
+                    >
+                      <div style={{
+                        fontSize: 12, fontWeight: 700, marginBottom: 6,
+                        color: isInstagram ? '#A8276E' : '#0866FF',
+                      }}>
+                        {isInstagram ? 'Instagram' : 'Facebook'}
+                      </div>
+                      <textarea
+                        className="app-textarea"
+                        placeholder={isInstagram
+                          ? 'Punchy copy ending with 3-5 hashtags…'
+                          : 'Longer, conversational copy…'}
+                        value={value}
+                        onChange={(e) => setChannelCaptions((prev) => ({ ...prev, [channel]: e.target.value }))}
+                        disabled={isLoading}
+                        rows={3}
+                        style={{ minHeight: 76, fontSize: 12 }}
+                      />
+                      <div style={{ fontSize: 10, color: 'var(--color-fg-3)', marginTop: 3, textAlign: 'right' }}>
+                        {value.trim() ? `${value.length} characters` : 'Using the shared caption'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Preview */}
           {caption.trim() && (
@@ -1035,7 +1119,7 @@ export default function ContentPageClient({
                             {post.postCreatives && post.postCreatives.length > 0 ? (
                               <div style={{ position: 'relative', width: 40, height: 40, borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={post.postCreatives[0].creative?.generatedImageData} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img src={creativeSrc(post.postCreatives[0].creative)} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 {post.postCreatives.length > 1 && (
                                   <div style={{ position: 'absolute', bottom: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 9, padding: '1px 3px', borderTopLeftRadius: 3 }}>
                                     +{post.postCreatives.length - 1}
@@ -1163,7 +1247,7 @@ export default function ContentPageClient({
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={c.generatedImageData}
+                      src={creativeSrc(c)}
                       alt={`Creative for ${c.brand}`}
                       style={{ display: 'block', width: '100%', aspectRatio: '4/3', objectFit: 'cover' }}
                     />

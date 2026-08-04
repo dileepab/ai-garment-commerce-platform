@@ -84,6 +84,7 @@ interface ExistingVariant {
 interface ExistingColorImage {
   id: number;
   color: string;
+  angle?: string | null;
   imageUrl: string;
 }
 
@@ -241,15 +242,28 @@ function optionalNumberFromInput(value: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function colorImageKey(color: string): string {
-  return color.trim().toLowerCase();
+// A colour carries one photo per angle. Creative generation uses the angle
+// matching the view being produced, so a back shot stops the back being invented.
+const PRODUCT_IMAGE_ANGLES: { id: string; label: string }[] = [
+  { id: 'front', label: 'Front' },
+  { id: 'side', label: 'Side' },
+  { id: 'back', label: 'Back' },
+  { id: 'closeup', label: 'Detail' },
+];
+
+function colorImageKey(color: string, angle = 'front'): string {
+  return `${color.trim().toLowerCase()}::${angle}`;
+}
+
+function colorFromImageKey(key: string): string {
+  return key.split('::')[0];
 }
 
 function colorImagesFromProduct(product?: ProductForEdit | null): Record<string, string> {
   const images: Record<string, string> = {};
   for (const image of product?.colorImages ?? []) {
-    const key = colorImageKey(image.color);
-    if (key && image.imageUrl) images[key] = image.imageUrl;
+    const key = colorImageKey(image.color, image.angle ?? 'front');
+    if (image.color.trim() && image.imageUrl) images[key] = image.imageUrl;
   }
   return images;
 }
@@ -352,32 +366,32 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
     set('variants', variants.map((v) => (v._key === key ? { ...v, [field]: value } : v)));
   }
 
-  function setColorImage(color: string, imageUrl: string) {
-    const key = colorImageKey(color);
+  function setColorImage(color: string, angle: string, imageUrl: string) {
+    const key = colorImageKey(color, angle);
     set('colorImages', {
       ...colorImages,
       [key]: imageUrl,
     });
   }
 
-  function removeColorImage(color: string) {
-    const key = colorImageKey(color);
+  function removeColorImage(color: string, angle: string) {
+    const key = colorImageKey(color, angle);
     const next = { ...colorImages };
     delete next[key];
     set('colorImages', next);
   }
 
-  async function handleColorImagePick(color: string, file?: File | null) {
+  async function handleColorImagePick(color: string, angle: string, file?: File | null) {
     if (!file) return;
     setUploadError(null);
-    setUploadingColor(color);
+    setUploadingColor(colorImageKey(color, angle));
     try {
       const resized = await resizeImageFile(file, { maxEdge: 2048, quality: 0.85 });
       const formData = new FormData();
       formData.append('file', resized);
       const res = await uploadProductImage(formData);
       if (res.success && res.url) {
-        setColorImage(color, res.url);
+        setColorImage(color, angle, res.url);
       } else {
         setUploadError(res.error ?? 'Upload failed.');
       }
@@ -412,7 +426,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
     setSelectedColors(cleanColors);
     set('colorImages', Object.fromEntries(
       Object.entries(colorImages).filter(([key]) =>
-        cleanColors.some((color) => colorImageKey(color) === key),
+        cleanColors.some((color) => colorImageKey(color) === colorImageKey(colorFromImageKey(key))),
       ),
     ));
     set('variants', nextVariants);
@@ -501,10 +515,13 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
       referenceModelHeightCm: optionalNumberFromInput(referenceModelHeightCm),
       wornLengthNote: wornLengthNote.trim() || null,
       aiFidelityNotes: aiFidelityNotes.trim() || null,
-      colorImages: selectedColors.map((color) => ({
-        color,
-        imageUrl: colorImages[colorImageKey(color)] || null,
-      })),
+      colorImages: selectedColors.flatMap((color) =>
+        PRODUCT_IMAGE_ANGLES.map((angle) => ({
+          color,
+          angle: angle.id,
+          imageUrl: colorImages[colorImageKey(color, angle.id)] || null,
+        })),
+      ),
       variants: variants.map((v) => ({
         id: v.id,
         size: v.size.trim(),
@@ -1000,59 +1017,78 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
 
               {selectedColors.length > 0 && (
                 <div>
-                  <label style={lbl}>Colour Images</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
-                    {selectedColors.map((color) => {
-                      const imageUrlForColor = colorImages[colorImageKey(color)] ?? '';
-                      const inputId = `color-image-${colorImageKey(color).replace(/[^a-z0-9]+/g, '-') || color}`;
-                      const isColorUploading = uploadingColor === color;
-                      return (
-                        <div key={color} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 10, background: 'var(--color-bg)' }}>
-                          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                            <div style={{ width: 48, height: 58, borderRadius: 6, overflow: 'hidden', background: '#F2EFE9', border: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              {imageUrlForColor ? (
-                                <img src={imageUrlForColor} alt={`${color} product`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : (
-                                <span style={{ fontSize: 10, color: 'var(--color-fg-3)' }}>No image</span>
-                              )}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)', marginBottom: 6 }}>{color}</div>
-                              <input
-                                id={inputId}
-                                type="file"
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  e.target.value = '';
-                                  void handleColorImagePick(color, file);
-                                }}
-                                disabled={isPending || Boolean(uploadingColor)}
-                              />
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                                <label htmlFor={inputId} className="btn btn-secondary" style={{ fontSize: 10, padding: '4px 8px', height: 24, cursor: isPending || uploadingColor ? 'not-allowed' : 'pointer' }}>
-                                  {isColorUploading ? 'Uploading…' : imageUrlForColor ? 'Replace' : 'Upload'}
-                                </label>
-                                {imageUrlForColor && (
-                                  <button type="button" className="btn btn-secondary" style={{ fontSize: 10, padding: '4px 8px', height: 24 }} onClick={() => removeColorImage(color)} disabled={isPending || Boolean(uploadingColor)}>
-                                    Remove
-                                  </button>
-                                )}
+                  <label style={lbl}>
+                    Colour Images{' '}
+                    <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10, color: 'var(--color-fg-3)' }}>
+                      (one per angle — AI generation invents any angle you leave empty)
+                    </span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+                    {selectedColors.map((color) => (
+                      <div key={color} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 10, background: 'var(--color-bg)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)', marginBottom: 8 }}>{color}</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                          {PRODUCT_IMAGE_ANGLES.map((angle) => {
+                            const key = colorImageKey(color, angle.id);
+                            const imageUrlForAngle = colorImages[key] ?? '';
+                            const inputId = `color-image-${key.replace(/[^a-z0-9]+/g, '-')}`;
+                            const isAngleUploading = uploadingColor === key;
+                            return (
+                              <div key={angle.id}>
+                                <div style={{ width: '100%', aspectRatio: '4/5', borderRadius: 6, overflow: 'hidden', background: '#F2EFE9', border: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                  {imageUrlForAngle ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={imageUrlForAngle} alt={`${color} ${angle.label}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <label
+                                      htmlFor={isPending || uploadingColor ? undefined : inputId}
+                                      style={{ fontSize: 16, color: 'var(--color-fg-3)', cursor: isPending || uploadingColor ? 'not-allowed' : 'pointer' }}
+                                    >
+                                      {isAngleUploading ? '…' : '+'}
+                                    </label>
+                                  )}
+                                </div>
+                                <input
+                                  id={inputId}
+                                  type="file"
+                                  accept="image/*"
+                                  style={{ display: 'none' }}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = '';
+                                    void handleColorImagePick(color, angle.id, file);
+                                  }}
+                                  disabled={isPending || Boolean(uploadingColor)}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: imageUrlForAngle ? 'var(--color-fg-1)' : 'var(--color-fg-3)' }}>
+                                    {angle.label}
+                                  </span>
+                                  {imageUrlForAngle ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeColorImage(color, angle.id)}
+                                      disabled={isPending || Boolean(uploadingColor)}
+                                      aria-label={`Remove ${color} ${angle.label} image`}
+                                      style={{ border: 0, background: 'transparent', color: 'var(--color-fg-3)', fontSize: 12, lineHeight: 1, padding: 0, cursor: isPending || uploadingColor ? 'not-allowed' : 'pointer' }}
+                                    >
+                                      ×
+                                    </button>
+                                  ) : (
+                                    <label
+                                      htmlFor={isPending || uploadingColor ? undefined : inputId}
+                                      style={{ fontSize: 9, color: 'var(--color-fg-3)', textDecoration: 'underline', cursor: isPending || uploadingColor ? 'not-allowed' : 'pointer' }}
+                                    >
+                                      Add
+                                    </label>
+                                  )}
+                                </div>
                               </div>
-                              <input
-                                style={{ ...inpSm, fontSize: 10 }}
-                                value={imageUrlForColor}
-                                onChange={(e) => setColorImage(color, e.target.value)}
-                                placeholder="Image URL"
-                                disabled={isPending || Boolean(uploadingColor)}
-                                aria-label={`${color} image URL`}
-                              />
-                            </div>
-                          </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

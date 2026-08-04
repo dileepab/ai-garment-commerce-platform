@@ -1,3 +1,5 @@
+import { creativeImagePath, CATALOG_TTL_SECONDS } from './creative-image-token.ts';
+
 export const META_CATALOG_FEED_COLUMNS = [
   'id',
   'title',
@@ -72,7 +74,7 @@ export type MetaCatalogFeedProduct = {
     inventory?: { availableQty: number } | null;
   }>;
   colorImages?: Array<{ color?: string | null; imageUrl: string }>;
-  creatives?: Array<{ id: number; status?: string | null }>;
+  creatives?: Array<{ id: number; status?: string | null; imageUrl?: string | null }>;
 };
 
 export type MetaCatalogFeedRow = Record<(typeof META_CATALOG_FEED_COLUMNS)[number], string>;
@@ -233,8 +235,14 @@ export function selectCatalogImageUrl(
   const savedCreative = (product.creatives ?? []).find(
     (creative) => !creative.status || creative.status.trim().toLowerCase() === 'saved',
   );
-  if (savedCreative && isPublicHttpsUrl(origin)) {
-    return `${origin}/api/content/creatives/${savedCreative.id}/image`;
+  if (savedCreative) {
+    // Blob-backed creatives are already on a public CDN.
+    if (isPublicHttpsUrl(savedCreative.imageUrl)) return savedCreative.imageUrl!.trim();
+    // Older rows serve from the app route, which Meta crawls without a session,
+    // so the link carries its own signature.
+    if (isPublicHttpsUrl(origin)) {
+      return `${origin}${creativeImagePath(savedCreative.id, CATALOG_TTL_SECONDS)}`;
+    }
   }
 
   return null;

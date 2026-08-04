@@ -27,7 +27,7 @@ export default async function ProductsPage({
           orderBy: [{ size: 'asc' }, { color: 'asc' }],
         },
         colorImages: {
-          orderBy: { color: 'asc' },
+          orderBy: [{ color: 'asc' }, { angle: 'asc' }],
         },
       },
     }),
