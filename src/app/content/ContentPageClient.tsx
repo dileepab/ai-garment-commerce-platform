@@ -12,6 +12,7 @@ import CreativeStudioModal from './CreativeStudioModal';
 import CreatePostWizardModal from './CreatePostWizardModal';
 import PublishHistoryModal, { type PublishLogEntry } from './PublishHistoryModal';
 import CreativeDetailModal from './CreativeDetailModal';
+import ImageLightbox, { ZoomButton } from './ImageLightbox';
 import { PERSONAS_BY_BRAND } from '@/lib/persona-data';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -268,6 +269,7 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
       : []
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [zoomed, setZoomed] = useState<{ src: string; caption: string } | null>(null);
 
   const [isGenerating, startGenerating] = useTransition();
   const [isSaving, startSaving] = useTransition();
@@ -293,21 +295,20 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
     }
     setFormError(null);
 
-    // Gather the first attached creative's image for vision-aware caption generation
-    let imageBase64: string | undefined;
-    if (postCreatives.length > 0 && postCreatives[0].creativeId > 0) {
-      const cr = availableCreatives.find(c => c.id === postCreatives[0].creativeId);
-      if (creativeSrc(cr)) {
-        imageBase64 = creativeSrc(cr);
-      }
-    }
+    // Every attached creative, so copy for a multi-colour carousel describes the
+    // whole set rather than just the first image.
+    const images = postCreatives
+      .filter((pc) => pc.creativeId > 0)
+      .map((pc) => creativeSrc(availableCreatives.find((c) => c.id === pc.creativeId)))
+      .filter(Boolean);
 
     startGenerating(async () => {
       const result = await generatePostCaptions({
         brand: brand.trim(),
         channels,
         productContext: productContext.trim() || undefined,
-        imageBase64,
+        images,
+        imageBase64: images[0],
       });
       if (result.success && result.captions) {
         setGeneratedCaptions(result.captions);
@@ -562,9 +563,10 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
                 return (
                   <div key={index} style={{ display: 'flex', gap: 10, background: 'var(--color-bg)', padding: 10, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
                     {cr && (
-                      <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--color-surface-muted)' }}>
+                      <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--color-surface-muted)', position: 'relative' }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={creativeSrc(cr)} alt="Creative" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <ZoomButton size={18} onClick={() => setZoomed({ src: creativeSrc(cr), caption: 'Attached creative' })} />
                       </div>
                     )}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -839,6 +841,10 @@ function PostFormModal({ post, availableBrands, availableCreatives, onClose, onS
           </button>
         </div>
       </div>
+
+      {zoomed && (
+        <ImageLightbox src={zoomed.src} alt={zoomed.caption} caption={zoomed.caption} onClose={() => setZoomed(null)} />
+      )}
     </>
   );
 }
@@ -880,6 +886,7 @@ export default function ContentPageClient({
   const [showWizard, setShowWizard] = useState(false);
   const [historyPost, setHistoryPost] = useState<PostRecord | null>(null);
   const [viewingCreative, setViewingCreative] = useState<CreativeRecord | null>(null);
+  const [zoomed, setZoomed] = useState<{ src: string; caption: string } | null>(null);
 
   const totalPublished = useMemo(
     () => initialPosts.filter((p) => p.publishStatus === 'published' || p.publishStatus === 'partial').length,
@@ -1120,6 +1127,7 @@ export default function ContentPageClient({
                               <div style={{ position: 'relative', width: 40, height: 40, borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--color-surface-muted)', border: '1px solid var(--color-border)' }}>
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={creativeSrc(post.postCreatives[0].creative)} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <ZoomButton size={20} onClick={() => setZoomed({ src: creativeSrc(post.postCreatives[0].creative), caption: post.brand })} />
                                 {post.postCreatives.length > 1 && (
                                   <div style={{ position: 'absolute', bottom: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 9, padding: '1px 3px', borderTopLeftRadius: 3 }}>
                                     +{post.postCreatives.length - 1}
@@ -1251,6 +1259,10 @@ export default function ContentPageClient({
                       alt={`Creative for ${c.brand}`}
                       style={{ display: 'block', width: '100%', aspectRatio: '4/3', objectFit: 'cover' }}
                     />
+                    <ZoomButton onClick={() => setZoomed({
+                      src: creativeSrc(c),
+                      caption: `${c.brand}${c.personaStyle ? ` · ${c.personaStyle}` : ''}`,
+                    })} />
                     {/* Hover overlay hint */}
                     <div style={{
                       position: 'absolute', inset: 0,
@@ -1367,6 +1379,10 @@ export default function ContentPageClient({
             router.refresh();
           }}
         />
+      )}
+
+      {zoomed && (
+        <ImageLightbox src={zoomed.src} alt={zoomed.caption} caption={zoomed.caption} onClose={() => setZoomed(null)} />
       )}
     </main>
   );

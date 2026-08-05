@@ -4,6 +4,7 @@ import React, { useId, useState } from 'react';
 import type { ViewAngle } from '@/lib/creative-generator';
 import { resizeImageFile } from '@/lib/image-resize';
 import { uploadCreativeReference, type ReferenceImageInput } from './actions';
+import ImageLightbox from './ImageLightbox';
 
 export const REFERENCE_ANGLES: { id: ViewAngle; label: string; hint: string }[] = [
   { id: 'front', label: 'Front', hint: 'Required — the main garment photo.' },
@@ -58,6 +59,7 @@ export default function ReferenceImagePicker({
   const inputIdBase = useId();
   const [uploadingAngle, setUploadingAngle] = useState<ViewAngle | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [zoomed, setZoomed] = useState<{ src: string; caption: string } | null>(null);
 
   async function handleFilePick(angle: ViewAngle, event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -125,6 +127,24 @@ export default function ReferenceImagePicker({
                       alt={`${angle.label} reference`}
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setZoomed({ src: url, caption: `${angle.label} reference` }); }}
+                      aria-label={`View ${angle.label} reference larger`}
+                      title="View larger"
+                      style={{
+                        position: 'absolute', bottom: 4, right: 4,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 22, height: 22, borderRadius: 5, padding: 0,
+                        border: 'none', background: 'rgba(0,0,0,0.55)', color: 'white',
+                        cursor: 'zoom-in',
+                      }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+                      </svg>
+                    </button>
                     {!isLocked && (
                       <button
                         type="button"
@@ -218,6 +238,10 @@ export default function ReferenceImagePicker({
           and hems come from. Upload the matching {missing.length > 1 ? 'photos' : 'photo'} for
           an exact match.
         </div>
+      )}
+
+      {zoomed && (
+        <ImageLightbox src={zoomed.src} alt={zoomed.caption} caption={zoomed.caption} onClose={() => setZoomed(null)} />
       )}
     </div>
   );

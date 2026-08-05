@@ -26,6 +26,9 @@ const STYLE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'a_line_skirt', label: 'A-Line Skirt' },
   { value: 'mermaid_skirt', label: 'Mermaid Skirt' },
   { value: 'mini_skirt', label: 'Mini Skirt' },
+  // Skirt front, shorts back — distinct enough from a skirt that generation
+  // and size guidance both need to know which one they are dealing with.
+  { value: 'skort', label: 'Skort' },
   { value: 'linen_pants', label: 'Linen Pants' },
   { value: 'tailored_pants', label: 'Tailored Pants' },
   { value: 'palazzo_pants', label: 'Palazzo Pants' },
@@ -38,6 +41,7 @@ const STYLE_OPTIONS: Array<{ value: string; label: string }> = [
 const FABRIC_OPTIONS = [
   'Cotton',
   'Ribbed Cotton',
+  'Cheesecloth',
   'Linen',
   'Linen Blend',
   'Silk',
@@ -118,6 +122,9 @@ interface ProductForEdit {
 
 export interface ProductFormModalProps {
   product?: ProductForEdit | null;
+  // Prefill from an existing product but save as a new one. Used for colourways
+  // and fabric variations that share every other spec, so nothing is retyped.
+  duplicateFrom?: ProductForEdit | null;
   availableBrands: string[];
   onClose: () => void;
   onSuccess: () => void;
@@ -299,19 +306,34 @@ function buildInitialState(product?: ProductForEdit | null): FormState {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ProductFormModal({ product, availableBrands, onClose, onSuccess }: ProductFormModalProps) {
+export function ProductFormModal({ product, duplicateFrom, availableBrands, onClose, onSuccess }: ProductFormModalProps) {
   const isEdit = !!product;
+  // A duplicate seeds every field from the source but saves through createProduct,
+  // so the original is never touched.
+  const source = product ?? duplicateFrom ?? null;
   const [isPending, startTransition] = useTransition();
-  const [form, setForm] = useState<FormState>(() => buildInitialState(product));
+  const [form, setForm] = useState<FormState>(() => {
+    const initial = buildInitialState(source);
+    if (!product && duplicateFrom) {
+      return {
+        ...initial,
+        name: `${initial.name} (Copy)`,
+        // Variant ids belong to the source rows; keeping them would make the
+        // new product try to adopt another product's variants.
+        variants: initial.variants.map((v) => ({ ...v, id: undefined, sku: '' })),
+      };
+    }
+    return initial;
+  });
   const [imgError, setImgError] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingColor, setUploadingColor] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedSizes, setSelectedSizes] = useState<string[]>(() =>
-    sortSizes(uniqueValues(product?.variants?.map((variant) => variant.size) ?? [])),
+    sortSizes(uniqueValues(source?.variants?.map((variant) => variant.size) ?? [])),
   );
   const [selectedColors, setSelectedColors] = useState<string[]>(() =>
-    uniqueValues(product?.variants?.map((variant) => variant.color) ?? []),
+    uniqueValues(source?.variants?.map((variant) => variant.color) ?? []),
   );
   const [sizeDraft, setSizeDraft] = useState('');
   const [colorDraft, setColorDraft] = useState('');
@@ -560,7 +582,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={isEdit ? 'Edit Product' : 'Add Product'}
+        aria-label={isEdit ? 'Edit Product' : duplicateFrom ? 'Duplicate Product' : 'Add Product'}
         style={{
           position: 'fixed',
           top: '50%',
@@ -581,7 +603,7 @@ export function ProductFormModal({ product, availableBrands, onClose, onSuccess 
         <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 400, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-              {isEdit ? 'Edit Product' : 'Add Product'}
+              {isEdit ? 'Edit Product' : duplicateFrom ? 'Duplicate Product' : 'Add Product'}
             </div>
             {isEdit && product && (
               <code style={{ fontSize: 11, color: 'var(--color-fg-3)', fontFamily: 'var(--font-mono)' }}>

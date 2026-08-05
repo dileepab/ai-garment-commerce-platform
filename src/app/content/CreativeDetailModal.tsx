@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND } from '@/lib/persona-data';
 import { deleteGeneratedCreative } from './actions';
 import { creativeSrc, type CreativeRecord } from './ContentPageClient';
+import ImageLightbox, { ZoomButton } from './ImageLightbox';
 
 interface Props {
   creative: CreativeRecord;
@@ -56,6 +57,7 @@ function getPersonaLabel(brand: string, id: string | null) {
 export default function CreativeDetailModal({ creative, canWrite, onClose, onDeleted }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [zoomed, setZoomed] = useState(false);
   const [isDeleting, startDelete] = useTransition();
 
   function handleDelete() {
@@ -141,6 +143,7 @@ export default function CreativeDetailModal({ creative, canWrite, onClose, onDel
             background: '#111',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             minHeight: 300,
+            position: 'relative',
           }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -148,6 +151,7 @@ export default function CreativeDetailModal({ creative, canWrite, onClose, onDel
               alt={`Creative for ${creative.brand}`}
               style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', maxHeight: '80vh' }}
             />
+            <ZoomButton onClick={() => setZoomed(true)} />
           </div>
 
           {/* Metadata + actions panel */}
@@ -308,6 +312,15 @@ export default function CreativeDetailModal({ creative, canWrite, onClose, onDel
           </div>
         </div>
       </div>
+
+      {zoomed && (
+        <ImageLightbox
+          src={creativeSrc(creative)}
+          alt={`Creative for ${creative.brand}`}
+          caption={`${creative.brand}${creative.personaStyle ? ` · ${creative.personaStyle}` : ''}`}
+          onClose={() => setZoomed(false)}
+        />
+      )}
     </>
   );
 }

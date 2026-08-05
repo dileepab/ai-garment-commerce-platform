@@ -14,6 +14,23 @@ export interface CaptionGenerationInput {
   // Either a base64 data URL or an http(s) URL of the campaign image.
   // Creatives stored in blob storage arrive as the latter.
   imageBase64?: string;
+  // Every image in the post. A multi-colour carousel needs all of them, or the
+  // model writes copy about whichever single image it was shown.
+  images?: string[];
+}
+
+// Sending every frame of a large carousel costs tokens without adding much, so
+// cap it at the point where the model has seen the range.
+const MAX_CAPTION_IMAGES = 4;
+
+// Resolves every supplied image, de-duplicated and capped.
+async function buildImageParts(input: CaptionGenerationInput): Promise<CaptionContentPart[]> {
+  const sources = [...new Set([...(input.images ?? []), input.imageBase64]
+    .map(s => s?.trim())
+    .filter((s): s is string => Boolean(s)))].slice(0, MAX_CAPTION_IMAGES);
+
+  const parts = await Promise.all(sources.map(src => buildImagePart(src)));
+  return parts.filter((p): p is CaptionContentPart => p !== null);
 }
 
 // Captions are written from what the image actually shows, so a blob-hosted
@@ -169,17 +186,15 @@ export async function generateCaptions(input: CaptionGenerationInput): Promise<s
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const imagePart = await buildImagePart(input.imageBase64);
-  const hasImage = imagePart !== null;
+  const imageParts = await buildImageParts(input);
+  const hasImage = imageParts.length > 0;
   const systemInstruction = buildSystemPrompt(input.brand, input.channels, hasImage);
   const userText = buildUserPrompt(input);
 
-  // Build multimodal content parts when an image is available
-  const contentParts: CaptionContentPart[] = [];
-
-  if (imagePart) {
-    contentParts.push(imagePart);
-    logDebug('CaptionGen', 'Attached campaign image for vision-aware caption generation.');
+  // Build multimodal content parts when images are available
+  const contentParts: CaptionContentPart[] = [...imageParts];
+  if (hasImage) {
+    logDebug('CaptionGen', `Attached ${imageParts.length} campaign image(s) for vision-aware caption generation.`);
   }
 
   contentParts.push({ text: userText });
@@ -262,14 +277,13 @@ export async function generateCaptionsByChannel(
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const imagePart = await buildImagePart(input.imageBase64);
-  const hasImage = imagePart !== null;
+  const imageParts = await buildImageParts(input);
+  const hasImage = imageParts.length > 0;
   const systemInstruction = buildPerChannelSystemPrompt(input.brand, channels, hasImage);
 
-  const contentParts: CaptionContentPart[] = [];
-  if (imagePart) {
-    contentParts.push(imagePart);
-    logDebug('CaptionGen', 'Attached campaign image for vision-aware per-channel captions.');
+  const contentParts: CaptionContentPart[] = [...imageParts];
+  if (hasImage) {
+    logDebug('CaptionGen', `Attached ${imageParts.length} campaign image(s) for vision-aware per-channel captions.`);
   }
   contentParts.push({
     text: `${buildUserPrompt(input)}\n\nChannels to write for: ${channels.map(channelLabel).join(', ')}.`,
