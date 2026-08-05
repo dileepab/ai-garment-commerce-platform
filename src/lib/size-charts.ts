@@ -150,7 +150,9 @@ export function getSizeChartCategoryFromStyle(style?: string | null): SizeChartC
     return 'pants';
   }
 
-  if (normalizedStyle.includes('skirt')) {
+  // "skort" does not contain "skirt", so it needs naming explicitly. Sizing
+  // follows the skirt chart because both are fitted at the waist and hip.
+  if (normalizedStyle.includes('skirt') || normalizedStyle.includes('skort')) {
     return 'skirts';
   }
 
@@ -191,7 +193,7 @@ export function getSizeChartCategoryFromText(message: string): SizeChartCategory
     return 'pants';
   }
 
-  if (normalizedMessage.includes('skirt')) {
+  if (normalizedMessage.includes('skirt') || normalizedMessage.includes('skort')) {
     return 'skirts';
   }
 

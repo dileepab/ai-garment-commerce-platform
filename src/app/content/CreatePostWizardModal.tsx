@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
 import type { CreativeAspectRatio, CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
+import ImageLightbox from './ImageLightbox';
 import ReferenceImagePicker, {
   hasAnyReference,
   inferredAngles,
@@ -501,6 +502,9 @@ export default function CreatePostWizardModal({
         brand: brand.trim(),
         channels,
         productContext: productContext.trim() || undefined,
+        // Every selected creative, so a multi-colour carousel gets copy that
+        // covers the whole range rather than only the first image.
+        images: generatedImageDataList,
         imageBase64: generatedImageData ?? undefined,
       });
 
@@ -1597,7 +1601,33 @@ interface Step2Props {
   onRegenerateDraft: (creativeId: number) => void;
 }
 
+// Small overlay control. Stops propagation so opening the preview does not also
+// toggle the tile's selection.
+function ZoomButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="View larger"
+      title="View larger"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        position: 'absolute', top: 6, right: 6,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 26, height: 26, borderRadius: 6,
+        border: 'none', background: 'rgba(0,0,0,0.55)', color: 'white',
+        cursor: 'zoom-in', padding: 0,
+      }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+      </svg>
+    </button>
+  );
+}
+
 function Step2Generate(props: Step2Props) {
+  const [zoomed, setZoomed] = useState<{ src: string; caption: string } | null>(null);
   const plannedCount = Math.max(1, props.plannedGenerationCount);
   const angleLabel = props.sourceImageCount > 1
     ? 'custom per colour'
@@ -1730,12 +1760,15 @@ function Step2Generate(props: Step2Props) {
                 borderRadius: 'var(--radius-md)',
                 overflow: 'hidden',
               }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={props.primaryReferenceUrl}
-                  alt="Source product reference"
-                  style={{ display: 'block', width: '100%', height: 320, objectFit: 'contain', background: 'white' }}
-                />
+                <div style={{ position: 'relative' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={props.primaryReferenceUrl}
+                    alt="Source product reference"
+                    style={{ display: 'block', width: '100%', height: 320, objectFit: 'contain', background: 'white' }}
+                  />
+                  <ZoomButton onClick={() => setZoomed({ src: props.primaryReferenceUrl, caption: 'Source product' })} />
+                </div>
                 <div style={{
                   padding: '6px 10px',
                   fontSize: 11,
@@ -1749,6 +1782,7 @@ function Step2Generate(props: Step2Props) {
             )}
             {props.drafts.map(d => {
               const selected = props.selectedDraftIds.includes(d.creativeId);
+              const tileLabel = `${d.sourceColor ? `${d.sourceColor} · ` : ''}${d.viewAngle ?? 'front'}`;
               return (
                 <div
                   key={d.creativeId}
@@ -1761,12 +1795,15 @@ function Step2Generate(props: Step2Props) {
                     cursor: props.isGenerating || props.isRegeneratingDraft ? 'default' : 'pointer',
                   }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={d.imageData}
-                    alt={`Generated ${d.viewAngle ?? 'creative'}`}
-                    style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={d.imageData}
+                      alt={`Generated ${d.viewAngle ?? 'creative'}`}
+                      style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
+                    />
+                    <ZoomButton onClick={() => setZoomed({ src: d.imageData, caption: tileLabel })} />
+                  </div>
                   <div style={{
                     padding: '6px 10px',
                     fontSize: 11, fontWeight: 600,
@@ -1878,6 +1915,15 @@ function Step2Generate(props: Step2Props) {
             </details>
           )}
         </>
+      )}
+
+      {zoomed && (
+        <ImageLightbox
+          src={zoomed.src}
+          alt={zoomed.caption}
+          caption={zoomed.caption}
+          onClose={() => setZoomed(null)}
+        />
       )}
     </>
   );

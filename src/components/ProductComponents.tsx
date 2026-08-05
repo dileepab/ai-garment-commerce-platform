@@ -16,6 +16,7 @@ const ic = {
   x: ["M18 6L6 18", "M6 6l12 12"],
   edit: ["M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7", "M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"],
   refresh: ["M23 4v6h-6", "M1 20v-6h6", "M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"],
+  copy: ["M20 9H11a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-9a2 2 0 00-2-2z", "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"],
 };
 
 export interface ProductVariantData {
@@ -172,11 +173,13 @@ export function ProductDrawer({
   product,
   onClose,
   onEdit,
+  onDuplicate,
   canManage = true,
 }: {
   product: Product | null;
   onClose: () => void;
   onEdit?: () => void;
+  onDuplicate?: () => void;
   canManage?: boolean;
 }) {
   const open = !!product;
@@ -478,6 +481,16 @@ export function ProductDrawer({
                   <button className="btn btn-primary" style={{ justifyContent: "center" }} onClick={onEdit}>
                     <Icon d={ic.edit} size={13} />Edit Product
                   </button>
+                  {onDuplicate && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ justifyContent: "center" }}
+                      onClick={onDuplicate}
+                      title="Create a new product prefilled from this one"
+                    >
+                      <Icon d={ic.copy} size={13} />Duplicate
+                    </button>
+                  )}
                   {suggestedProductionQty > 0 ? (
                     <button
                       className="btn btn-secondary"

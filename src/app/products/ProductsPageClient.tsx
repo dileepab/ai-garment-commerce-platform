@@ -119,6 +119,7 @@ export default function ProductsPageClient({
 
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductWithVariants | null>(null);
+  const [duplicateSource, setDuplicateSource] = useState<ProductWithVariants | null>(null);
 
   const filteredProducts = useMemo(() => initialProducts.filter(p => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
@@ -136,11 +137,22 @@ export default function ProductsPageClient({
 
   function openAddForm() {
     setEditingProduct(null);
+    setDuplicateSource(null);
     setShowForm(true);
   }
 
   function openEditForm(product: ProductWithVariants) {
     setEditingProduct(product);
+    setDuplicateSource(null);
+    setSelectedProduct(null);
+    setShowForm(true);
+  }
+
+  // Opens the form prefilled from an existing product but in create mode, so a
+  // colourway or fabric variation does not need every spec retyped.
+  function openDuplicateForm(product: ProductWithVariants) {
+    setEditingProduct(null);
+    setDuplicateSource(product);
     setSelectedProduct(null);
     setShowForm(true);
   }
@@ -148,12 +160,14 @@ export default function ProductsPageClient({
   function handleFormSuccess() {
     setShowForm(false);
     setEditingProduct(null);
+    setDuplicateSource(null);
     router.refresh();
   }
 
   function handleFormClose() {
     setShowForm(false);
     setEditingProduct(null);
+    setDuplicateSource(null);
   }
 
   return (
@@ -287,11 +301,13 @@ export default function ProductsPageClient({
         onClose={() => setSelectedProduct(null)}
         canManage={canManageProducts}
         onEdit={canManageProducts && selectedProduct ? () => openEditForm(selectedProduct) : undefined}
+        onDuplicate={canManageProducts && selectedProduct ? () => openDuplicateForm(selectedProduct) : undefined}
       />
 
       {canManageProducts && showForm && (
         <ProductFormModal
           product={editingProduct}
+          duplicateFrom={duplicateSource}
           availableBrands={availableBrands}
           onClose={handleFormClose}
           onSuccess={handleFormSuccess}

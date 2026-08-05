@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
 import type { CreativeAspectRatio, CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
+import ImageLightbox from './ImageLightbox';
 import ReferenceImagePicker, {
   hasAnyReference,
   inferredAngles,
@@ -176,6 +177,7 @@ export default function CreativeStudioModal({
   const [correctionTextById, setCorrectionTextById] = useState<Record<number, string>>({});
   const [regeneratingDraftId, setRegeneratingDraftId] = useState<number | null>(null);
   const [existingCreatives, setExistingCreatives] = useState<ExistingCreative[]>([]);
+  const [zoomed, setZoomed] = useState<{ src: string; caption: string } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const [isGenerating, startGenerating] = useTransition();
@@ -998,12 +1000,31 @@ export default function CreativeStudioModal({
                     borderRadius: 'var(--radius-md)',
                     overflow: 'hidden',
                   }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={d.imageData}
-                      alt={`Generated ${d.viewAngle ?? 'creative'}`}
-                      style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
-                    />
+                    <div style={{ position: 'relative' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={d.imageData}
+                        alt={`Generated ${d.viewAngle ?? 'creative'}`}
+                        style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'contain' }}
+                      />
+                      <button
+                        type="button"
+                        aria-label="View larger"
+                        title="View larger"
+                        onClick={(e) => { e.stopPropagation(); setZoomed({ src: d.imageData, caption: `${d.sourceColor ? `${d.sourceColor} · ` : ''}${d.viewAngle ?? 'front'}` }); }}
+                        style={{
+                          position: 'absolute', top: 6, right: 6,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 26, height: 26, borderRadius: 6, padding: 0,
+                          border: 'none', background: 'rgba(0,0,0,0.55)', color: 'white', cursor: 'zoom-in',
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+                        </svg>
+                      </button>
+                    </div>
                     <div style={{
                       padding: '6px 10px',
                       fontSize: 11, fontWeight: 600,
@@ -1119,6 +1140,15 @@ export default function CreativeStudioModal({
           </button>
         </div>
       </div>
+
+      {zoomed && (
+        <ImageLightbox
+          src={zoomed.src}
+          alt={zoomed.caption}
+          caption={zoomed.caption}
+          onClose={() => setZoomed(null)}
+        />
+      )}
     </>
   );
 }
