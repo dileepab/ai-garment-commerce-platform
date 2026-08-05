@@ -246,14 +246,17 @@ model Analytics {
 }
 
 model ChatMessage {
-  id        Int      @id @default(autoincrement())
-  senderId  String // Meta sender ID or phone number
-  channel   String   @default("messenger") // messenger, instagram, whatsapp
-  brand     String?
-  role      String // "user" or "assistant"
-  message   String
-  createdAt DateTime @default(now())
+  id                Int      @id @default(autoincrement())
+  senderId          String // Provider sender, conversation, or public-thread ID
+  channel           String   @default("messenger") // messenger, instagram, whatsapp, tiktok_dm, tiktok_comment
+  brand             String?
+  role              String // "user" or "assistant"
+  message           String
+  externalMessageId String?
+  providerMetadata  String?
+  createdAt         DateTime @default(now())
 
+  @@unique([channel, externalMessageId])
   @@index([brand, channel, senderId, createdAt])
 }
 
@@ -391,7 +394,7 @@ model CommentReplyQueue {
 }
 
 model WebhookEventLog {
-  id              String    @id // Stable Meta message/comment/postback event ID
+  id              String    @id // Stable provider message/comment/postback event ID
   channel         String
   eventType       String
   senderId        String?
@@ -616,6 +619,100 @@ model TikTokConnection {
   updatedAt            DateTime  @updatedAt
 
   @@index([advertiserId])
+}
+
+// Organic TikTok Business Account authorization. This token is short-lived and
+// has different scopes/lifecycle from the Marketing API token above.
+model TikTokAccountConnection {
+  id                    Int       @id @default(autoincrement())
+  brand                 String    @unique
+  openId                String    @unique
+  displayName           String?
+  username              String?
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String
+  accessTokenExpiresAt  DateTime
+  refreshTokenExpiresAt DateTime
+  grantedScopes         String?
+  authorizedAt          DateTime  @default(now())
+  lastVerifiedAt        DateTime?
+  lastError             String?
+  dmAutoReplyEnabled    Boolean   @default(false)
+  refreshLeaseUntil     DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// Provider-specific delivery context for a Support Inbox thread. TikTok DM
+// threads use the conversation ID as senderId; comment threads use the root
+// comment ID, preventing one commenter across multiple videos from collapsing
+// into a single conversation.
+model TikTokInboxContext {
+  id             Int      @id @default(autoincrement())
+  brand          String
+  channel        String
+  senderId       String
+  businessOpenId String
+  conversationId String?
+  videoId        String?
+  commentId      String?
+  customerOpenId String?
+  customerName   String?
+  replyable      Boolean  @default(true)
+  lastInboundAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([brand, channel, senderId])
+  @@index([businessOpenId, channel])
+  @@index([conversationId])
+  @@index([commentId])
+}
+
+model TikTokWebhookJob {
+  id             String    @id
+  eventType      String
+  businessOpenId String?
+  payload        String?
+  status         String    @default("pending") // pending | processing | processed | failed
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  lockedAt       DateTime?
+  lastError      String?
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([businessOpenId, receivedAt])
+}
+
+model TikTokOutboundComment {
+  commentId       String    @id
+  brand           String
+  businessOpenId  String
+  videoId         String
+  parentCommentId String
+  matchedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([businessOpenId, videoId, createdAt])
+}
+
+model TikTokOutboundMessage {
+  id                Int       @id @default(autoincrement())
+  brand             String
+  businessOpenId    String
+  conversationId    String
+  providerMessageId String?   @unique
+  status            String    @default("reserved") // reserved | sent | failed
+  lastError         String?
+  reservedAt        DateTime  @default(now())
+  sentAt            DateTime?
+  updatedAt         DateTime  @updatedAt
+
+  @@index([conversationId, status, reservedAt])
+  @@index([businessOpenId, reservedAt])
 }
 
 model SocialPost {

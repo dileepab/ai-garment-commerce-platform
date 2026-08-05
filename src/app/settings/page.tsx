@@ -1216,7 +1216,7 @@ export default async function SettingsPage({
                   : '/settings/tiktok'
               }
             >
-              TikTok Ads
+              TikTok
             </Link>
             <Link className="btn btn-secondary" href="/settings/audit">Audit log</Link>
             <span className="app-chip app-chip-neutral">{describeScope(scope)}</span>

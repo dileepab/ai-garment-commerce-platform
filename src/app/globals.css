@@ -953,6 +953,11 @@ a {
   color: #fff;
 }
 
+.badge-tiktok {
+  background: #18181B;
+  color: #fff;
+}
+
 /* Tables */
 .data-table {
   width: 100%;

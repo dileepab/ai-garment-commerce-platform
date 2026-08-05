@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getSupportChannelColor, getSupportChannelLabel } from '@/lib/channel-display';
 import { PageHeader } from '@/components/PageHeader';
 import prisma from '@/lib/prisma';
 import { canScope } from '@/lib/access-control';
@@ -511,21 +512,10 @@ export default async function Dashboard({
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', padding: '2px 7px',
                           borderRadius: 9999, fontSize: 10, fontWeight: 700,
-                          background:
-                            e.channel === 'instagram'
-                              ? '#C13584'
-                              : e.channel === 'whatsapp'
-                                ? '#128C7E'
-                                : '#0866FF',
+                          background: getSupportChannelColor(e.channel),
                           color: '#fff',
                         }}>
-                          {e.channel === 'instagram'
-                            ? 'Instagram'
-                            : e.channel === 'whatsapp'
-                              ? 'WhatsApp'
-                              : e.channel === 'messenger'
-                                ? 'Messenger'
-                                : e.channel}
+                          {getSupportChannelLabel(e.channel)}
                         </span>
                       </div>
                       <div style={{ fontSize: 12, color: '#6A635A', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>

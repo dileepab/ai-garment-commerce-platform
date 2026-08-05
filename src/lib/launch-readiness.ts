@@ -6,7 +6,7 @@ export const CLEAN_LAUNCH_CONFIRMATION = 'DELETE TEST DATA';
 
 export const CLEAN_LAUNCH_PRESERVED = [
   'Merchant settings and delivery rules',
-  'Brand channel config and Meta tokens',
+  'Brand channel connections and provider tokens',
   'Courier webhook secret',
   'Bot training rules',
   'Admin audit log',
@@ -92,7 +92,7 @@ const BASE_RESET_TARGETS: ResetTarget[] = [
   },
   {
     key: 'webhook_events',
-    label: 'Meta webhook event logs',
+    label: 'Webhook event logs',
     group: 'conversation',
     count: () => prisma.webhookEventLog.count(),
     deleteMany: () => prisma.webhookEventLog.deleteMany(),
@@ -117,6 +117,13 @@ const BASE_RESET_TARGETS: ResetTarget[] = [
     group: 'conversation',
     count: () => prisma.chatMessage.count(),
     deleteMany: () => prisma.chatMessage.deleteMany(),
+  },
+  {
+    key: 'tiktok_inbox_contexts',
+    label: 'TikTok inbox contexts',
+    group: 'conversation',
+    count: () => prisma.tikTokInboxContext.count(),
+    deleteMany: () => prisma.tikTokInboxContext.deleteMany(),
   },
   {
     key: 'conversation_states',

@@ -14,6 +14,10 @@ import {
   takeOverConversationAction,
   updateEscalationWorkflowAction,
 } from '@/app/support/actions';
+import {
+  getSupportChannelColor,
+  getSupportChannelLabel,
+} from '@/lib/channel-display';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -32,8 +36,6 @@ const ic = {
   arrowLeft: ["M19 12H5", "M12 19l-7-7 7-7"],
 };
 
-const CHANNEL_COLORS: Record<string, string> = { messenger: "#0866FF", instagram: "#C13584", direct: "#6A635A", whatsapp: "#128C7E" };
-const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
 const STATUS_CLASS: Record<string, string> = {
   bot_active: "pill-resolved",
   escalated: "pill-escalated",
@@ -451,6 +453,8 @@ export function Thread({
   const canTake = canReply && escalationId !== null && !isResolved && convo.status !== "in_progress";
   const statusClass = STATUS_CLASS[convo.status || 'pending'] || "pill-pending";
   const statusLabel = STATUS_LABEL[convo.status || 'pending'] || "Pending Reply";
+  const channel = convo.channel || 'direct';
+  const channelColor = getSupportChannelColor(channel);
 
   return (
     <div className="thread-panel">
@@ -460,8 +464,8 @@ export function Thread({
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontWeight: 700, fontSize: 15 }}>{displayName}</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: "999px", background: CHANNEL_COLORS[convo.channel || 'direct'] + "20", color: CHANNEL_COLORS[convo.channel || 'direct'], fontSize: 10, fontWeight: 700 }}>
-                {CHANNEL_LABELS[convo.channel || 'direct']}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: "999px", background: `${channelColor}20`, color: channelColor, fontSize: 10, fontWeight: 700 }}>
+                {getSupportChannelLabel(channel)}
               </span>
               <span className={`pill ${statusClass}`}>{statusLabel}</span>
             </div>
