@@ -12,6 +12,7 @@ export interface WebhookEventClaimInput {
   senderId?: string | null;
   pageOrAccountId?: string | null;
   brand?: string | null;
+  retryFailed?: boolean;
 }
 
 export interface WebhookEventClaimResult {
@@ -53,6 +54,19 @@ export async function claimWebhookEvent(
     return { claimed: true, duplicate: false };
   } catch (error: unknown) {
     if (isUniqueConstraintError(error)) {
+      if (input.retryFailed && input.eventId) {
+        const retry = await prisma.webhookEventLog.updateMany({
+          where: { id: input.eventId, status: 'failed' },
+          data: {
+            status: 'processing',
+            error: null,
+            processedAt: null,
+          },
+        });
+        if (retry.count === 1) {
+          return { claimed: true, duplicate: false };
+        }
+      }
       logDebug('Webhook Event Log', `Duplicate event ${input.eventId} skipped.`);
       return { claimed: false, duplicate: true };
     }

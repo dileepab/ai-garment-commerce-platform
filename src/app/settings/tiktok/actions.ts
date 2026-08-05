@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { assertBrandAccess, requireActionPermission } from '@/lib/authz';
 import { logAdminAudit } from '@/lib/admin-audit';
@@ -11,6 +12,21 @@ import {
   TIKTOK_REVOCATION_PENDING_MESSAGE,
 } from '@/lib/tiktok-connection';
 import { decryptTikTokAccessToken } from '@/lib/tiktok-security';
+import {
+  configureTikTokAccountWebhook,
+  revokeTikTokAccountAccessToken,
+} from '@/lib/tiktok-account-api';
+import {
+  getTikTokAccountConfigStatus,
+  getTikTokAccountRuntimeConfig,
+  getTikTokWebhookCallbackUrl,
+} from '@/lib/tiktok-account-config';
+import {
+  hasTikTokDmPermissions,
+  parseTikTokAccountScopes,
+  resolveTikTokAccountConnection,
+  TIKTOK_ACCOUNT_REVOCATION_PENDING_MESSAGE,
+} from '@/lib/tiktok-account-connection';
 
 function readRequiredText(formData: FormData, key: string, label: string): string {
   const value = formData.get(key);
@@ -22,7 +38,7 @@ function readRequiredText(formData: FormData, key: string, label: string): strin
 async function requireTikTokBrandAccess(formData: FormData) {
   const scope = await requireActionPermission('settings:write');
   const brand = readRequiredText(formData, 'brand', 'Brand');
-  assertBrandAccess(scope, brand, 'TikTok Ads connection');
+  assertBrandAccess(scope, brand, 'TikTok connection');
   return { scope, brand };
 }
 
@@ -212,6 +228,170 @@ export async function forceDisconnectTikTokAction(formData: FormData): Promise<v
       advertiserId: existing?.advertiserId ?? null,
       remoteRevocationConfirmed: false,
     },
+  });
+  revalidatePath('/settings/tiktok');
+}
+
+export async function disconnectTikTokAccountAction(formData: FormData): Promise<void> {
+  const { scope, brand } = await requireTikTokBrandAccess(formData);
+  const existing = await prisma.tikTokAccountConnection.findUnique({ where: { brand } });
+  if (!existing) {
+    revalidatePath('/settings/tiktok');
+    return;
+  }
+
+  await prisma.tikTokAccountConnection.update({
+    where: { id: existing.id },
+    data: { dmAutoReplyEnabled: false },
+  });
+
+  if (existing.refreshTokenExpiresAt <= new Date()) {
+    await prisma.tikTokAccountConnection.delete({ where: { id: existing.id } });
+    await logAdminAudit({
+      action: 'tiktok_account_disconnected',
+      entityType: 'tiktok_account_connection',
+      entityId: existing.id,
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: `Removed expired TikTok Business Account authorization for ${brand}.`,
+      metadata: { openId: existing.openId, revocationStatus: 'authorization_expired' },
+    });
+    revalidatePath('/settings/tiktok');
+    return;
+  }
+
+  try {
+    const config = getTikTokAccountRuntimeConfig();
+    const connection = await resolveTikTokAccountConnection(brand);
+    if (!connection) throw new Error('TikTok Business Account is not connected.');
+    await revokeTikTokAccountAccessToken({
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      accessToken: connection.accessToken,
+      apiBaseUrl: config.apiBaseUrl,
+    });
+  } catch {
+    await prisma.tikTokAccountConnection.update({
+      where: { brand },
+      data: {
+        dmAutoReplyEnabled: false,
+        lastError: TIKTOK_ACCOUNT_REVOCATION_PENDING_MESSAGE,
+      },
+    });
+    await logAdminAudit({
+      action: 'tiktok_account_disconnect_failed',
+      entityType: 'tiktok_account_connection',
+      entityId: existing.id,
+      brand,
+      actorEmail: scope.email ?? null,
+      summary: `Could not revoke TikTok Business Account for ${brand}; kept encrypted tokens for retry.`,
+      metadata: { openId: existing.openId },
+    });
+    revalidatePath('/settings/tiktok');
+    return;
+  }
+
+  await prisma.tikTokAccountConnection.delete({ where: { id: existing.id } });
+  await logAdminAudit({
+    action: 'tiktok_account_disconnected',
+    entityType: 'tiktok_account_connection',
+    entityId: existing.id,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Disconnected TikTok Business Account for ${brand}.`,
+    metadata: { openId: existing.openId, revocationStatus: 'revoked' },
+  });
+  revalidatePath('/settings/tiktok');
+}
+
+export async function forceDisconnectTikTokAccountAction(formData: FormData): Promise<void> {
+  const { scope, brand } = await requireTikTokBrandAccess(formData);
+  const existing = await prisma.tikTokAccountConnection.findUnique({ where: { brand } });
+  await prisma.tikTokAccountConnection.deleteMany({ where: { brand } });
+  await logAdminAudit({
+    action: 'tiktok_account_local_credentials_removed',
+    entityType: 'tiktok_account_connection',
+    entityId: existing?.id ?? null,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `Removed local TikTok Business Account credentials for ${brand}.`,
+    metadata: {
+      openId: existing?.openId ?? null,
+      remoteRevocationConfirmed: false,
+    },
+  });
+  revalidatePath('/settings/tiktok');
+}
+
+export async function configureTikTokWebhooksAction(): Promise<void> {
+  const scope = await requireActionPermission('settings:write');
+  let configured = false;
+  try {
+    const config = getTikTokAccountRuntimeConfig();
+    const callbackUrl = getTikTokWebhookCallbackUrl();
+    await Promise.all([
+      configureTikTokAccountWebhook({
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        apiBaseUrl: config.apiBaseUrl,
+        eventType: 'COMMENT',
+        callbackUrl,
+      }),
+      configureTikTokAccountWebhook({
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        apiBaseUrl: config.apiBaseUrl,
+        eventType: 'DIRECT_MESSAGE',
+        callbackUrl,
+      }),
+    ]);
+    configured = true;
+    await logAdminAudit({
+      action: 'tiktok_webhooks_configured',
+      entityType: 'tiktok_app',
+      entityId: null,
+      actorEmail: scope.email ?? null,
+      summary: 'Configured TikTok comment and direct-message webhook subscriptions.',
+      metadata: { callbackUrl, eventTypes: ['COMMENT', 'DIRECT_MESSAGE'] },
+    });
+  } catch {
+    await logAdminAudit({
+      action: 'tiktok_webhooks_configuration_failed',
+      entityType: 'tiktok_app',
+      entityId: null,
+      actorEmail: scope.email ?? null,
+      summary: 'Could not configure TikTok comment and direct-message webhooks.',
+      metadata: { eventTypes: ['COMMENT', 'DIRECT_MESSAGE'] },
+    });
+  }
+  revalidatePath('/settings/tiktok');
+  redirect(`/settings/tiktok?${configured ? 'status=webhooks_configured' : 'error=webhook_configuration_failed'}`);
+}
+
+export async function setTikTokDmAutomationAction(formData: FormData): Promise<void> {
+  const { scope, brand } = await requireTikTokBrandAccess(formData);
+  const enabled = readRequiredText(formData, 'enabled', 'DM automation state') === '1';
+  if (enabled && !getTikTokAccountConfigStatus().dmAutoReplyEnabled) {
+    throw new Error('Enable the server-side TikTok DM automation safety gate first.');
+  }
+  const existing = await prisma.tikTokAccountConnection.findUnique({ where: { brand } });
+  if (!existing) throw new Error('TikTok Business Account is not connected for this brand.');
+  if (enabled && !hasTikTokDmPermissions(parseTikTokAccountScopes(existing.grantedScopes))) {
+    throw new Error('Reconnect TikTok after all Business Messaging permissions are approved.');
+  }
+
+  await prisma.tikTokAccountConnection.update({
+    where: { brand },
+    data: { dmAutoReplyEnabled: enabled },
+  });
+  await logAdminAudit({
+    action: enabled ? 'tiktok_dm_automation_enabled' : 'tiktok_dm_automation_disabled',
+    entityType: 'tiktok_account_connection',
+    entityId: existing.id,
+    brand,
+    actorEmail: scope.email ?? null,
+    summary: `${enabled ? 'Enabled' : 'Disabled'} TikTok DM chatbot for ${brand}.`,
+    metadata: { openId: existing.openId, enabled },
   });
   revalidatePath('/settings/tiktok');
 }

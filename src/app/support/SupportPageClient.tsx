@@ -12,6 +12,7 @@ import {
 } from './format';
 import { updateEscalationWorkflowAction } from './actions';
 import { BRAND_QUERY_PARAM } from '@/lib/brand-context';
+import { getSupportChannelLabel } from '@/lib/channel-display';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -31,10 +32,17 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   messenger: <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.36 2 2 6.13 2 11.7c0 3.22 1.47 6.08 3.75 7.94V22l2.23-1.22c1.24.34 2.56.53 3.92.53 5.64 0 10-4.13 10-9.7C22 6.13 17.64 2 12 2zm1.06 12.5l-2.52-2.67-4.92 2.67 5.41-5.74 2.58 2.67 4.86-2.67-5.41 5.74z"/></svg>,
   instagram: <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.43.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.43.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41-.56-.22-.96-.48-1.38-.9-.42-.42-.68-.82-.9-1.38-.16-.43-.36-1.06-.41-2.23-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.43-.16 1.06-.36 2.23-.41 1.27-.06 1.65-.07 4.85-.07M12 0C8.74 0 8.33.01 7.05.07 5.77.13 4.9.33 4.14.63c-.78.3-1.45.72-2.11 1.38C1.38 2.68.96 3.35.66 4.14.36 4.9.16 5.77.1 7.05.04 8.33.03 8.74.03 12s.01 3.67.07 4.95c.06 1.28.26 2.15.56 2.91.31.79.72 1.45 1.39 2.11.66.67 1.33 1.08 2.12 1.39.76.3 1.63.5 2.91.56 1.28.06 1.69.07 4.95.07s3.67-.01 4.95-.07c1.28-.06 2.15-.26 2.91-.56.79-.31 1.45-.72 2.11-1.39.67-.66 1.08-1.33 1.39-2.12.3-.76.5-1.63.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.28-.26-2.15-.56-2.91-.31-.79-.72-1.45-1.39-2.11-.66-.67-1.33-1.08-2.12-1.39-.76-.3-1.63-.5-2.91-.56C15.67.01 15.26 0 12 0z"/><path d="M12 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zM18.41 4.15a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg>,
   whatsapp: <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.52 3.48A11.8 11.8 0 0012.07 0C5.5 0 .16 5.34.16 11.91c0 2.1.55 4.16 1.6 5.97L.06 24l6.27-1.64a11.9 11.9 0 005.73 1.46h.01c6.57 0 11.91-5.34 11.91-11.91 0-3.18-1.23-6.17-3.46-8.43zm-8.45 18.33h-.01a9.87 9.87 0 01-5.03-1.38l-.36-.21-3.72.98.99-3.63-.24-.37a9.88 9.88 0 01-1.52-5.29c0-5.45 4.44-9.89 9.9-9.89a9.82 9.82 0 017 2.9 9.82 9.82 0 012.89 7c-.01 5.45-4.45 9.89-9.9 9.89zm5.42-7.41c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47a8.93 8.93 0 01-1.65-2.05c-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.07 2.88 1.22 3.08.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.7.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z"/></svg>,
+  tiktok_dm: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4v10.5a4.5 4.5 0 11-3-4.24"/><path d="M15 4c1.2 2.6 3 4 5 4"/></svg>,
+  tiktok_comment: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4v10.5a4.5 4.5 0 11-3-4.24"/><path d="M15 4c1.2 2.6 3 4 5 4"/></svg>,
 };
 
-const CHANNEL_CLASS: Record<string, string> = { messenger: "badge-messenger", instagram: "badge-instagram", whatsapp: "badge-whatsapp" };
-const CHANNEL_LABELS: Record<string, string> = { messenger: "Messenger", instagram: "Instagram", direct: "Direct", whatsapp: "WhatsApp" };
+const CHANNEL_CLASS: Record<string, string> = {
+  messenger: "badge-messenger",
+  instagram: "badge-instagram",
+  whatsapp: "badge-whatsapp",
+  tiktok_dm: "badge-tiktok",
+  tiktok_comment: "badge-tiktok",
+};
 const SUPPORT_STATUS_LABELS: Record<string, string> = {
   bot_active: "Bot active",
   escalated: "Escalated",
@@ -460,7 +468,7 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
               >
                 <option value="all">All channels</option>
                 {channelOptions.map(c => (
-                  <option key={c} value={c}>{CHANNEL_LABELS[c] || c}</option>
+                  <option key={c} value={c}>{getSupportChannelLabel(c)}</option>
                 ))}
               </select>
               {brandOptions.length > 0 && (
@@ -527,7 +535,7 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
                   <div className="convo-item-mid">
                     <span className={`badge-ch ${CHANNEL_CLASS[e.channel] || ''}`}>
                       {CHANNEL_ICONS[e.channel]}
-                      {e.channel}
+                      {getSupportChannelLabel(e.channel)}
                     </span>
                     <span className={`pill ${getSupportStatusClass(e.status)} convo-status-pill`}>
                       {getSupportStatusLabel(e.status)}

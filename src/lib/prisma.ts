@@ -10,7 +10,10 @@ function getRuntimeDatabaseUrl(): string | undefined {
     const url = new URL(databaseUrl);
     if (url.protocol === 'postgres:' || url.protocol === 'postgresql:') {
       if (!url.searchParams.has('connection_limit')) {
-        url.searchParams.set('connection_limit', '5');
+        // Vercel can run many function instances concurrently. Keep each
+        // instance to one connection so deployments cannot exhaust the
+        // database role's global connection allowance.
+        url.searchParams.set('connection_limit', '1');
       }
 
       if (!url.searchParams.has('pool_timeout')) {

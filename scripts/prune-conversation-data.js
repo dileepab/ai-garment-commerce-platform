@@ -29,6 +29,14 @@ const TARGETS = [
     brandField: 'brand',
   },
   {
+    label: 'TikTok inbox contexts',
+    model: 'tikTokInboxContext',
+    timeField: 'lastInboundAt',
+    senderField: 'senderId',
+    channelField: 'channel',
+    brandField: 'brand',
+  },
+  {
     label: 'bot diagnostics',
     model: 'botMessageDiagnostic',
     timeField: 'createdAt',
@@ -111,8 +119,8 @@ Delete after reviewing dry-run counts:
   npm run cleanup:conversation -- --channel instagram --before 2026-05-31 --apply
 
 Scope options:
-  --channel <channel>      messenger, instagram, whatsapp. Comma-separated or repeatable.
-  --sender <senderId>      Meta sender ID. Comma-separated or repeatable.
+  --channel <channel>      messenger, instagram, whatsapp, tiktok_dm, tiktok_comment. Comma-separated or repeatable.
+  --sender <senderId>      Provider sender/thread ID. Comma-separated or repeatable.
   --brand <brand>          Brand filter for tables that store brand. Comma-separated or repeatable.
   --after <date>           Keep records before this date, delete records on/after it.
   --before <date>          Delete records before this date.

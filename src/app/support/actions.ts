@@ -23,6 +23,11 @@ import {
   requireActionPermission,
 } from '@/lib/authz';
 import type { UserScope } from '@/lib/access-control';
+import { resolveTikTokAccountConnection } from '@/lib/tiktok-account-connection';
+import {
+  sendTikTokCommentReply,
+  sendTikTokDirectMessage,
+} from '@/lib/tiktok-account-api';
 
 function supportDeliveryFailureNote(channel: string, error: string): string {
   const channelLabel =
@@ -30,11 +35,18 @@ function supportDeliveryFailureNote(channel: string, error: string): string {
       ? 'Instagram'
       : channel === 'messenger'
         ? 'Messenger'
+        : channel === 'tiktok_dm'
+          ? 'TikTok DM'
+          : channel === 'tiktok_comment'
+            ? 'TikTok Comment'
         : channel.charAt(0).toUpperCase() + channel.slice(1);
 
+  const settingsPath = channel.startsWith('tiktok_')
+    ? 'Settings > TikTok'
+    : 'Settings > Meta Channels';
   return [
     `${channelLabel} delivery failed: ${error}`,
-    'The reply was saved in Support, but Meta did not deliver it to the customer. Update/test the brand token in Settings > Meta Channels, then resend the message.',
+    `The reply was saved in Support, but the provider did not deliver it to the customer. Update/test the brand connection in ${settingsPath}, then resend the message.`,
   ].join('\n');
 }
 
@@ -91,6 +103,65 @@ async function deliverSupportReply(params: {
     return sendWhatsAppMessage(params.senderId, params.reply, {
       phoneNumberId: config.phoneNumberId,
       accessToken: config.accessToken,
+    });
+  }
+
+  if (params.channel === 'tiktok_dm' || params.channel === 'tiktok_comment') {
+    if (!params.brand) {
+      return { ok: false, error: 'Missing brand for this TikTok support case.' };
+    }
+    const [connection, context] = await Promise.all([
+      resolveTikTokAccountConnection(params.brand),
+      prisma.tikTokInboxContext.findUnique({
+        where: {
+          brand_channel_senderId: {
+            brand: params.brand,
+            channel: params.channel,
+            senderId: params.senderId,
+          },
+        },
+      }),
+    ]);
+    if (!connection || !context) {
+      return {
+        ok: false,
+        error: `Missing TikTok Business Account or conversation context for ${params.brand}.`,
+      };
+    }
+    if (context.businessOpenId !== connection.openId) {
+      return {
+        ok: false,
+        error: 'This TikTok conversation belongs to a previously connected account. Reconnect the matching account before replying.',
+      };
+    }
+
+    if (params.channel === 'tiktok_dm') {
+      if (!context.conversationId) {
+        return { ok: false, error: 'TikTok conversation ID is missing.' };
+      }
+      if (!connection.grantedScopes.includes('message.list.send')) {
+        return { ok: false, error: 'TikTok Business Messaging Send permission is missing.' };
+      }
+      return sendTikTokDirectMessage({
+        accessToken: connection.accessToken,
+        businessId: connection.openId,
+        conversationId: context.conversationId,
+        text: params.reply,
+      });
+    }
+
+    if (!context.videoId || !context.commentId) {
+      return { ok: false, error: 'TikTok video or comment ID is missing.' };
+    }
+    if (!connection.grantedScopes.includes('comment.list.manage')) {
+      return { ok: false, error: 'TikTok Manage Account Comment permission is missing.' };
+    }
+    return sendTikTokCommentReply({
+      accessToken: connection.accessToken,
+      businessId: connection.openId,
+      videoId: context.videoId,
+      commentId: context.commentId,
+      text: params.reply,
     });
   }
 
@@ -390,7 +461,7 @@ export async function sendSupportReplyAction(formData: FormData) {
     if (!delivery.ok) {
       const error = delivery.error || String(delivery.status || 'unknown');
 
-      logWarn('Support Actions', 'Support reply was saved, but outbound Meta delivery failed.', {
+      logWarn('Support Actions', 'Support reply was saved, but outbound provider delivery failed.', {
         escalationId,
         senderId: escalation.senderId,
         channel: escalation.channel,
