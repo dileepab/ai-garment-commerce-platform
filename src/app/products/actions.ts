@@ -62,8 +62,15 @@ function deriveProductSizesColors(variants: VariantInput[]): { sizes: string; co
 }
 
 function resolveVariantStatus(v: VariantInput): string {
+  const qty = v.availableQty || 0;
+  // "out-of-stock" is also what auto-derivation writes when a variant is created
+  // empty, and the form later resubmits that stored value verbatim. Left alone,
+  // a restocked variant stays out-of-stock forever and the shop bot reports it
+  // as unavailable despite the stock. A variant holding stock is never
+  // out-of-stock, so treat it as stale rather than as a deliberate choice.
+  if (v.status === 'out-of-stock' && qty > 0) return 'active';
   if (v.status && v.status !== '') return v.status;
-  return (v.availableQty || 0) > 0 ? 'active' : 'out-of-stock';
+  return qty > 0 ? 'active' : 'out-of-stock';
 }
 
 function cleanOptionalText(value?: string | null): string | null {

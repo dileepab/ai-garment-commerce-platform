@@ -319,8 +319,10 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
         ...initial,
         name: `${initial.name} (Copy)`,
         // Variant ids belong to the source rows; keeping them would make the
-        // new product try to adopt another product's variants.
-        variants: initial.variants.map((v) => ({ ...v, id: undefined, sku: '' })),
+        // new product try to adopt another product's variants. Status is reset
+        // so it derives from the new quantities — copying it verbatim carried
+        // a stale "out-of-stock" into products that actually had stock.
+        variants: initial.variants.map((v) => ({ ...v, id: undefined, sku: '', status: '' })),
       };
     }
     return initial;
