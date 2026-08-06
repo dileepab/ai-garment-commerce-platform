@@ -7,7 +7,9 @@ import {
   createSocialPost,
   updateSocialPost,
   generatePostCaptions,
+  relinkCreativeProduct,
 } from './actions';
+import { normalizeBrandKey as brandKey } from '@/lib/brand-aliases';
 import CreativeStudioModal from './CreativeStudioModal';
 import CreatePostWizardModal from './CreatePostWizardModal';
 import PublishHistoryModal, { type PublishLogEntry } from './PublishHistoryModal';
@@ -29,8 +31,18 @@ export interface CreativeRecord {
   productContext: string | null;
   sourceImageUrl: string | null;
   status: string;
+  publishedAt?: Date | null;
   createdBy: string | null;
   createdAt: Date;
+  productId?: number | null;
+  product?: LinkableProduct | null;
+}
+
+export interface LinkableProduct {
+  id: number;
+  name: string;
+  sku: string | null;
+  brand: string;
 }
 
 interface PostCreativeRecord {
@@ -866,12 +878,14 @@ type ViewMode = 'posts' | 'creatives';
 export default function ContentPageClient({
   initialPosts,
   initialCreatives,
+  linkableProducts,
   stats,
   canWrite,
   availableBrands,
 }: {
   initialPosts: PostRecord[];
   initialCreatives: CreativeRecord[];
+  linkableProducts: LinkableProduct[];
   stats: Stats;
   canWrite: boolean;
   availableBrands: string[];
@@ -886,6 +900,23 @@ export default function ContentPageClient({
   const [showWizard, setShowWizard] = useState(false);
   const [historyPost, setHistoryPost] = useState<PostRecord | null>(null);
   const [viewingCreative, setViewingCreative] = useState<CreativeRecord | null>(null);
+  const [relinkingId, setRelinkingId] = useState<number | null>(null);
+  const [relinkError, setRelinkError] = useState<{ id: number; message: string } | null>(null);
+
+  async function handleRelink(creativeId: number, productId: number | null) {
+    setRelinkError(null);
+    setRelinkingId(creativeId);
+    try {
+      const res = await relinkCreativeProduct(creativeId, productId);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setRelinkError({ id: creativeId, message: res.error ?? 'Failed to move creative.' });
+      }
+    } finally {
+      setRelinkingId(null);
+    }
+  }
   const [zoomed, setZoomed] = useState<{ src: string; caption: string } | null>(null);
 
   const totalPublished = useMemo(
@@ -1243,14 +1274,15 @@ export default function ContentPageClient({
             }}>
               {initialCreatives.map((c) => (
                 <div key={c.id} className="card" style={{ overflow: 'hidden', padding: 0, display: 'flex', flexDirection: 'column' }}>
-                  {/* Clickable thumbnail */}
+                  {/* Clickable thumbnail. The zoom control sits alongside it
+                      inside this positioned wrapper. */}
+                  <div style={{ position: 'relative' }}>
                   <button
                     onClick={() => setViewingCreative(c)}
                     title="View creative"
                     style={{
                       display: 'block', width: '100%', padding: 0, border: 'none',
                       background: 'none', cursor: 'pointer',
-                      position: 'relative',
                     }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1259,10 +1291,6 @@ export default function ContentPageClient({
                       alt={`Creative for ${c.brand}`}
                       style={{ display: 'block', width: '100%', aspectRatio: '4/3', objectFit: 'cover' }}
                     />
-                    <ZoomButton onClick={() => setZoomed({
-                      src: creativeSrc(c),
-                      caption: `${c.brand}${c.personaStyle ? ` · ${c.personaStyle}` : ''}`,
-                    })} />
                     {/* Hover overlay hint */}
                     <div style={{
                       position: 'absolute', inset: 0,
@@ -1271,6 +1299,13 @@ export default function ContentPageClient({
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }} className="creative-thumb-overlay" />
                   </button>
+                  {/* Sibling of the thumbnail, not a child: a button nested in a
+                      button is invalid HTML and breaks hydration. */}
+                  <ZoomButton onClick={() => setZoomed({
+                    src: creativeSrc(c),
+                    caption: `${c.brand}${c.personaStyle ? ` · ${c.personaStyle}` : ''}`,
+                  })} />
+                  </div>
 
                   {/* Metadata */}
                   <div style={{ padding: '10px 12px', flex: 1 }}>
@@ -1294,6 +1329,61 @@ export default function ContentPageClient({
                     <div style={{ fontSize: 10, color: 'var(--color-fg-3)', marginTop: 4 }}>
                       {formatDate(c.createdAt)}
                     </div>
+                  </div>
+
+                  {/* Linked product. Splitting one product into colourways
+                      leaves creatives on the original, so the link is shown
+                      and can be corrected without regenerating. */}
+                  <div style={{
+                    padding: '8px 12px',
+                    borderTop: '1px solid var(--color-border-subtle)',
+                    display: 'flex', flexDirection: 'column', gap: 4,
+                  }}>
+                    <div style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                      textTransform: 'uppercase', color: 'var(--color-fg-3)',
+                    }}>
+                      Product
+                      {c.publishedAt && (
+                        <span
+                          title="Published — this is the customer-facing image for its product"
+                          style={{ marginLeft: 5, color: 'var(--color-accent)' }}
+                        >
+                          ● live
+                        </span>
+                      )}
+                    </div>
+                    {canWrite ? (
+                      <select
+                        value={c.productId ?? ''}
+                        disabled={relinkingId === c.id}
+                        onChange={(e) => handleRelink(c.id, e.target.value ? Number(e.target.value) : null)}
+                        style={{
+                          width: '100%', fontSize: 11, padding: '4px 6px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-bg)', color: 'var(--color-fg-1)',
+                        }}
+                      >
+                        <option value="">— Not linked —</option>
+                        {linkableProducts
+                          .filter((p) => brandKey(p.brand) === brandKey(c.brand))
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.sku ? `${p.sku} — ${p.name}` : p.name}
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <div style={{ fontSize: 11, color: 'var(--color-fg-2)' }}>
+                        {c.product
+                          ? c.product.sku ? `${c.product.sku} — ${c.product.name}` : c.product.name
+                          : 'Not linked'}
+                      </div>
+                    )}
+                    {relinkError?.id === c.id && (
+                      <div style={{ fontSize: 10, color: 'var(--color-error)' }}>{relinkError.message}</div>
+                    )}
                   </div>
 
                   {/* Action row */}

@@ -32,6 +32,7 @@ import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { creativeImagePath } from '@/lib/creative-image-token';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
 import { displayProductSku } from '@/lib/product-sku';
+import { brandsMatch } from '@/lib/brand-aliases';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -858,6 +859,56 @@ export async function discardCreativeDraft(creativeId: number): Promise<{ succes
     return { success: true };
   } catch {
     return { success: false };
+  }
+}
+
+/**
+ * Point a creative at a different product, or at none.
+ *
+ * Splitting one product into several — three colourways of a design that
+ * started as one row — leaves every creative attached to the original. The
+ * images are correct; only the link is wrong, so re-linking is the repair.
+ * Deleting and regenerating would cost image-generation calls, discard the
+ * correction history, and still leave the originals behind.
+ */
+export async function relinkCreativeProduct(
+  creativeId: number,
+  productId: number | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const scope = await requireActionPermission('content:write');
+
+    const existing = await prisma.generatedCreative.findUnique({
+      where: { id: creativeId },
+      select: { brand: true },
+    });
+    if (!existing) return { success: false, error: 'Creative not found.' };
+    assertBrandAccess(scope, existing.brand);
+
+    if (productId !== null) {
+      const target = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { brand: true },
+      });
+      if (!target) return { success: false, error: 'Product not found.' };
+      // Guard both ends: a creative must not be moved into a brand the user
+      // cannot manage, nor across brands.
+      assertBrandAccess(scope, target.brand);
+      if (!brandsMatch(target.brand, existing.brand)) {
+        return { success: false, error: 'Creative and product belong to different brands.' };
+      }
+    }
+
+    await prisma.generatedCreative.update({
+      where: { id: creativeId },
+      data: { productId },
+    });
+
+    revalidatePath('/content');
+    return { success: true };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    return { success: false, error: 'Failed to move creative.' };
   }
 }
 
