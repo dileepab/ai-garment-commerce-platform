@@ -912,6 +912,54 @@ export async function relinkCreativeProduct(
   }
 }
 
+/**
+ * Turn a creative's use as the product's customer-facing image on or off.
+ *
+ * Publishing adopts a creative automatically, but a published creative that
+ * turns out badly had no way back: publishedAt was only ever set, so the only
+ * escape was publishing a replacement. Clearing it drops the creative back
+ * behind the other candidates — the next best creative, or the original photo —
+ * without deleting anything.
+ *
+ * Adopting by hand is the other direction: use a creative you are happy with
+ * without having to post it first.
+ */
+export async function setCreativeAdopted(
+  creativeId: number,
+  adopted: boolean
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const scope = await requireActionPermission('content:write');
+
+    const existing = await prisma.generatedCreative.findUnique({
+      where: { id: creativeId },
+      select: { brand: true, publishedAt: true },
+    });
+    if (!existing) return { success: false, error: 'Creative not found.' };
+    assertBrandAccess(scope, existing.brand);
+
+    // Keep the original adoption time when it is already set: it records when
+    // the image first reached customers, and rewriting it would reshuffle which
+    // creative wins the most-recent tiebreak.
+    if (adopted && existing.publishedAt) return { success: true };
+
+    await prisma.generatedCreative.update({
+      where: { id: creativeId },
+      data: {
+        publishedAt: adopted ? new Date() : null,
+        ...(adopted ? { status: 'saved' } : {}),
+      },
+    });
+
+    revalidatePath('/content');
+    revalidatePath('/products');
+    return { success: true };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    return { success: false, error: 'Failed to update creative.' };
+  }
+}
+
 // Permanently delete a saved creative.
 export async function deleteGeneratedCreative(creativeId: number): Promise<{ success: boolean; error?: string }> {
   try {
@@ -924,9 +972,39 @@ export async function deleteGeneratedCreative(creativeId: number): Promise<{ suc
     if (!existing) return { success: false, error: 'Creative not found.' };
     assertBrandAccess(scope, existing.brand);
 
+    // A creative attached to a post is held by a restricting foreign key, so
+    // the delete would fail deep in the driver and surface as "Failed to
+    // delete creative." Check first and say what is actually holding it.
+    const usedBy = await prisma.socialPostCreative.findMany({
+      where: { creativeId },
+      select: { socialPost: { select: { id: true, publishStatus: true } } },
+    });
+
+    if (usedBy.length > 0) {
+      const published = usedBy.filter((entry) => entry.socialPost.publishStatus).length;
+      const single = usedBy.length === 1;
+
+      const usage = single
+        ? `This creative is used by 1 ${published > 0 ? 'published ' : ''}post.`
+        : `This creative is used by ${usedBy.length} posts${
+            published > 0 ? `, ${published} of them published` : ''
+          }.`;
+      const history = published > 0
+        ? ' Deleting it would lose that publish history.'
+        : '';
+
+      return {
+        success: false,
+        error:
+          `${usage}${history} Remove it from ${single ? 'that post' : 'those posts'} first,` +
+          ' or leave it — a newer published creative replaces it as the product image automatically.',
+      };
+    }
+
     await prisma.generatedCreative.delete({ where: { id: creativeId } });
     await deleteGeneratedImage(existing.imageUrl);
     revalidatePath('/content');
+    revalidatePath('/products');
     return { success: true };
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error);

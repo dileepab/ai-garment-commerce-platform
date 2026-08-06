@@ -8,6 +8,7 @@ import {
   updateSocialPost,
   generatePostCaptions,
   relinkCreativeProduct,
+  setCreativeAdopted,
 } from './actions';
 import { normalizeBrandKey as brandKey } from '@/lib/brand-aliases';
 import CreativeStudioModal from './CreativeStudioModal';
@@ -902,6 +903,22 @@ export default function ContentPageClient({
   const [viewingCreative, setViewingCreative] = useState<CreativeRecord | null>(null);
   const [relinkingId, setRelinkingId] = useState<number | null>(null);
   const [relinkError, setRelinkError] = useState<{ id: number; message: string } | null>(null);
+  const [adoptingId, setAdoptingId] = useState<number | null>(null);
+
+  async function handleAdopt(creativeId: number, adopted: boolean) {
+    setRelinkError(null);
+    setAdoptingId(creativeId);
+    try {
+      const res = await setCreativeAdopted(creativeId, adopted);
+      if (res.success) {
+        router.refresh();
+      } else {
+        setRelinkError({ id: creativeId, message: res.error ?? 'Failed to update creative.' });
+      }
+    } finally {
+      setAdoptingId(null);
+    }
+  }
 
   async function handleRelink(creativeId: number, productId: number | null) {
     setRelinkError(null);
@@ -1346,7 +1363,7 @@ export default function ContentPageClient({
                       Product
                       {c.publishedAt && (
                         <span
-                          title="Published — this is the customer-facing image for its product"
+                          title="Customers see this image for its product"
                           style={{ marginLeft: 5, color: 'var(--color-accent)' }}
                         >
                           ● live
@@ -1383,6 +1400,22 @@ export default function ContentPageClient({
                     )}
                     {relinkError?.id === c.id && (
                       <div style={{ fontSize: 10, color: 'var(--color-error)' }}>{relinkError.message}</div>
+                    )}
+                    {/* A creative that turned out badly can be stood down
+                        without deleting it — the next best candidate, or the
+                        original photo, takes over. */}
+                    {canWrite && c.productId && (
+                      <button
+                        className="row-action-btn"
+                        disabled={adoptingId === c.id}
+                        onClick={() => handleAdopt(c.id, !c.publishedAt)}
+                        title={c.publishedAt
+                          ? 'Stop showing this image to customers'
+                          : 'Show this image to customers for its product'}
+                        style={{ justifyContent: 'center', fontSize: 10, padding: '3px 6px' }}
+                      >
+                        {c.publishedAt ? 'Stop using as product image' : 'Use as product image'}
+                      </button>
                     )}
                   </div>
 
