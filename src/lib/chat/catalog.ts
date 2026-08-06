@@ -1,4 +1,5 @@
 import { creativeImagePath, CATALOG_TTL_SECONDS } from '@/lib/creative-image-token';
+import { variantAvailableQty } from '@/lib/variant-availability';
 import {
   getSizeChartCategoryFromStyle,
   getSizeChartCategoryFromText,
@@ -149,8 +150,7 @@ function getAvailableQty(product: {
 
   if (product.variants && product.variants.length > 0) {
     const variantQty = product.variants
-      .filter((variant) => !variant.status || variant.status === 'active')
-      .reduce((sum, variant) => sum + (variant.inventory?.availableQty ?? 0), 0);
+      .reduce((sum, variant) => sum + variantAvailableQty(variant), 0);
     return Math.max(variantQty, productLevelQty);
   }
 
