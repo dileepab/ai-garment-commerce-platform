@@ -35,7 +35,12 @@ export type ChatProduct = Product & {
   inventory: Inventory | null;
   variants: ChatProductVariant[];
   colorImages: ProductColorImage[];
-  creatives: Array<Pick<GeneratedCreative, 'id' | 'status' | 'viewAngle' | 'sourceImageUrl' | 'imageUrl' | 'createdAt'>>;
+  creatives: Array<
+    Pick<
+      GeneratedCreative,
+      'id' | 'status' | 'publishedAt' | 'viewAngle' | 'sourceImageUrl' | 'imageUrl' | 'createdAt'
+    >
+  >;
 };
 
 export type ChatOrderItem = OrderItem & {

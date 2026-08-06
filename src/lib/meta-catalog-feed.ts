@@ -1,4 +1,5 @@
 import { creativeImagePath, CATALOG_TTL_SECONDS } from './creative-image-token.ts';
+import { rankDisplayCreatives } from './product-display-images.ts';
 
 export const META_CATALOG_FEED_COLUMNS = [
   'id',
@@ -74,7 +75,15 @@ export type MetaCatalogFeedProduct = {
     inventory?: { availableQty: number } | null;
   }>;
   colorImages?: Array<{ color?: string | null; imageUrl: string }>;
-  creatives?: Array<{ id: number; status?: string | null; imageUrl?: string | null }>;
+  creatives?: Array<{
+    id: number;
+    status?: string | null;
+    publishedAt?: Date | string | null;
+    viewAngle?: string | null;
+    sourceImageUrl?: string | null;
+    imageUrl?: string | null;
+    createdAt?: Date | string | null;
+  }>;
 };
 
 export type MetaCatalogFeedRow = Record<(typeof META_CATALOG_FEED_COLUMNS)[number], string>;
@@ -215,6 +224,20 @@ export function selectCatalogImageUrl(
   publicAssetOrigin?: string | null,
   preferredColor?: string | null,
 ): string | null {
+  const origin = publicAssetOrigin?.trim().replace(/\/+$/, '');
+
+  // Creatives come first: the stored photos are dummy shots that should not be
+  // what shoppers see in an ad.
+  for (const creative of rankDisplayCreatives(product, preferredColor)) {
+    // Blob-backed creatives are already on a public CDN.
+    if (isPublicHttpsUrl(creative.imageUrl)) return creative.imageUrl!.trim();
+    // Older rows serve from the app route, which Meta crawls without a session,
+    // so the link carries its own signature.
+    if (isPublicHttpsUrl(origin)) {
+      return `${origin}${creativeImagePath(creative.id, CATALOG_TTL_SECONDS)}`;
+    }
+  }
+
   const normalizedColor = preferredColor?.trim().toLowerCase();
   const matchingColorImage = normalizedColor
     ? (product.colorImages ?? []).find(
@@ -229,20 +252,6 @@ export function selectCatalogImageUrl(
 
   for (const candidate of directCandidates) {
     if (isPublicHttpsUrl(candidate)) return candidate.trim();
-  }
-
-  const origin = publicAssetOrigin?.trim().replace(/\/+$/, '');
-  const savedCreative = (product.creatives ?? []).find(
-    (creative) => !creative.status || creative.status.trim().toLowerCase() === 'saved',
-  );
-  if (savedCreative) {
-    // Blob-backed creatives are already on a public CDN.
-    if (isPublicHttpsUrl(savedCreative.imageUrl)) return savedCreative.imageUrl!.trim();
-    // Older rows serve from the app route, which Meta crawls without a session,
-    // so the link carries its own signature.
-    if (isPublicHttpsUrl(origin)) {
-      return `${origin}${creativeImagePath(savedCreative.id, CATALOG_TTL_SECONDS)}`;
-    }
   }
 
   return null;

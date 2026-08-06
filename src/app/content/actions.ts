@@ -1153,16 +1153,33 @@ export async function publishSocialPost(
     const attemptAnyOk = outcomes.some((o) => o.ok);
     const publishStatus = allOk ? 'published' : anyOk ? 'partial' : 'failed';
 
+    const publishedAt = new Date();
+
     await prisma.socialPost.update({
       where: { id: post.id },
       data: {
         publishStatus,
-        publishedAt: new Date(),
+        publishedAt,
         publishedBy: scope.email ?? null,
       },
     });
 
+    // A creative that went out on a real post is the best image we have of the
+    // garment, so adopt it as the product's customer-facing image. Only stamp
+    // once — the first publish is when it reached customers, and re-publishing
+    // should not reshuffle which creative wins.
+    if (attemptAnyOk) {
+      const creativeIds = post.postCreatives.map((entry) => entry.creativeId);
+      if (creativeIds.length > 0) {
+        await prisma.generatedCreative.updateMany({
+          where: { id: { in: creativeIds }, publishedAt: null },
+          data: { status: 'saved', publishedAt },
+        });
+      }
+    }
+
     revalidatePath('/content');
+    revalidatePath('/products');
 
     return {
       success: attemptAllOk || attemptAnyOk,
