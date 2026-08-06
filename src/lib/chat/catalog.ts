@@ -1,5 +1,6 @@
 import { creativeImagePath, CATALOG_TTL_SECONDS } from '@/lib/creative-image-token';
 import { variantAvailableQty } from '@/lib/variant-availability';
+import { productItemCode } from '@/lib/product-item-code';
 import {
   getSizeChartCategoryFromStyle,
   getSizeChartCategoryFromText,
@@ -166,18 +167,23 @@ function hasAvailableStock(product: {
 }
 
 function formatCatalogLines(products: Array<{
+  id?: number;
   name: string;
+  brand?: string | null;
+  sku?: string | null;
   price: number;
   sizes: string;
   colors: string;
 }>): string {
   return products
-    .map(
-      (product) =>
-        `${product.name}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
-          product.colors || '-'
-        })`
-    )
+    .map((product) => {
+      const itemCode = productItemCode(product);
+      const label = itemCode ? `${itemCode} — ${product.name}` : product.name;
+
+      return `${label}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
+        product.colors || '-'
+      })`;
+    })
     .join('\n');
 }
 

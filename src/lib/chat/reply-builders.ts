@@ -1,5 +1,6 @@
 import { getMissingContactFields, type ContactField } from '@/lib/contact-profile';
 import { isVariantAvailable } from '@/lib/variant-availability';
+import { productItemCode } from '@/lib/product-item-code';
 import type { ConversationStateData } from '@/lib/conversation-state';
 import {
   calculateSriLankaDeliveryWindow,
@@ -113,7 +114,10 @@ export function buildVariantPrompt(
 
 export function formatCatalogListReply(
   products: Array<{
+    id?: number;
     name: string;
+    brand?: string | null;
+    sku?: string | null;
     price: number;
     sizes: string;
     colors: string;
@@ -124,12 +128,16 @@ export function formatCatalogListReply(
     return EMPTY_CATALOG_REPLY;
   }
 
-  const lines = products.map(
-    (product) =>
-      `${product.name}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
-        product.colors || '-'
-      })`
-  );
+  // Leading with the code makes the list scannable and teaches the customer
+  // that quoting a code is an option.
+  const lines = products.map((product) => {
+    const itemCode = productItemCode(product);
+    const label = itemCode ? `${itemCode} — ${product.name}` : product.name;
+
+    return `${label}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
+      product.colors || '-'
+    })`;
+  });
 
   return [
     'We currently have the following items available:',
@@ -138,21 +146,48 @@ export function formatCatalogListReply(
   ].join('\n');
 }
 
-export function buildProductQuestionReply(
-  product: {
-    name: string;
-    price: number;
-    sizes: string;
-    colors: string;
-    fabric?: string | null;
+type ProductQuestionSource = {
+  id?: number;
+  name: string;
+  brand?: string | null;
+  sku?: string | null;
+  price: number;
+  sizes: string;
+  colors: string;
+  fabric?: string | null;
+  inventory?: { availableQty: number } | null;
+  variants?: Array<{
+    size: string;
+    color: string;
+    status?: string | null;
     inventory?: { availableQty: number } | null;
-    variants?: Array<{
-      size: string;
-      color: string;
-      status?: string | null;
-      inventory?: { availableQty: number } | null;
-    }>;
-  } & ProductGarmentSpecSource,
+  }>;
+} & ProductGarmentSpecSource;
+
+/**
+ * Product answers close with the item code so the customer can quote it back
+ * instead of retyping a long name — several colourways of one design differ by
+ * only a word or two, and codes resolve to exactly one product.
+ */
+export function buildProductQuestionReply(
+  product: ProductQuestionSource,
+  questionType: 'colors' | 'sizes' | 'price' | 'availability' | 'fit' | null,
+  customerMessage = '',
+  requestedSelection?: { size?: string | null; color?: string | null }
+): string {
+  const reply = buildProductQuestionReplyBody(
+    product,
+    questionType,
+    customerMessage,
+    requestedSelection
+  );
+  const itemCode = productItemCode(product);
+
+  return itemCode ? `${reply}\nItem code: ${itemCode}` : reply;
+}
+
+function buildProductQuestionReplyBody(
+  product: ProductQuestionSource,
   questionType: 'colors' | 'sizes' | 'price' | 'availability' | 'fit' | null,
   customerMessage = '',
   requestedSelection?: { size?: string | null; color?: string | null }
