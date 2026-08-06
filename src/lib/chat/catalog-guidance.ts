@@ -1,3 +1,5 @@
+import { isVariantAvailable, variantAvailableQty } from '../variant-availability.ts';
+
 export interface CatalogGuidanceProduct {
   id: number;
   name: string;
@@ -111,11 +113,7 @@ function availableOptions(
   if (product.variants && product.variants.length > 0) {
     return uniqueOptions(
       product.variants
-        .filter(
-          (variant) =>
-            (!variant.status || variant.status === 'active') &&
-            (variant.inventory?.availableQty ?? 0) > 0
-        )
+        .filter(isVariantAvailable)
         .map((variant) => variant[field])
     );
   }
@@ -189,11 +187,7 @@ function productMatchesVariantConstraints(
   colors: string[],
   sizes: string[]
 ): boolean {
-  const availableVariants = (product.variants ?? []).filter(
-    (variant) =>
-      (!variant.status || variant.status === 'active') &&
-      (variant.inventory?.availableQty ?? 0) > 0
-  );
+  const availableVariants = (product.variants ?? []).filter(isVariantAvailable);
 
   if (availableVariants.length > 0 && (colors.length > 0 || sizes.length > 0)) {
     return availableVariants.some(
@@ -623,11 +617,7 @@ export function buildUnavailableVariantReply(
   if (!requestedSize && !requestedColor) return null;
 
   const variants = product.variants ?? [];
-  const availableVariants = variants.filter(
-    (variant) =>
-      (!variant.status || variant.status === 'active') &&
-      (variant.inventory?.availableQty ?? 0) > 0
-  );
+  const availableVariants = variants.filter(isVariantAvailable);
   const sizeMatches = (value: string) =>
     !requestedSize || normalize(value) === normalize(requestedSize);
   const colorMatches = (value: string) =>
@@ -697,9 +687,7 @@ export function buildAvailableVariantReply(
 
   if (!asksAvailability) return null;
 
-  const variants = (product.variants ?? []).filter(
-    (variant) => !variant.status || variant.status === 'active'
-  );
+  const variants = (product.variants ?? []).filter(isVariantAvailable);
   if (variants.length === 0) return null;
 
   const matches = variants.filter(
@@ -708,7 +696,7 @@ export function buildAvailableVariantReply(
       (!requestedColor || normalize(variant.color) === normalize(requestedColor))
   );
   const availableQty = matches.reduce(
-    (sum, variant) => sum + Math.max(0, variant.inventory?.availableQty ?? 0),
+    (sum, variant) => sum + variantAvailableQty(variant),
     0
   );
 

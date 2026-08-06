@@ -1,4 +1,5 @@
 import { getMissingContactFields, type ContactField } from '@/lib/contact-profile';
+import { isVariantAvailable } from '@/lib/variant-availability';
 import type { ConversationStateData } from '@/lib/conversation-state';
 import {
   calculateSriLankaDeliveryWindow,
@@ -156,9 +157,7 @@ export function buildProductQuestionReply(
   customerMessage = '',
   requestedSelection?: { size?: string | null; color?: string | null }
 ): string {
-  const availableVariants = product.variants?.filter(
-    (v) => (!v.status || v.status === 'active') && (v.inventory?.availableQty ?? 0) > 0
-  ) ?? [];
+  const availableVariants = product.variants?.filter(isVariantAvailable) ?? [];
 
   const sizeList =
     sortSizeOptions(
