@@ -1,6 +1,7 @@
 import { ConversationMessage } from '@/lib/contact-profile';
 import { getDefaultMerchantSettings, resolvePaymentMethod, type MerchantPaymentSettings } from '@/lib/runtime-config';
 import { CatalogProduct } from './types';
+import { messageMentionsItemCode } from '@/lib/product-item-code';
 import { normalizeText, splitCsv } from './formatters';
 import {
   ORDER_COMPLETION_PATTERN, ORDER_CANCELLATION_PATTERN, ORDER_UPDATE_COMPLETION_PATTERN,
@@ -48,6 +49,12 @@ export function scoreProductMatch(product: CatalogProduct, text: string): number
 
   if (!normalizedText) {
     return 0;
+  }
+
+  // An item code names exactly one product, so it outranks a name match — it is
+  // the tiebreaker when several colourways of one design share most of a name.
+  if (messageMentionsItemCode(text, product)) {
+    return 120;
   }
 
   if (normalizedText.includes(normalizedName) || normalizedName.includes(normalizedText)) {

@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import prisma from '@/lib/prisma';
 import { brandsMatch } from '@/lib/brand-aliases';
+import { productItemCode } from '@/lib/product-item-code';
 import {
   cleanStoredContactName,
   collectContactDetailsFromMessages,
@@ -93,10 +94,10 @@ export async function getAiStockReply(
         const variantLines = activeVariants.map(
           v => `  • ${v.color} ${v.size}: ${v.inventory?.availableQty ?? 0} available`
         ).join('\n');
-        return `- ${p.name} (Brand: ${p.brand}, Style: ${p.style}, Price: Rs ${p.price})\n${variantLines}`;
+        return `- [${productItemCode(p) ?? '-'}] ${p.name} (Brand: ${p.brand}, Style: ${p.style}, Price: Rs ${p.price})\n${variantLines}`;
       }
       // Product has no in-stock variants — show product-level total
-      return `- ${p.name} (Style: ${p.style}, Brand: ${p.brand}, Sizes: ${p.sizes}, Colors: ${p.colors}): ${p.inventory?.availableQty || 0} pieces available. Price: Rs ${p.price}`;
+      return `- [${productItemCode(p) ?? '-'}] ${p.name} (Style: ${p.style}, Brand: ${p.brand}, Sizes: ${p.sizes}, Colors: ${p.colors}): ${p.inventory?.availableQty || 0} pieces available. Price: Rs ${p.price}`;
     }).join('\n');
 
     // 2. Fetch conversation history and customer profile if senderId is provided
@@ -265,6 +266,12 @@ CRITICAL BRAND RULE:
 - You work ONLY for ${storeName}. You do NOT know about any other clothing stores.
 - NEVER mention any other brand names or stores.
 - If asked about other brands, politely say you only handle ${storeName} products.
+
+ITEM CODE RULE:
+- Each product is listed below with its item code in square brackets, e.g. [HAP-0002].
+- When you tell a customer about a specific product, include its item code so they can quote it back instead of retyping the full name.
+- If a customer gives an item code, treat it as the product it belongs to, even when they spell it "HAP0002" or "hap 0002".
+- Never invent an item code. Use only the codes listed below, and omit the code if a product has none.
 
 PERSONALITY:
 - Professional, polite, and helpful — like a well-trained online store agent.
@@ -492,9 +499,9 @@ export async function getAiCommentReply(
           .map(v => `${v.color} ${v.size}`)
           .join(', ');
         const total = activeVariants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0);
-        return `- ${p.name}: Rs ${p.price} | Style: ${p.style} | Available variants: ${variantSummary} | Total stock: ${total}`;
+        return `- [${productItemCode(p) ?? '-'}] ${p.name}: Rs ${p.price} | Style: ${p.style} | Available variants: ${variantSummary} | Total stock: ${total}`;
       }
-      return `- ${p.name}: Rs ${p.price} | Style: ${p.style} | Sizes: ${p.sizes} | Colors: ${p.colors} | Stock: ${p.inventory?.availableQty || 0} available`;
+      return `- [${productItemCode(p) ?? '-'}] ${p.name}: Rs ${p.price} | Style: ${p.style} | Sizes: ${p.sizes} | Colors: ${p.colors} | Stock: ${p.inventory?.availableQty || 0} available`;
     }).join('\n');
 
     const brandName = brand || 'our store';

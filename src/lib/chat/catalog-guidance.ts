@@ -1,8 +1,11 @@
 import { isVariantAvailable, variantAvailableQty } from '../variant-availability.ts';
+import { messageMentionsItemCode } from '../product-item-code.ts';
 
 export interface CatalogGuidanceProduct {
   id: number;
   name: string;
+  brand?: string | null;
+  sku?: string | null;
   price: number;
   style?: string | null;
   fabric?: string | null;
@@ -344,6 +347,11 @@ export function findMentionedCatalogProducts(
   message: string,
   products: CatalogGuidanceProduct[]
 ): CatalogGuidanceProduct[] {
+  const byItemCode = products.filter((product) => messageMentionsItemCode(message, product));
+  if (byItemCode.length > 0) {
+    return byItemCode;
+  }
+
   return [...products]
     .sort((left, right) => right.name.length - left.name.length)
     .filter((product) => includesPhrase(message, product.name));
