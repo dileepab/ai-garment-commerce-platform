@@ -123,6 +123,41 @@ describe('Meta catalog mapping', () => {
     );
   });
 
+  // The stored photos are dummy shots on a phone, so an ad should show the
+  // creative even when a perfectly valid product photo exists.
+  test('prefers a saved creative over a usable product photo', () => {
+    const withBoth = product({
+      imageUrl: 'https://cdn.example.com/products/day-dress.jpg',
+      colorImages: [{ imageUrl: 'https://cdn.example.com/products/blue.jpg' }],
+      creatives: [{ id: 991, status: 'saved', imageUrl: 'https://blob.example/creative-991.jpg' }],
+    });
+
+    assert.equal(
+      selectCatalogImageUrl(withBoth, 'https://app.deez.lk'),
+      'https://blob.example/creative-991.jpg',
+    );
+  });
+
+  test('a published creative outranks an unpublished one in the feed', () => {
+    const withBoth = product({
+      creatives: [
+        { id: 1, status: 'saved', viewAngle: 'front', imageUrl: 'https://blob.example/unpublished.jpg' },
+        {
+          id: 2,
+          status: 'saved',
+          viewAngle: 'front',
+          imageUrl: 'https://blob.example/published.jpg',
+          publishedAt: '2026-08-06T00:00:00Z',
+        },
+      ],
+    });
+
+    assert.equal(
+      selectCatalogImageUrl(withBoth, 'https://app.deez.lk'),
+      'https://blob.example/published.jpg',
+    );
+  });
+
   test('skips archived/deleted products and products without an HTTPS image', () => {
     const brand = getMetaCatalogBrand('happybuy')!;
     assert.equal(mapProductToMetaCatalogRow(product({ status: 'ARCHIVED' }), brand), null);

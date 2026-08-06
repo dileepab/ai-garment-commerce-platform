@@ -424,6 +424,7 @@ export async function routeCustomerMessage(
                     select: {
                       id: true,
                       status: true,
+                      publishedAt: true,
                       viewAngle: true,
                       sourceImageUrl: true,
                       imageUrl: true,
@@ -469,6 +470,7 @@ export async function routeCustomerMessage(
         select: {
           id: true,
           status: true,
+          publishedAt: true,
           viewAngle: true,
           sourceImageUrl: true,
           imageUrl: true,
@@ -715,6 +717,7 @@ export async function routeCustomerMessage(
                   select: {
                     id: true,
                     status: true,
+                    publishedAt: true,
                     viewAngle: true,
                     sourceImageUrl: true,
                     imageUrl: true,

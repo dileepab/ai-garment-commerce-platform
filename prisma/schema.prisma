@@ -782,6 +782,7 @@ model GeneratedCreative {
   personaStyle        String?
   productContext      String?
   status              String               @default("draft") // draft | saved
+  publishedAt         DateTime? // set when a post using this creative publishes — adopted as the product's customer-facing image
   createdBy           String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -789,6 +790,7 @@ model GeneratedCreative {
 
   @@index([brand, status, createdAt])
   @@index([productId, status, createdAt])
+  @@index([productId, publishedAt])
 }
 
 model ReturnRequest {
