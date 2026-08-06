@@ -1,5 +1,7 @@
 import { creativeImagePath, CATALOG_TTL_SECONDS } from '@/lib/creative-image-token';
 import { variantAvailableQty } from '@/lib/variant-availability';
+import { productItemCode } from '@/lib/product-item-code';
+import { productDisplayImageUrls } from '@/lib/product-display-images';
 import {
   getSizeChartCategoryFromStyle,
   getSizeChartCategoryFromText,
@@ -51,10 +53,11 @@ type ProductImageSource = {
   creatives?: Array<{
     id: number;
     status?: string | null;
+    publishedAt?: Date | string | null;
     viewAngle?: string | null;
     sourceImageUrl?: string | null;
     imageUrl?: string | null;
-    createdAt?: Date | string;
+    createdAt?: Date | string | null;
   }>;
 };
 
@@ -73,57 +76,13 @@ function creativeImageUrl(creative: { id: number; imageUrl?: string | null }): s
   return getPublicAssetUrl(creativeImagePath(creative.id, CATALOG_TTL_SECONDS)) ?? undefined;
 }
 
-function colorImageUrl(product: ProductImageSource, preferredColor?: string | null): string | undefined {
-  const colorImages = product.colorImages ?? [];
-  if (colorImages.length === 0) return undefined;
-
-  const preferred = preferredColor?.trim().toLowerCase();
-  const matched = preferred
-    ? colorImages.find((image) => image.color.trim().toLowerCase() === preferred)
-    : null;
-  const imageUrl = preferred ? matched?.imageUrl : colorImages[0]?.imageUrl;
-  return absoluteImageUrl(imageUrl);
-}
-
-function sortedSavedCreatives(product: ProductImageSource, sourceImageUrl?: string | null) {
-  const anglePriority: Record<string, number> = {
-    front: 0,
-    side: 1,
-    back: 2,
-    closeup: 3,
-  };
-
-  return [...(product.creatives ?? [])]
-    .filter((creative) => !creative.status || creative.status === 'saved')
-    .filter((creative) => !sourceImageUrl || creative.sourceImageUrl === sourceImageUrl)
-    .sort((a, b) => {
-      const angleA = anglePriority[a.viewAngle ?? ''] ?? 9;
-      const angleB = anglePriority[b.viewAngle ?? ''] ?? 9;
-      if (angleA !== angleB) return angleA - angleB;
-      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-    });
-}
-
 function productImageUrls(product: ProductImageSource, limit = 4, preferredColor?: string | null): string[] {
-  const preferredColorUrl = colorImageUrl(product, preferredColor);
-  if (preferredColorUrl && preferredColor) {
-    const matchedCreativeUrls = sortedSavedCreatives(product, preferredColorUrl)
-      .map((creative) => creativeImageUrl(creative))
-      .filter((url): url is string => Boolean(url))
-      .slice(0, limit);
-    return matchedCreativeUrls.length > 0 ? matchedCreativeUrls : [preferredColorUrl];
-  }
-
-  const creativeUrls = sortedSavedCreatives(product)
-    .map((creative) => creativeImageUrl(creative))
-    .filter((url): url is string => Boolean(url))
-    .slice(0, limit);
-
-  if (creativeUrls.length > 0) return creativeUrls;
-
-  const productUrl = absoluteImageUrl(product.imageUrl);
-  if (productUrl) return [productUrl];
-  return preferredColorUrl ? [preferredColorUrl] : [];
+  // The shared resolver compares sourceImageUrl against the stored colour photo
+  // URL, so it has to run before anything is made absolute; only the chosen
+  // URLs get an origin prefixed.
+  return productDisplayImageUrls(product, { limit, preferredColor, resolveCreativeUrl: creativeImageUrl })
+    .map((url) => absoluteImageUrl(url))
+    .filter((url): url is string => Boolean(url));
 }
 
 function productPrimaryImageUrl(product: ProductImageSource): string | undefined {
@@ -166,18 +125,23 @@ function hasAvailableStock(product: {
 }
 
 function formatCatalogLines(products: Array<{
+  id?: number;
   name: string;
+  brand?: string | null;
+  sku?: string | null;
   price: number;
   sizes: string;
   colors: string;
 }>): string {
   return products
-    .map(
-      (product) =>
-        `${product.name}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
-          product.colors || '-'
-        })`
-    )
+    .map((product) => {
+      const itemCode = productItemCode(product);
+      const label = itemCode ? `${itemCode} — ${product.name}` : product.name;
+
+      return `${label}: Rs ${product.price} (Sizes ${formatSizeList(product.sizes) || '-'} / Colors: ${
+        product.colors || '-'
+      })`;
+    })
     .join('\n');
 }
 

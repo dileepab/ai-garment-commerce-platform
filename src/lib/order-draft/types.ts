@@ -4,6 +4,7 @@ export interface CatalogProduct {
   id: number;
   name: string;
   brand: string;
+  sku?: string | null;
   price: number;
   sizes: string;
   colors: string;

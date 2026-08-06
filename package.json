@@ -27,6 +27,8 @@
     "test:support-inbox": "node --test --experimental-strip-types --no-warnings scripts/support-inbox.test.ts",
     "test:fulfillment": "node --test --experimental-strip-types --no-warnings scripts/fulfillment.test.ts",
     "test:variant-availability": "node --test --experimental-strip-types --no-warnings scripts/variant-availability.test.ts",
+    "test:item-code": "node --test --experimental-strip-types --no-warnings scripts/product-item-code.test.ts",
+    "test:display-images": "node --test --experimental-strip-types --no-warnings scripts/product-display-images.test.ts",
     "test:whatsapp": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-normalize.test.ts scripts/meta-webhook-signature.test.ts scripts/whatsapp-registration.test.ts",
     "test:meta-catalog-feed": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts",
     "test:meta-catalog": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts scripts/meta-catalog-batch.test.ts",

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
+import { productDisplayImageUrls, type DisplayCreative } from '@/lib/product-display-images';
 
 export const revalidate = 60;
 
@@ -55,6 +56,9 @@ type StorefrontProductRecord = Prisma.ProductGetPayload<{
     creatives: {
       select: {
         id: true;
+        status: true;
+        publishedAt: true;
+        imageUrl: true;
         sourceImageUrl: true;
         viewAngle: true;
         createdAt: true;
@@ -140,25 +144,23 @@ function describeProduct(product: {
 function publicProductImage(
   product: {
     imageUrl: string | null;
-    colorImages: Array<{ imageUrl: string }>;
-    creatives: Array<{ id: number; sourceImageUrl: string | null }>;
+    colorImages: Array<{ color?: string | null; imageUrl: string }>;
+    creatives: Array<DisplayCreative & { sourceImageUrl: string | null }>;
   },
-  origin: string
+  origin: string,
+  preferredColor?: string | null
 ): string | null {
-  const directImage =
-    product.imageUrl ||
-    product.colorImages[0]?.imageUrl ||
-    product.creatives[0]?.sourceImageUrl;
+  // Creatives first — the stored photos are dummy shots taken on a phone, so
+  // they are reference material rather than something to show a shopper.
+  const images = productDisplayImageUrls(product, {
+    limit: 1,
+    preferredColor,
+    resolveCreativeUrl: (creative) =>
+      creative.imageUrl?.trim() || `${origin}/api/content/creatives/${creative.id}/image`,
+  });
 
-  if (directImage) {
-    return toAbsoluteUrl(directImage, origin);
-  }
-
-  if (product.creatives[0]?.id) {
-    return `${origin}/api/content/creatives/${product.creatives[0].id}/image`;
-  }
-
-  return null;
+  const chosen = images[0];
+  return chosen ? toAbsoluteUrl(chosen, origin) : null;
 }
 
 function mapProductForStorefront(
@@ -264,9 +266,12 @@ export async function GET(request: Request) {
         creatives: {
           where: { status: 'saved' },
           orderBy: { createdAt: 'desc' },
-          take: 1,
+          take: 12,
           select: {
             id: true,
+            status: true,
+            publishedAt: true,
+            imageUrl: true,
             sourceImageUrl: true,
             viewAngle: true,
             createdAt: true,

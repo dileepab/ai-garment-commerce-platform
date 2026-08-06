@@ -74,9 +74,19 @@ export async function GET(
         },
         creatives: {
           where: { status: 'saved' },
-          select: { id: true, status: true },
+          select: {
+            id: true,
+            status: true,
+            publishedAt: true,
+            viewAngle: true,
+            sourceImageUrl: true,
+            imageUrl: true,
+            createdAt: true,
+          },
           orderBy: { createdAt: 'desc' },
-          take: 1,
+          // Enough per product for the resolver to pick the published one for
+          // the requested colourway; it ranks rather than taking the newest.
+          take: 12,
         },
       },
       orderBy: { id: 'asc' },
