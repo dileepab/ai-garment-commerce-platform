@@ -311,18 +311,44 @@ export async function updateProduct(
         }
       }
 
-      // Variants that existed before but are absent from the submission → deactivate & zero out
+      // Variants that existed before but are absent from the submission.
       const removedIds = existing.variants.map((v) => v.id).filter((id) => !submittedIds.has(id));
 
       if (removedIds.length > 0) {
-        await tx.productVariant.updateMany({
-          where: { id: { in: removedIds } },
-          data: { status: 'out-of-stock' },
-        });
-        await tx.variantInventory.updateMany({
-          where: { variantId: { in: removedIds } },
-          data: { availableQty: 0 },
-        });
+        // A variant that was never ordered is deleted outright. Deactivating it
+        // instead left ghost rows behind — dropping a colour from a product kept
+        // every size of it as an out-of-stock variant, which then showed up as
+        // "critical stock" and inflated the restock forecast.
+        const orderedVariantIds = new Set(
+          (await tx.orderItem.findMany({
+            where: { variantId: { in: removedIds } },
+            select: { variantId: true },
+            distinct: ['variantId'],
+          }))
+            .map((item) => item.variantId)
+            .filter((id): id is number => id !== null),
+        );
+
+        const deletableIds = removedIds.filter((id) => !orderedVariantIds.has(id));
+        const keepIds = removedIds.filter((id) => orderedVariantIds.has(id));
+
+        // VariantInventory cascades, so deleting the variant clears its stock row.
+        if (deletableIds.length > 0) {
+          await tx.productVariant.deleteMany({ where: { id: { in: deletableIds } } });
+        }
+
+        // Anything with order history has to survive so past orders still
+        // resolve; retire it instead.
+        if (keepIds.length > 0) {
+          await tx.productVariant.updateMany({
+            where: { id: { in: keepIds } },
+            data: { status: 'out-of-stock' },
+          });
+          await tx.variantInventory.updateMany({
+            where: { variantId: { in: keepIds } },
+            data: { availableQty: 0 },
+          });
+        }
       }
 
       // Identity is now the colour/angle pair, which Prisma cannot express as a
