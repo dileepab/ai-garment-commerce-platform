@@ -17,7 +17,7 @@ export default async function ContentPage({
 
   const brandWhere = getSelectedBrandScopedWhere(scope, brand);
 
-  const [posts, creatives, availableBrands] = await Promise.all([
+  const [posts, creatives, linkableProducts, availableBrands] = await Promise.all([
     prisma.socialPost.findMany({
       where: brandWhere,
       orderBy: { createdAt: 'desc' },
@@ -61,9 +61,21 @@ export default async function ContentPage({
         productContext: true,
         sourceImageUrl: true,
         status: true,
+        publishedAt: true,
         createdBy: true,
         createdAt: true,
+        // Which product this creative represents. Splitting one product into
+        // several colourways leaves creatives pointing at the original, so the
+        // link has to be visible and correctable.
+        productId: true,
+        product: { select: { id: true, name: true, sku: true, brand: true } },
       },
+    }),
+    // Targets for re-linking a creative that ended up on the wrong product.
+    prisma.product.findMany({
+      where: { ...brandWhere, status: { notIn: ['archived', 'deleted'] } },
+      orderBy: [{ brand: 'asc' }, { name: 'asc' }],
+      select: { id: true, name: true, sku: true, brand: true },
     }),
     getAvailableBrands(scope),
   ]);
@@ -75,6 +87,7 @@ export default async function ContentPage({
     <ContentPageClient
       initialPosts={posts}
       initialCreatives={creatives}
+      linkableProducts={linkableProducts}
       stats={{ totalDrafts, totalReady, total: posts.length }}
       canWrite={canScope(scope, 'content:write')}
       availableBrands={availableBrands}
