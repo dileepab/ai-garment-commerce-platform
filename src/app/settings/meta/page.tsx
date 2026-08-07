@@ -544,7 +544,15 @@ export default async function MetaStatusPage({
                         />
                       </td>
                       <td className="cell-muted">{formatDateTime(event.processedAt)}</td>
-                      <td className="cell-muted">{trimText(event.error) || '-'}</td>
+                      {/* The whole point of an error column is the error. Meta
+                          puts the identifying part — the restriction wording,
+                          the subcode, the trace id — at the end, so a 120
+                          character cut hid exactly what was needed to diagnose
+                          a delivery failure. Show more, and keep the full text
+                          on hover for the rest. */}
+                      <td className="cell-muted" title={event.error ?? undefined}>
+                        {trimText(event.error, 400) || '-'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
