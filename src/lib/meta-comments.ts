@@ -1,4 +1,5 @@
 import { logDebug, logError } from '@/lib/app-log';
+import { describeMetaGraphError } from '@/lib/meta-error';
 import type { MetaPageTokenOptions, MetaSendResult } from '@/lib/meta';
 
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
@@ -12,12 +13,7 @@ function missingTokenResult(): MetaSendResult {
 }
 
 function getPayloadError(data: unknown): string | undefined {
-  if (typeof data === 'object' && data !== null && 'error' in data) {
-    const error = (data as { error?: { message?: string } }).error;
-    return error?.message;
-  }
-
-  return undefined;
+  return describeMetaGraphError(data);
 }
 
 async function readGraphResponseBody(response: Response): Promise<unknown> {
