@@ -18,10 +18,14 @@ import {
   type NormalizedMessage,
 } from '@/lib/meta-normalize';
 import {
+  clearBrandMessagingRestriction,
   getConfiguredFacebookPageIds,
+  isBrandMessagingRestricted,
+  recordBrandMessagingRestriction,
   resolveBrandForFacebookPageId,
   resolveFacebookConfigForPageId,
 } from '@/lib/brand-channel-config';
+import { detectMessagingRestriction } from '@/lib/meta-restriction';
 import {
   getMessengerBusinessLoopSkipReason,
   getMessengerInternalSenderIdsForBrand,
@@ -184,10 +188,22 @@ async function deliverCustomerResult(
   senderId: string,
   result: CustomerMessageResult,
   stats: WebhookStats,
-  pageAccessToken?: string
+  pageAccessToken?: string,
+  brand?: string | null
 ) {
   if (IS_CHAT_TEST_MODE || !result.reply) {
     return;
+  }
+
+  // A Page restricted by Meta rejects every send, and each attempt is another
+  // negative signal. Skipping costs the customer nothing — the message would
+  // not have reached them — and the cooldown is short enough that delivery
+  // resumes on its own once the restriction lifts.
+  if (brand && (await isBrandMessagingRestricted(brand))) {
+    stats.deliveryFailures += 1;
+    throw new Error(
+      `Messenger delivery skipped — ${brand} is restricted from messaging by Meta. Sends resume automatically when the restriction lifts.`
+    );
   }
 
   const failures: string[] = [];
@@ -196,7 +212,20 @@ async function deliverCustomerResult(
 
   if (!messageResult.ok) {
     stats.deliveryFailures += 1;
+
+    if (brand) {
+      const restriction = detectMessagingRestriction(messageResult.data);
+      if (restriction.restricted) {
+        await recordBrandMessagingRestriction(brand, restriction.reason);
+      }
+    }
+
     throw new Error(`Messenger text delivery failed (${describeMetaResult(messageResult)})`);
+  }
+
+  // A send that lands proves the restriction is over, whatever the cooldown says.
+  if (brand) {
+    await clearBrandMessagingRestriction(brand);
   }
 
   if (result.carouselProducts && result.carouselProducts.length > 0) {
@@ -387,7 +416,13 @@ async function processMessengerEvent(params: {
       imageUrl: normalized.imageUrl,
     });
 
-    await deliverCustomerResult(normalized.senderId, result, params.stats, params.pageAccessToken);
+    await deliverCustomerResult(
+      normalized.senderId,
+      result,
+      params.stats,
+      params.pageAccessToken,
+      params.brand
+    );
     await markWebhookEventProcessed(normalized.eventId);
     params.stats.processed += 1;
   } catch (error: unknown) {

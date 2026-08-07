@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { isRestrictionActive, restrictionCooldownUntil } from '@/lib/meta-restriction';
 
 export interface ResolvedFacebookConfig {
   brand: string;
@@ -464,4 +465,42 @@ export async function resolveWhatsAppConfigForPhoneNumberId(
   }
 
   return resolveWhatsAppConfigForBrand(brand);
+}
+
+/**
+ * Whether Meta currently has this brand's Page restricted from messaging.
+ *
+ * Sends are skipped while a cooldown holds. A restricted send reaches nobody
+ * anyway, so nothing is lost, and each attempt would be another negative
+ * signal against a Page that is already in trouble.
+ */
+export async function isBrandMessagingRestricted(brand: string): Promise<boolean> {
+  const record = await prisma.brandChannelConfig.findUnique({
+    where: { brand },
+    select: { messagingRestrictedUntil: true },
+  });
+
+  return isRestrictionActive(record?.messagingRestrictedUntil);
+}
+
+/** Start (or extend) the cooldown after Meta rejected a send as restricted. */
+export async function recordBrandMessagingRestriction(
+  brand: string,
+  reason?: string
+): Promise<void> {
+  await prisma.brandChannelConfig.updateMany({
+    where: { brand },
+    data: {
+      messagingRestrictedUntil: restrictionCooldownUntil(),
+      messagingRestrictionNote: reason?.slice(0, 1000) ?? null,
+    },
+  });
+}
+
+/** Clear the cooldown once a send succeeds — the restriction has lifted. */
+export async function clearBrandMessagingRestriction(brand: string): Promise<void> {
+  await prisma.brandChannelConfig.updateMany({
+    where: { brand, messagingRestrictedUntil: { not: null } },
+    data: { messagingRestrictedUntil: null, messagingRestrictionNote: null },
+  });
 }

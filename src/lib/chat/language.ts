@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { logDebug, logError, logWarn } from '@/lib/app-log';
+import { matchGreeting } from '@/lib/chat/greeting-variants';
 
 export type CustomerLanguage = 'english' | 'sinhala' | 'tamil';
 export type CustomerScriptStyle = 'native' | 'roman';
@@ -607,24 +608,23 @@ function localizeKnownReply(
     }
   }
 
-  const greetingMatch = reply.match(
-    /^Hello(?: ([^.]+))?\. How can I help you with (.+) today\?$/
-  );
+  // Every greeting variant carries its own Sinhala and Tamil forms, so wording
+  // can vary in English without dropping other languages back to English.
+  const greeting = matchGreeting(reply);
 
-  if (greetingMatch) {
-    const [, customerName, storeName] = greetingMatch;
-    const namePart = customerName ? ` ${customerName}` : '';
+  if (greeting) {
+    const { namePart, storeName, variant } = greeting;
 
     if (language === 'sinhala') {
       return scriptStyle === 'roman'
-        ? `Ayubowan${namePart}. ${storeName} gena ada kohomada udaw karanna puluwanda?`
-        : `ආයුබෝවන්${namePart}. අද ${storeName} ගැන මට ඔබට කෙසේ උදව් කළ හැකිද?`;
+        ? variant.sinhalaRoman(namePart, storeName)
+        : variant.sinhala(namePart, storeName);
     }
 
     if (language === 'tamil') {
       return scriptStyle === 'roman'
-        ? `Vanakkam${namePart}. Innaikku ${storeName} pathi eppadi help pannattum?`
-        : `வணக்கம்${namePart}. இன்று ${storeName} பற்றி நான் எப்படி உதவலாம்?`;
+        ? variant.tamilRoman(namePart, storeName)
+        : variant.tamil(namePart, storeName);
     }
   }
 
