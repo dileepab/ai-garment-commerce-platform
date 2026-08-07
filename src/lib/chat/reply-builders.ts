@@ -21,6 +21,7 @@ import {
 } from '@/lib/size-charts';
 import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
 import { splitCsv, firstNameOf, sortSizeOptions, formatSizeList } from '@/lib/chat/message-utils';
+import { pickGreetingVariant } from '@/lib/chat/greeting-variants';
 import { buildGarmentSpecsForCustomer, type ProductGarmentSpecSource } from '@/lib/product-garment-specs';
 import {
   buildAvailableVariantReply,
@@ -523,12 +524,11 @@ export function buildDeliveryReply(params: {
 export function buildGreetingReply(name?: string | null, brand?: string): string {
   const firstName = firstNameOf(name);
   const storeName = brand || 'our store';
+  // Seeded on the customer, so their wording stays the same across their own
+  // messages while other customers get different text. See greeting-variants.
+  const variant = pickGreetingVariant(firstName || '');
 
-  if (firstName) {
-    return `Hello ${firstName}. How can I help you with ${storeName} today?`;
-  }
-
-  return `Hello. How can I help you with ${storeName} today?`;
+  return variant.en(firstName ? ` ${firstName}` : '', storeName);
 }
 
 export function buildStoreLocationReply(supportConfig?: SupportContactConfig): string {

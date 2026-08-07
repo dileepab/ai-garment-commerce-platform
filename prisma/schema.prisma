@@ -598,6 +598,10 @@ model BrandChannelConfig {
   whatsappAccessToken        String?
   isTestBrand                Boolean  @default(false)
   notes                      String?
+  // Meta can restrict a Page from messaging. Every send then fails and each
+  // failure is another negative signal, so back off until this lapses.
+  messagingRestrictedUntil   DateTime?
+  messagingRestrictionNote   String?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 
