@@ -8,6 +8,7 @@ import {
   getCarouselDetailsButtonTitle,
 } from '@/lib/chat/language';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
+import { describeMetaGraphError } from '@/lib/meta-error';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import {
   buildInstagramProfileRequest,
@@ -88,12 +89,7 @@ function resolvePublicFilePath(publicPath: string): string {
 }
 
 function getPayloadError(data: unknown): string | undefined {
-  if (typeof data === 'object' && data !== null && 'error' in data) {
-    const error = (data as { error?: { message?: string } }).error;
-    return error?.message;
-  }
-
-  return undefined;
+  return describeMetaGraphError(data);
 }
 
 async function readGraphResponseBody(response: Response): Promise<unknown> {

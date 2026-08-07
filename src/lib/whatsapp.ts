@@ -1,4 +1,5 @@
 import { logDebug, logError } from '@/lib/app-log';
+import { describeMetaGraphError } from '@/lib/meta-error';
 import type { MetaQuickReply, MetaSendResult } from '@/lib/meta';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 
@@ -12,11 +13,7 @@ export interface WhatsAppSendOptions {
 }
 
 function getPayloadError(data: unknown): string | undefined {
-  if (typeof data === 'object' && data !== null && 'error' in data) {
-    const error = (data as { error?: { message?: string } }).error;
-    return error?.message;
-  }
-  return undefined;
+  return describeMetaGraphError(data);
 }
 
 async function readResponseBody(response: Response): Promise<unknown> {

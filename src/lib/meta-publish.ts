@@ -1,4 +1,5 @@
 import { logDebug, logError } from '@/lib/app-log';
+import { describeMetaGraphError } from '@/lib/meta-error';
 import {
   resolveFacebookConfigForBrand,
   resolveInstagramConfigForBrand,
@@ -49,7 +50,7 @@ function getMetaErrorCode(data: MetaErrorPayload, fallback: string | number): st
 }
 
 function getMetaErrorMessage(data: MetaErrorPayload, fallback: string): string {
-  return data.error?.message ?? fallback;
+  return describeMetaGraphError(data) ?? fallback;
 }
 
 async function postMetaJson(url: string, payload: Record<string, unknown>): Promise<{ response: Response; data: MetaIdResponse }> {
