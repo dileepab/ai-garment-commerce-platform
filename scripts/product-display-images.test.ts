@@ -204,3 +204,64 @@ test('a creative from a different colourway is still excluded', () => {
 
   assert.deepEqual(urls, ['/products/cream-front.jpg'], 'expected the colour photo, not another colour');
 });
+
+// Splitting one product into three colourways left the creatives pointing at
+// the original product's photos. After re-linking, sourceImageUrl matched
+// nothing on the new product, every creative was discarded, and the Meta
+// catalog served phone photos for HAP-0002 and HAP-0003.
+test('a re-linked creative is trusted when the product has one colourway', () => {
+  const product = {
+    imageUrl: '/products/fallback.jpg',
+    colorImages: [
+      { color: 'Cream Red Floral', imageUrl: '/products/cream-front.jpg' },
+      { color: 'Cream Red Floral', imageUrl: '/products/cream-back.jpg' },
+    ],
+    creatives: [
+      {
+        id: 93,
+        status: 'saved',
+        publishedAt: new Date('2026-08-05T10:00:00Z'),
+        viewAngle: 'front',
+        // Generated before the split, from the original product's photo.
+        sourceImageUrl: '/products/original-hap0001.jpg',
+        imageUrl: '/creatives/cream.jpg',
+      },
+    ],
+  };
+
+  const urls = productDisplayImageUrls(product, {
+    resolveCreativeUrl: (creative) => creative.imageUrl,
+    preferredColor: 'Cream Red Floral',
+  });
+
+  assert.deepEqual(urls, ['/creatives/cream.jpg']);
+});
+
+// The guard: with several colourways an unmatched creative is genuinely
+// ambiguous, and the wrong colour is worse than the original photo.
+test('a multi-colour product still refuses to guess', () => {
+  const product = {
+    imageUrl: '/products/fallback.jpg',
+    colorImages: [
+      { color: 'Cream Red Floral', imageUrl: '/products/cream-front.jpg' },
+      { color: 'Blue Grey', imageUrl: '/products/blue-front.jpg' },
+    ],
+    creatives: [
+      {
+        id: 94,
+        status: 'saved',
+        publishedAt: new Date('2026-08-05T10:00:00Z'),
+        viewAngle: 'front',
+        sourceImageUrl: '/products/somewhere-else.jpg',
+        imageUrl: '/creatives/unknown.jpg',
+      },
+    ],
+  };
+
+  const urls = productDisplayImageUrls(product, {
+    resolveCreativeUrl: (creative) => creative.imageUrl,
+    preferredColor: 'Cream Red Floral',
+  });
+
+  assert.deepEqual(urls, ['/products/cream-front.jpg'], 'expected the colour photo, not a guess');
+});

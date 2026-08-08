@@ -90,6 +90,15 @@ export function colorPhotoUrl(
  * product with real creatives fell back to the phone photo depending on which
  * angle happened to sort first.
  */
+/** How many colourways the product actually has photos for. */
+function distinctColorCount(product: DisplayImageProduct): number {
+  return new Set(
+    (product.colorImages ?? [])
+      .map((image) => image.color?.trim().toLowerCase())
+      .filter(Boolean)
+  ).size;
+}
+
 function colorPhotoUrls(
   product: DisplayImageProduct,
   preferredColor?: string | null
@@ -120,11 +129,21 @@ export function rankDisplayCreatives(
 
   // Match against every photo of the colourway, not just one of its angles.
   const colorUrls = colorPhotoUrls(product, preferredColor);
-  const scoped = colorUrls.size > 0
+  let scoped = colorUrls.size > 0
     ? candidates.filter(
         (creative) => creative.sourceImageUrl && colorUrls.has(creative.sourceImageUrl)
       )
     : candidates;
+
+  // Splitting one product into colourways leaves its creatives pointing at the
+  // original's photos, so after re-linking, sourceImageUrl matches nothing on
+  // the new product and every creative is discarded. When the product only has
+  // one colourway the link is unambiguous — a creative attached to it can only
+  // be for that colour — so trust the link. Multi-colour products still refuse
+  // to guess, because showing the wrong colour is worse than the plain photo.
+  if (scoped.length === 0 && distinctColorCount(product) <= 1) {
+    scoped = candidates;
+  }
 
   return [...scoped].sort((left, right) => {
     const publishedDiff = Number(isPublishedCreative(right)) - Number(isPublishedCreative(left));
