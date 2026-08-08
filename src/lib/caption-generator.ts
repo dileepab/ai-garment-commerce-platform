@@ -17,6 +17,10 @@ export interface CaptionGenerationInput {
   // Every image in the post. A multi-colour carousel needs all of them, or the
   // model writes copy about whichever single image it was shown.
   images?: string[];
+  // Set when the post is about one product, so the click-to-WhatsApp link can
+  // be prefilled with its code. Left unset for multi-product posts.
+  itemCode?: string | null;
+  productName?: string | null;
 }
 
 // Sending every frame of a large carousel costs tokens without adding much, so

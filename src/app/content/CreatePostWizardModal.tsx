@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
 import type { CreativeAspectRatio, CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
+import { productItemCode } from '@/lib/product-item-code';
 import ImageLightbox from './ImageLightbox';
 import ReferenceImagePicker, {
   hasAnyReference,
@@ -132,6 +133,7 @@ const Ic = {
 
 interface ProductSearchResult {
   id: number;
+  sku: string | null;
   name: string;
   brand: string;
   style: string | null;
@@ -506,6 +508,10 @@ export default function CreatePostWizardModal({
         // covers the whole range rather than only the first image.
         images: generatedImageDataList,
         imageBase64: generatedImageData ?? undefined,
+        // Prefills the caption's WhatsApp link, so the customer's first message
+        // already names the product. Only for a post about one product.
+        itemCode: selectedProduct ? productItemCode(selectedProduct) : null,
+        productName: selectedProduct?.name ?? null,
       });
 
       if (!result.success || !result.captionsByChannel) {

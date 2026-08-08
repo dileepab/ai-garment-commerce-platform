@@ -33,6 +33,8 @@ import { creativeImagePath } from '@/lib/creative-image-token';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
 import { displayProductSku } from '@/lib/product-sku';
 import { brandsMatch } from '@/lib/brand-aliases';
+import { getBrandChannelConfigView } from '@/lib/brand-channel-config';
+import { appendWhatsAppOrderLine } from '@/lib/whatsapp-order-link';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -228,6 +230,23 @@ export async function generateChannelCaptions(
     assertBrandAccess(scope, params.brand);
 
     const captionsByChannel = await generateCaptionsByChannel(params);
+
+    // Organic posts cannot carry a call-to-action button, so the way into a
+    // conversation has to be in the caption itself. Prefilled with the item
+    // code, the customer's first message already says which product.
+    const config = await getBrandChannelConfigView(params.brand);
+    const linkOptions = {
+      displayPhoneNumber: config?.whatsappDisplayPhoneNumber,
+      itemCode: params.itemCode,
+      productName: params.productName,
+    };
+
+    for (const channel of Object.keys(captionsByChannel)) {
+      captionsByChannel[channel] = captionsByChannel[channel].map((caption) =>
+        appendWhatsAppOrderLine(caption, linkOptions)
+      );
+    }
+
     return { success: true, captionsByChannel };
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error);
