@@ -144,3 +144,63 @@ test('colour photo lookup is case and whitespace tolerant', () => {
   assert.equal(colorPhotoUrl(product([]), '  cream red floral '), CREAM_PHOTO);
   assert.equal(colorPhotoUrl(product([]), 'Nonexistent'), undefined);
 });
+
+// The Happybuy catalog bug: HAP-0002 and HAP-0003 had published creatives, yet
+// the Meta feed served their phone photos. A colourway has one photo per angle,
+// and pairing matched only whichever angle sorted first — so a creative
+// generated from the colour's second photo was dropped as if it belonged to
+// another colour.
+test('a creative grounded in any angle of the colourway still counts', () => {
+  const product = {
+    imageUrl: '/products/fallback.jpg',
+    colorImages: [
+      { color: 'Cream Red Floral', imageUrl: '/products/cream-back.jpg' },
+      { color: 'Cream Red Floral', imageUrl: '/products/cream-front.jpg' },
+    ],
+    creatives: [
+      {
+        id: 91,
+        status: 'saved',
+        publishedAt: new Date('2026-08-07T10:00:00Z'),
+        viewAngle: 'front',
+        // Generated from the colour's second photo, not the first.
+        sourceImageUrl: '/products/cream-front.jpg',
+        imageUrl: '/creatives/cream-front.jpg',
+      },
+    ],
+  };
+
+  const urls = productDisplayImageUrls(product, {
+    resolveCreativeUrl: (creative) => creative.imageUrl,
+    preferredColor: 'Cream Red Floral',
+  });
+
+  assert.deepEqual(urls, ['/creatives/cream-front.jpg']);
+});
+
+test('a creative from a different colourway is still excluded', () => {
+  const product = {
+    imageUrl: '/products/fallback.jpg',
+    colorImages: [
+      { color: 'Cream Red Floral', imageUrl: '/products/cream-front.jpg' },
+      { color: 'Blue Grey', imageUrl: '/products/blue-front.jpg' },
+    ],
+    creatives: [
+      {
+        id: 92,
+        status: 'saved',
+        publishedAt: new Date('2026-08-07T10:00:00Z'),
+        viewAngle: 'front',
+        sourceImageUrl: '/products/blue-front.jpg',
+        imageUrl: '/creatives/blue-front.jpg',
+      },
+    ],
+  };
+
+  const urls = productDisplayImageUrls(product, {
+    resolveCreativeUrl: (creative) => creative.imageUrl,
+    preferredColor: 'Cream Red Floral',
+  });
+
+  assert.deepEqual(urls, ['/products/cream-front.jpg'], 'expected the colour photo, not another colour');
+});
