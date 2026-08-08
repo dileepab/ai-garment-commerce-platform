@@ -67,7 +67,7 @@ export function isPublishedCreative(creative: DisplayCreative): boolean {
   return Boolean(creative.publishedAt);
 }
 
-/** The stored photo for a colourway, used both for display and for pairing. */
+/** The stored photo for a colourway, used as the fallback when no creative fits. */
 export function colorPhotoUrl(
   product: DisplayImageProduct,
   preferredColor?: string | null
@@ -79,6 +79,30 @@ export function colorPhotoUrl(
   if (!preferred) return colorImages[0]?.imageUrl;
 
   return colorImages.find((image) => image.color?.trim().toLowerCase() === preferred)?.imageUrl;
+}
+
+/**
+ * Every stored photo of a colourway.
+ *
+ * A colour has one photo per angle — front, side, back, detail — and a creative
+ * records whichever one it was generated from. Pairing against a single photo
+ * silently dropped creatives grounded in the colour's other angles, so a
+ * product with real creatives fell back to the phone photo depending on which
+ * angle happened to sort first.
+ */
+function colorPhotoUrls(
+  product: DisplayImageProduct,
+  preferredColor?: string | null
+): Set<string> {
+  const preferred = preferredColor?.trim().toLowerCase();
+  if (!preferred) return new Set();
+
+  return new Set(
+    (product.colorImages ?? [])
+      .filter((image) => image.color?.trim().toLowerCase() === preferred)
+      .map((image) => image.imageUrl)
+      .filter(Boolean)
+  );
 }
 
 /**
@@ -94,9 +118,12 @@ export function rankDisplayCreatives(
   const candidates = (product.creatives ?? []).filter(isSaved);
   if (candidates.length === 0) return [];
 
-  const colorUrl = preferredColor ? colorPhotoUrl(product, preferredColor) : undefined;
-  const scoped = colorUrl
-    ? candidates.filter((creative) => creative.sourceImageUrl === colorUrl)
+  // Match against every photo of the colourway, not just one of its angles.
+  const colorUrls = colorPhotoUrls(product, preferredColor);
+  const scoped = colorUrls.size > 0
+    ? candidates.filter(
+        (creative) => creative.sourceImageUrl && colorUrls.has(creative.sourceImageUrl)
+      )
     : candidates;
 
   return [...scoped].sort((left, right) => {
