@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { brandsMatch } from '@/lib/brand-aliases';
+import { parseCatalogRetailerId } from '@/lib/whatsapp-cart';
 import {
   extractExplicitOrderIdFromMessage,
   extractDeliveryLocationHint,
@@ -246,6 +247,42 @@ function looksLikeCapabilityQuestion(message: string): boolean {
   return /\b(?:what|how) (?:can|could|do) you (?:help|assist|do)|\bwhat can i ask\b|\bwhat do you help with\b/i.test(
     message
   );
+}
+
+/**
+ * Matches a cart's retailer ids back to the variants they came from.
+ *
+ * buildMetaCatalogVariantRetailerId emits either a variant's own SKU or a
+ * generated "{product}-V{id}", so both readings are tried and the loaded
+ * catalog decides. Only the first resolvable item is used: the order flow
+ * handles one line at a time, and silently dropping the rest would be worse
+ * than confirming what we can and letting the customer add the others.
+ */
+function resolveCartSelection<
+  P extends { name: string; variants?: Array<{ id: number; sku?: string | null; size: string; color: string }> }
+>(
+  products: P[],
+  cart?: Array<{ retailerId: string; quantity: number }>
+): { product: P; variant: { size: string; color: string }; quantity: number } | null {
+  if (!cart?.length) return null;
+
+  for (const item of cart) {
+    const { variantId, raw } = parseCatalogRetailerId(item.retailerId);
+
+    for (const product of products) {
+      const variant = (product.variants ?? []).find(
+        (candidate) =>
+          (variantId !== null && candidate.id === variantId) ||
+          (candidate.sku ? candidate.sku === raw : false)
+      );
+
+      if (variant) {
+        return { product, variant, quantity: item.quantity };
+      }
+    }
+  }
+
+  return null;
 }
 
 function buildEmptyRoutedAction(
@@ -590,6 +627,20 @@ export async function routeCustomerMessage(
         }),
         imageUrl: input.imageUrl,
       })) || buildEmptyRoutedAction('fallback', 0);
+
+  // A cart names exact catalog rows, so it settles product, size and colour
+  // outright. Without this the classifier had only the customer's covering note
+  // to work with and would infer a product from earlier conversation — which is
+  // how a shopper who added Blue Grey in size S could be quoted something else.
+  const cartSelection = resolveCartSelection(products, input.cart);
+  if (cartSelection) {
+    aiAction.action = 'place_order';
+    aiAction.confidence = 1;
+    aiAction.productName = cartSelection.product.name;
+    aiAction.size = cartSelection.variant.size;
+    aiAction.color = cartSelection.variant.color;
+    aiAction.quantity = cartSelection.quantity;
+  }
 
   const singleMissingField =
     state.pendingStep === 'contact_collection' && state.orderDraft

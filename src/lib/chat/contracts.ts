@@ -27,6 +27,12 @@ export interface CustomerMessageInput {
   /** What the shopper is currently viewing on the storefront (e.g. a PDP), so
    *  references like "this item" can be resolved to the right product. */
   pageContext?: CustomerPageContext | null;
+  /**
+   * Catalog items the customer put in their cart. These name exact catalog
+   * rows, so they override anything inferred from message text — a cart is the
+   * least ambiguous thing a shopper can send.
+   */
+  cart?: Array<{ retailerId: string; quantity: number }>;
 }
 
 export interface CustomerQuickReply {

@@ -197,6 +197,12 @@ async function processMessage(
       brand,
       customerName: extracted.customerName,
       imageUrl: imageUrl ?? undefined,
+      // Exact catalog rows the customer chose, so the draft is built from what
+      // they actually added rather than inferred from conversation text.
+      cart: normalized.cart?.items.map((item) => ({
+        retailerId: item.retailerId,
+        quantity: item.quantity,
+      })),
     });
 
     await deliverCustomerResult(normalized.senderId, result, config, stats);
