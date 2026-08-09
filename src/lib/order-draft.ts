@@ -1,4 +1,6 @@
 export * from './order-draft/types';
+export * from './order-draft/items';
+export * from './order-draft/addition-intent';
 export * from './order-draft/constants';
 export * from './order-draft/pricing';
 export * from './order-draft/formatters';

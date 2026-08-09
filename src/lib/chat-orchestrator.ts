@@ -1,7 +1,6 @@
 import prisma from '@/lib/prisma';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { resolveCartLines } from '@/lib/whatsapp-cart';
-import { buildRemainingCartNote } from '@/lib/cart-followup';
 import {
   extractExplicitOrderIdFromMessage,
   extractDeliveryLocationHint,
@@ -72,8 +71,10 @@ import {
 import {
   buildContactConfirmationReply,
   buildOrderSummaryReply,
+  describeDraftItem,
   getDeliveryChargeForAddress,
   getDeliveryEstimateForAddress,
+  withDraftTotal,
   type ResolvedOrderDraft,
 } from '@/lib/order-draft';
 import {
@@ -598,36 +599,74 @@ export async function routeCustomerMessage(
   // to work with and would infer a product from earlier conversation — which is
   // how a shopper who added Blue Grey in size S could be quoted something else.
   const resolvedCart = resolveCartLines(products, input.cart);
-  const [firstCartLine, ...extraCartLines] = resolvedCart.lines;
 
-  if (firstCartLine) {
+  // Stock is checked here rather than at confirmation so the summary never
+  // quotes something that cannot ship. A line the customer cannot have is said
+  // out loud, not dropped.
+  const cartLinesInStock: typeof resolvedCart.lines = [];
+  const soldOutCartItems: string[] = [];
+
+  for (const line of resolvedCart.lines) {
+    const variant = line.product.variants?.find((candidate) => candidate.id === line.variant.id);
+    const availableQty = Math.max(0, variant?.inventory?.availableQty ?? 0);
+
+    if (availableQty <= 0) {
+      soldOutCartItems.push(
+        describeDraftItem({
+          productId: line.product.id,
+          productName: line.product.name,
+          brand: line.product.brand,
+          quantity: line.quantity,
+          size: line.variant.size,
+          color: line.variant.color,
+          price: line.product.price,
+        })
+      );
+      continue;
+    }
+
+    cartLinesInStock.push({
+      ...line,
+      // Never draft more than is on the shelf. The alternative fails at order
+      // creation, after the customer has already said yes.
+      quantity: Math.min(line.quantity, availableQty),
+    });
+  }
+
+  // The last line becomes the item the draft is currently specifying; the ones
+  // before it are already settled. That ordering keeps the summary reading in
+  // the order the customer added things.
+  const currentCartLine = cartLinesInStock[cartLinesInStock.length - 1];
+  const cartPreviousItems = cartLinesInStock.slice(0, -1).map((line) => ({
+    productId: line.product.id,
+    productName: line.product.name,
+    brand: line.product.brand,
+    variantId: line.variant.id,
+    quantity: line.quantity,
+    size: line.variant.size,
+    color: line.variant.color,
+    price: line.product.price,
+  }));
+
+  if (currentCartLine) {
     aiAction.action = 'place_order';
     aiAction.confidence = 1;
-    aiAction.productName = firstCartLine.product.name;
-    aiAction.size = firstCartLine.variant.size;
-    aiAction.color = firstCartLine.variant.color;
-    aiAction.quantity = firstCartLine.quantity;
+    aiAction.productName = currentCartLine.product.name;
+    aiAction.size = currentCartLine.variant.size;
+    aiAction.color = currentCartLine.variant.color;
+    aiAction.quantity = currentCartLine.quantity;
   }
 
-  // The draft covers one item, so the rest of the cart waits in state and is
-  // offered after each confirmation. A new cart replaces whatever was waiting —
-  // it is the customer's latest word on what they want.
-  if (input.cart?.length) {
-    state.pendingCartItems = extraCartLines.map((line) => ({
-      productId: line.product.id,
-      productName: line.product.name,
-      variantId: line.variant.id,
-      size: line.variant.size,
-      color: line.variant.color,
-      quantity: line.quantity,
-    }));
-  }
-
-  // Said once, on the message the cart arrives in. Repeating it on every turn of
+  // Said once, on the message the cart arrives in. Repeating it every turn of
   // the order flow would read like nagging.
-  const remainingCartNote = input.cart?.length
-    ? buildRemainingCartNote(state.pendingCartItems)
-    : null;
+  const cartNote =
+    soldOutCartItems.length > 0
+      ? `${
+          soldOutCartItems.length === 1
+            ? 'One item in your cart is out of stock now, so I left it off'
+            : 'Some items in your cart are out of stock now, so I left them off'
+        }: ${soldOutCartItems.join(', ')}.`
+      : null;
 
   if (resolvedCart.unresolvedRetailerIds.length > 0) {
     logWarn('Chat Orchestrator', 'Cart contained items no product claimed.', {
@@ -847,18 +886,22 @@ export async function routeCustomerMessage(
       previousDraft?.size === size &&
       previousDraft?.color === color;
 
-    return {
+    return withDraftTotal({
       productId: product.id,
       productName: product.name,
       brand: product.brand,
       variantId: resolvedVariant?.id ?? (canReusePreviousVariant ? previousDraft?.variantId : undefined),
       requiresExplicitVariantChoice,
+      // Items settled before this one ride along, so changing the item under
+      // discussion never quietly drops the rest of the order. A cart states the
+      // whole order at once, so it replaces the list rather than adding to it.
+      previousItems: currentCartLine ? cartPreviousItems : previousDraft?.previousItems,
       quantity,
       size,
       color,
       price: product.price,
       deliveryCharge,
-      total: product.price * quantity + deliveryCharge,
+      total: 0,
       paymentMethod,
       giftWrap,
       giftNote,
@@ -869,7 +912,7 @@ export async function routeCustomerMessage(
       city,
       district,
       phone: mergedContact.phone || previousDraft?.phone || '',
-    };
+    });
   }
 
   async function finalizeReply(params: {
@@ -906,9 +949,7 @@ export async function routeCustomerMessage(
     // Appended before localization so the customer reads it in their own
     // language, whatever the rest of this reply turned out to be.
     const reply =
-      params.reply && remainingCartNote
-        ? `${params.reply}\n\n${remainingCartNote}`
-        : params.reply;
+      params.reply && cartNote ? `${params.reply}\n\n${cartNote}` : params.reply;
 
     if (params.skipLocalization) {
       localizedReply = reply;
@@ -1328,7 +1369,7 @@ export async function routeCustomerMessage(
     ) &&
     !isUnambiguousCancellationMessage(input.currentMessage)
   ) {
-    const nextDraft: ResolvedOrderDraft = {
+    const nextDraft: ResolvedOrderDraft = withDraftTotal({
       ...state.orderDraft,
       name: mergedContact.name || state.orderDraft.name,
       address: mergedContact.address || state.orderDraft.address,
@@ -1344,13 +1385,7 @@ export async function routeCustomerMessage(
         mergedContact.address || state.orderDraft.address || '',
         settings.delivery
       ),
-      total:
-        state.orderDraft.price * state.orderDraft.quantity +
-        getDeliveryChargeForAddress(
-          mergedContact.address || state.orderDraft.address || '',
-          settings.delivery
-        ),
-    };
+    });
 
     const missingFields = getMissingContactFields({
       name: nextDraft.name,
@@ -1612,7 +1647,16 @@ export async function routeCustomerMessage(
       state.pendingStep
     ) && isClearConfirmation(input.currentMessage);
 
-  if (hasExplicitPendingConfirmation) {
+  // A "yes" straight after an order was placed is the customer acknowledging
+  // it, not a new confirmation. Without this it fell through to fallback and
+  // escalated them to support, which reads as if something had gone wrong with
+  // an order that is perfectly fine.
+  const isPostConfirmationEcho =
+    state.pendingStep === 'none' &&
+    state.lastAssistantReplyKind === 'order_confirmed' &&
+    isClearConfirmation(input.currentMessage);
+
+  if (hasExplicitPendingConfirmation || isPostConfirmationEcho) {
     effectiveAction = 'confirm_pending';
     effectiveAiAction = {
       ...effectiveAiAction,

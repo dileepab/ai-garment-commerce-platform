@@ -738,7 +738,9 @@ async function main() {
         senderId: buildSender(runId, 'sinhala-delivery-charge'),
         messages: ['Colombo වලට ඩිලිවරි කරන්න කීයක් ගන්නවද?'],
         verify: async ({ transcript }) => {
-          assertIncludes(transcript[0].bot, ['Colombo', 'Rs 150'], 'Sinhala delivery charge reply');
+          // Rs 425 is the real Colombo delivery charge and the schema default.
+          // The old Rs 150 came from a settings row no environment has.
+          assertIncludes(transcript[0].bot, ['Colombo', 'Rs 425'], 'Sinhala delivery charge reply');
         },
       },
       {
@@ -1045,6 +1047,44 @@ async function main() {
           assert(
             orders[0].orderStatus === 'confirmed',
             `Expected duplicate confirmation order to remain confirmed, received ${orders[0].orderStatus}.`
+          );
+        },
+      },
+      {
+        name: 'Adding a second item puts both in one order with one delivery charge',
+        senderId: buildSender(runId, 'multi-item-add'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Multi Item Customer',
+          '12 Main Street, Bingiriya, Kurunegala',
+          '0771009292',
+          'also add Oversized Casual Top in black, M size',
+          'yes correct',
+          'yes correct',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[4].bot, ['Added to your order'], 'Second item acknowledgement');
+
+          const orders = await getOrdersForSender(senderId);
+          assert(
+            orders.length === 1,
+            `Expected one order holding both items, received ${orders.length}.`
+          );
+
+          const [order] = orders;
+          assert(
+            order.orderItems.length === 2,
+            `Expected two items in the order, received ${order.orderItems.length}.`
+          );
+
+          // Delivery is per parcel. Charging it per item is a real overcharge.
+          const itemsTotal = order.orderItems.reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          );
+          assert(
+            order.totalAmount === itemsTotal,
+            `Expected order total ${itemsTotal} to cover both items, received ${order.totalAmount}.`
           );
         },
       },

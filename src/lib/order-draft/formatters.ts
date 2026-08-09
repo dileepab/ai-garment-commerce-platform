@@ -1,5 +1,6 @@
 import { formatContactBlock } from '@/lib/contact-profile';
 import { ResolvedOrderDraft } from './types';
+import { buildDraftItemLines, draftItemCount, draftItemsSubtotal } from './items';
 
 export function formatSizeForDisplay(size?: string): string {
   if (!size) {
@@ -43,6 +44,28 @@ export function buildOrderSummaryReply(draft: ResolvedOrderDraft): string {
     draft.giftWrap ? 'Gift wrap requested' : '',
     draft.giftNote ? `Gift Note: ${draft.giftNote}` : '',
   ].filter(Boolean);
+
+  // Several items get a priced list so the total is checkable at a glance. A
+  // single item keeps the labelled form it has always had — that is what
+  // customers, and the regression suite, already read.
+  if (draftItemCount(draft) > 1) {
+    return [
+      'Order Summary',
+      ...buildDraftItemLines(draft),
+      `Items Subtotal: Rs ${draftItemsSubtotal(draft)}`,
+      `Delivery Charge: Rs ${draft.deliveryCharge}`,
+      `Total: Rs ${draft.total}`,
+      `Payment Method: ${draft.paymentMethod}`,
+      `Name: ${draft.name}`,
+      `Street Address: ${draft.streetAddress || 'Not specified'}`,
+      `City/Town: ${draft.city || 'Not specified'}`,
+      `District: ${draft.district || 'Not specified'}`,
+      `Phone Number: ${draft.phone}`,
+      ...specialInstructions,
+      '',
+      'Reply "yes" to confirm, or tell me what to change.',
+    ].join('\n');
+  }
 
   return [
     'Order Summary',

@@ -51,23 +51,6 @@ export interface PendingQuantityUpdate {
   giftNote?: string | null;
 }
 
-/**
- * A cart line the customer sent that the current draft is not covering yet.
- *
- * The order flow handles one item at a time, so the rest wait here and are
- * offered after each confirmation. Only the identity of the item is kept —
- * price and availability are re-read when it comes up, so nothing stale is
- * ever quoted back.
- */
-export interface PendingCartItem {
-  productId: number;
-  productName: string;
-  variantId: number;
-  size: string;
-  color: string;
-  quantity: number;
-}
-
 export interface RecommendationConstraints {
   maximumPrice?: number | null;
   colors?: string[];
@@ -90,11 +73,7 @@ export interface ConversationStateData {
   lastReferencedProductName: string | null;
   lastRecommendedProductIds: number[];
   lastRecommendationConstraints: RecommendationConstraints | null;
-  pendingCartItems: PendingCartItem[];
 }
-
-/** Beyond this a "cart" is a bulk enquiry, and a human should handle it. */
-const MAX_PENDING_CART_ITEMS = 8;
 
 const VALID_PENDING_STEPS = new Set<PendingConversationStep>([
   'none',
@@ -156,42 +135,8 @@ export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   lastReferencedProductName: null,
   lastRecommendedProductIds: [],
   lastRecommendationConstraints: null,
-  pendingCartItems: [],
 };
 
-function normalizePendingCartItems(value?: unknown): PendingCartItem[] {
-  if (!Array.isArray(value)) return [];
-
-  const items: PendingCartItem[] = [];
-  for (const entry of value) {
-    if (typeof entry !== 'object' || entry === null) continue;
-    const item = entry as Partial<PendingCartItem>;
-
-    const productId = typeof item.productId === 'number' ? item.productId : NaN;
-    const variantId = typeof item.variantId === 'number' ? item.variantId : NaN;
-    const productName = typeof item.productName === 'string' ? item.productName.trim() : '';
-    if (!Number.isSafeInteger(productId) || productId <= 0) continue;
-    if (!Number.isSafeInteger(variantId) || variantId <= 0) continue;
-    if (!productName) continue;
-
-    // A duplicate would be offered twice and ordered twice.
-    if (items.some((existing) => existing.variantId === variantId)) continue;
-
-    items.push({
-      productId,
-      productName,
-      variantId,
-      size: typeof item.size === 'string' ? item.size.trim() : '',
-      color: typeof item.color === 'string' ? item.color.trim() : '',
-      quantity:
-        typeof item.quantity === 'number' && Number.isFinite(item.quantity) && item.quantity > 0
-          ? Math.floor(item.quantity)
-          : 1,
-    });
-  }
-
-  return items.slice(0, MAX_PENDING_CART_ITEMS);
-}
 
 function parseConversationState(value?: string | null): Partial<ConversationStateData> {
   if (!value) {
@@ -329,7 +274,6 @@ export function normalizeConversationState(
               : {}),
           }
         : null,
-    pendingCartItems: normalizePendingCartItems(nextState.pendingCartItems),
   };
 }
 
@@ -337,36 +281,6 @@ function stringifyConversationState(state: ConversationStateData): string {
   return JSON.stringify(state);
 }
 
-/**
- * The shape written before pending cart items existed.
- *
- * saveConversationStateIfCurrent compares serialized state to claim a
- * confirmation exactly once. A row saved by the previous deploy has no
- * pendingCartItems key, so without this the comparison misses and a customer
- * mid-order when the deploy lands is told their confirmation is already being
- * processed.
- */
-function stringifyPreCartItemsConversationState(state: ConversationStateData): string {
-  const preCartItemsState = {
-    pendingStep: state.pendingStep,
-    orderDraft: state.orderDraft,
-    quantityUpdate: state.quantityUpdate,
-    lastReferencedOrderId: state.lastReferencedOrderId,
-    lastMissingOrderId: state.lastMissingOrderId,
-    lastSizeChartCategory: state.lastSizeChartCategory,
-    supportMode: state.supportMode,
-    lastAssistantReplyKind: state.lastAssistantReplyKind,
-    unclearMessageCount: state.unclearMessageCount,
-    preferredLanguage: state.preferredLanguage,
-    preferredScriptStyle: state.preferredScriptStyle,
-    lastReferencedProductId: state.lastReferencedProductId,
-    lastReferencedProductName: state.lastReferencedProductName,
-    lastRecommendedProductIds: state.lastRecommendedProductIds,
-    lastRecommendationConstraints: state.lastRecommendationConstraints,
-  };
-
-  return JSON.stringify(preCartItemsState);
-}
 
 function stringifyPreScriptConversationState(state: ConversationStateData): string {
   const preScriptState = {
@@ -500,8 +414,6 @@ export async function saveConversationStateIfCurrent(
   const normalizedCurrentState = normalizeConversationState(currentState);
   const normalizedNextState = normalizeConversationState(nextState);
   const currentStateJson = stringifyConversationState(normalizedCurrentState);
-  const preCartItemsCurrentStateJson =
-    stringifyPreCartItemsConversationState(normalizedCurrentState);
   const preRecommendationCurrentStateJson =
     stringifyPreRecommendationConversationState(normalizedCurrentState);
   const preShortlistCurrentStateJson =
@@ -515,9 +427,6 @@ export async function saveConversationStateIfCurrent(
       channel,
       OR: [
         { stateJson: currentStateJson },
-        ...(preCartItemsCurrentStateJson !== currentStateJson
-          ? [{ stateJson: preCartItemsCurrentStateJson }]
-          : []),
         ...(preRecommendationCurrentStateJson !== currentStateJson
           ? [{ stateJson: preRecommendationCurrentStateJson }]
           : []),
@@ -540,12 +449,6 @@ export async function saveConversationStateIfCurrent(
   return result.count === 1;
 }
 
-/**
- * Note that pendingCartItems is deliberately not carried over. This runs when a
- * draft ends, and a customer who cancels should not be handed the next item off
- * their cart as if nothing happened. The confirmation path passes the remaining
- * items back explicitly.
- */
 export function clearPendingConversationState(
   state: ConversationStateData
 ): ConversationStateData {

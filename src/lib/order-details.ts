@@ -1,5 +1,9 @@
 import type { ResolvedOrderDraft } from '@/lib/order-draft';
-import { getDeliveryChargeForAddress } from '@/lib/order-draft';
+import {
+  buildDraftItemLines,
+  draftItemCount,
+  getDeliveryChargeForAddress,
+} from '@/lib/order-draft';
 import {
   buildSupportContactLine,
   buildSupportContactLineFromConfig,
@@ -173,12 +177,16 @@ export function buildOrderPlacedReply(
     ? buildSupportContactLineFromConfig(supportConfig, { orderId })
     : buildSupportContactLine({ orderId });
 
+  const itemLines =
+    draftItemCount(draft) > 1
+      ? buildDraftItemLines(draft)
+      : [`Product: ${draft.productName}`, `Quantity: ${draft.quantity}`];
+
   return [
     'Thank you. Your order has been confirmed successfully ✅',
     '',
     `Order ID: #${orderId}`,
-    `Product: ${draft.productName}`,
-    `Quantity: ${draft.quantity}`,
+    ...itemLines,
     `Total: Rs ${draft.total}`,
     `Payment Method: ${draft.paymentMethod}`,
     `Name: ${draft.name}`,

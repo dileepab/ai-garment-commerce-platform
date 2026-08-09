@@ -10,6 +10,18 @@ export interface CatalogProduct {
   colors: string;
 }
 
+/** One line of an order: a product, a variant of it, and how many. */
+export interface OrderDraftItem {
+  productId: number;
+  productName: string;
+  brand: string;
+  variantId?: number;
+  quantity: number;
+  size?: string;
+  color?: string;
+  price: number;
+}
+
 export interface ResolvedOrderDraft {
   productId: number;
   productName: string;
@@ -17,11 +29,14 @@ export interface ResolvedOrderDraft {
   variantId?: number;
   requiresExplicitVariantChoice?: boolean;
   /**
-   * Set when this draft is the next item off a cart, naming the order already
-   * confirmed in the same run. Declining this draft must not read as if that
-   * order went away too.
+   * Items already settled in this order.
+   *
+   * The top-level product fields describe the item currently being specified,
+   * and it comes *after* these — so every prompt, variant check and quantity
+   * rule keeps working on one item, while the order as a whole can hold
+   * several. Read the full list with draftItems() rather than reaching in here.
    */
-  precededByOrderId?: number;
+  previousItems?: OrderDraftItem[];
   quantity: number;
   size?: string;
   color?: string;
