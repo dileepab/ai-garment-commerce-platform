@@ -9,6 +9,7 @@ import { getErrorMessage } from '@/lib/error-message';
 import { logError, logInfo, logWarn } from '@/lib/app-log';
 import { logRuntimeWarnings } from '@/lib/runtime-config';
 import { verifyMetaWebhookSignature } from '@/lib/meta-webhook-signature';
+import { buildProductListPayload } from '@/lib/whatsapp-product-message';
 import {
   extractWhatsAppWebhook,
   type ExtractedWhatsAppMessage,
@@ -17,6 +18,7 @@ import {
   downloadWhatsAppImageAsDataUrl,
   sendWhatsAppImage,
   sendWhatsAppMessage,
+  sendWhatsAppPayloadMessage,
 } from '@/lib/whatsapp';
 import {
   claimWebhookEvent,
@@ -89,11 +91,38 @@ async function deliverCustomerResult(
   }
 
   if (result.carouselProducts?.length) {
-    const delivery = await sendWhatsAppMessage(
-      senderId,
-      buildCatalogText(result.carouselProducts),
-      { phoneNumberId: config.phoneNumberId, accessToken: config.accessToken }
-    );
+    // A card carries the catalog image, price and an Add to cart button, so the
+    // customer can act on a recommendation without leaving the chat. Falls back
+    // to the text list when the brand has no catalog, or when nothing in the
+    // reply has a sellable variant to point at.
+    const productPayload = config.catalogId
+      ? buildProductListPayload({
+          recipient: senderId,
+          catalogId: config.catalogId,
+          header: 'Available now',
+          body: 'Tap an item to see sizes, prices and add it to your cart.',
+          sections: [
+            {
+              title: 'Available now',
+              products: result.carouselProducts
+                .filter((product) => product.retailerId)
+                .map((product) => ({ retailerId: product.retailerId! })),
+            },
+          ],
+        })
+      : null;
+
+    const delivery = productPayload
+      ? await sendWhatsAppPayloadMessage(productPayload, {
+          phoneNumberId: config.phoneNumberId,
+          accessToken: config.accessToken,
+        })
+      : await sendWhatsAppMessage(
+          senderId,
+          buildCatalogText(result.carouselProducts),
+          { phoneNumberId: config.phoneNumberId, accessToken: config.accessToken }
+        );
+
     if (!delivery.ok) {
       stats.deliveryFailures += 1;
       throw new Error(`WhatsApp catalog delivery failed (${describeResult(delivery)})`);
