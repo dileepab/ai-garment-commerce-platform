@@ -101,6 +101,11 @@ export async function resolveDraftFromConversation(
     where: catalogBrand ? { brand: catalogBrand } : undefined,
     select: {
       id: true,
+      // Without the stored SKU, productItemCode derives a code from the row id
+      // instead, so a customer quoting "HAP-0002" matched nothing — a bare item
+      // code carries no product name for the fallback matcher to work with, and
+      // the draft resolved to whatever else scored.
+      sku: true,
       name: true,
       brand: true,
       price: true,
