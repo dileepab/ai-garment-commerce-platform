@@ -7,6 +7,13 @@ import { getDeliveryChargeForAddress } from '@/lib/order-draft/pricing';
 import { getMerchantSettings } from '@/lib/runtime-config';
 import type { CourierShipment } from '@prisma/client';
 import royalExpressCityList from '@/data/royalexpress-city-list.json';
+import {
+  findBestRoyalExpressCityRecord,
+  getRecordString,
+  normalizeCityText,
+  type CurfoxResponseValue,
+  type RoyalExpressCityMatchResult,
+} from '@/lib/royal-express-city-match';
 
 const ROYALEXPRESS_PROVIDER = 'royalexpress';
 const ROYALEXPRESS_COURIER_NAME = 'RoyalExpress';
@@ -111,14 +118,6 @@ const CURFOX_BUSINESS_ADDRESS_PATHS = (businessId: string) =>
         `/api/merchant/business/${businessId}/addresses/list?concat=true`,
         `/merchant/business/${businessId}/addresses/list?concat=true`,
       ];
-type CurfoxResponseValue =
-  | string
-  | number
-  | boolean
-  | null
-  | CurfoxResponseValue[]
-  | { [key: string]: CurfoxResponseValue };
-
 interface ResolvedRoyalExpressCredentials {
   email: string;
   password: string;
@@ -346,16 +345,6 @@ function collectRecords(value: CurfoxResponseValue): Array<Record<string, Curfox
   return records;
 }
 
-function getRecordString(record: Record<string, CurfoxResponseValue>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'string' || typeof value === 'number') {
-      const cleaned = cleanOptionalText(String(value));
-      if (cleaned) return cleaned;
-    }
-  }
-  return null;
-}
 
 function extractBearerToken(value: CurfoxResponseValue): string | null {
   const directKeys = [
@@ -900,74 +889,23 @@ async function resolveRoyalExpressOriginLocation(input: {
   );
 }
 
-function normalizeCityText(value?: string | null): string {
-  return (value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
-function getRoyalExpressCityId(record: Record<string, CurfoxResponseValue>): string | null {
-  return getRecordString(record, [
-    'city_id',
-    'cityId',
-    'destination_city_id',
-    'destinationCityId',
-    'id',
-    'value',
-  ]);
-}
 
-function getRoyalExpressCityName(record: Record<string, CurfoxResponseValue>): string | null {
-  return getRecordString(record, [
-    'city_name',
-    'cityName',
-    'name',
-    'city',
-    'label',
-    'text',
-  ]);
-}
 
-function getRoyalExpressDistrictName(record: Record<string, CurfoxResponseValue>): string | null {
-  return getRecordString(record, [
-    'district_name',
-    'districtName',
-    'district',
-    'state_name',
-    'stateName',
-    'province_name',
-    'provinceName',
-    'region',
-  ]);
-}
 
-function scoreRoyalExpressCityRecord(
-  record: Record<string, CurfoxResponseValue>,
-  target: {
-    city: string;
-    district: string;
-    address: string;
-  },
-): number {
-  const id = getRoyalExpressCityId(record);
-  const cityName = normalizeCityText(getRoyalExpressCityName(record));
-  if (!id || !cityName) return 0;
 
-  const districtName = normalizeCityText(getRoyalExpressDistrictName(record));
-  let score = 0;
+function assertRoyalExpressDestinationIsUnambiguous(
+  match: RoyalExpressCityMatchResult,
+  order: { deliveryCity: string | null; deliveryDistrict: string | null },
+): void {
+  if (match.ambiguousCityIds.length === 0) return;
 
-  if (target.city && cityName === target.city) score += 100;
-  else if (target.city && cityName.includes(target.city)) score += 70;
-  else if (target.city && target.city.includes(cityName)) score += 50;
-  else if (target.address && target.address.includes(cityName)) score += 35;
+  const place = order.deliveryCity || order.deliveryDistrict || 'this address';
 
-  if (target.district && districtName === target.district) score += 35;
-  else if (target.district && districtName.includes(target.district)) score += 20;
-  else if (target.district && target.address.includes(districtName)) score += 10;
-
-  return score;
+  throw new OrderRequestError(
+    `RoyalExpress matched ${place} to more than one destination city (ids ${match.ambiguousCityIds.join(', ')}). Add the district to the delivery address, or set the destination city on the order, before processing the RoyalExpress batch.`,
+    409,
+  );
 }
 
 function staticRoyalExpressCityToRecord(city: RoyalExpressStaticCity): Record<string, CurfoxResponseValue> {
@@ -978,25 +916,8 @@ function staticRoyalExpressCityToRecord(city: RoyalExpressStaticCity): Record<st
   };
 }
 
-function findBestRoyalExpressCityRecord(
-  records: Array<Record<string, CurfoxResponseValue>>,
-  target: {
-    city: string;
-    district: string;
-    address: string;
-  },
-) {
-  return records
-    .map((record) => ({
-      record,
-      cityId: getRoyalExpressCityId(record),
-      score: scoreRoyalExpressCityRecord(record, target),
-    }))
-    .filter((candidate): candidate is { record: Record<string, CurfoxResponseValue>; cityId: string; score: number } =>
-      Boolean(candidate.cityId && candidate.score > 0)
-    )
-    .sort((a, b) => b.score - a.score)[0] ?? null;
-}
+
+
 
 async function requestRoyalExpressCityList(token: string): Promise<{
   response: CurfoxResponseValue;
@@ -1145,14 +1066,19 @@ async function resolveRoyalExpressDestinationCityId(input: {
   const target = { city, district, address };
 
   if (city || district || address) {
-    const staticBest = findBestRoyalExpressCityRecord(
+    const staticMatch = findBestRoyalExpressCityRecord(
       (royalExpressCityList as RoyalExpressStaticCity[]).map(staticRoyalExpressCityToRecord),
       target,
     );
 
-    if (staticBest?.cityId) {
+    // An ambiguous address must not fall through to the Settings fallback: that
+    // would ship to the default city, which is a confident wrong answer rather
+    // than a question. Stop and let a person resolve it.
+    assertRoyalExpressDestinationIsUnambiguous(staticMatch, input.order);
+
+    if (staticMatch.best?.cityId) {
       return {
-        cityId: staticBest.cityId,
+        cityId: staticMatch.best.cityId,
         source: 'city-list',
         cityListPath: 'local:royalexpress-city-list.json',
       };
@@ -1161,17 +1087,25 @@ async function resolveRoyalExpressDestinationCityId(input: {
     let cityListWarning: string | null = null;
     try {
       const cityList = await requestRoyalExpressCityList(input.token);
-      const best = findBestRoyalExpressCityRecord(collectRecords(cityList.response), target);
+      const match = findBestRoyalExpressCityRecord(collectRecords(cityList.response), target);
 
-      if (best?.cityId) {
+      assertRoyalExpressDestinationIsUnambiguous(match, input.order);
+
+      if (match.best?.cityId) {
         return {
-          cityId: best.cityId,
+          cityId: match.best.cityId,
           source: 'city-list',
           cityListPath: cityList.path,
           attemptedCityListPaths: cityList.attemptedPaths,
         };
       }
     } catch (error) {
+      // An ambiguous destination is a decision for a person, not something to
+      // paper over with the fallback city.
+      if (error instanceof OrderRequestError) {
+        throw error;
+      }
+
       if (input.fallbackCityId) {
         cityListWarning = error instanceof Error ? error.message : String(error);
       } else {

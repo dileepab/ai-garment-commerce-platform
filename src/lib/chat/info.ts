@@ -24,9 +24,11 @@ import {
   buildClarificationReply,
   buildDeliveryReply,
   buildGreetingReply,
+  buildMissingContactPrompt,
   buildMissingOrderLookupReply,
   buildPaymentAvailabilityReply,
 } from '@/lib/chat/reply-builders';
+import { getMissingContactFields } from '@/lib/contact-profile';
 import { getRequestedOrderId, resolveCustomerTargetOrder } from '@/lib/chat/order-flow';
 import { getSriLankaDateOnly, getSriLankaToday } from '@/lib/delivery-calendar';
 import { buildOrderDetailsReply, buildSelfServiceOrderStatusReply } from '@/lib/order-details';
@@ -796,6 +798,35 @@ export async function handle_fallback(ctx: ChatContext) {
   const { escalateToSupport, finalizeReply } = ctx.helpers;
   const unclearMessageCount =
     state.lastAssistantReplyKind === 'fallback' ? state.unclearMessageCount + 1 : 1;
+
+  // Mid contact collection the customer is answering a specific question, not
+  // wandering off. Someone who replies "yes correct" to a request for their
+  // district has misread the question, and a generic "I did not understand
+  // that" does not help them — two of those handed them to a human and the bot
+  // then went silent. Re-ask for the field that is actually outstanding.
+  if (state.orderDraft && state.pendingStep === 'contact_collection') {
+    const missingContactFields = getMissingContactFields({
+      name: state.orderDraft.name,
+      address: state.orderDraft.address,
+      streetAddress: state.orderDraft.streetAddress,
+      city: state.orderDraft.city,
+      district: state.orderDraft.district,
+      phone: state.orderDraft.phone,
+    });
+
+    if (missingContactFields.length > 0) {
+      return finalizeReply({
+        reply: buildMissingContactPrompt(missingContactFields, { city: state.orderDraft.city }),
+        nextState: {
+          pendingStep: 'contact_collection',
+          orderDraft: state.orderDraft,
+          quantityUpdate: null,
+          unclearMessageCount: 0,
+          lastMissingOrderId: null,
+        },
+      });
+    }
+  }
 
   if (unclearMessageCount >= 2) {
     return escalateToSupport(

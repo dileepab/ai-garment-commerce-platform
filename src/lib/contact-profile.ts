@@ -732,6 +732,7 @@ export function getMissingContactFields(details: ContactDetailsInput): ContactFi
   return missing;
 }
 
+
 export function formatContactBlock(details: ContactDetailsInput): string {
   const hydrated = hydrateStructuredAddress(details);
 
