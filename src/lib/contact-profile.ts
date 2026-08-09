@@ -721,7 +721,19 @@ export function getMissingContactFields(details: ContactDetailsInput): ContactFi
     missing.push('city');
   }
 
-  if (!cleanStoredAddressPartValue(hydrated.district)) {
+  // A street and a town make an address a courier can deliver to: "460/2,
+  // Temple Road, Bingiriya" is complete, and Koombiyo scores a city match above
+  // a district match when it picks the delivery location. Customers write
+  // addresses that way and consider them finished, so blocking on the district
+  // left the order stuck behind a question they thought they had answered —
+  // two puzzled replies later the conversation was handed to a human.
+  //
+  // It is still asked for while the address is being collected, because someone
+  // who knows it should give it. It just no longer holds the order up.
+  if (
+    !cleanStoredAddressPartValue(hydrated.district) &&
+    !cleanStoredAddressPartValue(hydrated.city)
+  ) {
     missing.push('district');
   }
 

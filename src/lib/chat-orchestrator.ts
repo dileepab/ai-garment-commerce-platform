@@ -87,6 +87,7 @@ import { preferStoredMetaProfileName } from '@/lib/meta-profile';
 import { isClearConfirmation } from '@/lib/order-confirmation';
 import {
   buildHumanSupportReply,
+  buildSupportContactReply,
   buildSupportConversationSummary,
   upsertSupportEscalation,
   type SupportIssueReason,
@@ -1221,6 +1222,28 @@ export async function routeCustomerMessage(
   if (isBotPausedForSupport(currentSupportMode)) {
     const pausedSupportMode =
       currentSupportMode === 'human_active' ? 'human_active' : 'handoff_requested';
+
+    // Asking how to reach a human is the one question a handoff must never
+    // answer with silence — it is the whole point of the handoff. Telling them
+    // the number takes nothing away from the agent who is picking this up.
+    // Someone reporting that the number does not work is excluded: repeating it
+    // back would be useless, and they are already in the queue.
+    if (
+      aiAction.action === 'support_contact_request' &&
+      !looksLikeSupportContactProblem(input.currentMessage)
+    ) {
+      setDiagnosticEffectiveAction('support_contact_request');
+      return finalizeReply({
+        reply: buildSupportContactReply({
+          orderId: state.lastReferencedOrderId,
+          supportConfig: settings.support,
+        }),
+        assistantReplyKind: 'support_contact',
+        nextState: {
+          lastMissingOrderId: null,
+        },
+      });
+    }
 
     setDiagnosticEffectiveAction('support_silent_hold');
     return finalizeSupportSilentHold(pausedSupportMode);
