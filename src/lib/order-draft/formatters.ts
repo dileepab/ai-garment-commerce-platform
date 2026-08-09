@@ -1,4 +1,4 @@
-import { formatContactBlock } from '@/lib/contact-profile';
+import { formatContactBlock, shouldShowDistrict } from '@/lib/contact-profile';
 import { ResolvedOrderDraft } from './types';
 import { buildDraftItemLines, draftItemCount, draftItemsSubtotal } from './items';
 
@@ -40,6 +40,11 @@ export function splitCsv(value: string): string[] {
 }
 
 export function buildOrderSummaryReply(draft: ResolvedOrderDraft): string {
+  // Omitted for towns whose district was never asked for — a "Not specified"
+  // line invites a correction the bot will not act on.
+  const districtLine = shouldShowDistrict(draft)
+    ? [`District: ${draft.district || 'Not specified'}`]
+    : [];
   const specialInstructions = [
     draft.giftWrap ? 'Gift wrap requested' : '',
     draft.giftNote ? `Gift Note: ${draft.giftNote}` : '',
@@ -59,7 +64,7 @@ export function buildOrderSummaryReply(draft: ResolvedOrderDraft): string {
       `Name: ${draft.name}`,
       `Street Address: ${draft.streetAddress || 'Not specified'}`,
       `City/Town: ${draft.city || 'Not specified'}`,
-      `District: ${draft.district || 'Not specified'}`,
+      ...districtLine,
       `Phone Number: ${draft.phone}`,
       ...specialInstructions,
       '',
@@ -80,7 +85,7 @@ export function buildOrderSummaryReply(draft: ResolvedOrderDraft): string {
     `Name: ${draft.name}`,
     `Street Address: ${draft.streetAddress || 'Not specified'}`,
     `City/Town: ${draft.city || 'Not specified'}`,
-    `District: ${draft.district || 'Not specified'}`,
+    ...districtLine,
     `Phone Number: ${draft.phone}`,
     ...specialInstructions,
     '',

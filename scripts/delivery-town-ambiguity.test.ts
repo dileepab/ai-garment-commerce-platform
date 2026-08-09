@@ -4,7 +4,12 @@ import {
   listAmbiguousTownNames,
   needsDistrictForDelivery,
 } from '../src/lib/delivery-town-ambiguity.ts';
-import { getMissingContactFields } from '../src/lib/contact-profile.ts';
+import {
+  extractContactDetailsFromText,
+  formatContactBlock,
+  getMissingContactFields,
+  shouldShowDistrict,
+} from '../src/lib/contact-profile.ts';
 
 test('a town with one delivery point needs no district', () => {
   assert.equal(needsDistrictForDelivery('Bingiriya'), false);
@@ -73,6 +78,49 @@ test('giving the district settles a namesake town', () => {
   });
 
   assert.deepEqual(missing, []);
+});
+
+// The district is captured whenever the customer's address names one, whether
+// or not the bot asked — so an order is never missing something they told us.
+test('a district written in the address is captured and kept', () => {
+  const withDistrict = extractContactDetailsFromText('12 Main Street, Bingiriya, Kurunegala');
+  assert.equal(withDistrict.city, 'Bingiriya');
+  assert.equal(withDistrict.district, 'Kurunegala');
+
+  const districtAsTown = extractContactDetailsFromText('No 12, Main Street, Kandy');
+  assert.equal(districtAsTown.district, 'Kandy');
+});
+
+// Printing "District: Missing" under a town nobody was asked about puts an
+// unanswerable line in front of a customer confirming their own address.
+test('the district line is hidden only when it was never going to be asked', () => {
+  assert.equal(shouldShowDistrict({ city: 'Bingiriya', district: '' }), false);
+  assert.equal(shouldShowDistrict({ city: 'Bingiriya', district: 'Kurunegala' }), true);
+  assert.equal(shouldShowDistrict({ city: 'Nagoda', district: '' }), true);
+  assert.equal(shouldShowDistrict({ city: '', district: '' }), true);
+});
+
+test('the confirmation block drops the district line rather than saying Missing', () => {
+  const contact = {
+    name: 'Nimali Perera',
+    address: '460/2, Temple Road, Bingiriya',
+    streetAddress: '460/2, Temple Road',
+    city: 'Bingiriya',
+    district: '',
+    phone: '0714123777',
+  };
+
+  const block = formatContactBlock(contact);
+
+  assert.ok(block.includes('City/Town: Bingiriya'), 'the town must still be shown');
+  assert.ok(!block.includes('District:'), `district line should be absent:\n${block}`);
+
+  const withDistrict = formatContactBlock({ ...contact, district: 'Kurunegala' });
+  assert.ok(withDistrict.includes('District: Kurunegala'));
+
+  // A namesake town keeps the line, because that district is going to be asked.
+  const namesake = formatContactBlock({ ...contact, city: 'Nagoda' });
+  assert.ok(namesake.includes('District: Missing'));
 });
 
 test('no town at all still asks for the district', () => {

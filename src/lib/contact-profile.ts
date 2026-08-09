@@ -746,6 +746,23 @@ export function getMissingContactFields(details: ContactDetailsInput): ContactFi
   return missing;
 }
 
+/**
+ * True when a district line belongs on screen: either we have one, or the town
+ * is a namesake and we are going to ask.
+ *
+ * Printing "District: Missing" under a town we deliberately never asked about
+ * puts an unanswerable line in front of a customer being asked to confirm their
+ * own address — it reads like the order is broken.
+ */
+export function shouldShowDistrict(details: ContactDetailsInput): boolean {
+  const hydrated = hydrateStructuredAddress(details);
+  const district = cleanStoredAddressPartValue(hydrated.district);
+  if (district) return true;
+
+  const city = cleanStoredAddressPartValue(hydrated.city);
+  return !city || needsDistrictForDelivery(city);
+}
+
 export function formatContactBlock(details: ContactDetailsInput): string {
   const hydrated = hydrateStructuredAddress(details);
 
@@ -753,7 +770,9 @@ export function formatContactBlock(details: ContactDetailsInput): string {
     `Name: ${cleanStoredNameValue(hydrated.name) || 'Missing'}`,
     `Street Address: ${cleanStoredAddressPartValue(hydrated.streetAddress) || 'Missing'}`,
     `City/Town: ${cleanStoredAddressPartValue(hydrated.city) || 'Missing'}`,
-    `District: ${cleanStoredAddressPartValue(hydrated.district) || 'Missing'}`,
+    ...(shouldShowDistrict(details)
+      ? [`District: ${cleanStoredAddressPartValue(hydrated.district) || 'Missing'}`]
+      : []),
     `Phone Number: ${cleanStoredContactValue(hydrated.phone) || 'Missing'}`,
   ].join('\n');
 }
