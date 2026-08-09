@@ -2,6 +2,7 @@ import {
   getStructuredPostbackMessage,
   type NormalizedMessage,
 } from './meta-normalize.ts';
+import { extractWhatsAppCart, type WhatsAppCart } from './whatsapp-cart.ts';
 
 interface WhatsAppContact {
   wa_id?: string;
@@ -34,6 +35,12 @@ interface WhatsAppStatus {
 export interface NormalizedWhatsAppMessage extends NormalizedMessage {
   mediaId?: string;
   mediaMimeType?: string;
+  /**
+   * Set when the customer sent a catalog cart. The retailer ids name exactly
+   * what they chose, so the order can be built from them rather than inferred
+   * from conversation text.
+   */
+  cart?: WhatsAppCart;
 }
 
 export interface ExtractedWhatsAppMessage {
@@ -94,6 +101,18 @@ export function normalizeWhatsAppMessage(
     pageOrAccountId: phoneNumberId,
     isEcho: false,
   };
+
+  // A cart is the least ambiguous thing a customer can send — they picked the
+  // exact catalog rows — so it is read before the text fallbacks.
+  const cart = extractWhatsAppCart(source);
+  if (cart) {
+    return {
+      ...base,
+      messageText: cart.note || 'I would like to order the items in my cart.',
+      isPostback: false,
+      cart,
+    };
+  }
 
   if (source.type === 'text') {
     const messageText = cleanText(source.text?.body);
