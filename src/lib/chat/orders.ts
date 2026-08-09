@@ -550,7 +550,7 @@ export async function handle_place_order(ctx: ChatContext) {
   if (missingContactFields.length > 0) {
     return finalizeReply({
       reply: withSelectionChangeAcknowledgement(
-        buildMissingContactPrompt(missingContactFields)
+        buildMissingContactPrompt(missingContactFields, { city: nextDraft.city })
       ),
       nextState: {
         pendingStep: 'contact_collection',
@@ -622,7 +622,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
 
     if (missingContactFields.length > 0) {
       return finalizeReply({
-        reply: buildMissingContactPrompt(missingContactFields),
+        reply: buildMissingContactPrompt(missingContactFields, { city: state.orderDraft.city }),
         nextState: {
           pendingStep: 'contact_collection',
           orderDraft: state.orderDraft,
@@ -645,7 +645,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
 
     if (missingContactFields.length > 0) {
       return finalizeReply({
-        reply: buildMissingContactPrompt(missingContactFields),
+        reply: buildMissingContactPrompt(missingContactFields, { city: state.orderDraft.city }),
         nextState: {
           pendingStep: 'contact_collection',
           orderDraft: state.orderDraft,
@@ -850,7 +850,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
     });
 
     return finalizeReply({
-      reply: buildMissingContactPrompt(missingFields),
+      reply: buildMissingContactPrompt(missingFields, { city: state.orderDraft.city }),
       nextState: {
         lastMissingOrderId: null,
       },

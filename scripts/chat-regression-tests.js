@@ -1089,6 +1089,42 @@ async function main() {
         },
       },
       {
+        name: 'A confused reply during contact collection re-asks instead of escalating',
+        senderId: buildSender(runId, 'district-reprompt'),
+        messages: [
+          'I want Relaxed Linen Pants in beige, M size',
+          'Nimali Jayawardena',
+          '460/2, Temple Road, Bingiriya',
+          '0771009393',
+          'yes correct',
+          'yes correct',
+          'Kurunegala',
+        ],
+        verify: async ({ transcript, senderId }) => {
+          // An address without a district is the common case here. The question
+          // has to name the town, or the customer reads it as "nothing was
+          // received" and answers "yes correct" — which is exactly what happens
+          // next in this script.
+          assertIncludes(transcript[3].bot, ['Bingiriya'], 'District prompt naming the town');
+
+          for (const index of [4, 5]) {
+            assertIncludes(transcript[index].bot, ['district'], `Re-ask after confused reply ${index}`);
+            assert(
+              !transcript[index].bot.includes('flagged this conversation'),
+              `A confused reply must not escalate to support.\n\nActual reply:\n${transcript[index].bot}`
+            );
+          }
+
+          const escalation = await prisma.supportEscalation.findFirst({
+            where: { senderId, channel: 'messenger' },
+          });
+          assert(!escalation, 'Did not expect a support handoff while collecting contact details.');
+
+          // Once the district lands the order proceeds, carrying it.
+          assertIncludes(transcript[6].bot, ['Kurunegala'], 'Contact confirmation after district');
+        },
+      },
+      {
         name: 'Cancelling a pending draft does not cancel an existing order',
         senderId: buildSender(runId, 'draft-cancel'),
         messages: [

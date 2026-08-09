@@ -1421,7 +1421,7 @@ export async function routeCustomerMessage(
 
     if (missingFields.length > 0) {
       return finalizeReply({
-        reply: buildMissingContactPrompt(missingFields),
+        reply: buildMissingContactPrompt(missingFields, { city: nextDraft.city }),
         nextState: {
           pendingStep: 'contact_collection',
           orderDraft: nextDraft,
@@ -1488,7 +1488,7 @@ export async function routeCustomerMessage(
 
     if (missingFields.length > 0) {
       return finalizeReply({
-        reply: buildMissingContactPrompt(missingFields),
+        reply: buildMissingContactPrompt(missingFields, { city: state.orderDraft.city }),
         nextState: {
           pendingStep: 'contact_collection',
           orderDraft: state.orderDraft,

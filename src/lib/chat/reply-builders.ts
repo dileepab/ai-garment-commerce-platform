@@ -56,7 +56,23 @@ export function buildMissingFieldLabels(missingFields: ContactField[]): string {
     .join('\n');
 }
 
-export function buildMissingContactPrompt(missingFields: ContactField[]): string {
+export function buildMissingContactPrompt(
+  missingFields: ContactField[],
+  known?: { city?: string | null }
+): string {
+  // Customers write "460/2, Temple Road, Bingiriya" and consider the address
+  // given — Bingiriya is a town, and naming its district is not something
+  // anyone thinks to do. A bare "District:" under the same heading that already
+  // collected the address reads as though nothing was received, which is how a
+  // customer ends up replying "yes correct" to it.
+  if (missingFields.length === 1 && missingFields[0] === 'district') {
+    const town = known?.city?.trim();
+
+    return town
+      ? `Almost done — which district is ${town} in? (for example: Kurunegala, Gampaha, Colombo)`
+      : 'Almost done — which district is that address in? (for example: Kurunegala, Gampaha, Colombo)';
+  }
+
   return [
     'To proceed with the order, please share:',
     buildMissingFieldLabels(missingFields),

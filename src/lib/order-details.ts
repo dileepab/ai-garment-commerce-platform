@@ -4,7 +4,6 @@ import {
   draftItemCount,
   getDeliveryChargeForAddress,
 } from '@/lib/order-draft';
-import { shouldShowDistrict } from '@/lib/contact-profile';
 import {
   buildSupportContactLine,
   buildSupportContactLineFromConfig,
@@ -193,7 +192,7 @@ export function buildOrderPlacedReply(
     `Name: ${draft.name}`,
     `Street Address: ${draft.streetAddress || 'Not provided'}`,
     `City/Town: ${draft.city || 'Not provided'}`,
-    ...(shouldShowDistrict(draft) ? [`District: ${draft.district || 'Not provided'}`] : []),
+    `District: ${draft.district || 'Not provided'}`,
     `Phone Number: ${draft.phone}`,
     `Current Stage: ${getOrderStageLabel('confirmed')}`,
     ...specialInstructions,
@@ -314,9 +313,7 @@ export function buildOrderDetailsReply(
     `Name: ${order.customer.name}`,
     `Street Address: ${order.deliveryStreetAddress || order.deliveryAddress || 'Not provided'}`,
     `City/Town: ${order.deliveryCity || 'Not provided'}`,
-    ...(shouldShowDistrict({ city: order.deliveryCity, district: order.deliveryDistrict })
-      ? [`District: ${order.deliveryDistrict || 'Not provided'}`]
-      : []),
+    `District: ${order.deliveryDistrict || 'Not provided'}`,
     `Phone Number: ${order.customer.phone || ''}`,
     trackingLine,
     ...specialInstructions,

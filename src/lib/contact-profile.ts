@@ -1,5 +1,4 @@
 import { isClearConfirmation } from './confirmation-intent.ts';
-import { needsDistrictForDelivery } from './delivery-town-ambiguity.ts';
 
 export type ContactField = 'name' | 'streetAddress' | 'city' | 'district' | 'phone';
 
@@ -722,20 +721,7 @@ export function getMissingContactFields(details: ContactDetailsInput): ContactFi
     missing.push('city');
   }
 
-  // A street and a town usually make an address a courier can deliver to:
-  // "460/2, Temple Road, Bingiriya" is complete. Customers write addresses that
-  // way and consider them finished, so blocking every one of them on a district
-  // left orders stuck behind a question the customer thought they had already
-  // answered — two puzzled replies later the conversation was handed to a human.
-  //
-  // The exception is a town that shares its name with another. Nagoda exists in
-  // Galle, Kalutara and Gampaha, and the courier refuses to guess between them,
-  // so the district is asked for exactly where it decides something.
-  const city = cleanStoredAddressPartValue(hydrated.city);
-  if (
-    !cleanStoredAddressPartValue(hydrated.district) &&
-    (!city || needsDistrictForDelivery(city))
-  ) {
+  if (!cleanStoredAddressPartValue(hydrated.district)) {
     missing.push('district');
   }
 
@@ -746,22 +732,6 @@ export function getMissingContactFields(details: ContactDetailsInput): ContactFi
   return missing;
 }
 
-/**
- * True when a district line belongs on screen: either we have one, or the town
- * is a namesake and we are going to ask.
- *
- * Printing "District: Missing" under a town we deliberately never asked about
- * puts an unanswerable line in front of a customer being asked to confirm their
- * own address — it reads like the order is broken.
- */
-export function shouldShowDistrict(details: ContactDetailsInput): boolean {
-  const hydrated = hydrateStructuredAddress(details);
-  const district = cleanStoredAddressPartValue(hydrated.district);
-  if (district) return true;
-
-  const city = cleanStoredAddressPartValue(hydrated.city);
-  return !city || needsDistrictForDelivery(city);
-}
 
 export function formatContactBlock(details: ContactDetailsInput): string {
   const hydrated = hydrateStructuredAddress(details);
@@ -770,9 +740,7 @@ export function formatContactBlock(details: ContactDetailsInput): string {
     `Name: ${cleanStoredNameValue(hydrated.name) || 'Missing'}`,
     `Street Address: ${cleanStoredAddressPartValue(hydrated.streetAddress) || 'Missing'}`,
     `City/Town: ${cleanStoredAddressPartValue(hydrated.city) || 'Missing'}`,
-    ...(shouldShowDistrict(details)
-      ? [`District: ${cleanStoredAddressPartValue(hydrated.district) || 'Missing'}`]
-      : []),
+    `District: ${cleanStoredAddressPartValue(hydrated.district) || 'Missing'}`,
     `Phone Number: ${cleanStoredContactValue(hydrated.phone) || 'Missing'}`,
   ].join('\n');
 }
