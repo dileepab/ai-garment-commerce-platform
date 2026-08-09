@@ -1,5 +1,6 @@
 import { creativeImagePath, CATALOG_TTL_SECONDS } from '@/lib/creative-image-token';
-import { variantAvailableQty } from '@/lib/variant-availability';
+import { variantAvailableQty, isVariantAvailable } from '@/lib/variant-availability';
+import { buildMetaCatalogVariantRetailerId } from '@/lib/meta-catalog-feed';
 import { productItemCode } from '@/lib/product-item-code';
 import { productDisplayImageUrls } from '@/lib/product-display-images';
 import {
@@ -89,15 +90,58 @@ function productPrimaryImageUrl(product: ProductImageSource): string | undefined
   return productImageUrls(product, 1)[0];
 }
 
-function toCarouselProducts(products: Array<{ id: number; name: string; price: number; sizes: string; colors: string; imageUrl?: string | null } & ProductImageSource>) {
-  return products.map((product) => ({
-    id: product.id,
-    name: product.name,
-    price: product.price,
-    sizes: formatSizeList(product.sizes) || product.sizes,
-    colors: product.colors,
-    ...(productPrimaryImageUrl(product) ? { imageUrl: productPrimaryImageUrl(product) } : {}),
-  }));
+type CarouselSourceProduct = {
+  id: number;
+  sku?: string | null;
+  name: string;
+  price: number;
+  sizes: string;
+  colors: string;
+  imageUrl?: string | null;
+  variants?: Array<{
+    // Optional because some callers pass a narrower product shape. Without a
+    // variant id there is no catalog row to point at, so no card is offered.
+    id?: number;
+    sku?: string | null;
+    status?: string | null;
+    inventory?: { availableQty: number } | null;
+  }>;
+} & ProductImageSource;
+
+/**
+ * The catalog id WhatsApp needs to render a product card.
+ *
+ * The feed publishes one row per variant, so a card has to point at a variant —
+ * the first one actually in stock, since a card for a sold-out size is worse
+ * than no card. Built with the same function that writes the feed, because an
+ * id that does not match the catalog renders an empty card rather than failing.
+ */
+function catalogRetailerId(product: CarouselSourceProduct): string | undefined {
+  const sellable = (product.variants ?? []).find(
+    (variant) => variant.id !== undefined && isVariantAvailable(variant)
+  );
+  if (!sellable || sellable.id === undefined) return undefined;
+
+  return buildMetaCatalogVariantRetailerId(
+    { id: product.id, sku: product.sku ?? null },
+    { id: sellable.id, sku: sellable.sku }
+  );
+}
+
+function toCarouselProducts(products: Array<CarouselSourceProduct>) {
+  return products.map((product) => {
+    const retailerId = catalogRetailerId(product);
+
+    return {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      sizes: formatSizeList(product.sizes) || product.sizes,
+      colors: product.colors,
+      ...(productPrimaryImageUrl(product) ? { imageUrl: productPrimaryImageUrl(product) } : {}),
+      ...(retailerId ? { retailerId } : {}),
+    };
+  });
 }
 
 function getAvailableQty(product: {

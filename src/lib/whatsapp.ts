@@ -148,6 +148,18 @@ async function sendWhatsAppPayload(
   }
 }
 
+/**
+ * Sends a payload built elsewhere — catalog product cards, for instance, which
+ * are assembled from retailer ids rather than text.
+ */
+export function sendWhatsAppPayloadMessage(
+  payload: Record<string, unknown>,
+  options: Pick<WhatsAppSendOptions, 'phoneNumberId' | 'accessToken'>,
+  payloadType = 'interactive-product'
+): Promise<MetaSendResult> {
+  return sendWhatsAppPayload(payload, options as WhatsAppSendOptions, payloadType);
+}
+
 export function sendWhatsAppMessage(
   recipient: string,
   messageText: string,

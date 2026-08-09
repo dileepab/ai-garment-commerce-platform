@@ -839,6 +839,9 @@ export async function routeCustomerMessage(
       sizes: string;
       colors: string;
       imageUrl?: string;
+      // Catalog retailer id, when the product has a sellable variant. Lets
+      // WhatsApp render a real product card instead of a text list.
+      retailerId?: string;
     }>;
     orderId?: number | null;
     assistantReplyKind?: AssistantReplyKind;
