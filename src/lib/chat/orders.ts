@@ -18,8 +18,13 @@ import {
 import {
   buildContactConfirmationReply,
   buildOrderSummaryReply,
+  draftItemCount,
+  draftItems,
   getDeliveryChargeForAddress,
   getDeliveryEstimateForAddress,
+  looksLikeItemAdditionRequest,
+  startNewDraftItem,
+  withDraftTotal,
   type ResolvedOrderDraft,
 } from '@/lib/order-draft';
 import {
@@ -64,6 +69,14 @@ import type { ChatContext, ChatProduct } from './types';
 
 const DRAFT_PENDING_STEPS = new Set([
   'order_draft',
+  'contact_collection',
+  'contact_confirmation',
+  'order_confirmation',
+]);
+
+// Past these the item itself was accepted and the conversation moved on to
+// delivery, so anything the customer adds now is a second item.
+const DRAFT_SETTLED_STEPS = new Set([
   'contact_collection',
   'contact_confirmation',
   'order_confirmation',
@@ -312,13 +325,46 @@ async function updateOrderContactDetails(params: {
 }
 
 export async function handle_place_order(ctx: ChatContext) {
-  const { aiAction, products, state } = ctx;
+  const { aiAction, input, products, state } = ctx;
   const { buildDraftFromSource, finalizeReply, findProductByName } = ctx.helpers;
 
-  const existingDraft = state.orderDraft;
+  const currentDraft = state.orderDraft;
   const sourceProduct =
     findProductByName(aiAction.productName) ||
-    (existingDraft ? products.find((product) => product.id === existingDraft.productId) || null : null);
+    (currentDraft ? products.find((product) => product.id === currentDraft.productId) || null : null);
+
+  // "Also send the blue one in M" adds a second item; "actually make it blue"
+  // changes the one in hand. Both arrive here the same way, so the wording has
+  // to decide — and only when there is a settled item to keep. Getting this
+  // wrong in the replace direction throws away something the customer said.
+  const currentItemSettled = Boolean(
+    currentDraft &&
+      (DRAFT_SETTLED_STEPS.has(state.pendingStep) ||
+        (currentDraft.size && currentDraft.color))
+  );
+  const isAddition = Boolean(
+    currentDraft &&
+      sourceProduct &&
+      currentItemSettled &&
+      looksLikeItemAdditionRequest(input.currentMessage) &&
+      (aiAction.productName || aiAction.size || aiAction.color) &&
+      // A repeat of the very same variant is a quantity change, not a new line.
+      !(
+        sourceProduct.id === currentDraft.productId &&
+        (!aiAction.size || aiAction.size === currentDraft.size) &&
+        (!aiAction.color || aiAction.color === currentDraft.color)
+      )
+  );
+
+  const existingDraft =
+    isAddition && currentDraft
+      ? startNewDraftItem(currentDraft, {
+          quantity: aiAction.quantity,
+          // Same dress in another size keeps the colour already chosen; a
+          // different product must not inherit it.
+          keepVariant: sourceProduct?.id === currentDraft.productId,
+        })
+      : currentDraft;
 
   if (!sourceProduct) {
     return finalizeReply({
@@ -337,20 +383,24 @@ export async function handle_place_order(ctx: ChatContext) {
   const nextDraft = buildDraftFromSource(sourceProduct, existingDraft);
   const changedSelectionParts: string[] = [];
 
-  if (existingDraft && nextDraft.color && nextDraft.color !== existingDraft.color) {
+  // An addition changes nothing about the previous item, so describing it as an
+  // update would be plainly wrong.
+  if (!isAddition && existingDraft && nextDraft.color && nextDraft.color !== existingDraft.color) {
     changedSelectionParts.push(nextDraft.color);
   }
-  if (existingDraft && nextDraft.size && nextDraft.size !== existingDraft.size) {
+  if (!isAddition && existingDraft && nextDraft.size && nextDraft.size !== existingDraft.size) {
     changedSelectionParts.push(`size ${nextDraft.size}`);
   }
-  if (existingDraft && nextDraft.quantity !== existingDraft.quantity) {
+  if (!isAddition && existingDraft && nextDraft.quantity !== existingDraft.quantity) {
     changedSelectionParts.push(`quantity ${nextDraft.quantity}`);
   }
 
   const withSelectionChangeAcknowledgement = (reply: string) =>
-    changedSelectionParts.length > 0
-      ? `Got it — I've updated the selection to ${changedSelectionParts.join(', ')}.\n\n${reply}`
-      : reply;
+    isAddition
+      ? `Added to your order — that makes ${draftItemCount(nextDraft)} items.\n\n${reply}`
+      : changedSelectionParts.length > 0
+        ? `Got it — I've updated the selection to ${changedSelectionParts.join(', ')}.\n\n${reply}`
+        : reply;
 
   // Validate variant combo if both size and color are known
   const hasSize = Boolean(nextDraft.size);
@@ -455,13 +505,10 @@ export async function handle_place_order(ctx: ChatContext) {
       reply: `${sourceProduct.name}${nextDraft.color && nextDraft.size ? ` (${nextDraft.color} ${nextDraft.size})` : ''} currently has ${availableQty} item(s) available. Please send a lower quantity.`,
       nextState: {
         pendingStep: 'order_draft',
-        orderDraft: {
+        orderDraft: withDraftTotal({
           ...nextDraft,
           quantity: existingDraft?.quantity || 1,
-          total:
-            sourceProduct.price * (existingDraft?.quantity || 1) +
-            nextDraft.deliveryCharge,
-        },
+        }),
         quantityUpdate: null,
         lastMissingOrderId: null,
       },
@@ -712,15 +759,15 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         giftWrap: state.orderDraft.giftWrap,
         giftNote: state.orderDraft.giftNote,
         orderStatus: 'confirmed',
-        items: [
-          {
-            productId: state.orderDraft.productId,
-            variantId: state.orderDraft.variantId ?? null,
-            quantity: state.orderDraft.quantity,
-            size: state.orderDraft.size,
-            color: state.orderDraft.color,
-          },
-        ],
+        // Every item the customer settled, in one order and one transaction —
+        // so stock for all of them is reserved together or not at all.
+        items: draftItems(state.orderDraft).map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId ?? null,
+          quantity: item.quantity,
+          size: item.size,
+          color: item.color,
+        })),
       });
       await autoAssignKoombiyoWaybill({
         orderId: order.id,

@@ -4,7 +4,24 @@ import {
   describeCart,
   extractWhatsAppCart,
   parseCatalogRetailerId,
+  resolveCartLines,
 } from '../src/lib/whatsapp-cart.ts';
+
+const CATALOG = [
+  {
+    id: 6,
+    name: 'Cream Red Floral Dress',
+    variants: [
+      { id: 31, sku: null, size: 'M', color: 'Cream Red Floral' },
+      { id: 32, sku: null, size: 'L', color: 'Cream Red Floral' },
+    ],
+  },
+  {
+    id: 7,
+    name: 'Blue Grey Dress',
+    variants: [{ id: 35, sku: 'HAP-0003-BLU-S', size: 'S', color: 'Blue Grey' }],
+  },
+];
 
 // The message WhatsApp sends when a customer taps "Add to cart" and sends it.
 const ORDER_MESSAGE = {
@@ -117,6 +134,57 @@ test('a card id survives the round trip back to its variant', async () => {
   assert.equal(sentOnCard, 'HAP-0002-V31');
   assert.equal(parsed.variantId, variant.id, 'cart did not resolve to the variant the card pointed at');
   assert.equal(cart!.items[0].quantity, 2);
+});
+
+// The failure this exists to prevent: a customer adds two dresses, is quoted
+// one, and only finds out when a single parcel arrives.
+test('every cart line resolves, not just the first', () => {
+  const resolved = resolveCartLines(CATALOG, [
+    { retailerId: 'HAP-0002-V31', quantity: 2 },
+    { retailerId: 'HAP-0003-BLU-S', quantity: 1 },
+  ]);
+
+  assert.equal(resolved.lines.length, 2);
+  assert.deepEqual(
+    resolved.lines.map((line) => [line.product.id, line.variant.id, line.quantity]),
+    [[6, 31, 2], [7, 35, 1]]
+  );
+  assert.deepEqual(resolved.unresolvedRetailerIds, []);
+});
+
+test('cart lines keep the order the customer added them in', () => {
+  const resolved = resolveCartLines(CATALOG, [
+    { retailerId: 'HAP-0003-BLU-S', quantity: 1 },
+    { retailerId: 'HAP-0002-V32', quantity: 1 },
+  ]);
+
+  assert.deepEqual(resolved.lines.map((line) => line.variant.id), [35, 32]);
+});
+
+// Two orders for one dress is a worse answer than one order for two.
+test('the same variant twice becomes one line', () => {
+  const resolved = resolveCartLines(CATALOG, [
+    { retailerId: 'HAP-0002-V31', quantity: 2 },
+    { retailerId: 'HAP-0002-V31', quantity: 3 },
+  ]);
+
+  assert.equal(resolved.lines.length, 1);
+  assert.equal(resolved.lines[0].quantity, 5);
+});
+
+test('an id no product claims is reported rather than dropped', () => {
+  const resolved = resolveCartLines(CATALOG, [
+    { retailerId: 'HAP-0099-V999', quantity: 1 },
+    { retailerId: 'HAP-0002-V31', quantity: 1 },
+  ]);
+
+  assert.deepEqual(resolved.lines.map((line) => line.variant.id), [31]);
+  assert.deepEqual(resolved.unresolvedRetailerIds, ['HAP-0099-V999']);
+});
+
+test('no cart resolves to nothing', () => {
+  assert.deepEqual(resolveCartLines(CATALOG, []), { lines: [], unresolvedRetailerIds: [] });
+  assert.deepEqual(resolveCartLines(CATALOG), { lines: [], unresolvedRetailerIds: [] });
 });
 
 test('a variant with its own SKU round-trips by SKU', async () => {

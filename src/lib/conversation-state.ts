@@ -137,6 +137,7 @@ export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   lastRecommendationConstraints: null,
 };
 
+
 function parseConversationState(value?: string | null): Partial<ConversationStateData> {
   if (!value) {
     return {};
@@ -279,6 +280,7 @@ export function normalizeConversationState(
 function stringifyConversationState(state: ConversationStateData): string {
   return JSON.stringify(state);
 }
+
 
 function stringifyPreScriptConversationState(state: ConversationStateData): string {
   const preScriptState = {

@@ -1,5 +1,5 @@
 import { cleanStoredContactName, cleanStoredContactValue } from '@/lib/contact-profile';
-import type { ResolvedOrderDraft } from '@/lib/order-draft';
+import { withDraftTotal, type ResolvedOrderDraft } from '@/lib/order-draft';
 import type { QuantityUpdateSummary } from '@/lib/order-details';
 
 interface OrderProductLike {
@@ -122,23 +122,39 @@ export function buildReorderDraftFromOrder(params: {
   getDeliveryEstimateForAddress: (address: string) => string;
   defaultPaymentMethod?: string;
 }): ResolvedOrderDraft {
-  const sourceItem = params.sourceOrder.orderItems[0];
+  // Reordering brings back the whole order. The last item takes the top-level
+  // fields because that is the slot the draft flow edits; the earlier ones ride
+  // along in order. Reordering only the first line of a two-dress order would
+  // quietly halve it.
+  const orderBrand = params.sourceOrder.brand || '';
+  const sourceItems = params.sourceOrder.orderItems;
+  const sourceItem = sourceItems[sourceItems.length - 1];
+  const earlierItems = sourceItems.slice(0, -1).map((item) => ({
+    productId: item.productId,
+    productName: item.product.name,
+    brand: orderBrand || item.product.brand || '',
+    quantity: item.quantity,
+    ...(item.size ? { size: item.size } : {}),
+    ...(item.color ? { color: item.color } : {}),
+    price: item.price,
+  }));
   const deliveryAddress = params.sourceOrder.deliveryAddress || '';
   const streetAddress = params.sourceOrder.deliveryStreetAddress || '';
   const city = params.sourceOrder.deliveryCity || '';
   const district = params.sourceOrder.deliveryDistrict || '';
   const deliveryCharge = params.getDeliveryChargeForAddress(deliveryAddress);
 
-  return {
+  return withDraftTotal({
     productId: sourceItem.productId,
     productName: sourceItem.product.name,
-    brand: params.sourceOrder.brand || sourceItem.product.brand || '',
+    brand: orderBrand || sourceItem.product.brand || '',
+    ...(earlierItems.length > 0 ? { previousItems: earlierItems } : {}),
     quantity: sourceItem.quantity,
     size: sourceItem.size || undefined,
     color: sourceItem.color || undefined,
     price: sourceItem.price,
     deliveryCharge,
-    total: sourceItem.price * sourceItem.quantity + deliveryCharge,
+    total: 0,
     paymentMethod: params.sourceOrder.paymentMethod || params.defaultPaymentMethod || 'COD',
     giftWrap: params.sourceOrder.giftWrap,
     giftNote: params.sourceOrder.giftNote || undefined,
@@ -154,7 +170,7 @@ export function buildReorderDraftFromOrder(params: {
       cleanStoredContactValue(params.customer?.phone) ||
       params.sourceOrder.customer.phone ||
       '',
-  };
+  });
 }
 
 export function buildQuantityUpdateSummaryFromOrder(params: {
