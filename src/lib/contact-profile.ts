@@ -1,4 +1,5 @@
 import { isClearConfirmation } from './confirmation-intent.ts';
+import { needsDistrictForDelivery } from './delivery-town-ambiguity.ts';
 
 export type ContactField = 'name' | 'streetAddress' | 'city' | 'district' | 'phone';
 
@@ -721,18 +722,19 @@ export function getMissingContactFields(details: ContactDetailsInput): ContactFi
     missing.push('city');
   }
 
-  // A street and a town make an address a courier can deliver to: "460/2,
-  // Temple Road, Bingiriya" is complete, and Koombiyo scores a city match above
-  // a district match when it picks the delivery location. Customers write
-  // addresses that way and consider them finished, so blocking on the district
-  // left the order stuck behind a question they thought they had answered —
-  // two puzzled replies later the conversation was handed to a human.
+  // A street and a town usually make an address a courier can deliver to:
+  // "460/2, Temple Road, Bingiriya" is complete. Customers write addresses that
+  // way and consider them finished, so blocking every one of them on a district
+  // left orders stuck behind a question the customer thought they had already
+  // answered — two puzzled replies later the conversation was handed to a human.
   //
-  // It is still asked for while the address is being collected, because someone
-  // who knows it should give it. It just no longer holds the order up.
+  // The exception is a town that shares its name with another. Nagoda exists in
+  // Galle, Kalutara and Gampaha, and the courier refuses to guess between them,
+  // so the district is asked for exactly where it decides something.
+  const city = cleanStoredAddressPartValue(hydrated.city);
   if (
     !cleanStoredAddressPartValue(hydrated.district) &&
-    !cleanStoredAddressPartValue(hydrated.city)
+    (!city || needsDistrictForDelivery(city))
   ) {
     missing.push('district');
   }

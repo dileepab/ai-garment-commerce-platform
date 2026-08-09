@@ -92,8 +92,41 @@ test('an address without a district still resolves against the real city list', 
   assert.ok(match.best, 'expected a destination for a street and town');
 });
 
-// If this ever grows, the guard starts costing real batches — worth knowing.
-test('the shipped city list has only one repeated name', () => {
+// Plain substring matching sent "Nagoda" to "Pannimulla Panagoda" — a
+// different town in a different district, and a parcel across the island.
+test('a town name does not match inside a longer one', () => {
+  const match = findBestRoyalExpressCityRecord(
+    CITY_RECORDS,
+    targetFor('Nagoda', 'Kalutara', 'No 5 Main Street')
+  );
+
+  assert.equal(match.best?.record.name, 'Nagoda (Kalutara)');
+  assert.deepEqual(match.ambiguousCityIds, []);
+});
+
+// Curfox writes the district into the name for towns that repeat, so a
+// customer who gave the district has already chosen between them.
+test('the district in the address picks between namesake towns', () => {
+  const galle = findBestRoyalExpressCityRecord(
+    CITY_RECORDS,
+    targetFor('Nagoda', 'Galle', 'No 5 Main Street')
+  );
+
+  assert.equal(galle.best?.record.name, 'Nagoda (Galle)');
+  assert.deepEqual(galle.ambiguousCityIds, []);
+});
+
+test('a namesake town with no district is refused rather than guessed', () => {
+  const match = findBestRoyalExpressCityRecord(CITY_RECORDS, targetFor('Nagoda'));
+
+  // Galle, Kalutara and Gampaha — three provinces, no way to choose.
+  assert.equal(match.ambiguousCityIds.length, 3);
+});
+
+// Curfox disambiguates 50 of the 51 repeated base names with a "(District)"
+// suffix. Soranathota is the one pair carrying identical bare names, so no
+// address can separate them — worth knowing if that count ever changes.
+test('only one pair of records shares an identical bare name', () => {
   const byName = new Map<string, Set<string>>();
   for (const record of CITY_RECORDS) {
     const name = normalizeCityText(record.name);

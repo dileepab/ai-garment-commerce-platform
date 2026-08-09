@@ -97,6 +97,18 @@ export function getRoyalExpressDistrictName(
   return getRecordString(record, ['district_name', 'districtName', 'district']);
 }
 
+/**
+ * Whole-word containment.
+ *
+ * Plain substring matching made "Nagoda" match "Pannimulla Panagoda", which is
+ * a different town in a different district — the sort of near-miss that ships a
+ * parcel across the island.
+ */
+function containsPhrase(haystack: string, needle: string): boolean {
+  if (!haystack || !needle) return false;
+  return ` ${haystack} `.includes(` ${needle} `);
+}
+
 export function scoreRoyalExpressCityRecord(
   record: Record<string, CurfoxResponseValue>,
   target: RoyalExpressCityTarget
@@ -109,13 +121,21 @@ export function scoreRoyalExpressCityRecord(
   let score = 0;
 
   if (target.city && cityName === target.city) score += 100;
-  else if (target.city && cityName.includes(target.city)) score += 70;
-  else if (target.city && target.city.includes(cityName)) score += 50;
-  else if (target.address && target.address.includes(cityName)) score += 35;
+  else if (target.city && containsPhrase(cityName, target.city)) score += 70;
+  else if (target.city && containsPhrase(target.city, cityName)) score += 50;
+  else if (target.address && containsPhrase(target.address, cityName)) score += 35;
+
+  // Curfox disambiguates repeated town names by writing the district into the
+  // name itself — "Nagoda (Kalutara)" against "Nagoda (Galle)". A customer who
+  // gave the district has already said which one they mean, so the record whose
+  // whole name appears in their address wins over its namesakes.
+  if (score > 0 && target.address && cityName.includes(' ') && containsPhrase(target.address, cityName)) {
+    score += 25;
+  }
 
   if (target.district && districtName === target.district) score += 35;
-  else if (target.district && districtName.includes(target.district)) score += 20;
-  else if (target.district && target.address.includes(districtName)) score += 10;
+  else if (target.district && containsPhrase(districtName, target.district)) score += 20;
+  else if (target.district && containsPhrase(target.address, districtName)) score += 10;
 
   return score;
 }
