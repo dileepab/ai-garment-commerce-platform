@@ -47,6 +47,10 @@ import {
 } from '@/lib/customer-self-service';
 import { saveConversationStateIfCurrent } from '@/lib/conversation-state';
 import {
+  buildUnavailableCartNote,
+  takeNextCartItemDraft,
+} from '@/lib/cart-followup';
+import {
   splitCsv,
   sortSizeOptions,
   mentionsLatestOrderReference,
@@ -727,8 +731,55 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         source: 'chat order confirmation',
       });
 
+      const placedReply = buildOrderPlacedReply(
+        state.orderDraft,
+        order.id,
+        ctx.settings.support
+      );
+
+      // The rest of the customer's cart, taken one item at a time. Delivery
+      // details carry over from the order just placed, so the next item goes
+      // straight to a summary they only have to confirm.
+      const nextCartItem = takeNextCartItemDraft(
+        state.pendingCartItems,
+        products,
+        state.orderDraft
+      );
+      const unavailableNote = buildUnavailableCartNote(nextCartItem.unavailable);
+
+      if (nextCartItem.draft) {
+        const followUpDraft: ResolvedOrderDraft = {
+          ...nextCartItem.draft,
+          precededByOrderId: order.id,
+        };
+
+        return finalizeReply({
+          reply: [
+            placedReply,
+            '',
+            ...(unavailableNote ? [unavailableNote, ''] : []),
+            'Next from your cart:',
+            '',
+            buildOrderSummaryReply(followUpDraft),
+          ].join('\n'),
+          orderId: order.id,
+          // The customer's next move is confirming this summary, so the reply
+          // kind has to match the step or the nudge for a stalled order is
+          // wrong.
+          assistantReplyKind: 'order_summary',
+          nextState: {
+            ...clearPendingConversationState(state),
+            pendingStep: 'order_confirmation',
+            orderDraft: followUpDraft,
+            pendingCartItems: nextCartItem.remaining,
+            lastReferencedOrderId: order.id,
+            lastMissingOrderId: null,
+          },
+        });
+      }
+
       return finalizeReply({
-        reply: buildOrderPlacedReply(state.orderDraft, order.id, ctx.settings.support),
+        reply: unavailableNote ? `${placedReply}\n\n${unavailableNote}` : placedReply,
         orderId: order.id,
         assistantReplyKind: 'order_confirmed',
         nextState: {
@@ -866,8 +917,15 @@ export async function handle_cancel_order(ctx: ChatContext) {
     DRAFT_PENDING_STEPS.has(state.pendingStep) &&
     explicitOrderId === null
   ) {
+    // A draft taken off a cart follows an order that is already real. Telling
+    // this customer "no order has been placed" would read as if that one had
+    // been cancelled too.
+    const confirmedOrderId = state.orderDraft.precededByOrderId;
+
     return finalizeReply({
-      reply: 'Understood. No order has been placed yet, so nothing was processed. If you want to continue later, just send the details again.',
+      reply: confirmedOrderId
+        ? `Understood — I will leave that item out. Order #${confirmedOrderId} is confirmed and is not affected.`
+        : 'Understood. No order has been placed yet, so nothing was processed. If you want to continue later, just send the details again.',
       nextState: {
         ...clearPendingConversationState(state),
         lastMissingOrderId: null,

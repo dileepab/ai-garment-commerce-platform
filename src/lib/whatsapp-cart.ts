@@ -111,6 +111,93 @@ export function parseCatalogRetailerId(retailerId: string): ParsedRetailerId {
   };
 }
 
+export interface CartVariant {
+  id: number;
+  sku?: string | null;
+  size: string;
+  color: string;
+}
+
+export interface CartProduct {
+  id: number;
+  name: string;
+  variants?: CartVariant[];
+}
+
+export interface ResolvedCartLine<P> {
+  product: P;
+  variant: CartVariant;
+  quantity: number;
+  retailerId: string;
+}
+
+export interface ResolvedCart<P> {
+  /** Cart lines matched to a variant, in the order the customer added them. */
+  lines: ResolvedCartLine<P>[];
+  /** Ids no product in the catalog claimed — a retired or unlisted variant. */
+  unresolvedRetailerIds: string[];
+}
+
+/**
+ * Matches every cart line back to the variant it came from.
+ *
+ * buildMetaCatalogVariantRetailerId emits either a variant's own SKU or a
+ * generated "{product}-V{id}", so both readings are tried and the loaded
+ * catalog decides which one is real.
+ *
+ * Every line is returned, not just the first. The order flow still handles one
+ * item at a time, but the caller needs to know the rest exist: dropping them
+ * silently means a customer who added two dresses receives one and is never
+ * told.
+ */
+export function resolveCartLines<P extends CartProduct>(
+  products: P[],
+  cart?: Array<{ retailerId: string; quantity: number }>
+): ResolvedCart<P> {
+  const resolved: ResolvedCart<P> = { lines: [], unresolvedRetailerIds: [] };
+  if (!cart?.length) return resolved;
+
+  for (const item of cart) {
+    const { variantId, raw } = parseCatalogRetailerId(item.retailerId);
+
+    let match: { product: P; variant: CartVariant } | null = null;
+    for (const product of products) {
+      const variant = (product.variants ?? []).find(
+        (candidate) =>
+          (variantId !== null && candidate.id === variantId) ||
+          (candidate.sku ? candidate.sku === raw : false)
+      );
+
+      if (variant) {
+        match = { product, variant };
+        break;
+      }
+    }
+
+    if (!match) {
+      resolved.unresolvedRetailerIds.push(item.retailerId);
+      continue;
+    }
+
+    // The same variant can arrive on two lines. Two orders for one dress is a
+    // worse answer than one order for two.
+    const existing = resolved.lines.find((line) => line.variant.id === match.variant.id);
+    if (existing) {
+      existing.quantity += item.quantity;
+      continue;
+    }
+
+    resolved.lines.push({
+      product: match.product,
+      variant: match.variant,
+      quantity: item.quantity,
+      retailerId: item.retailerId,
+    });
+  }
+
+  return resolved;
+}
+
 /** A readable summary for the conversation log and the support inbox. */
 export function describeCart(cart: WhatsAppCart): string {
   const lines = cart.items.map(

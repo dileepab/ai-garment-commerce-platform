@@ -16,6 +16,12 @@ export interface ResolvedOrderDraft {
   brand: string;
   variantId?: number;
   requiresExplicitVariantChoice?: boolean;
+  /**
+   * Set when this draft is the next item off a cart, naming the order already
+   * confirmed in the same run. Declining this draft must not read as if that
+   * order went away too.
+   */
+  precededByOrderId?: number;
   quantity: number;
   size?: string;
   color?: string;
