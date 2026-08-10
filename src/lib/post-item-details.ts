@@ -35,6 +35,70 @@ export function formatRsPrice(price?: number | null): string {
     : 'N/A';
 }
 
+// Sizes are typed by hand on the product row, so they arrive in whatever order
+// they were entered — "L,M,S,XL" went out on a live post. A shopper reads a size
+// list as a range, and an unsorted one reads as a mistake.
+const SIZE_ORDER = ['XXXS', 'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL'];
+const SIZE_ALIASES: Record<string, string> = {
+  '2XS': 'XXS',
+  '3XS': 'XXXS',
+  '2XL': 'XXL',
+  '3XL': 'XXXL',
+  '4XL': 'XXXXL',
+  SMALL: 'S',
+  MEDIUM: 'M',
+  LARGE: 'L',
+};
+
+function sizeRank(size: string): number {
+  const key = size.toUpperCase().replace(/[\s.]/g, '');
+  return SIZE_ORDER.indexOf(SIZE_ALIASES[key] ?? key);
+}
+
+/**
+ * Canonical smallest-to-largest order. Lettered sizes lead, then numeric ones
+ * ascending, then anything unrecognised in the order it was entered — an
+ * unfamiliar value is never dropped, only moved to the end.
+ */
+export function formatSizes(value?: string | null): string | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+
+  const seen = new Set<string>();
+  const sizes = raw
+    .split(/[,/|]/)
+    .map((size) => size.trim())
+    .filter((size) => {
+      if (!size) return false;
+      const key = size.toUpperCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  if (sizes.length === 0) return null;
+
+  const decorated = sizes.map((size, index) => {
+    const rank = sizeRank(size);
+    const numeric = /^\d+(\.\d+)?$/.test(size) ? Number(size) : null;
+    return {
+      size,
+      index,
+      bucket: rank >= 0 ? 0 : numeric !== null ? 1 : 2,
+      weight: rank >= 0 ? rank : numeric ?? 0,
+    };
+  });
+
+  decorated.sort((a, b) => {
+    if (a.bucket !== b.bucket) return a.bucket - b.bucket;
+    if (a.bucket === 2) return a.index - b.index;
+    if (a.weight !== b.weight) return a.weight - b.weight;
+    return a.index - b.index;
+  });
+
+  return decorated.map((entry) => entry.size).join(', ');
+}
+
 /** Mirrors productSkuPrefix — three letters of the brand, uppercased. */
 function productSkuPrefix(brand: string): string {
   const prefix = brand.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase();
@@ -89,10 +153,88 @@ export function buildItemDescription(input: {
   return [
     `Item Name: ${cleanDetailValue(itemName)}`,
     `Item Code: ${cleanDetailValue(itemCode)}`,
-    `Available Sizes: ${cleanDetailValue(sizes)}`,
+    `Available Sizes: ${cleanDetailValue(formatSizes(sizes))}`,
     `Available Colors: ${cleanDetailValue(colors)}`,
     `Item Price: ${price}`,
   ].join('\n');
+}
+
+interface ParsedItemDetails {
+  name: string;
+  code: string;
+  sizes: string;
+  colors: string;
+  price: string;
+}
+
+const DETAIL_LABELS = [
+  'Item Name',
+  'Item Code',
+  'Available Sizes',
+  'Available Colors',
+  'Item Price',
+] as const;
+
+/** Reads back a block this module rendered; anything else returns null. */
+function parseItemDescription(block: string): ParsedItemDetails | null {
+  const lines = block.split('\n').map((line) => line.trim());
+  if (lines.length !== DETAIL_LABELS.length) return null;
+
+  const values: string[] = [];
+  for (const [index, label] of DETAIL_LABELS.entries()) {
+    if (!lines[index].startsWith(`${label}:`)) return null;
+    values.push(lines[index].slice(label.length + 1).trim());
+  }
+
+  return { name: values[0], code: values[1], sizes: values[2], colors: values[3], price: values[4] };
+}
+
+/** "Tie-Strap Smocked Sundress — Blue Grey" -> "Tie-Strap Smocked Sundress". */
+function baseItemName(name: string): string {
+  return name.split(/\s+[—–-]\s+/)[0].trim() || name.trim();
+}
+
+/**
+ * Colourways of one dress are separate products, so they publish as blocks that
+ * differ only in the colour and the code — three of them under one caption read
+ * like a stutter. Where the style, sizes and price all match they become a
+ * single block that still names every colour with its own code, so a shopper
+ * can order the exact one.
+ */
+function collapseSharedItems(blocks: string[]): string[] {
+  const groups: Array<{ key: string; items: ParsedItemDetails[]; raw: string }> = [];
+
+  for (const block of blocks) {
+    const parsed = parseItemDescription(block);
+    if (!parsed) {
+      groups.push({ key: `unparsed:${groups.length}`, items: [], raw: block });
+      continue;
+    }
+
+    const key = [baseItemName(parsed.name), parsed.sizes, parsed.price].join('|').toLowerCase();
+    const existing = groups.find((group) => group.key === key);
+    if (existing) {
+      existing.items.push(parsed);
+    } else {
+      groups.push({ key, items: [parsed], raw: block });
+    }
+  }
+
+  return groups.map((group) => {
+    if (group.items.length <= 1) return group.raw;
+
+    const [first] = group.items;
+    const colors = group.items
+      .map((item) => (item.code && item.code !== 'N/A' ? `${item.colors} (${item.code})` : item.colors))
+      .join(', ');
+
+    return [
+      `Item Name: ${baseItemName(first.name)}`,
+      `Available Sizes: ${first.sizes}`,
+      `Available Colors: ${colors}`,
+      `Item Price: ${first.price}`,
+    ].join('\n');
+  });
 }
 
 /**
@@ -121,5 +263,5 @@ export function appendItemDescriptions(caption: string, descriptions: string[]):
     return cleanCaption;
   }
 
-  return `${cleanCaption}\n\n${uniqueDescriptions.join('\n\n')}`;
+  return `${cleanCaption}\n\n${collapseSharedItems(uniqueDescriptions).join('\n\n')}`;
 }

@@ -44,6 +44,7 @@ import {
   OrderRequestError,
   updateSingleItemOrderQuantityById,
 } from '@/lib/orders';
+import { findOrderAdAttribution } from '@/lib/ad-referral';
 import { autoAssignKoombiyoWaybill } from '@/lib/koombiyo-courier';
 import {
   buildSelfServiceEscalationReply,
@@ -748,9 +749,18 @@ export async function handle_confirm_pending(ctx: ChatContext) {
         });
       }
 
+      // Read back the ad this conversation started from, if any. It was
+      // captured many messages ago, when the customer first clicked through.
+      const adAttribution = await findOrderAdAttribution(
+        prisma,
+        input.channel,
+        input.senderId,
+      );
+
       const order = await createOrderFromCatalog(prisma, {
         customerId: ensuredCustomer.id,
         brand: state.orderDraft.brand,
+        ...adAttribution,
         deliveryAddress: state.orderDraft.address,
         deliveryStreetAddress: state.orderDraft.streetAddress,
         deliveryCity: state.orderDraft.city,

@@ -9,11 +9,26 @@ interface WhatsAppContact {
   profile?: { name?: string };
 }
 
+/**
+ * Sent on the first message after someone taps a Click-to-WhatsApp ad. It is
+ * the only place the ad is ever named — WhatsApp does not repeat it on later
+ * messages — so it has to be captured here or the order that follows can never
+ * be tied back to the spend that produced it.
+ */
+interface WhatsAppReferral {
+  source_url?: string;
+  source_id?: string;
+  source_type?: string;
+  headline?: string;
+  ctwa_clid?: string;
+}
+
 interface WhatsAppMessage {
   from?: string;
   id?: string;
   timestamp?: string;
   type?: string;
+  referral?: WhatsAppReferral;
   text?: { body?: string };
   image?: { id?: string; mime_type?: string; caption?: string };
   interactive?: {
@@ -32,9 +47,20 @@ interface WhatsAppStatus {
   errors?: unknown[];
 }
 
+/** Which ad a conversation came from, as far as it can be identified. */
+export interface WhatsAppAdReferral {
+  sourceType?: string;
+  sourceId?: string;
+  sourceUrl?: string;
+  headline?: string;
+  clickId?: string;
+}
+
 export interface NormalizedWhatsAppMessage extends NormalizedMessage {
   mediaId?: string;
   mediaMimeType?: string;
+  /** Set only on the first message after a Click-to-WhatsApp ad. */
+  adReferral?: WhatsAppAdReferral;
   /**
    * Set when the customer sent a catalog cart. The retailer ids name exactly
    * what they chose, so the order can be built from them rather than inferred
@@ -83,6 +109,31 @@ function postbackText(id?: string, title?: string, description?: string): string
   );
 }
 
+/**
+ * The ad behind a conversation, or null when it did not come from one.
+ *
+ * An ad id or a click id is what makes the referral worth keeping; a payload
+ * carrying only a headline names nothing that can be reconciled against spend.
+ */
+export function extractWhatsAppAdReferral(
+  source: Pick<WhatsAppMessage, 'referral'>
+): WhatsAppAdReferral | null {
+  const referral = source.referral;
+  if (!referral) return null;
+
+  const sourceId = cleanText(referral.source_id);
+  const clickId = cleanText(referral.ctwa_clid);
+  if (!sourceId && !clickId) return null;
+
+  return {
+    sourceType: cleanText(referral.source_type),
+    sourceId,
+    sourceUrl: cleanText(referral.source_url),
+    headline: cleanText(referral.headline),
+    clickId,
+  };
+}
+
 export function normalizeWhatsAppMessage(
   source: WhatsAppMessage,
   phoneNumberId: string
@@ -94,12 +145,16 @@ export function normalizeWhatsAppMessage(
     return null;
   }
 
+  const adReferral = extractWhatsAppAdReferral(source);
   const base = {
     eventId: `whatsapp:${phoneNumberId}:${messageId}`,
     senderId,
     channel: 'whatsapp' as const,
     pageOrAccountId: phoneNumberId,
     isEcho: false,
+    // Spread into every message shape below, because an ad click can land as
+    // text, an image, or a catalog cart.
+    ...(adReferral ? { adReferral } : {}),
   };
 
   // A cart is the least ambiguous thing a customer can send — they picked the

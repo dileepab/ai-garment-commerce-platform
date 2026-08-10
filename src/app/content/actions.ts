@@ -238,6 +238,7 @@ export async function generateChannelCaptions(
     const linkOptions = {
       displayPhoneNumber: config?.whatsappDisplayPhoneNumber,
       itemCode: params.itemCode,
+      itemCodes: params.itemCodes,
       productName: params.productName,
     };
 

@@ -20,6 +20,9 @@ export interface CaptionGenerationInput {
   // Set when the post is about one product, so the click-to-WhatsApp link can
   // be prefilled with its code. Left unset for multi-product posts.
   itemCode?: string | null;
+  // Every code in the post. A multi-product post prefills with all of them, so
+  // the first message still says which items the customer was looking at.
+  itemCodes?: Array<string | null | undefined> | null;
   productName?: string | null;
 }
 
