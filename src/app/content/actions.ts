@@ -31,7 +31,7 @@ import {
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { creativeImagePath } from '@/lib/creative-image-token';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
-import { displayProductSku } from '@/lib/product-sku';
+import { appendItemDescriptions, buildItemDescription } from '@/lib/post-item-details';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { getBrandChannelConfigView } from '@/lib/brand-channel-config';
 import { appendWhatsAppOrderLine } from '@/lib/whatsapp-order-link';
@@ -1048,79 +1048,10 @@ export interface PublishSocialPostResult {
   publishStatus?: string;
 }
 
-function cleanDetailValue(value?: string | null): string {
-  const cleaned = value?.trim();
-  return cleaned || 'N/A';
-}
 
-function formatRsPrice(price?: number | null): string {
-  return typeof price === 'number' && Number.isFinite(price)
-    ? `Rs ${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-    : 'N/A';
-}
 
-function parseProductContextValue(context: string | null | undefined, label: string): string | null {
-  if (!context) return null;
-  const match = context.match(new RegExp(`${label}:\\s*([^.]+)`, 'i'));
-  return match?.[1]?.trim() || null;
-}
 
-function buildItemDescription(input: {
-  fallbackDescription?: string | null;
-  productContext?: string | null;
-  product?: {
-    id: number;
-    sku: string | null;
-    brand: string;
-    name: string;
-    price: number;
-    sizes: string;
-    colors: string;
-    variants: Array<{ sku: string | null }>;
-  } | null;
-}): string {
-  const product = input.product;
-  const itemName = product?.name ?? parseProductContextValue(input.productContext, 'Name');
-  const variantCode = product?.variants
-    .map((variant) => variant.sku?.trim())
-    .find((sku): sku is string => Boolean(sku));
-  const itemCode = product ? displayProductSku(product) : variantCode ?? null;
-  const sizes = product?.sizes ?? parseProductContextValue(input.productContext, 'Sizes');
-  const colors = product?.colors ?? parseProductContextValue(input.productContext, 'Colors');
-  const price = product
-    ? formatRsPrice(product.price)
-    : cleanDetailValue(parseProductContextValue(input.productContext, 'Price'));
 
-  if (!itemName && !itemCode && !sizes && !colors && price === 'N/A') {
-    const fallback = input.fallbackDescription?.trim();
-    return fallback && fallback.toUpperCase() !== 'N/A' ? fallback : '';
-  }
-
-  return [
-    `Item Name: ${cleanDetailValue(itemName)}`,
-    `Item Code: ${cleanDetailValue(itemCode)}`,
-    `Available Sizes: ${cleanDetailValue(sizes)}`,
-    `Available Colors: ${cleanDetailValue(colors)}`,
-    `Item Price: ${price}`,
-  ].join('\n');
-}
-
-function appendItemDescriptions(caption: string, descriptions: string[]): string {
-  const cleanCaption = caption.trim();
-  if (cleanCaption.includes('Item Name:')) {
-    return cleanCaption;
-  }
-
-  const uniqueDescriptions = Array.from(
-    new Set(descriptions.map((description) => description.trim()).filter((description) => Boolean(description) && description.toUpperCase() !== 'N/A')),
-  );
-
-  if (uniqueDescriptions.length === 0) {
-    return cleanCaption;
-  }
-
-  return `${cleanCaption}\n\n${uniqueDescriptions.join('\n\n')}`;
-}
 
 export async function publishSocialPost(
   postId: number,
