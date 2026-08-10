@@ -69,6 +69,22 @@ interface ExistingCreative {
   createdAt: string | Date;
 }
 
+/**
+ * A saved creative picked for the post, carrying the product it belongs to.
+ *
+ * The product travels with the selection because the creative grid only ever
+ * holds one product's images: switch products to add a second item and the
+ * first product's tiles are gone, so an id on its own could no longer say what
+ * had been chosen or let it be removed.
+ */
+interface ReusedCreative {
+  id: number;
+  productId: number;
+  productName: string;
+  itemCode: string | null;
+  viewAngle: string | null;
+}
+
 // ── Icons ────────────────────────────────────────────────────────────────────
 
 const Ic = {
@@ -214,7 +230,7 @@ export default function CreatePostWizardModal({
   // Step 2 — Generate (drafts is the batch; selectedDraftIds are carried into Step 3/4)
   const [drafts, setDrafts] = useState<DraftResult[]>([]);
   const [selectedDraftIds, setSelectedDraftIds] = useState<number[]>([]);
-  const [reusedExistingIds, setReusedExistingIds] = useState<number[]>([]);
+  const [reusedCreatives, setReusedCreatives] = useState<ReusedCreative[]>([]);
   const [correctionTextById, setCorrectionTextById] = useState<Record<number, string>>({});
   const [regeneratingDraftId, setRegeneratingDraftId] = useState<number | null>(null);
 
@@ -224,12 +240,31 @@ export default function CreatePostWizardModal({
     .filter((d): d is DraftResult => Boolean(d));
   const selectedDraft = selectedDrafts[0] ?? null;
   const generatedImageData = selectedDrafts[0]?.imageData
-    ?? (reusedExistingIds.length > 0 ? `/api/content/creatives/${reusedExistingIds[0]}/image` : null);
+    ?? (reusedCreatives.length > 0 ? `/api/content/creatives/${reusedCreatives[0].id}/image` : null);
   const generatedImageDataList = selectedDrafts.length > 0
     ? selectedDrafts.map(d => d.imageData)
-    : reusedExistingIds.map((id) => `/api/content/creatives/${id}/image`);
+    : reusedCreatives.map((c) => `/api/content/creatives/${c.id}/image`);
   const usedPrompt = selectedDraft?.prompt ?? null;
-  const selectedCreativeIds = reusedExistingIds.length > 0 ? reusedExistingIds : selectedDraftIds;
+  const selectedCreativeIds = reusedCreatives.length > 0
+    ? reusedCreatives.map((c) => c.id)
+    : selectedDraftIds;
+
+  // The products this post is actually about. Reused creatives can span several
+  // items; a fresh generation is always the one product on screen.
+  const postProducts = reusedCreatives.length > 0
+    ? [...new Map(reusedCreatives.map((c) => [c.productId, c])).values()]
+    : selectedProduct
+      ? [{
+          productId: selectedProduct.id,
+          productName: selectedProduct.name,
+          itemCode: productItemCode(selectedProduct),
+        }]
+      : [];
+  // Only a post about one item can prefill its code into the WhatsApp link.
+  // With several, the code would name whichever item happened to be selected
+  // last — so a shopper who tapped because they liked the third photo would
+  // start an order for the first.
+  const singlePostProduct = postProducts.length === 1 ? postProducts[0] : null;
 
   // Step 3 — Caption & Review
   const [channels, setChannels] = useState<string[]>(['facebook', 'instagram']);
@@ -318,7 +353,7 @@ export default function CreatePostWizardModal({
     setExpandedColor(null);
     setColorViewAngles({});
     setExistingCreatives([]);
-    setReusedExistingIds([]);
+    setReusedCreatives([]);
   }
 
   function updateColorReferences(color: string, next: ReferenceSet) {
@@ -349,14 +384,39 @@ export default function CreatePostWizardModal({
    * Selection order is kept: it becomes the carousel order on Facebook and
    * Instagram, so the picture the shopper sees first is the one clicked first.
    */
-  function toggleReuseExisting(id: number) {
-    setReusedExistingIds(prev =>
-      prev.includes(id) ? prev.filter(existing => existing !== id) : [...prev, id]
+  /**
+   * Toggles a saved creative in or out of the post.
+   *
+   * Selection order is kept: it becomes the carousel order on Facebook and
+   * Instagram, so the picture the shopper sees first is the one clicked first.
+   * Selections survive changing the product, which is what lets one post carry
+   * several items.
+   */
+  function toggleReuseExisting(creative: ExistingCreative) {
+    if (!selectedProduct) return;
+
+    setReusedCreatives(prev =>
+      prev.some(entry => entry.id === creative.id)
+        ? prev.filter(entry => entry.id !== creative.id)
+        : [
+            ...prev,
+            {
+              id: creative.id,
+              productId: selectedProduct.id,
+              productName: selectedProduct.name,
+              itemCode: productItemCode(selectedProduct),
+              viewAngle: creative.viewAngle,
+            },
+          ]
     );
   }
 
+  function removeReusedCreative(id: number) {
+    setReusedCreatives(prev => prev.filter(entry => entry.id !== id));
+  }
+
   function handleUseReusedCreatives() {
-    if (reusedExistingIds.length === 0) return;
+    if (reusedCreatives.length === 0) return;
 
     // Reusing saved creatives skips Step 2 entirely — no Gemini call, and the
     // images are already saved, so there is nothing to clean up afterwards.
@@ -400,7 +460,7 @@ export default function CreatePostWizardModal({
       setDrafts([]);
       setCorrectionTextById({});
       setSelectedDraftIds([]);
-      setReusedExistingIds([]);
+      setReusedCreatives([]);
 
       const colorSources: BatchSourceImage[] = colorsWithReferences
         .map((color) => ({
@@ -517,15 +577,21 @@ export default function CreatePostWizardModal({
       const result = await generateChannelCaptions({
         brand: brand.trim(),
         channels,
-        productContext: productContext.trim() || undefined,
+        // With several items the stored context describes only whichever
+        // product was selected last, which may not even be in the post — so the
+        // set is named instead. The authoritative per-item details are appended
+        // from the database at publish either way.
+        productContext: postProducts.length > 1
+          ? `This post features ${postProducts.length} items: ${postProducts.map((p) => p.productName).join(', ')}.`
+          : productContext.trim() || undefined,
         // Every selected creative, so a multi-colour carousel gets copy that
         // covers the whole range rather than only the first image.
         images: generatedImageDataList,
         imageBase64: generatedImageData ?? undefined,
         // Prefills the caption's WhatsApp link, so the customer's first message
         // already names the product. Only for a post about one product.
-        itemCode: selectedProduct ? productItemCode(selectedProduct) : null,
-        productName: selectedProduct?.name ?? null,
+        itemCode: singlePostProduct?.itemCode ?? null,
+        productName: singlePostProduct?.productName ?? null,
       });
 
       if (!result.success || !result.captionsByChannel) {
@@ -603,7 +669,7 @@ export default function CreatePostWizardModal({
     }
 
     startFinishing(async () => {
-      if (reusedExistingIds.length === 0) {
+      if (reusedCreatives.length === 0) {
         for (const creativeId of selectedDraftIds) {
           const saveRes = await saveGeneratedCreative(creativeId);
           if (!saveRes.success) {
@@ -656,7 +722,7 @@ export default function CreatePostWizardModal({
     startFinishing(async () => {
       // If the user picked fresh drafts, save selected ones and discard unselected ones.
       // If they reused an existing creative, it's already saved — skip both steps.
-      if (reusedExistingIds.length === 0) {
+      if (reusedCreatives.length === 0) {
         for (const creativeId of selectedDraftIds) {
           const saveRes = await saveGeneratedCreative(creativeId);
           if (!saveRes.success) {
@@ -699,7 +765,7 @@ export default function CreatePostWizardModal({
     }
     setFormError(null);
     startFinishing(async () => {
-      if (reusedExistingIds.length === 0) {
+      if (reusedCreatives.length === 0) {
         for (const creativeId of selectedDraftIds) {
           const saveRes = await saveGeneratedCreative(creativeId);
           if (!saveRes.success) {
@@ -855,8 +921,9 @@ export default function CreatePostWizardModal({
               plannedGenerationCount={plannedGenerationCount}
               missingAngles={missingAngles}
               existingCreatives={existingCreatives}
-              reusedExistingIds={reusedExistingIds}
+              reusedCreatives={reusedCreatives}
               onToggleReuseExisting={toggleReuseExisting}
+              onRemoveReusedCreative={removeReusedCreative}
               onUseReusedCreatives={handleUseReusedCreatives}
               isLoading={isLoading}
             />
@@ -1103,13 +1170,16 @@ interface Step1Props {
   plannedGenerationCount: number;
   missingAngles: ViewAngle[];
   existingCreatives: ExistingCreative[];
-  reusedExistingIds: number[];
-  onToggleReuseExisting: (creativeId: number) => void;
+  reusedCreatives: ReusedCreative[];
+  onToggleReuseExisting: (creative: ExistingCreative) => void;
+  onRemoveReusedCreative: (creativeId: number) => void;
   onUseReusedCreatives: () => void;
   isLoading: boolean;
 }
 
 function Step1Setup(props: Step1Props) {
+  // Distinct items, not images — several angles of one dress is still one item.
+  const postProductCount = new Set(props.reusedCreatives.map((entry) => entry.productId)).size;
   const personaList = [
     { id: 'none', label: 'Product only', imageUrl: null as string | null },
     ...(PERSONAS_BY_BRAND[props.brand] || []).map((p) => ({ id: p.id, label: p.label, imageUrl: p.imageUrl })),
@@ -1522,18 +1592,18 @@ function Step1Setup(props: Step1Props) {
           <label style={labelStyle}>
             Reuse Existing Creatives{' '}
             <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-              ({props.existingCreatives.length} saved for this product — pick one or more to skip generation)
+              ({props.existingCreatives.length} saved for this product — pick any, then search another product to add more items)
             </span>
           </label>
           <div className="grid-4-mobile2" style={{ gap: 8 }}>
             {props.existingCreatives.slice(0, 8).map(c => {
-              const order = props.reusedExistingIds.indexOf(c.id);
+              const order = props.reusedCreatives.findIndex(entry => entry.id === c.id);
               const picked = order >= 0;
 
               return (
                 <div
                   key={c.id}
-                  onClick={() => !props.isLoading && props.onToggleReuseExisting(c.id)}
+                  onClick={() => !props.isLoading && props.onToggleReuseExisting(c)}
                   style={{
                     position: 'relative',
                     border: picked
@@ -1588,29 +1658,104 @@ function Step1Setup(props: Step1Props) {
               );
             })}
           </div>
-          {props.reusedExistingIds.length > 0 && (
-            <button
-              type="button"
-              onClick={() => !props.isLoading && props.onUseReusedCreatives()}
-              disabled={props.isLoading}
-              style={{
-                marginTop: 10,
-                width: '100%',
-                padding: '10px 12px',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--color-accent)',
-                color: 'var(--color-bg)',
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: props.isLoading ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {props.reusedExistingIds.length === 1
-                ? 'Continue with 1 creative →'
-                : `Continue with ${props.reusedExistingIds.length} creatives →`}
-            </button>
-          )}
+        </div>
+      )}
+
+      {/* The post so far. This is what makes a multi-item post possible: the
+          grid above only ever shows one product, so without a running list the
+          items picked before switching products would be invisible and
+          impossible to remove. */}
+      {props.reusedCreatives.length > 0 && (
+        <div>
+          <label style={labelStyle}>
+            In This Post{' '}
+            <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
+              ({props.reusedCreatives.length} image{props.reusedCreatives.length === 1 ? '' : 's'}
+              {postProductCount > 1 ? ` across ${postProductCount} items` : ''} — in carousel order)
+            </span>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {props.reusedCreatives.map((entry, index) => (
+              <div
+                key={entry.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--color-surface)',
+                }}
+              >
+                <span style={{
+                  minWidth: 20, height: 20, borderRadius: 10,
+                  background: 'var(--color-accent)', color: 'var(--color-bg)',
+                  fontSize: 11, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {index + 1}
+                </span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/content/creatives/${entry.id}/image`}
+                  alt=""
+                  style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4, display: 'block' }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 700, color: 'var(--color-fg-2)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {entry.productName}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--color-fg-3)' }}>
+                    {[entry.itemCode, entry.viewAngle ?? 'front'].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !props.isLoading && props.onRemoveReusedCreative(entry.id)}
+                  disabled={props.isLoading}
+                  aria-label={`Remove ${entry.productName} from this post`}
+                  style={{
+                    border: 'none', background: 'transparent',
+                    color: 'var(--color-fg-3)', fontSize: 16, lineHeight: 1,
+                    padding: '2px 6px',
+                    cursor: props.isLoading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 10, color: 'var(--color-fg-3)', margin: '6px 0 0' }}>
+            {postProductCount > 1
+              ? 'Each photo carries its own item details, and the caption lists all of them. Search another product above to add more.'
+              : 'Search another product above to add a second item to this post.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => !props.isLoading && props.onUseReusedCreatives()}
+            disabled={props.isLoading}
+            style={{
+              marginTop: 10,
+              width: '100%',
+              padding: '10px 12px',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-accent)',
+              color: 'var(--color-bg)',
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: props.isLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {props.reusedCreatives.length === 1
+              ? 'Continue with 1 image →'
+              : `Continue with ${props.reusedCreatives.length} images →`}
+          </button>
         </div>
       )}
 
