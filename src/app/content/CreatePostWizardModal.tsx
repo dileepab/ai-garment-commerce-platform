@@ -319,7 +319,7 @@ export default function CreatePostWizardModal({
     const garmentSpecs = buildGarmentSpecsForAi(product);
     setProductContext(context);
     setGarmentFitNotes(garmentSpecs);
-    setProductSearch(product.name);
+    setProductSearch('');
     setSearchResults([]);
     const grouped = groupColorReferences(product);
     // Products with no colour rows still have a single main photo — treat it as
@@ -929,7 +929,6 @@ export default function CreatePostWizardModal({
               missingAngles={missingAngles}
               existingCreatives={existingCreatives}
               reusedCreatives={reusedCreatives}
-              onAddAnotherItem={handleClearProduct}
               onToggleReuseExisting={toggleReuseExisting}
               onRemoveReusedCreative={removeReusedCreative}
               onUseReusedCreatives={handleUseReusedCreatives}
@@ -1179,7 +1178,6 @@ interface Step1Props {
   missingAngles: ViewAngle[];
   existingCreatives: ExistingCreative[];
   reusedCreatives: ReusedCreative[];
-  onAddAnotherItem: () => void;
   onToggleReuseExisting: (creative: ExistingCreative) => void;
   onRemoveReusedCreative: (creativeId: number) => void;
   onUseReusedCreatives: () => void;
@@ -1219,10 +1217,10 @@ function Step1Setup(props: Step1Props) {
         <label style={labelStyle}>
           Product{' '}
           <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-            (search to auto-fill description &amp; image)
+            (search to auto-fill description &amp; image — search again to add another item)
           </span>
         </label>
-        {props.selectedProduct ? (
+        {props.selectedProduct && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: productDisplayImage(props.selectedProduct) ? '96px 1fr auto' : '1fr auto',
@@ -1264,11 +1262,11 @@ function Step1Setup(props: Step1Props) {
               {Ic.close}
             </button>
           </div>
-        ) : (
-          <>
+        )}
+        <>
             <input
               className="app-input"
-              placeholder="Search products by name…"
+              placeholder={props.selectedProduct ? 'Search another product to add…' : 'Search products by name…'}
               value={props.productSearch}
               onChange={props.onProductSearchChange}
               disabled={props.isLoading}
@@ -1312,8 +1310,7 @@ function Step1Setup(props: Step1Props) {
                 ))}
               </div>
             )}
-          </>
-        )}
+        </>
       </div>
 
       {/* Manual product context (read-only fill, editable) */}
@@ -1742,27 +1739,8 @@ function Step1Setup(props: Step1Props) {
           <p style={{ fontSize: 10, color: 'var(--color-fg-3)', margin: '6px 0 0' }}>
             {postProductCount > 1
               ? `${postProductCount} items — each photo carries its own details, and the caption lists all of them.`
-              : 'One item so far. Add another to make this a multi-item post.'}
+              : 'One item so far. Search another product above to add a second.'}
           </p>
-          <button
-            type="button"
-            onClick={() => !props.isLoading && props.onAddAnotherItem()}
-            disabled={props.isLoading}
-            style={{
-              marginTop: 8,
-              width: '100%',
-              padding: '9px 12px',
-              border: '1px dashed var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--color-surface)',
-              color: 'var(--color-fg-2)',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: props.isLoading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            + Add another item
-          </button>
           <button
             type="button"
             onClick={() => !props.isLoading && props.onUseReusedCreatives()}
