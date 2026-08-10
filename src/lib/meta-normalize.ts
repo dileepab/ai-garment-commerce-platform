@@ -47,7 +47,26 @@ interface MetaMessagingEvent {
     mid?: string;
     payload?: string;
     title?: string;
+    /** Present when a brand-new thread starts from a link carrying a ref. */
+    referral?: MetaReferral;
   };
+  /** Present when an existing thread is reopened from such a link. */
+  referral?: MetaReferral;
+}
+
+/**
+ * How someone arrived. An m.me link can carry "?ref=HAP-0001", and Meta hands
+ * that value back here — before the customer has typed anything.
+ *
+ * Which field it lands in depends on whether the thread already existed:
+ * a first-ever contact taps Get Started and the ref rides on the postback,
+ * while a returning customer produces a bare referral event with no message
+ * and no postback at all. Both mean the same thing, so both are read.
+ */
+interface MetaReferral {
+  ref?: string;
+  source?: string;
+  type?: string;
 }
 
 function getTrimmedValue(value?: string): string | undefined {
@@ -131,6 +150,27 @@ function getNormalizedMessageText(message?: MetaMessagingEvent['message']): stri
   );
 }
 
+/** The ref a link carried, from wherever Meta put it on this event. */
+function getReferralRef(webhookEvent: MetaMessagingEvent): string | undefined {
+  return getTrimmedValue(
+    webhookEvent.referral?.ref ?? webhookEvent.postback?.referral?.ref
+  );
+}
+
+/**
+ * What a customer arriving from a link is taken to have said.
+ *
+ * The ref is the product's item code, so this reads as an order for it and
+ * resolves through the same path as a customer typing the code themselves.
+ * Anything else is passed through as-is: an unknown ref should still open the
+ * conversation rather than be dropped.
+ */
+export function buildReferralMessage(ref: string): string {
+  return /^[a-z]{2,5}[\s\-_/]*[0-9]{2,6}$/i.test(ref.trim())
+    ? `Order ${ref.trim()}`
+    : ref.trim();
+}
+
 function buildMessagingEventId(params: {
   channel: MetaChannel;
   pageOrAccountId: string;
@@ -143,6 +183,18 @@ function buildMessagingEventId(params: {
 
   if (directId) {
     return `${params.channel}:${params.pageOrAccountId}:${directId}`;
+  }
+
+  const referralRef = getReferralRef(params.webhookEvent);
+  if (referralRef && !params.webhookEvent.postback && params.webhookEvent.timestamp) {
+    return [
+      params.channel,
+      params.pageOrAccountId,
+      params.senderId,
+      'referral',
+      params.webhookEvent.timestamp,
+      encodeURIComponent(referralRef),
+    ].join(':');
   }
 
   if (!params.webhookEvent.postback) {
@@ -182,6 +234,37 @@ export function normalizeMessengerEvent(
 
   if (!senderId) {
     return null;
+  }
+
+  // Someone arriving from a link that carried a ref, before typing anything.
+  // A first-ever contact taps Get Started and the ref rides on that postback,
+  // so the postback branch below handles it; a returning customer produces an
+  // event with neither message nor postback, which used to be dropped as
+  // unsupported — they landed in an empty chat and had to open the
+  // conversation themselves.
+  const referralRef = getReferralRef(webhookEvent);
+
+  // Both arrival shapes go down this path. Our own quick-reply payloads never
+  // carry a ref — Meta only attaches one when a thread is opened from a link —
+  // so its presence is the reliable signal, and it beats the generic
+  // "GET_STARTED" payload that would otherwise win.
+  if (referralRef && !webhookEvent.message) {
+    return {
+      eventId: buildMessagingEventId({
+        channel: 'messenger',
+        pageOrAccountId: pageId,
+        senderId,
+        webhookEvent,
+      }),
+      senderId,
+      channel: 'messenger',
+      pageOrAccountId: pageId,
+      messageText: buildReferralMessage(referralRef),
+      isEcho: false,
+      // Routed as a normal message: the ref reads as an order for the item, and
+      // the postback path is for buttons whose payloads we authored.
+      isPostback: false,
+    };
   }
 
   // Handle postback events (e.g. from carousel buttons)
