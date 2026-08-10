@@ -83,6 +83,8 @@ interface ReusedCreative {
   productName: string;
   itemCode: string | null;
   viewAngle: string | null;
+  /** Short label for this photo, from its own product rather than the post. */
+  summary: string;
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -413,6 +415,7 @@ export default function CreatePostWizardModal({
               productName: selectedProduct.name,
               itemCode: productItemCode(selectedProduct),
               viewAngle: creative.viewAngle,
+              summary: describeProduct(selectedProduct),
             },
           ]
     );
@@ -630,12 +633,45 @@ export default function CreatePostWizardModal({
     setChannelCaptions(prev => ({ ...prev, [channel]: value }));
   }
 
+  /**
+   * Each photo labelled with its own item, not the post's.
+   *
+   * A shared label was fine when a post was one product. With three, stamping
+   * the last-browsed product's name onto all of them mislabels two — and that
+   * label is what a photo falls back to if its product link is ever lost.
+   */
+  function buildPostCreatives() {
+    if (reusedCreatives.length > 0) {
+      return reusedCreatives.map((entry, index) => ({
+        creativeId: entry.id,
+        description: entry.summary || undefined,
+        displayOrder: index,
+      }));
+    }
+
+    // Fresh drafts are always one product, so the edited field applies to all.
+    return selectedDraftIds.map((creativeId, index) => ({
+      creativeId,
+      description: imageDescription.trim() || undefined,
+      displayOrder: index,
+    }));
+  }
+
+  function describeProduct(product: ProductSearchResult): string {
+    const parts = [product.name];
+    if (product.fabric) parts.push(product.fabric);
+    parts.push(`Rs ${product.price}`);
+    return parts.join(' — ');
+  }
+
   function buildAutoDescription(): string {
+    // A post covering several items cannot be labelled with one of them. Each
+    // photo carries its own label instead, and this field steps aside.
+    if (reusedCreatives.length > 0) {
+      return '';
+    }
     if (selectedProduct) {
-      const parts = [selectedProduct.name];
-      if (selectedProduct.fabric) parts.push(selectedProduct.fabric);
-      parts.push(`Rs ${selectedProduct.price}`);
-      return parts.join(' — ');
+      return describeProduct(selectedProduct);
     }
     const nameMatch = productContext.match(/Name:\s*([^.]+)/);
     const priceMatch = productContext.match(/Price:\s*([^.]+)/);
@@ -750,11 +786,7 @@ export default function CreatePostWizardModal({
         generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
         productContext: productContext.trim() || undefined,
         status: 'draft',
-        postCreatives: selectedCreativeIds.map((creativeId, index) => ({
-          creativeId,
-          description: imageDescription.trim() || undefined,
-          displayOrder: index,
-        })),
+        postCreatives: buildPostCreatives(),
       });
 
       if (!postRes.success) {
@@ -792,11 +824,7 @@ export default function CreatePostWizardModal({
         generatedCaptions: generatedCaptions.length > 0 ? generatedCaptions : undefined,
         productContext: productContext.trim() || undefined,
         status: 'ready',
-        postCreatives: selectedCreativeIds.map((creativeId, index) => ({
-          creativeId,
-          description: imageDescription.trim() || undefined,
-          displayOrder: index,
-        })),
+        postCreatives: buildPostCreatives(),
       });
 
       if (!postRes.success || !postRes.postId) {
@@ -970,6 +998,7 @@ export default function CreatePostWizardModal({
               channels={channels}
               toggleChannel={toggleChannel}
               generatedImageDataList={generatedImageDataList}
+              reusedCreatives={reusedCreatives}
               imageDescription={imageDescription}
               setImageDescription={setImageDescription}
               caption={caption}
@@ -2169,6 +2198,7 @@ function Step2Generate(props: Step2Props) {
 
 interface Step3Props {
   brand: string;
+  reusedCreatives: ReusedCreative[];
   channels: string[];
   toggleChannel: (ch: string) => void;
   generatedImageDataList: string[];
@@ -2230,21 +2260,45 @@ function Step3CaptionReview(props: Step3Props) {
         </div>
       </div>
 
-      {/* Image description */}
+      {/* Image description — one label per photo once the post covers several
+          items, since a single line cannot describe three different dresses. */}
       <div>
         <label style={labelStyle}>
           Image Description{' '}
           <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-            (auto-filled — short label for this creative)
+            {props.reusedCreatives.length > 0
+              ? '(one per photo, from each item)'
+              : '(auto-filled — short label for this creative)'}
           </span>
         </label>
-        <input
-          className="app-input"
-          placeholder="e.g. Breezy Summer Dress — Rayon — Rs 2,950"
-          value={props.imageDescription}
-          onChange={(e) => props.setImageDescription(e.target.value)}
-          disabled={props.isLoading}
-        />
+        {props.reusedCreatives.length > 0 ? (
+          <div style={{
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--color-bg)',
+            padding: '8px 10px',
+            display: 'flex', flexDirection: 'column', gap: 4,
+          }}>
+            {props.reusedCreatives.map((entry, index) => (
+              <div key={entry.id} style={{ fontSize: 11, color: 'var(--color-fg-2)' }}>
+                <span style={{ color: 'var(--color-fg-3)', fontWeight: 700 }}>{index + 1}.</span>{' '}
+                {entry.summary || entry.productName}
+              </div>
+            ))}
+            <div style={{ fontSize: 10, color: 'var(--color-fg-3)', marginTop: 2 }}>
+              Full item details — code, sizes, colours, price — are read from each
+              product when the post publishes.
+            </div>
+          </div>
+        ) : (
+          <input
+            className="app-input"
+            placeholder="e.g. Breezy Summer Dress — Rayon — Rs 2,950"
+            value={props.imageDescription}
+            onChange={(e) => props.setImageDescription(e.target.value)}
+            disabled={props.isLoading}
+          />
+        )}
       </div>
 
       {/* AI caption suggestions */}
