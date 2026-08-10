@@ -313,7 +313,10 @@ async function main() {
     const subscribedFields = Array.isArray(subscription?.subscribed_fields)
       ? subscription.subscribed_fields
       : [];
-    const requiredFields = ['messages', 'messaging_postbacks'];
+    // messaging_referrals carries the "?ref=" from an m.me link in a post
+    // caption. Without it a customer arriving from a post reaches an empty
+    // chat, because Meta never tells us they came.
+    const requiredFields = ['messages', 'messaging_postbacks', 'messaging_referrals'];
     const missingFields = requiredFields.filter((field) => !subscribedFields.includes(field));
 
     printCheck(

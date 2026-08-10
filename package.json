@@ -38,6 +38,7 @@
     "test:order-items": "node --test --experimental-strip-types --no-warnings scripts/order-draft-items.test.ts",
     "test:royal-express": "node --test --experimental-strip-types --no-warnings scripts/royal-express-city-match.test.ts scripts/delivery-town-ambiguity.test.ts",
     "test:display-images": "node --test --experimental-strip-types --no-warnings scripts/product-display-images.test.ts",
+    "test:referral": "node --test --experimental-strip-types --no-warnings scripts/meta-referral.test.ts",
     "test:whatsapp": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-normalize.test.ts scripts/meta-webhook-signature.test.ts scripts/whatsapp-registration.test.ts",
     "test:meta-catalog-feed": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts",
     "test:meta-catalog": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts scripts/meta-catalog-batch.test.ts",
