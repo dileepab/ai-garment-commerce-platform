@@ -343,6 +343,14 @@ export default function CreatePostWizardModal({
     }).catch(() => setExistingCreatives([]));
   }
 
+  /**
+   * Puts the product search back, without touching what is already in the post.
+   *
+   * This is how a second item gets added: the search box is replaced by the
+   * selected product's card, so the only route back to searching is here. It
+   * deliberately leaves reusedCreatives alone — that list is the post's
+   * contents, not this product's, and each entry has its own remove button.
+   */
   function handleClearProduct() {
     setSelectedProduct(null);
     setProductContext('');
@@ -353,7 +361,6 @@ export default function CreatePostWizardModal({
     setExpandedColor(null);
     setColorViewAngles({});
     setExistingCreatives([]);
-    setReusedCreatives([]);
   }
 
   function updateColorReferences(color: string, next: ReferenceSet) {
@@ -922,6 +929,7 @@ export default function CreatePostWizardModal({
               missingAngles={missingAngles}
               existingCreatives={existingCreatives}
               reusedCreatives={reusedCreatives}
+              onAddAnotherItem={handleClearProduct}
               onToggleReuseExisting={toggleReuseExisting}
               onRemoveReusedCreative={removeReusedCreative}
               onUseReusedCreatives={handleUseReusedCreatives}
@@ -1171,6 +1179,7 @@ interface Step1Props {
   missingAngles: ViewAngle[];
   existingCreatives: ExistingCreative[];
   reusedCreatives: ReusedCreative[];
+  onAddAnotherItem: () => void;
   onToggleReuseExisting: (creative: ExistingCreative) => void;
   onRemoveReusedCreative: (creativeId: number) => void;
   onUseReusedCreatives: () => void;
@@ -1732,9 +1741,28 @@ function Step1Setup(props: Step1Props) {
           </div>
           <p style={{ fontSize: 10, color: 'var(--color-fg-3)', margin: '6px 0 0' }}>
             {postProductCount > 1
-              ? 'Each photo carries its own item details, and the caption lists all of them. Search another product above to add more.'
-              : 'Search another product above to add a second item to this post.'}
+              ? `${postProductCount} items — each photo carries its own details, and the caption lists all of them.`
+              : 'One item so far. Add another to make this a multi-item post.'}
           </p>
+          <button
+            type="button"
+            onClick={() => !props.isLoading && props.onAddAnotherItem()}
+            disabled={props.isLoading}
+            style={{
+              marginTop: 8,
+              width: '100%',
+              padding: '9px 12px',
+              border: '1px dashed var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-fg-2)',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: props.isLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            + Add another item
+          </button>
           <button
             type="button"
             onClick={() => !props.isLoading && props.onUseReusedCreatives()}
