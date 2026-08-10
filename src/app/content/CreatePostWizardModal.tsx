@@ -214,22 +214,22 @@ export default function CreatePostWizardModal({
   // Step 2 — Generate (drafts is the batch; selectedDraftIds are carried into Step 3/4)
   const [drafts, setDrafts] = useState<DraftResult[]>([]);
   const [selectedDraftIds, setSelectedDraftIds] = useState<number[]>([]);
-  const [reusedExistingId, setReusedExistingId] = useState<number | null>(null);
+  const [reusedExistingIds, setReusedExistingIds] = useState<number[]>([]);
   const [correctionTextById, setCorrectionTextById] = useState<Record<number, string>>({});
   const [regeneratingDraftId, setRegeneratingDraftId] = useState<number | null>(null);
 
-  // Convenience: selected creative images (fresh drafts or one reused existing creative).
+  // Convenience: selected creative images (fresh drafts or reused existing creatives).
   const selectedDrafts = selectedDraftIds
     .map(id => drafts.find(d => d.creativeId === id))
     .filter((d): d is DraftResult => Boolean(d));
   const selectedDraft = selectedDrafts[0] ?? null;
   const generatedImageData = selectedDrafts[0]?.imageData
-    ?? (reusedExistingId !== null ? `/api/content/creatives/${reusedExistingId}/image` : null);
+    ?? (reusedExistingIds.length > 0 ? `/api/content/creatives/${reusedExistingIds[0]}/image` : null);
   const generatedImageDataList = selectedDrafts.length > 0
     ? selectedDrafts.map(d => d.imageData)
-    : (reusedExistingId !== null ? [`/api/content/creatives/${reusedExistingId}/image`] : []);
+    : reusedExistingIds.map((id) => `/api/content/creatives/${id}/image`);
   const usedPrompt = selectedDraft?.prompt ?? null;
-  const selectedCreativeIds = reusedExistingId !== null ? [reusedExistingId] : selectedDraftIds;
+  const selectedCreativeIds = reusedExistingIds.length > 0 ? reusedExistingIds : selectedDraftIds;
 
   // Step 3 — Caption & Review
   const [channels, setChannels] = useState<string[]>(['facebook', 'instagram']);
@@ -318,7 +318,7 @@ export default function CreatePostWizardModal({
     setExpandedColor(null);
     setColorViewAngles({});
     setExistingCreatives([]);
-    setReusedExistingId(null);
+    setReusedExistingIds([]);
   }
 
   function updateColorReferences(color: string, next: ReferenceSet) {
@@ -343,12 +343,26 @@ export default function CreatePostWizardModal({
     });
   }
 
-  function handleReuseExisting(id: number) {
-    // Reusing a saved creative skips Step 2 entirely — no Gemini call, no draft cleanup.
+  /**
+   * Toggles a saved creative in or out of the post.
+   *
+   * Selection order is kept: it becomes the carousel order on Facebook and
+   * Instagram, so the picture the shopper sees first is the one clicked first.
+   */
+  function toggleReuseExisting(id: number) {
+    setReusedExistingIds(prev =>
+      prev.includes(id) ? prev.filter(existing => existing !== id) : [...prev, id]
+    );
+  }
+
+  function handleUseReusedCreatives() {
+    if (reusedExistingIds.length === 0) return;
+
+    // Reusing saved creatives skips Step 2 entirely — no Gemini call, and the
+    // images are already saved, so there is nothing to clean up afterwards.
     discardAllUnsavedDrafts().catch(() => {});
     setDrafts([]);
     setSelectedDraftIds([]);
-    setReusedExistingId(id);
     setStep(3);
     if (!imageDescription.trim()) setImageDescription(buildAutoDescription());
     if (generatedCaptions.length === 0) generateCaptionsForImage();
@@ -386,7 +400,7 @@ export default function CreatePostWizardModal({
       setDrafts([]);
       setCorrectionTextById({});
       setSelectedDraftIds([]);
-      setReusedExistingId(null);
+      setReusedExistingIds([]);
 
       const colorSources: BatchSourceImage[] = colorsWithReferences
         .map((color) => ({
@@ -589,7 +603,7 @@ export default function CreatePostWizardModal({
     }
 
     startFinishing(async () => {
-      if (reusedExistingId === null) {
+      if (reusedExistingIds.length === 0) {
         for (const creativeId of selectedDraftIds) {
           const saveRes = await saveGeneratedCreative(creativeId);
           if (!saveRes.success) {
@@ -642,7 +656,7 @@ export default function CreatePostWizardModal({
     startFinishing(async () => {
       // If the user picked fresh drafts, save selected ones and discard unselected ones.
       // If they reused an existing creative, it's already saved — skip both steps.
-      if (reusedExistingId === null) {
+      if (reusedExistingIds.length === 0) {
         for (const creativeId of selectedDraftIds) {
           const saveRes = await saveGeneratedCreative(creativeId);
           if (!saveRes.success) {
@@ -685,7 +699,7 @@ export default function CreatePostWizardModal({
     }
     setFormError(null);
     startFinishing(async () => {
-      if (reusedExistingId === null) {
+      if (reusedExistingIds.length === 0) {
         for (const creativeId of selectedDraftIds) {
           const saveRes = await saveGeneratedCreative(creativeId);
           if (!saveRes.success) {
@@ -841,7 +855,9 @@ export default function CreatePostWizardModal({
               plannedGenerationCount={plannedGenerationCount}
               missingAngles={missingAngles}
               existingCreatives={existingCreatives}
-              onReuseExisting={handleReuseExisting}
+              reusedExistingIds={reusedExistingIds}
+              onToggleReuseExisting={toggleReuseExisting}
+              onUseReusedCreatives={handleUseReusedCreatives}
               isLoading={isLoading}
             />
           )}
@@ -1087,7 +1103,9 @@ interface Step1Props {
   plannedGenerationCount: number;
   missingAngles: ViewAngle[];
   existingCreatives: ExistingCreative[];
-  onReuseExisting: (creativeId: number) => void;
+  reusedExistingIds: number[];
+  onToggleReuseExisting: (creativeId: number) => void;
+  onUseReusedCreatives: () => void;
   isLoading: boolean;
 }
 
@@ -1502,36 +1520,97 @@ function Step1Setup(props: Step1Props) {
       {props.selectedProduct && props.existingCreatives.length > 0 && (
         <div>
           <label style={labelStyle}>
-            Reuse Existing Creative{' '}
+            Reuse Existing Creatives{' '}
             <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-              ({props.existingCreatives.length} saved for this product — click to skip generation)
+              ({props.existingCreatives.length} saved for this product — pick one or more to skip generation)
             </span>
           </label>
           <div className="grid-4-mobile2" style={{ gap: 8 }}>
-            {props.existingCreatives.slice(0, 8).map(c => (
-              <div
-                key={c.id}
-                onClick={() => !props.isLoading && props.onReuseExisting(c.id)}
-                style={{
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  overflow: 'hidden',
-                  background: 'var(--color-bg)',
-                  cursor: props.isLoading ? 'default' : 'pointer',
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/content/creatives/${c.id}/image`}
-                  alt={`Creative ${c.id}`}
-                  style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
-                />
-                <div style={{ padding: 4, fontSize: 10, textAlign: 'center', color: 'var(--color-fg-3)' }}>
-                  {c.viewAngle ?? 'front'}
+            {props.existingCreatives.slice(0, 8).map(c => {
+              const order = props.reusedExistingIds.indexOf(c.id);
+              const picked = order >= 0;
+
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => !props.isLoading && props.onToggleReuseExisting(c.id)}
+                  style={{
+                    position: 'relative',
+                    border: picked
+                      ? '2px solid var(--color-accent)'
+                      : '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    overflow: 'hidden',
+                    background: 'var(--color-bg)',
+                    cursor: props.isLoading ? 'default' : 'pointer',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/content/creatives/${c.id}/image`}
+                    alt={`Creative ${c.id}`}
+                    style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
+                  />
+                  {/* The number is the carousel position, not just a tick — the
+                      order these are clicked is the order they are posted in. */}
+                  {picked && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        minWidth: 20,
+                        height: 20,
+                        padding: '0 5px',
+                        borderRadius: 10,
+                        background: 'var(--color-accent)',
+                        color: 'var(--color-bg)',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {order + 1}
+                    </div>
+                  )}
+                  <div style={{
+                    padding: 4,
+                    fontSize: 10,
+                    textAlign: 'center',
+                    background: picked ? 'var(--color-accent-subtle)' : 'transparent',
+                    color: picked ? 'var(--color-accent)' : 'var(--color-fg-3)',
+                  }}>
+                    {c.viewAngle ?? 'front'}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          {props.reusedExistingIds.length > 0 && (
+            <button
+              type="button"
+              onClick={() => !props.isLoading && props.onUseReusedCreatives()}
+              disabled={props.isLoading}
+              style={{
+                marginTop: 10,
+                width: '100%',
+                padding: '10px 12px',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-accent)',
+                color: 'var(--color-bg)',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: props.isLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {props.reusedExistingIds.length === 1
+                ? 'Continue with 1 creative →'
+                : `Continue with ${props.reusedExistingIds.length} creatives →`}
+            </button>
+          )}
         </div>
       )}
 
