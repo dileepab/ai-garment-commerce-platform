@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { resolveCartLines } from '@/lib/whatsapp-cart';
+import { extractItemCodes } from '@/lib/product-item-code';
 import {
   extractExplicitOrderIdFromMessage,
   extractDeliveryLocationHint,
@@ -232,6 +233,11 @@ function shouldUseGreetingShortcut(message: string): boolean {
   }
 
   return !(
+    // A quoted item code is the clearest statement of intent a customer can
+    // open with — it is what the click-to-WhatsApp links in our post captions
+    // prefill. Answering it with a bare "Hello, how can I help?" throws away
+    // the one thing they told us, and which product they were looking at.
+    extractItemCodes(message).length > 0 ||
     messageMentionsProductType(message) ||
     looksLikeRecommendationRequest(message) ||
     looksLikeCatalogQuestion(message) ||

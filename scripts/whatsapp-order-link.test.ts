@@ -28,14 +28,48 @@ test('the item code is prefilled into the message', () => {
   });
 
   assert.match(link!, /^https:\/\/wa\.me\/94702694270\?text=/);
-  assert.match(decodeURIComponent(link!), /interested in HAP-0002 \(Tie-Strap Smocked Sundress\)/);
+  assert.equal(decodeURIComponent(link!), 'https://wa.me/94702694270?text=Order HAP-0002');
+});
+
+// The name costs URL length — tripled by percent-encoding — and tells the bot
+// nothing the code did not already say. It sits in the caption above anyway.
+test('the product name is left out of the link', () => {
+  const link = buildWhatsAppOrderLink({
+    displayPhoneNumber: '94702694270',
+    itemCode: 'HAP-0002',
+    productName: 'Tie-Strap Smocked Sundress — Blue Grey',
+  });
+
+  assert.doesNotMatch(decodeURIComponent(link!), /Sundress/);
+  assert.ok(link!.length < 60, `link should stay short, got ${link!.length}: ${link}`);
+});
+
+/**
+ * A prefill that opens with "Hi" is read as a bare greeting unless something
+ * else in it carries intent, and the customer gets "Hello, how can I help?"
+ * instead of an answer about the item they tapped. That is what the old
+ * "Hi, I'm interested in HAP-0002 (…Sundress)" wording did whenever the product
+ * name happened not to contain a garment word.
+ */
+test('the prefill does not open with a greeting', () => {
+  const withCode = buildWhatsAppOrderLink({
+    displayPhoneNumber: '94702694270',
+    itemCode: 'HAP-0002',
+  });
+  const withoutCode = buildWhatsAppOrderLink({ displayPhoneNumber: '94702694270' });
+
+  const greeting = /^(hi|hello|hey|good morning|good afternoon|good evening)\b/i;
+  for (const link of [withCode, withoutCode]) {
+    const message = decodeURIComponent(link!).split('?text=')[1];
+    assert.doesNotMatch(message, greeting, `prefill reads as a greeting: ${message}`);
+  }
 });
 
 test('a multi-product post gets a plain opener instead of a misleading code', () => {
   const link = buildWhatsAppOrderLink({ displayPhoneNumber: '94702694270' });
 
   assert.match(decodeURIComponent(link!), /saw your post/);
-  assert.doesNotMatch(decodeURIComponent(link!), /interested in [A-Z]{3}-/);
+  assert.doesNotMatch(decodeURIComponent(link!), /[A-Z]{3}-\d/);
 });
 
 test('the message is URL encoded so spaces and punctuation survive', () => {

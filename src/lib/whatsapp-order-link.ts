@@ -32,13 +32,18 @@ export function buildWhatsAppOrderLink(options: WhatsAppOrderLinkOptions): strin
   if (!number) return null;
 
   const itemCode = options.itemCode?.trim();
-  const productName = options.productName?.trim();
 
-  // Without a single product there is nothing useful to prefill, so send them
-  // through with a plain opener rather than a misleading one.
-  const message = itemCode
-    ? `Hi, I'm interested in ${itemCode}${productName ? ` (${productName})` : ''}`
-    : 'Hi, I saw your post and I am interested';
+  // The prefill is spent twice over: it is what the customer sends, and it is
+  // also visible in the caption as percent-encoded noise, where every space
+  // costs three characters. The item code alone identifies the product — the
+  // name added length to the URL without telling the bot anything the code did
+  // not already say.
+  //
+  // It deliberately does not open with "Hi". A message starting with a greeting
+  // is treated as a bare greeting unless something else in it carries intent,
+  // and answering a click-to-order link with "Hello, how can I help?" wastes
+  // the one thing the customer told us.
+  const message = itemCode ? `Order ${itemCode}` : 'I saw your post';
 
   return `${WA_ME_BASE}${number}?text=${encodeURIComponent(message)}`;
 }
