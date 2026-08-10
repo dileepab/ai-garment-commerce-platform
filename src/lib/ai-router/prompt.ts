@@ -11,7 +11,7 @@ export function buildRouterPrompt(input: RouterInput): string {
   const products = input.products
     .map(
       (product) =>
-        `- ${product.name} | Style: ${product.style || '-'} | Price: Rs ${product.price} | Sizes: ${formatSizeList(product.sizes) || '-'} | Colors: ${product.colors || '-'} | Available: ${product.availableQty}${product.garmentSpecs ? ` | Garment specs: ${product.garmentSpecs}` : ''}`
+        `- ${product.name}${product.itemCode ? ` [${product.itemCode}]` : ''} | Style: ${product.style || '-'} | Price: Rs ${product.price} | Sizes: ${formatSizeList(product.sizes) || '-'} | Colors: ${product.colors || '-'} | Available: ${product.availableQty}${product.garmentSpecs ? ` | Garment specs: ${product.garmentSpecs}` : ''}`
     )
     .join('\n');
 
@@ -39,7 +39,7 @@ Known contact:
 - Latest order ID: ${input.latestOrderId ?? '-'}
 - Latest active order ID: ${input.latestActiveOrderId ?? '-'}
 
-Available catalog:
+Available catalog (an item code in square brackets is how a customer may refer to that product — treat a quoted code as naming it, and set productName to the catalog name):
 ${products || '- No products available'}
 ${
   input.currentProductName

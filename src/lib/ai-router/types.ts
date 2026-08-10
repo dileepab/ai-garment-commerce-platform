@@ -53,6 +53,8 @@ export interface AiRoutedAction {
 
 export interface RouterProductContext {
   name: string;
+  /** Code customers quote instead of the name — our post captions prefill it. */
+  itemCode?: string | null;
   style: string;
   price: number;
   sizes: string;

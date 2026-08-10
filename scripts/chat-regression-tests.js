@@ -291,6 +291,16 @@ async function main() {
       await waitForServer(baseUrl, server);
     }
 
+    // The code a customer quotes is derived from brand and id, so it differs
+    // between environments. Mirrors productItemCode rather than hardcoding one.
+    const codedProduct = await prisma.product.findFirst({
+      where: { name: 'Oversized Casual Top' },
+      select: { id: true, brand: true, sku: true },
+    });
+    assert(codedProduct, 'Expected the seeded catalog to contain Oversized Casual Top.');
+    const codedItemCode = codedProduct.sku?.trim()
+      || `${codedProduct.brand.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase()}-${String(codedProduct.id).padStart(4, '0')}`;
+
     const cases = [
       {
         name: 'Human support handoff stores escalation',
@@ -1085,6 +1095,21 @@ async function main() {
           assert(
             order.totalAmount === itemsTotal,
             `Expected order total ${itemsTotal} to cover both items, received ${order.totalAmount}.`
+          );
+        },
+      },
+      {
+        name: 'A quoted item code names the product our caption link points at',
+        senderId: buildSender(runId, 'item-code-prefill'),
+        messages: [`Order ${codedItemCode}`],
+        verify: async ({ transcript }) => {
+          // This is exactly what the click-to-WhatsApp link in a post caption
+          // prefills. Answering it with "I couldn't match that item" sends the
+          // customer who tapped an order link straight into a dead end.
+          assertIncludes(transcript[0].bot, ['Oversized Casual Top'], 'Item code order reply');
+          assert(
+            !/couldn't confidently match|didn't quite catch/i.test(transcript[0].bot),
+            `A quoted item code must resolve to its product.\n\nActual reply:\n${transcript[0].bot}`
           );
         },
       },
