@@ -1,7 +1,7 @@
 import prisma from '@/lib/prisma';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { resolveCartLines } from '@/lib/whatsapp-cart';
-import { extractItemCodes } from '@/lib/product-item-code';
+import { extractItemCodes, messageMentionsItemCode, productItemCode } from '@/lib/product-item-code';
 import {
   extractExplicitOrderIdFromMessage,
   extractDeliveryLocationHint,
@@ -590,6 +590,7 @@ export async function routeCustomerMessage(
               : null;
           return {
             name: product.name,
+            itemCode: productItemCode(product),
             style: product.style,
             price: product.price,
             sizes: product.sizes,
@@ -605,6 +606,36 @@ export async function routeCustomerMessage(
   // outright. Without this the classifier had only the customer's covering note
   // to work with and would infer a product from earlier conversation — which is
   // how a shopper who added Blue Grey in size S could be quoted something else.
+  // A quoted item code names exactly one product, so it is settled here rather
+  // than left to the model. Our post captions prefill "Order HAP-0001", and a
+  // customer who taps that must not be answered with "I couldn't match that
+  // item" because the router happened not to connect the code to a name.
+  //
+  // Only the product is filled in; the action stays whatever was routed, since
+  // "Order HAP-0001" and "what sizes for HAP-0001?" are different requests. A
+  // message that routed nowhere becomes an order, because that is what the link
+  // the customer tapped said it would do.
+  const codedProducts = extractItemCodes(input.currentMessage).length > 0
+    ? products.filter((product) => messageMentionsItemCode(input.currentMessage, product))
+    : [];
+
+  if (codedProducts.length === 1) {
+    const codedProduct = codedProducts[0];
+
+    if (!aiAction.productName || !findProductByName(aiAction.productName)) {
+      aiAction.productName = codedProduct.name;
+      aiAction.confidence = Math.max(aiAction.confidence, 0.95);
+    }
+
+    if (aiAction.action === 'fallback') {
+      aiAction.action = 'place_order';
+      aiAction.confidence = Math.max(aiAction.confidence, 0.95);
+    }
+
+    state.lastReferencedProductId = codedProduct.id;
+    state.lastReferencedProductName = codedProduct.name;
+  }
+
   const resolvedCart = resolveCartLines(products, input.cart);
 
   // Stock is checked here rather than at confirmation so the summary never
