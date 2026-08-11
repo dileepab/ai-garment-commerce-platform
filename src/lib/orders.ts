@@ -20,6 +20,10 @@ export interface CreateOrderInput {
   giftWrap?: boolean;
   giftNote?: string;
   orderStatus?: string;
+  /** Which ad the conversation came from, when it came from one. */
+  adSourceType?: string | null;
+  adSourceId?: string | null;
+  adClickId?: string | null;
   items: CreateOrderItemInput[];
 }
 
@@ -253,6 +257,9 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
         giftWrap: Boolean(input.giftWrap),
         giftNote: input.giftNote?.trim() || null,
         orderStatus: input.orderStatus?.trim() || 'pending',
+        adSourceType: input.adSourceType ?? null,
+        adSourceId: input.adSourceId ?? null,
+        adClickId: input.adClickId ?? null,
         totalAmount,
         orderItems: {
           create: orderItemsData,

@@ -131,6 +131,11 @@ model Order {
   courierProcessedAt      DateTime?
   failureReason           String?
   returnReason            String?
+  // Which ad produced this order, copied from the conversation's referral at
+  // creation. Null for organic orders.
+  adSourceType            String?
+  adSourceId              String?
+  adClickId               String?
   createdAt               DateTime                 @default(now())
   orderItems              OrderItem[]
   supportEscalations      SupportEscalation[]
@@ -139,6 +144,8 @@ model Order {
   courierWebhookEvents    CourierWebhookEventLog[]
   returnRequests          ReturnRequest[]          @relation("OriginalOrder")
   replacedByRequests      ReturnRequest[]          @relation("ReplacementOrder")
+
+  @@index([adSourceId])
 }
 
 model CourierBatch {
@@ -269,6 +276,27 @@ model ConversationState {
   updatedAt DateTime @updatedAt
 
   @@unique([senderId, channel])
+}
+
+// The ad a conversation arrived from. WhatsApp names the ad only on the first
+// message after the click, never again, while the order is placed several
+// messages later — so the referral is parked here per sender and read back at
+// order creation. Kept out of ConversationState because that row is cleared
+// between orders and its serialization is order-sensitive.
+model AdReferral {
+  id         Int      @id @default(autoincrement())
+  channel    String
+  senderId   String
+  sourceType String?
+  sourceId   String?
+  clickId    String?
+  headline   String?
+  sourceUrl  String?
+  capturedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([channel, senderId])
+  @@index([sourceId])
 }
 
 model BotMessageDiagnostic {

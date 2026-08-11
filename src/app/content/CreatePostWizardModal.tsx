@@ -599,8 +599,10 @@ export default function CreatePostWizardModal({
         images: generatedImageDataList,
         imageBase64: generatedImageData ?? undefined,
         // Prefills the caption's WhatsApp link, so the customer's first message
-        // already names the product. Only for a post about one product.
+        // already names what they tapped — for a multi-item post that is every
+        // code in it, not nothing.
         itemCode: singlePostProduct?.itemCode ?? null,
+        itemCodes: postProducts.map((product) => product.itemCode),
         productName: singlePostProduct?.productName ?? null,
       });
 

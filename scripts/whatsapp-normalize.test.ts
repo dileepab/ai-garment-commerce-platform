@@ -109,3 +109,85 @@ test('does not route status-only callbacks or unsupported messages as customer t
   assert.equal(extracted.unsupportedMessageCount, 1);
   assert.equal(extracted.statuses.length, 1);
 });
+
+/**
+ * A Click-to-WhatsApp ad attaches this to the first message only. Dropping it
+ * means the order that follows can never be tied back to the ad that paid for
+ * it — Ads Manager reports conversations, the database reports orders, and
+ * nothing joins the two.
+ */
+test('an ad click is captured off the first message', () => {
+  const normalized = normalizeWhatsAppMessage(
+    {
+      from: '94770000000',
+      id: 'wamid.ad-1',
+      type: 'text',
+      text: { body: 'Order HAP-0001' },
+      referral: {
+        source_type: 'ad',
+        source_id: '120210000000000',
+        source_url: 'https://fb.me/abc',
+        headline: 'Tie-Strap Smocked Sundress',
+        ctwa_clid: 'ARBxyz123',
+      },
+    },
+    '555'
+  );
+
+  assert.equal(normalized?.messageText, 'Order HAP-0001');
+  assert.deepEqual(normalized?.adReferral, {
+    sourceType: 'ad',
+    sourceId: '120210000000000',
+    sourceUrl: 'https://fb.me/abc',
+    headline: 'Tie-Strap Smocked Sundress',
+    clickId: 'ARBxyz123',
+  });
+});
+
+// An ad click can land as an image or a catalog cart just as easily as text.
+test('an ad click on a non-text message is captured too', () => {
+  const referral = { source_id: '1202', ctwa_clid: 'ARB' };
+
+  const image = normalizeWhatsAppMessage(
+    { from: '9477', id: 'wamid.img', type: 'image', image: { id: 'media-1' }, referral },
+    '555'
+  );
+  const interactive = normalizeWhatsAppMessage(
+    {
+      from: '9477',
+      id: 'wamid.int',
+      type: 'interactive',
+      interactive: { type: 'button_reply', button_reply: { id: 'SIZES', title: 'Sizes' } },
+      referral,
+    },
+    '555'
+  );
+
+  assert.equal(image?.adReferral?.sourceId, '1202');
+  assert.equal(interactive?.adReferral?.sourceId, '1202');
+});
+
+test('an ordinary message carries no referral', () => {
+  const normalized = normalizeWhatsAppMessage(
+    { from: '9477', id: 'wamid.plain', type: 'text', text: { body: 'hello' } },
+    '555'
+  );
+
+  assert.equal(normalized?.adReferral, undefined);
+});
+
+// A payload naming no ad and no click cannot be reconciled against spend.
+test('a referral naming nothing identifying is ignored', () => {
+  const normalized = normalizeWhatsAppMessage(
+    {
+      from: '9477',
+      id: 'wamid.thin',
+      type: 'text',
+      text: { body: 'hi' },
+      referral: { headline: 'Big Sale' },
+    },
+    '555'
+  );
+
+  assert.equal(normalized?.adReferral, undefined);
+});

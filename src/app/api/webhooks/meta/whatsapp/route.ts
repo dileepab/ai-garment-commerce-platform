@@ -5,6 +5,8 @@ import {
   resolveWhatsAppConfigForPhoneNumberId,
   type ResolvedWhatsAppConfig,
 } from '@/lib/brand-channel-config';
+import { recordAdReferral } from '@/lib/ad-referral';
+import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
 import { logError, logInfo, logWarn } from '@/lib/app-log';
 import { logRuntimeWarnings } from '@/lib/runtime-config';
@@ -185,6 +187,25 @@ async function processMessage(
   }
 
   stats.normalized += 1;
+
+  // A Click-to-WhatsApp ad names itself only on this first message and never
+  // again, so it is stored now and read back when the order is finally placed.
+  // Failing to record it must never cost the customer a reply — attribution is
+  // reporting, the conversation is the business.
+  if (normalized.adReferral) {
+    try {
+      await recordAdReferral(prisma, {
+        channel: 'whatsapp',
+        senderId: normalized.senderId,
+        ...normalized.adReferral,
+      });
+    } catch (error) {
+      logWarn('WhatsApp Webhook', 'Could not record the ad referral for this conversation.', {
+        senderId: normalized.senderId,
+        error: getErrorMessage(error),
+      });
+    }
+  }
 
   try {
     const imageUrl = normalized.mediaId

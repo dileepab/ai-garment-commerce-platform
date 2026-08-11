@@ -34,7 +34,7 @@ test('an item block reads exactly as it does on the post', () => {
     [
       'Item Name: Tie-Strap Smocked Sundress — Blue Grey',
       'Item Code: HAP-0001',
-      'Available Sizes: S,M,L,XL',
+      'Available Sizes: S, M, L, XL',
       'Available Colors: Blue Grey',
       'Item Price: Rs 1,990',
     ].join('\n')
@@ -98,7 +98,7 @@ test('details fall back to the context captured while drafting', () => {
   });
 
   assert.match(description, /Item Name: Ribbed Crop Top/);
-  assert.match(description, /Available Sizes: S,M/);
+  assert.match(description, /Available Sizes: S, M/);
   assert.match(description, /Item Price: Rs 1,450/);
 });
 
@@ -109,6 +109,90 @@ test('nothing known at all falls back to the stored description', () => {
   );
   assert.equal(buildItemDescription({ fallbackDescription: 'N/A' }), '');
   assert.equal(buildItemDescription({}), '');
+});
+
+// "L,M,S,XL" went out on a live Happybuy post. Sizes are typed by hand, so the
+// stored order means nothing.
+test('sizes publish smallest to largest whatever order they were entered in', () => {
+  assert.match(
+    buildItemDescription({ product: { ...SUNDRESS, sizes: 'L,M,S,XL' } }),
+    /Available Sizes: S, M, L, XL/
+  );
+  assert.match(
+    buildItemDescription({ product: { ...SUNDRESS, sizes: 'XXL, XS, M' } }),
+    /Available Sizes: XS, M, XXL/
+  );
+  assert.match(
+    buildItemDescription({ product: { ...SUNDRESS, sizes: '3XL/S/2XL' } }),
+    /Available Sizes: S, 2XL, 3XL/
+  );
+});
+
+test('numeric sizes sort as numbers, not as text', () => {
+  assert.match(
+    buildItemDescription({ product: { ...SUNDRESS, sizes: '32,8,10,28' } }),
+    /Available Sizes: 8, 10, 28, 32/
+  );
+});
+
+// A size we do not recognise is worth less than a size we silently drop.
+test('an unrecognised size is kept, at the end', () => {
+  assert.match(
+    buildItemDescription({ product: { ...SUNDRESS, sizes: 'Free Size, M, S' } }),
+    /Available Sizes: S, M, Free Size/
+  );
+});
+
+test('a size listed twice is printed once', () => {
+  assert.match(
+    buildItemDescription({ product: { ...SUNDRESS, sizes: 'M, m , L' } }),
+    /Available Sizes: M, L/
+  );
+});
+
+// Three colourways of one dress are three products, so they rendered as three
+// blocks differing only in colour and code.
+test('colourways of one style collapse into a single block', () => {
+  const caption = appendItemDescriptions('New in.', [
+    buildItemDescription({ product: SUNDRESS }),
+    buildItemDescription({
+      product: { ...SUNDRESS, id: 2, name: 'Tie-Strap Smocked Sundress — Cream Red Floral', colors: 'Cream Red Floral' },
+    }),
+    buildItemDescription({
+      product: { ...SUNDRESS, id: 3, name: 'Tie-Strap Smocked Sundress — Red Floral', colors: 'Red Floral', sizes: 'L,M,S,XL' },
+    }),
+  ]);
+
+  assert.equal(caption.match(/Item Name:/g)?.length, 1);
+  assert.match(caption, /Item Name: Tie-Strap Smocked Sundress\n/);
+  // Every code survives, so a shopper can still order the exact colour.
+  assert.match(caption, /Blue Grey \(HAP-0001\)/);
+  assert.match(caption, /Cream Red Floral \(HAP-0002\)/);
+  assert.match(caption, /Red Floral \(HAP-0003\)/);
+  assert.match(caption, /Item Price: Rs 1,990/);
+});
+
+test('items that differ in price are not merged', () => {
+  const caption = appendItemDescriptions('New in.', [
+    buildItemDescription({ product: SUNDRESS }),
+    buildItemDescription({
+      product: { ...SUNDRESS, id: 2, name: 'Tie-Strap Smocked Sundress — Red Floral', colors: 'Red Floral', price: 2490 },
+    }),
+  ]);
+
+  assert.equal(caption.match(/Item Name:/g)?.length, 2);
+  assert.match(caption, /Item Price: Rs 1,990/);
+  assert.match(caption, /Item Price: Rs 2,490/);
+});
+
+test('a free-text description is passed through unmerged', () => {
+  const caption = appendItemDescriptions('New in.', [
+    'Blue dress on a beach',
+    buildItemDescription({ product: SUNDRESS }),
+  ]);
+
+  assert.match(caption, /Blue dress on a beach/);
+  assert.match(caption, /Item Code: HAP-0001/);
 });
 
 test('a price that is missing does not print as a number', () => {
