@@ -59,4 +59,4 @@ pnpm-lock.yaml
 pnpm-workspace.yaml
 
 # generated chatbot test transcripts
-scripts/gemini-chat-test-results.log
+scripts/gemini-chat-*results.log
