@@ -47,6 +47,7 @@ import {
   buildStoreLocationReply,
   buildSizeChartReply,
 } from '@/lib/chat/reply-builders';
+import { buildMultiCodeReply } from '@/lib/chat/multi-code-reply';
 import {
   detectCustomerLanguage,
   detectCustomerScriptStyle,
@@ -1666,6 +1667,40 @@ export async function routeCustomerMessage(
       null;
 
     return escalateToSupport(supportIssueReason, relatedOrderId);
+  }
+
+  // Several codes in one message. Our multi-item post captions prefill
+  // "Details HAP-0001 HAP-0002 HAP-0003", and the router settles on one of
+  // them — the customer who tapped a three-dress carousel got a write-up of
+  // the first and nothing about the other two. All of them are answered.
+  //
+  // Only when nothing is pending: mid-order, the codes are far more likely to
+  // be the customer correcting an item than browsing a set.
+  if (codedProducts.length > 1 && state.pendingStep === 'none') {
+    setDiagnosticEffectiveAction('multi_code_lookup', 1);
+    return finalizeReply({
+      reply: buildMultiCodeReply(
+        codedProducts.map((product) => {
+          const variantTotal =
+            product.variants && product.variants.length > 0
+              ? product.variants.reduce((sum, v) => sum + (v.inventory?.availableQty ?? 0), 0)
+              : null;
+
+          return {
+            name: product.name,
+            itemCode: productItemCode(product),
+            price: product.price,
+            sizes: product.sizes,
+            availableQty: variantTotal ?? product.inventory?.availableQty ?? product.stock,
+          };
+        })
+      ),
+      assistantReplyKind: 'generic',
+      nextState: {
+        lastRecommendedProductIds: codedProducts.map((product) => product.id),
+        lastMissingOrderId: null,
+      },
+    });
   }
 
   let effectiveAction = aiAction.action;

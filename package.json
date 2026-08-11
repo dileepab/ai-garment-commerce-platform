@@ -40,6 +40,7 @@
     "test:display-images": "node --test --experimental-strip-types --no-warnings scripts/product-display-images.test.ts",
     "test:referral": "node --test --experimental-strip-types --no-warnings scripts/meta-referral.test.ts",
     "test:ad-referral": "node --test --experimental-strip-types --no-warnings scripts/ad-referral.test.ts",
+    "test:multi-code": "node --test --experimental-strip-types --no-warnings scripts/multi-code-reply.test.ts",
     "test:whatsapp": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-normalize.test.ts scripts/meta-webhook-signature.test.ts scripts/whatsapp-registration.test.ts",
     "test:meta-catalog-feed": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts",
     "test:meta-catalog": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts scripts/meta-catalog-batch.test.ts",
