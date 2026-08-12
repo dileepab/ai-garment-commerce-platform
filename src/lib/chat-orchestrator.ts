@@ -48,6 +48,7 @@ import {
   buildSizeChartReply,
 } from '@/lib/chat/reply-builders';
 import { buildMultiCodeReply } from '@/lib/chat/multi-code-reply';
+import { appendRepeatNudge, isUnhelpfulRepeat, REPEAT_NUDGE } from '@/lib/chat/repeat-guard';
 import {
   detectCustomerLanguage,
   detectCustomerScriptStyle,
@@ -987,8 +988,10 @@ export async function routeCustomerMessage(
 
     // Appended before localization so the customer reads it in their own
     // language, whatever the rest of this reply turned out to be.
-    const reply =
+    const composedReply =
       params.reply && cartNote ? `${params.reply}\n\n${cartNote}` : params.reply;
+
+    const reply = composedReply;
 
     if (params.skipLocalization) {
       localizedReply = reply;
@@ -1023,6 +1026,28 @@ export async function routeCustomerMessage(
           replyScriptStyle
         );
       }
+    }
+
+    // Sending the identical reply twice is what the bot does when it did not
+    // understand and fell back to its previous answer. The answer is kept — it
+    // may well be right — but the loop is named and something more useful is
+    // asked for.
+    //
+    // Compared after localization because the stored previous reply is the
+    // localized one, so this is the only point where both sides are the same
+    // form. Appending earlier would also break localizeKnownReply, which
+    // matches on the reply's exact English text.
+    if (
+      isUnhelpfulRepeat({
+        reply: localizedReply,
+        previousReply: latestAssistantText,
+        assistantReplyKind,
+      })
+    ) {
+      const localizedNudge =
+        (await localizeReplyWithGemini(REPEAT_NUDGE, replyLanguage, replyScriptStyle)) ??
+        REPEAT_NUDGE;
+      localizedReply = appendRepeatNudge(localizedReply!, localizedNudge);
     }
     const shouldPersistState =
       Boolean(params.nextState) ||
