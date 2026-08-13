@@ -714,7 +714,9 @@ export function buildAvailableVariantReply(
     requestedColor,
     requestedSize ? `size ${requestedSize}` : null,
   ].filter(Boolean).join(', ');
-  const stockLabel = availableQty === 1 ? '1 item' : `${availableQty} items`;
 
-  return `Yes, ${product.name} is available in ${variantLabel}.\nAvailable stock: ${availableQty} (${stockLabel} for that selection).`;
+  // Confirming the exact colour and size they asked for is the answer. The
+  // count used to be printed twice over — "Available stock: 2 (2 items for that
+  // selection)" — and it was never the customer's number to begin with.
+  return `Yes, ${product.name} is available in ${variantLabel}.`;
 }

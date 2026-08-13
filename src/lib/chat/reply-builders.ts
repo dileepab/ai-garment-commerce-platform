@@ -284,7 +284,11 @@ function buildProductQuestionReplyBody(
     }
     if (asksSizes) requestedLines.push(`Sizes: ${sizeList.join(', ')}`);
     if (asksColors) requestedLines.push(`Colors: ${colorList.join(', ')}`);
-    if (asksAvailability) requestedLines.push(`Available stock: ${availableQty}`);
+    // "Is this available?" wants a yes or a no. The count is our warehouse
+    // figure, not something the customer asked for or can act on.
+    if (asksAvailability) {
+      requestedLines.push(availableQty > 0 ? 'In stock now.' : 'Out of stock right now.');
+    }
     if (asksPockets) {
       requestedLines.push('Pocket details are not recorded yet, so I do not want to guess.');
     }
