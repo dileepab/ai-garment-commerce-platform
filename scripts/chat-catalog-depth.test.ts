@@ -13,6 +13,10 @@ import {
   resolveRequestedVariant,
   type CatalogGuidanceProduct,
 } from '../src/lib/chat/catalog-guidance.ts';
+import * as variantAvailability from '../src/lib/variant-availability.ts';
+import * as productItemCodeModule from '../src/lib/product-item-code.ts';
+import * as greetingVariants from '../src/lib/chat/greeting-variants.ts';
+import * as confirmationIntent from '../src/lib/confirmation-intent.ts';
 import type { ConversationStateData } from '../src/lib/conversation-state.ts';
 import type {
   AiRoutedAction,
@@ -116,6 +120,12 @@ const replyBuilders = loadModule<{
         .filter(Boolean),
   },
   '@/lib/product-garment-specs': { buildGarmentSpecsForCustomer: () => '' },
+  // Real implementations, not stubs: all three are free of path aliases, and
+  // availability answers depend on the genuine variant maths. Without these the
+  // module failed to load at all and every test in this file was skipped.
+  '@/lib/variant-availability': variantAvailability,
+  '@/lib/product-item-code': productItemCodeModule,
+  '@/lib/chat/greeting-variants': greetingVariants,
 });
 
 const messageUtils = loadModule<{
@@ -143,6 +153,7 @@ const heuristics = loadModule<{
     },
   },
   '@/lib/chat/message-utils': { looksLikeCourierProviderQuestion: () => false },
+  '@/lib/confirmation-intent': confirmationIntent,
 });
 
 const conversationState = loadModule<{
@@ -290,7 +301,10 @@ test('answers an available exact variant with its requested combination', () => 
   );
 });
 
-test('reports exact variant stock instead of aggregate product stock', () => {
+// Availability is answered for the exact colour and size asked about, without
+// quoting the warehouse count — that number is ours, and a customer asking
+// whether a top exists in Black L wants a yes, not an inventory figure.
+test('confirms the requested variant without quoting stock figures', () => {
   const product = products[0];
   const prompt =
     'Exactly how many Black size L Oversized Casual Tops are in stock right now?';
@@ -300,8 +314,10 @@ test('reports exact variant stock instead of aggregate product stock', () => {
     prompt
   );
 
-  assert.match(reply, /Available stock:\s*2\b/i);
-  assert.doesNotMatch(reply, /Available stock:\s*11\b/i);
+  assert.match(reply, /Black[\s\S]*size L|size L[\s\S]*Black/i);
+  assert.doesNotMatch(reply, /Available stock/i);
+  // Neither the variant count nor the aggregate leaks through.
+  assert.doesNotMatch(reply, /\b(?:2|11)\s*items?\b/i);
 });
 
 test('persists the previous recommendation shortlist for referential follow-ups', () => {
@@ -456,7 +472,7 @@ test('under-budget shortlist follow-up states when none of those options qualify
   assert.doesNotMatch(result.reply, /good match from/i);
 });
 
-test('natural color and size phrasing returns exact variant stock', () => {
+test('natural color and size phrasing confirms that exact variant', () => {
   const reply = replyBuilders.buildProductQuestionReply(
     products[0],
     'availability',
@@ -464,5 +480,6 @@ test('natural color and size phrasing returns exact variant stock', () => {
   );
 
   assert.match(reply, /Black[\s\S]*size L|size L[\s\S]*Black/i);
-  assert.match(reply, /Available stock: 2/i);
+  assert.match(reply, /\bavailable\b/i);
+  assert.doesNotMatch(reply, /Available stock/i);
 });
