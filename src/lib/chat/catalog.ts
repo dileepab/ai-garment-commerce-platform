@@ -21,6 +21,7 @@ import {
 } from '@/lib/chat/reply-builders';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { brandsMatch } from '@/lib/brand-aliases';
+import { canFallBackToConversationProduct } from '@/lib/chat/product-reference';
 import {
   extractDeliveryLocationHint,
   looksLikeDeliveryQuestion,
@@ -378,12 +379,22 @@ export async function handle_product_question(ctx: ChatContext) {
     });
   }
 
+  const namedProduct = findProductByName(aiAction.productName);
+  // "What is this dress made of?" extracts a product name of "this dress",
+  // which matches nothing — and the old gate (`!aiAction.productName`) then
+  // threw away the conversation's own memory, so the bot asked which item the
+  // customer meant one message after naming it itself.
+  const canUseRememberedProduct = canFallBackToConversationProduct({
+    extractedProductName: aiAction.productName,
+    matchedProduct: namedProduct,
+  });
+
   const selectedProduct =
-    findProductByName(aiAction.productName) ||
-    (!aiAction.productName && state.lastReferencedProductId
+    namedProduct ||
+    (canUseRememberedProduct && state.lastReferencedProductId
       ? products.find((product) => product.id === state.lastReferencedProductId) || null
       : null) ||
-    (!aiAction.productName && state.orderDraft
+    (canUseRememberedProduct && state.orderDraft
       ? products.find((product) => product.id === state.orderDraft?.productId) || null
       : null);
 

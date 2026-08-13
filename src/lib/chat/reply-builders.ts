@@ -246,7 +246,14 @@ function buildProductQuestionReplyBody(
   const asksPrice = /\b(?:price|prce|prise|cost|how much|මිල|ගාන|கட்டணம்|விலை)\b/i.test(customerMessage);
   const asksSizes = /\b(?:size|sizes|sizing|sze|szes|sisez)\b/i.test(customerMessage);
   const asksColors = /\b(?:colou?rs?|පාට|நிறம்|நிறங்கள்)\b/i.test(customerMessage);
-  const asksFabric = /\b(?:fabric|material|cloth)\b|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்/i.test(customerMessage);
+  // "මැටීරියල්" is simply "material" typed on a Sinhala keyboard, and it is what
+  // customers actually send — the native words are the rarer spelling. Missing it
+  // sent a fabric question down the catch-all branch and buried the one-word
+  // answer in a spec sheet.
+  const asksFabric =
+    /\b(?:fabric|material|cloth)\b|මැටීරි|මැටිරි|ෆැබ්රි|රෙදි|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்/i.test(
+      customerMessage
+    );
   const asksAvailability = /\b(?:available|availability|stock|in stock)\b/i.test(customerMessage);
   const asksPockets = /\bpockets?\b/i.test(customerMessage);
   const asksZip = /\b(?:zip|zipper|side zip)\b/i.test(customerMessage);
@@ -330,7 +337,6 @@ function buildProductQuestionReplyBody(
     specParts.push(specText);
   }
   const specBlockText = specParts.join('\n');
-  const specBlock = specBlockText ? `\n\nFit/details:\n${specBlockText}` : '';
 
   if (questionType === 'fit') {
     return specBlockText
@@ -338,9 +344,17 @@ function buildProductQuestionReplyBody(
       : `${product.name} fit details are not recorded yet.`;
   }
 
-  return `${product.name} is currently available for Rs ${product.price}. Sizes: ${sizeList.join(
-    ', '
-  )}. Colors: ${colorList.join(', ')}. Available stock: ${availableQty}.${specBlock}`;
+  // Nothing specific was asked, so answer what the item is and let them pick
+  // what else they want. This used to return the whole spec sheet plus the
+  // warehouse count: "What is this item?" got fifteen lines, and the stock
+  // number is ours, not the customer's — it is still shown when they ask about
+  // availability, which is the only time it means anything to them.
+  const summaryParts = [`${product.name} is currently available for Rs ${product.price}.`];
+  if (sizeList.length > 0) summaryParts.push(`Sizes: ${sizeList.join(', ')}.`);
+  if (colorList.length > 1) summaryParts.push(`Colors: ${colorList.join(', ')}.`);
+  summaryParts.push('Ask me about fabric, fit, or measurements if you need them.');
+
+  return summaryParts.join(' ');
 }
 
 function formatPaymentMethodList(methods: string[]): string {
