@@ -483,3 +483,43 @@ test('natural color and size phrasing confirms that exact variant', () => {
   assert.match(reply, /\bavailable\b/i);
   assert.doesNotMatch(reply, /Available stock/i);
 });
+
+/**
+ * A real WhatsApp exchange, turn by turn. She asked three short questions and
+ * got the item code stapled under every answer, then an overview instead of a
+ * yes when she asked about one size.
+ */
+test('each question is answered on its own terms', () => {
+  const fabric = replyBuilders.buildProductQuestionReply(
+    products[0],
+    null,
+    'What is the fabric of the Oversized Casual Top?'
+  );
+  assert.match(fabric, /Cotton/);
+  assert.doesNotMatch(fabric, /Item code/i);
+
+  const price = replyBuilders.buildProductQuestionReply(products[0], 'price', 'Mila');
+  assert.match(price, /1750/);
+  assert.doesNotMatch(price, /Item code/i);
+
+  // "M thiyeida" is Singlish for "is M available?" — it used to match nothing.
+  const size = replyBuilders.buildProductQuestionReply(products[0], null, 'M thiyeida');
+  assert.match(size, /\bM\b/);
+  assert.doesNotMatch(size, /Ask me about fabric/i);
+});
+
+// The code is how a customer quotes an item back, so the overview keeps it —
+// the targeted answers above drop it. Needs a product that actually has a code.
+test('the overview still carries the item code', () => {
+  const coded = { ...products[0], sku: 'HAP-0001' };
+  const overview = replyBuilders.buildProductQuestionReply(coded, null, 'What is this item?');
+
+  assert.match(overview, /Item code/i);
+  assert.doesNotMatch(overview, /Ask me about fabric/i);
+
+  // The same product answering one question keeps the code off.
+  assert.doesNotMatch(
+    replyBuilders.buildProductQuestionReply(coded, 'price', 'Mila'),
+    /Item code/i
+  );
+});

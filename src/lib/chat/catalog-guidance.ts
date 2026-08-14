@@ -691,7 +691,10 @@ export function buildAvailableVariantReply(
     /\b(?:available|availability|stock|in stock|how many|left|do (?:you|u)(?: guys)? have|have you got|come in|comes in)\b/i.test(
       message
     ) ||
-    /(තියෙනවද|තිබෙනවද|ලබාගන්න|கிடைக்குமா|இருக்கிறதா|கையிருப்பு)/i.test(message);
+    // "M thiyeida" — Singlish for "is M available?" — matched nothing, so a
+    // question about one size was answered with the whole overview.
+    /(තියෙනවද|තිබෙනවද|තියෙයිද|තියේද|ලබාගන්න|கிடைக்குமா|இருக்கிறதா|கையிருப்பு)/i.test(message) ||
+    /\b(?:thiy|tiy)[aeiy]\w*/i.test(message);
 
   if (!asksAvailability) return null;
 
