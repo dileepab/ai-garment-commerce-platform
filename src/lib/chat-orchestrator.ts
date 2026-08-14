@@ -338,7 +338,10 @@ async function saveConversationPair(
   brand?: string | null,
   // Kept on the customer's own turn, so the inbox shows the photo beside the
   // words it came with rather than floating loose in the thread.
-  userImageUrl?: string | null
+  userImageUrl?: string | null,
+  // What the bot showed back — a size chart, a product photo. Without it the
+  // agent reads "here is the size chart" and cannot see which one was sent.
+  assistantImageUrl?: string | null
 ) {
   const messages = [
     {
@@ -358,7 +361,7 @@ async function saveConversationPair(
       brand: brand || null,
       role: 'assistant',
       message: assistantReply,
-      imageUrl: null,
+      imageUrl: assistantImageUrl || null,
     });
   }
 
@@ -1118,7 +1121,8 @@ export async function routeCustomerMessage(
       input.currentMessage,
       localizedReply,
       brandFilter,
-      input.storedImageUrl
+      input.storedImageUrl,
+      params.imagePaths?.[0] ?? params.imagePath ?? null
     );
 
     const hasMedia = hasInteractivePayload;
