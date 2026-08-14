@@ -6,9 +6,16 @@
 # check cannot honour a four-hour follow-up delay. This repository is public, so
 # scheduled Actions are free and can run hourly.
 #
-# Requires two repository secrets:
-#   CRON_SECRET  — same value as the CRON_SECRET environment variable on Vercel
-#   APP_BASE_URL — e.g. https://app.deez.lk
+# Requires two repository settings:
+#   CRON_SECRET  (secret)   — same value as the CRON_SECRET environment variable
+#                             on Vercel
+#   APP_BASE_URL (variable) — e.g. https://app.deez.lk
+#
+# The URL is a variable rather than a secret because it is not sensitive: it is
+# the address customers already use. Storing it as a secret would also mask it
+# in the logs, so a failing request would print ***/api/cron/human-timeout and
+# tell us nothing. It is still read from secrets as a fallback, so it works
+# wherever it was already put.
 #
 # Without them the job fails loudly rather than silently sending nothing.
 name: Retention Crons
@@ -28,17 +35,17 @@ jobs:
       - name: Check required secrets are set
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || secrets.APP_BASE_URL }}
         run: |
           if [ -z "$CRON_SECRET" ] || [ -z "$APP_BASE_URL" ]; then
-            echo "::error::CRON_SECRET and APP_BASE_URL repository secrets must both be set."
+            echo "::error::Set the CRON_SECRET repository secret and the APP_BASE_URL repository variable."
             exit 1
           fi
 
       - name: Support follow-up for cases nobody has picked up
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || secrets.APP_BASE_URL }}
         run: |
           status=$(curl -sS -o /tmp/human-timeout.json -w '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
@@ -53,7 +60,7 @@ jobs:
       - name: Abandoned cart recovery
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || secrets.APP_BASE_URL }}
         run: |
           status=$(curl -sS -o /tmp/cart-recovery.json -w '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
