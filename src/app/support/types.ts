@@ -33,8 +33,8 @@ export interface SupportThreadMessage {
   id: number;
   role: string;
   message: string;
-  /** Photo the customer sent, re-hosted on blob storage so it still loads. */
-  imageUrl: string | null;
+  /** Every photo on this message, in the order they were sent. */
+  imageUrls: string[];
   createdAt: string;
   createdAtLabel: string;
 }

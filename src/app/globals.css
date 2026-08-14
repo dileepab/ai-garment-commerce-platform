@@ -2039,11 +2039,20 @@ select.filter-select-sm {
   white-space: pre-wrap;
 }
 
-/* A photo the customer sent. Capped so a portrait shot cannot push the rest of
-   the conversation off screen, but large enough to judge a garment from. */
+/* Several photos wrap rather than stacking, so a four-image carousel stays one
+   glanceable block instead of a column you have to scroll past. */
+.msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 5px;
+  max-width: 100%;
+}
+
+/* A photo on a message. Capped so a portrait shot cannot push the rest of the
+   conversation off screen, but large enough to judge a garment from. */
 .msg-image {
   display: block;
-  margin-bottom: 5px;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--color-border-subtle);
@@ -2057,6 +2066,14 @@ select.filter-select-sm {
   height: auto;
   max-height: 280px;
   object-fit: cover;
+}
+
+.msg-images:has(.msg-image + .msg-image) .msg-image {
+  max-width: 104px;
+}
+
+.msg-images:has(.msg-image + .msg-image) .msg-image img {
+  max-height: 132px;
 }
 
 .msg-row.customer .msg-bubble {

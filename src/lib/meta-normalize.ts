@@ -14,6 +14,9 @@ export interface NormalizedMessage {
   channel: MetaChannel;
   pageOrAccountId: string;
   messageText: string;
+  /** True when `messageText` was supplied by us, not by the customer — a bare
+   *  photo with no caption gets a presumed question so the router has input. */
+  messageTextInferred?: boolean;
   imageUrl?: string;
   isEcho: boolean;
   isPostback: boolean;
@@ -142,11 +145,16 @@ function getNormalizedPostbackText(postback?: MetaMessagingEvent['postback']): s
 }
 
 function getNormalizedMessageText(message?: MetaMessagingEvent['message']): string {
+  return getCustomerMessageText(message) ?? 'What is this item?';
+}
+
+/** What the customer actually sent, or null when they sent no words at all. */
+function getCustomerMessageText(message?: MetaMessagingEvent['message']): string | null {
   return (
     getStructuredPostbackMessage(message?.quick_reply?.payload) ??
     getTrimmedValue(message?.quick_reply?.payload) ??
     getTrimmedValue(message?.text) ??
-    'What is this item?'
+    null
   );
 }
 
@@ -308,6 +316,7 @@ export function normalizeMessengerEvent(
   }
 
   const messageText = getNormalizedMessageText(webhookEvent.message);
+  const messageTextInferred = getCustomerMessageText(webhookEvent.message) === null;
   const imageAttachment = webhookEvent.message.attachments?.find(
     (att) => att.type === 'image'
   );
@@ -323,6 +332,7 @@ export function normalizeMessengerEvent(
     channel: 'messenger',
     pageOrAccountId: pageId,
     messageText,
+    messageTextInferred,
     imageUrl: imageAttachment?.payload?.url || undefined,
     isEcho: false,
     isPostback: false,
@@ -394,6 +404,7 @@ export function normalizeInstagramEvent(
   }
 
   const messageText = getNormalizedMessageText(webhookEvent.message);
+  const messageTextInferred = getCustomerMessageText(webhookEvent.message) === null;
 
   // Instagram attachments use a slightly different structure.
   // Image attachments may come from story replies or direct shares.
@@ -417,6 +428,7 @@ export function normalizeInstagramEvent(
     channel: 'instagram',
     pageOrAccountId: accountId,
     messageText,
+    messageTextInferred,
     imageUrl: typeof imageUrl === 'string' ? imageUrl : undefined,
     isEcho: false,
     isPostback: false,

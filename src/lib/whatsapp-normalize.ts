@@ -58,6 +58,8 @@ export interface WhatsAppAdReferral {
 
 export interface NormalizedWhatsAppMessage extends NormalizedMessage {
   mediaId?: string;
+  /** True when `messageText` was supplied by us, not by the customer. */
+  messageTextInferred?: boolean;
   mediaMimeType?: string;
   /** Set only on the first message after a Click-to-WhatsApp ad. */
   adReferral?: WhatsAppAdReferral;
@@ -182,7 +184,11 @@ export function normalizeWhatsAppMessage(
 
     return {
       ...base,
+      // The router needs something to classify, so a bare photo gets a presumed
+      // question. It is flagged because it must never be stored as the
+      // customer's own words.
       messageText: cleanText(source.image?.caption) ?? 'What is this item?',
+      messageTextInferred: !cleanText(source.image?.caption),
       mediaId,
       mediaMimeType: cleanText(source.image?.mime_type),
       isPostback: false,

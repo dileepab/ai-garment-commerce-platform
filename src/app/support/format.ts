@@ -1,4 +1,5 @@
 import type { SupportThreadMessage, SupportThreadOrder } from './types';
+import { decodeMessageImages } from '@/lib/chat/message-media';
 
 export const SUPPORT_THREAD_MESSAGE_LIMIT = 40;
 export const SUPPORT_THREAD_POLL_MS = 4000;
@@ -111,13 +112,14 @@ export function serializeSupportMessage(message: {
   role: string;
   message: string;
   imageUrl?: string | null;
+  imageUrls?: string | null;
   createdAt: Date;
 }): SupportThreadMessage {
   return {
     id: message.id,
     role: message.role,
     message: message.message,
-    imageUrl: message.imageUrl ?? null,
+    imageUrls: decodeMessageImages(message.imageUrls, message.imageUrl),
     createdAt: message.createdAt.toISOString(),
     createdAtLabel: formatSupportTime(message.createdAt),
   };

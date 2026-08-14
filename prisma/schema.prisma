@@ -259,9 +259,11 @@ model ChatMessage {
   brand             String?
   role              String // "user" or "assistant"
   message           String
-  // Blob URL for a photo the customer sent. Meta's own media links expire and
-  // WhatsApp media needs the access token, so inbound images are re-hosted.
+  // First image on this message, kept as its own column so a row carrying a
+  // photo is simple to find. `imageUrls` holds the complete ordered list —
+  // a product carousel is up to four and a size-chart answer can be two.
   imageUrl          String?
+  imageUrls         String? // JSON array of URLs
   externalMessageId String?
   providerMetadata  String?
   createdAt         DateTime @default(now())

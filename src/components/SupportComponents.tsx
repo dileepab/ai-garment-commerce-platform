@@ -590,22 +590,37 @@ export function Thread({
                   {showLabel && isAI && <div className="msg-label" style={{ color: "var(--color-accent)" }}>AI Assistant</div>}
                   {showLabel && isAgent && <div className="msg-label" style={{ color: "var(--color-navy)" }}>Sara Altan · Agent</div>}
                   {showLabel && isNote && <div className="msg-label" style={{ color: "var(--danger)" }}>Internal note</div>}
-                  {msg.imageUrl && (
-                    // The photo goes above the words because the words are
-                    // usually about the photo — "What is this item?" means
-                    // nothing on its own. Opens full size in a new tab, since
-                    // deciding whether we stock something needs a proper look.
-                    <a
-                      href={msg.imageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="msg-image"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={msg.imageUrl} alt="Photo sent by the customer" loading="lazy" />
-                    </a>
+                  {msg.imageUrls.length > 0 && (
+                    // Photos go above the words because the words are usually
+                    // about them. All of them, not just the first: a product
+                    // carousel is up to four and a size-chart answer can be two,
+                    // and showing one gave no hint the others existed. Each
+                    // opens full size, since judging a garment needs a proper
+                    // look.
+                    <div className="msg-images">
+                      {msg.imageUrls.map((url) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="msg-image"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={isCustomer ? 'Photo sent by the customer' : 'Image we sent'}
+                            loading="lazy"
+                          />
+                        </a>
+                      ))}
+                    </div>
                   )}
-                  <div className="msg-bubble">{getMessageText(msg)}</div>
+                  {/* A bare photo has no words. An empty bubble beneath it
+                      would read as a message that failed to load. */}
+                  {getMessageText(msg).trim() && (
+                    <div className="msg-bubble">{getMessageText(msg)}</div>
+                  )}
                   <span className="msg-time" title={formatSupportFullTimestamp(msg.createdAt)} suppressHydrationWarning>{msg.createdAtLabel}</span>
                 </div>
               </div>

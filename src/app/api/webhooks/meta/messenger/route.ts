@@ -412,6 +412,9 @@ async function processMessengerEvent(params: {
       senderId: normalized.senderId,
       channel: normalized.channel,
       currentMessage: normalized.messageText,
+      // A bare photo is routed as a presumed question; the transcript records
+      // that they sent a photo and no words.
+      transcriptMessage: normalized.messageTextInferred ? '' : undefined,
       brand: params.brand || undefined,
       customerName,
       imageUrl: normalized.imageUrl,
