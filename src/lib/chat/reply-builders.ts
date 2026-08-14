@@ -192,7 +192,7 @@ export function buildProductQuestionReply(
   customerMessage = '',
   requestedSelection?: { size?: string | null; color?: string | null }
 ): string {
-  const reply = buildProductQuestionReplyBody(
+  const { reply, isOverview } = buildProductQuestionReplyBody(
     product,
     questionType,
     customerMessage,
@@ -200,7 +200,10 @@ export function buildProductQuestionReply(
   );
   const itemCode = productItemCode(product);
 
-  return itemCode ? `${reply}\nItem code: ${itemCode}` : reply;
+  // Only on the overview. Asked the price three times in a row, a customer got
+  // "Item code: HAP-0001" three times with it — the code is for ordering, not
+  // for repeating under every sentence.
+  return itemCode && isOverview ? `${reply}\nItem code: ${itemCode}` : reply;
 }
 
 function buildProductQuestionReplyBody(
@@ -208,7 +211,7 @@ function buildProductQuestionReplyBody(
   questionType: 'colors' | 'sizes' | 'price' | 'availability' | 'fit' | null,
   customerMessage = '',
   requestedSelection?: { size?: string | null; color?: string | null }
-): string {
+): { reply: string; isOverview: boolean } {
   const availableVariants = product.variants?.filter(isVariantAvailable) ?? [];
 
   const sizeList =
@@ -240,7 +243,7 @@ function buildProductQuestionReplyBody(
   );
 
   if (exactVariantReply) {
-    return exactVariantReply;
+    return { reply: exactVariantReply, isOverview: false };
   }
 
   const asksPrice = /\b(?:price|prce|prise|cost|how much|මිල|ගාන|கட்டணம்|விலை)\b/i.test(customerMessage);
@@ -254,7 +257,13 @@ function buildProductQuestionReplyBody(
     /\b(?:fabric|material|cloth)\b|මැටීරි|මැටිරි|ෆැබ්රි|රෙදි|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்/i.test(
       customerMessage
     );
-  const asksAvailability = /\b(?:available|availability|stock|in stock)\b/i.test(customerMessage);
+  // "M thiyeida" is how a customer asks whether M is in stock. Only the English
+  // words were matched, so that question scored zero fields and fell through to
+  // the overview — which answered everything except what she asked.
+  const asksAvailability =
+    /\b(?:available|availability|stock|in stock)\b|\b(?:thiy|tiy)[aeiy]\w*|තියෙනවද|තිබෙනවද|තියෙයිද|තියේද/i.test(
+      customerMessage
+    );
   const asksPockets = /\bpockets?\b/i.test(customerMessage);
   const asksZip = /\b(?:zip|zipper|side zip)\b/i.test(customerMessage);
   const asksSideSlit = /\b(?:side\s+)?slit\b/i.test(customerMessage);
@@ -317,19 +326,25 @@ function buildProductQuestionReplyBody(
       );
     }
 
-    return `${product.name}:\n${requestedLines.join('\n')}`;
+    return { reply: `${product.name}:\n${requestedLines.join('\n')}`, isOverview: false };
   }
 
   if (questionType === 'colors') {
-    return `${product.name} is currently available in ${colorList.join(', ')}.`;
+    return {
+      reply: `${product.name} is currently available in ${colorList.join(', ')}.`,
+      isOverview: false,
+    };
   }
 
   if (questionType === 'sizes') {
-    return `${product.name} is currently available in sizes ${sizeList.join(', ')}.`;
+    return {
+      reply: `${product.name} is currently available in sizes ${sizeList.join(', ')}.`,
+      isOverview: false,
+    };
   }
 
   if (questionType === 'price') {
-    return `${product.name} is priced at Rs ${product.price}.`;
+    return { reply: `${product.name} is priced at Rs ${product.price}.`, isOverview: false };
   }
 
   const specText = buildGarmentSpecsForCustomer(product);
@@ -343,9 +358,12 @@ function buildProductQuestionReplyBody(
   const specBlockText = specParts.join('\n');
 
   if (questionType === 'fit') {
-    return specBlockText
-      ? `${product.name} fit/details:\n${specBlockText}`
-      : `${product.name} fit details are not recorded yet.`;
+    return {
+      reply: specBlockText
+        ? `${product.name} fit/details:\n${specBlockText}`
+        : `${product.name} fit details are not recorded yet.`,
+      isOverview: false,
+    };
   }
 
   // Nothing specific was asked, so answer what the item is and let them pick
@@ -353,12 +371,14 @@ function buildProductQuestionReplyBody(
   // warehouse count: "What is this item?" got fifteen lines, and the stock
   // number is ours, not the customer's — it is still shown when they ask about
   // availability, which is the only time it means anything to them.
+  // No invitation to ask more. It was appended to soften the trimming, but a
+  // customer three questions into a conversation is already asking; being told
+  // again that they may is one more line to read past.
   const summaryParts = [`${product.name} is currently available for Rs ${product.price}.`];
   if (sizeList.length > 0) summaryParts.push(`Sizes: ${sizeList.join(', ')}.`);
   if (colorList.length > 1) summaryParts.push(`Colors: ${colorList.join(', ')}.`);
-  summaryParts.push('Ask me about fabric, fit, or measurements if you need them.');
 
-  return summaryParts.join(' ');
+  return { reply: summaryParts.join(' '), isOverview: true };
 }
 
 function formatPaymentMethodList(methods: string[]): string {
