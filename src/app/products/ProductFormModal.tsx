@@ -318,6 +318,13 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
       return {
         ...initial,
         name: `${initial.name} (Copy)`,
+        // The print describes one colourway and never survives a copy. Both
+        // Happybuy sundresses inherited the Red Floral's "small white floral
+        // print on a red ground" this way — one of them is plain blue-grey,
+        // the other has large red blooms on cream — and the bot quoted it to
+        // customers as fact for weeks. Blank forces it to be written; a wrong
+        // description reads as true.
+        patternDetails: '',
         // Variant ids belong to the source rows; keeping them would make the
         // new product try to adopt another product's variants. Status is reset
         // so it derives from the new quantities — copying it verbatim carried
