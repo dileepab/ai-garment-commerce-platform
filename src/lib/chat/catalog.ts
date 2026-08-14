@@ -22,11 +22,14 @@ import {
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { canFallBackToConversationProduct } from '@/lib/chat/product-reference';
+import { generateGroundedProductAnswer } from '@/lib/chat/grounded-answer-gemini';
+import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
 import {
   extractDeliveryLocationHint,
   looksLikeDeliveryQuestion,
   looksLikePaymentQuestion,
   formatSizeList,
+  splitCsv,
 } from '@/lib/chat/message-utils';
 import {
   buildCatalogRecommendationReply,
@@ -364,7 +367,7 @@ export async function handle_catalog_list(ctx: ChatContext) {
 }
 
 export async function handle_product_question(ctx: ChatContext) {
-  const { aiAction, brandFilter, globalProducts, input, products, requestedProductTypes, state } = ctx;
+  const { aiAction, brandFilter, globalProducts, input, latestAssistantText, latestCustomerText, products, requestedProductTypes, state } = ctx;
   const { findProductByName, finalizeReply } = ctx.helpers;
 
   const comparison = buildProductComparisonReply(products, input.currentMessage);
@@ -472,13 +475,46 @@ export async function handle_product_question(ctx: ChatContext) {
     });
   }
 
+  const builtReply = buildProductQuestionReply(
+    selectedProduct,
+    aiAction.questionType,
+    input.currentMessage,
+    requestedVariant
+  );
+
+  // Behind CHAT_GROUNDED_PRODUCT_ANSWERS. The built reply can only answer what
+  // someone wrote a field for; a grounded answer can weigh the fields and reply
+  // to what was actually asked. It returns null whenever it is off, unavailable,
+  // or makes a claim the record does not support — and then the built reply
+  // goes, because wordy beats wrong.
+  const groundedReply = await generateGroundedProductAnswer({
+    facts: {
+      name: selectedProduct.name,
+      itemCode: productItemCode(selectedProduct),
+      price: selectedProduct.price,
+      sizes: splitCsv(formatSizeList(selectedProduct.sizes) || selectedProduct.sizes),
+      colors: splitCsv(selectedProduct.colors),
+      inStock: hasAvailableStock(selectedProduct),
+      fabric: selectedProduct.fabric,
+      specLines: buildGarmentSpecsForCustomer(selectedProduct).split('\n').filter(Boolean),
+    },
+    question: input.currentMessage,
+    brand: brandFilter,
+    // The turn before is what makes "this dress" resolvable; it is also where
+    // the customer's own previous wording lives.
+    recentTurns: [
+      ...(latestCustomerText ? [{ role: 'user' as const, message: latestCustomerText }] : []),
+      ...(latestAssistantText ? [{ role: 'assistant' as const, message: latestAssistantText }] : []),
+    ],
+    // Generated in English and localized downstream by finalizeReply, the same
+    // as every other reply. Generating straight into the customer's language is
+    // the next step, once language is plumbed this far.
+    language: 'english',
+    scriptStyle: 'native',
+  });
+
   return finalizeReply({
-    reply: buildProductQuestionReply(
-      selectedProduct,
-      aiAction.questionType,
-      input.currentMessage,
-      requestedVariant
-    ),
+    reply: groundedReply ?? builtReply,
     imagePaths: productImageUrls(selectedProduct, 4, aiAction.color),
     nextState: {
       lastMissingOrderId: null,
