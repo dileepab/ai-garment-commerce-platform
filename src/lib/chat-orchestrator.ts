@@ -48,7 +48,11 @@ import {
   buildSizeChartReply,
 } from '@/lib/chat/reply-builders';
 import { buildMultiCodeReply } from '@/lib/chat/multi-code-reply';
-import { appendRepeatNudge, isUnhelpfulRepeat, REPEAT_NUDGE } from '@/lib/chat/repeat-guard';
+import {
+  appendRepeatHandover,
+  isUnhelpfulRepeat,
+  REPEAT_HANDOVER_MESSAGE,
+} from '@/lib/chat/repeat-guard';
 import {
   detectCustomerLanguage,
   detectCustomerScriptStyle,
@@ -1037,17 +1041,47 @@ export async function routeCustomerMessage(
     // localized one, so this is the only point where both sides are the same
     // form. Appending earlier would also break localizeKnownReply, which
     // matches on the reply's exact English text.
-    if (
-      isUnhelpfulRepeat({
-        reply: localizedReply,
-        previousReply: latestAssistantText,
+    const repeatedItself = isUnhelpfulRepeat({
+      reply: localizedReply,
+      previousReply: latestAssistantText,
+      assistantReplyKind,
+    });
+
+    if (repeatedItself) {
+      logWarn('Chat Orchestrator', 'Bot repeated itself; handing to support.', {
+        senderId: input.senderId,
+        channel: input.channel,
+        brand: brandFilter || null,
         assistantReplyKind,
-      })
-    ) {
-      const localizedNudge =
-        (await localizeReplyWithGemini(REPEAT_NUDGE, replyLanguage, replyScriptStyle)) ??
-        REPEAT_NUDGE;
-      localizedReply = appendRepeatNudge(localizedReply!, localizedNudge);
+      });
+
+      const localizedHandover =
+        (await localizeReplyWithGemini(
+          REPEAT_HANDOVER_MESSAGE,
+          replyLanguage,
+          replyScriptStyle
+        )) ?? REPEAT_HANDOVER_MESSAGE;
+      localizedReply = appendRepeatHandover(localizedReply!, localizedHandover);
+
+      // Same record any other escalation writes, so the case surfaces in the
+      // support inbox exactly like one the customer asked for.
+      await upsertSupportEscalation({
+        senderId: input.senderId,
+        channel: input.channel,
+        customerId: customer?.id,
+        orderId: params.orderId || null,
+        brand: brandFilter || null,
+        contactName: mergedContact.name || customer?.name || input.customerName || null,
+        contactPhone: mergedContact.phone || customer?.phone || null,
+        latestCustomerMessage: input.currentMessage,
+        reason: 'unclear_request',
+        summary: buildSupportConversationSummary({
+          reason: 'unclear_request',
+          currentMessage: input.currentMessage,
+          recentMessages: [...recentMessages].reverse(),
+          orderId: params.orderId || null,
+        }),
+      });
     }
     const shouldPersistState =
       Boolean(params.nextState) ||
@@ -1058,6 +1092,10 @@ export async function routeCustomerMessage(
       ? await saveConversationState(input.senderId, input.channel, {
           ...state,
           ...params.nextState,
+          // Set after the handler's own state so a repeat always wins: the bot
+          // has just proved it has nothing to add, and it stays quiet until a
+          // human resolves the case.
+          ...(repeatedItself ? { supportMode: 'handoff_requested' as const } : {}),
           preferredLanguage: replyLanguage,
           preferredScriptStyle: replyScriptStyle,
           lastAssistantReplyKind: assistantReplyKind,

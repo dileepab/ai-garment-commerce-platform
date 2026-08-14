@@ -3,8 +3,15 @@ import {
   runCartRecoveryAutomation,
   runOrderRetentionAutomations,
 } from '@/lib/retention-automation';
+import { isAuthorizedCronRequest } from '@/lib/cron-auth';
+import { logWarn } from '@/lib/app-log';
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAuthorizedCronRequest(request)) {
+    logWarn('Cart Recovery Cron', 'Unauthorized cron request rejected.');
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const now = new Date();
     const cartRecovery = await runCartRecoveryAutomation(now);

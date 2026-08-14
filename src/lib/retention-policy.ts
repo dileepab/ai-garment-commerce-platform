@@ -13,7 +13,11 @@ export const RETENTION_SUPPORTED_CHANNELS = ['messenger', 'instagram'] as const;
 
 export const CART_RECOVERY_DELAY_MS = 12 * 60 * 60 * 1000;
 export const CART_RECOVERY_COOLDOWN_MS = 72 * 60 * 60 * 1000;
-export const SUPPORT_TIMEOUT_DELAY_MS = 24 * 60 * 60 * 1000;
+// Four hours, not twenty-four. The bot goes silent the moment a case is
+// escalated, so this message is the only thing the customer hears until someone
+// picks the case up. Open cases were averaging a 10h54m wait with the oldest at
+// 23h49m, which means a day-long delay arrives after they have given up.
+export const SUPPORT_TIMEOUT_DELAY_MS = 4 * 60 * 60 * 1000;
 export const SUPPORT_TIMEOUT_COOLDOWN_MS = 48 * 60 * 60 * 1000;
 export const POST_ORDER_FOLLOW_UP_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 export const POST_ORDER_FOLLOW_UP_WINDOW_MS = 21 * 24 * 60 * 60 * 1000;
@@ -310,7 +314,11 @@ export function buildCartRecoveryMessage(params: {
 }
 
 export function buildSupportTimeoutMessage(): string {
-  return 'Hi again. Our support team still has your message. While you wait, I can help with simple order questions here.';
+  // It used to end "While you wait, I can help with simple order questions
+  // here." That is not true: an escalated conversation silences the bot
+  // entirely, so anything the customer asked next went unanswered. Promising
+  // help and then saying nothing is worse than saying nothing at all.
+  return 'Hi again. Our support team still has your message and will get back to you here as soon as they can. Sorry to keep you waiting.';
 }
 
 export function buildPostOrderFollowUpMessage(params: {
