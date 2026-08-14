@@ -335,7 +335,10 @@ async function saveConversationPair(
   channel: string,
   userMessage: string,
   assistantReply?: string | null,
-  brand?: string | null
+  brand?: string | null,
+  // Kept on the customer's own turn, so the inbox shows the photo beside the
+  // words it came with rather than floating loose in the thread.
+  userImageUrl?: string | null
 ) {
   const messages = [
     {
@@ -344,6 +347,7 @@ async function saveConversationPair(
       brand: brand || null,
       role: 'user',
       message: userMessage,
+      imageUrl: userImageUrl || null,
     },
   ];
 
@@ -354,6 +358,7 @@ async function saveConversationPair(
       brand: brand || null,
       role: 'assistant',
       message: assistantReply,
+      imageUrl: null,
     });
   }
 
@@ -411,7 +416,8 @@ export async function routeCustomerMessage(
       input.channel,
       input.currentMessage,
       reply,
-      input.brand
+      input.brand,
+      input.storedImageUrl
     );
 
     return {
@@ -1111,7 +1117,8 @@ export async function routeCustomerMessage(
       input.channel,
       input.currentMessage,
       localizedReply,
-      brandFilter
+      brandFilter,
+      input.storedImageUrl
     );
 
     const hasMedia = hasInteractivePayload;

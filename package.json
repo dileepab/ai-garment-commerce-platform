@@ -46,6 +46,7 @@
     "test:product-reference": "node --test --experimental-strip-types --no-warnings scripts/product-reference.test.ts",
     "test:catalog-depth": "node --test --experimental-strip-types --no-warnings scripts/chat-catalog-depth.test.ts",
     "test:grounded-answer": "node --test --experimental-strip-types --no-warnings scripts/grounded-answer.test.ts",
+    "test:inbound-image": "node --test --experimental-strip-types --no-warnings scripts/inbound-image.test.ts",
     "audit:catalog": "node --env-file=.env scripts/audit-catalog-specs.js",
     "test:whatsapp": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-normalize.test.ts scripts/meta-webhook-signature.test.ts scripts/whatsapp-registration.test.ts",
     "test:meta-catalog-feed": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts",

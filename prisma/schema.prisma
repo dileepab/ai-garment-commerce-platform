@@ -259,6 +259,9 @@ model ChatMessage {
   brand             String?
   role              String // "user" or "assistant"
   message           String
+  // Blob URL for a photo the customer sent. Meta's own media links expire and
+  // WhatsApp media needs the access token, so inbound images are re-hosted.
+  imageUrl          String?
   externalMessageId String?
   providerMetadata  String?
   createdAt         DateTime @default(now())

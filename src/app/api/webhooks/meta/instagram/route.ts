@@ -42,6 +42,7 @@ import {
 } from '@/lib/webhook-event-log';
 import { isMetaCommentAutoReplyEnabled } from '@/lib/meta-feature-flags';
 import prisma from '@/lib/prisma';
+import { storeInboundChatImage } from '@/lib/chat/inbound-image-store';
 
 const IS_CHAT_TEST_MODE = process.env.CHAT_TEST_MODE === '1';
 const FAILURE_ESCALATION_WINDOW_MS = 15 * 60 * 1000;
@@ -336,6 +337,12 @@ async function processInstagramEvent(params: {
       brand: params.brand || undefined,
       customerName,
       imageUrl: normalized.imageUrl,
+      // Meta's CDN link stops resolving, so keep our own copy for the inbox.
+      storedImageUrl:
+        (await storeInboundChatImage({
+          source: normalized.imageUrl,
+          channel: normalized.channel,
+        })) ?? undefined,
     });
 
     await deliverCustomerResult(normalized.senderId, result, params.stats, params.accountId, params.pageAccessToken);

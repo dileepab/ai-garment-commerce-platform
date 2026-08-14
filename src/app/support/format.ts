@@ -110,12 +110,14 @@ export function serializeSupportMessage(message: {
   id: number;
   role: string;
   message: string;
+  imageUrl?: string | null;
   createdAt: Date;
 }): SupportThreadMessage {
   return {
     id: message.id,
     role: message.role,
     message: message.message,
+    imageUrl: message.imageUrl ?? null,
     createdAt: message.createdAt.toISOString(),
     createdAtLabel: formatSupportTime(message.createdAt),
   };
