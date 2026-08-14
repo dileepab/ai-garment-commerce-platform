@@ -27,6 +27,11 @@ export interface CustomerMessageInput {
   /** Durable blob URL for the same photo. `imageUrl` may be a data URL or an
    *  expiring Meta CDN link, neither of which can be shown in the inbox later. */
   storedImageUrl?: string;
+  /** What to record as the customer's message when it differs from what was
+   *  routed. A bare photo is routed as "What is this item?" so the router has
+   *  input, but the customer never typed that and the transcript must not say
+   *  they did. */
+  transcriptMessage?: string;
   /** What the shopper is currently viewing on the storefront (e.g. a PDP), so
    *  references like "this item" can be resolved to the right product. */
   pageContext?: CustomerPageContext | null;

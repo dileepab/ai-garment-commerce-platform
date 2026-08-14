@@ -121,6 +121,7 @@ import {
 import * as OrderingHandlers from './chat/orders';
 import * as InfoHandlers from './chat/info';
 import { logInfo, logWarn } from '@/lib/app-log';
+import { encodeMessageImages } from '@/lib/chat/message-media';
 
 const LOW_CONFIDENCE_ACTION_THRESHOLD = 0.55;
 const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
@@ -338,10 +339,10 @@ async function saveConversationPair(
   brand?: string | null,
   // Kept on the customer's own turn, so the inbox shows the photo beside the
   // words it came with rather than floating loose in the thread.
-  userImageUrl?: string | null,
-  // What the bot showed back — a size chart, a product photo. Without it the
+  userImageUrls?: Array<string | null | undefined>,
+  // What the bot showed back — size charts, product photos. Without them the
   // agent reads "here is the size chart" and cannot see which one was sent.
-  assistantImageUrl?: string | null
+  assistantImageUrls?: Array<string | null | undefined>
 ) {
   const messages = [
     {
@@ -350,7 +351,8 @@ async function saveConversationPair(
       brand: brand || null,
       role: 'user',
       message: userMessage,
-      imageUrl: userImageUrl || null,
+      imageUrl: (userImageUrls ?? []).find(Boolean) || null,
+      imageUrls: encodeMessageImages(userImageUrls ?? []),
     },
   ];
 
@@ -361,7 +363,8 @@ async function saveConversationPair(
       brand: brand || null,
       role: 'assistant',
       message: assistantReply,
-      imageUrl: assistantImageUrl || null,
+      imageUrl: (assistantImageUrls ?? []).find(Boolean) || null,
+      imageUrls: encodeMessageImages(assistantImageUrls ?? []),
     });
   }
 
@@ -417,10 +420,10 @@ export async function routeCustomerMessage(
     await saveConversationPair(
       input.senderId,
       input.channel,
-      input.currentMessage,
+      input.transcriptMessage ?? input.currentMessage,
       reply,
       input.brand,
-      input.storedImageUrl
+      [input.storedImageUrl]
     );
 
     return {
@@ -1118,11 +1121,11 @@ export async function routeCustomerMessage(
     await saveConversationPair(
       input.senderId,
       input.channel,
-      input.currentMessage,
+      input.transcriptMessage ?? input.currentMessage,
       localizedReply,
       brandFilter,
-      input.storedImageUrl,
-      params.imagePaths?.[0] ?? params.imagePath ?? null
+      [input.storedImageUrl],
+      params.imagePaths ?? (params.imagePath ? [params.imagePath] : [])
     );
 
     const hasMedia = hasInteractivePayload;

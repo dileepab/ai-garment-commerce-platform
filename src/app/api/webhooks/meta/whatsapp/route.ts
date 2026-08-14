@@ -216,6 +216,9 @@ async function processMessage(
       senderId: normalized.senderId,
       channel: 'whatsapp',
       currentMessage: normalized.messageText,
+      // A bare photo is routed as a presumed question; the transcript records
+      // that they sent a photo and no words.
+      transcriptMessage: normalized.messageTextInferred ? '' : undefined,
       brand,
       customerName: extracted.customerName,
       imageUrl: imageUrl ?? undefined,
