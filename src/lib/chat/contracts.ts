@@ -24,6 +24,9 @@ export interface CustomerMessageInput {
   customerName?: string;
   customerGender?: string;
   imageUrl?: string;
+  /** Durable blob URL for the same photo. `imageUrl` may be a data URL or an
+   *  expiring Meta CDN link, neither of which can be shown in the inbox later. */
+  storedImageUrl?: string;
   /** What the shopper is currently viewing on the storefront (e.g. a PDP), so
    *  references like "this item" can be resolved to the right product. */
   pageContext?: CustomerPageContext | null;

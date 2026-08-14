@@ -590,6 +590,21 @@ export function Thread({
                   {showLabel && isAI && <div className="msg-label" style={{ color: "var(--color-accent)" }}>AI Assistant</div>}
                   {showLabel && isAgent && <div className="msg-label" style={{ color: "var(--color-navy)" }}>Sara Altan · Agent</div>}
                   {showLabel && isNote && <div className="msg-label" style={{ color: "var(--danger)" }}>Internal note</div>}
+                  {msg.imageUrl && (
+                    // The photo goes above the words because the words are
+                    // usually about the photo — "What is this item?" means
+                    // nothing on its own. Opens full size in a new tab, since
+                    // deciding whether we stock something needs a proper look.
+                    <a
+                      href={msg.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="msg-image"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={msg.imageUrl} alt="Photo sent by the customer" loading="lazy" />
+                    </a>
+                  )}
                   <div className="msg-bubble">{getMessageText(msg)}</div>
                   <span className="msg-time" title={formatSupportFullTimestamp(msg.createdAt)} suppressHydrationWarning>{msg.createdAtLabel}</span>
                 </div>

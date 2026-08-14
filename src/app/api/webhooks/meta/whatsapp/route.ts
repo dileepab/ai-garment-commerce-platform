@@ -28,6 +28,7 @@ import {
   markWebhookEventProcessed,
 } from '@/lib/webhook-event-log';
 import type { CustomerMessageResult } from '@/lib/chat/contracts';
+import { storeInboundChatImage } from '@/lib/chat/inbound-image-store';
 
 const IS_CHAT_TEST_MODE = process.env.CHAT_TEST_MODE === '1';
 
@@ -218,6 +219,10 @@ async function processMessage(
       brand,
       customerName: extracted.customerName,
       imageUrl: imageUrl ?? undefined,
+      // Gemini reads the data URL above; the inbox needs one that still
+      // resolves next week.
+      storedImageUrl:
+        (await storeInboundChatImage({ source: imageUrl, channel: 'whatsapp' })) ?? undefined,
       // Exact catalog rows the customer chose, so the draft is built from what
       // they actually added rather than inferred from conversation text.
       cart: normalized.cart?.items.map((item) => ({
