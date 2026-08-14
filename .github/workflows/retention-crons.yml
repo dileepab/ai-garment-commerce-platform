@@ -1,0 +1,66 @@
+# Runs the two retention jobs on a schedule.
+#
+# These live here rather than in vercel.json because the project is on Vercel's
+# Hobby plan, which allows at most two cron jobs per project and only fires them
+# once a day. One slot is already taken by comment-replies, and a once-a-day
+# check cannot honour a four-hour follow-up delay. This repository is public, so
+# scheduled Actions are free and can run hourly.
+#
+# Requires two repository secrets:
+#   CRON_SECRET  — same value as the CRON_SECRET environment variable on Vercel
+#   APP_BASE_URL — e.g. https://app.deez.lk
+#
+# Without them the job fails loudly rather than silently sending nothing.
+name: Retention Crons
+
+on:
+  schedule:
+    # Hourly. The jobs decide for themselves whether anything is actually due,
+    # so running often is cheap and only shortens the wait before a follow-up.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check required secrets are set
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$APP_BASE_URL" ]; then
+            echo "::error::CRON_SECRET and APP_BASE_URL repository secrets must both be set."
+            exit 1
+          fi
+
+      - name: Support follow-up for cases nobody has picked up
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+        run: |
+          status=$(curl -sS -o /tmp/human-timeout.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_BASE_URL/api/cron/human-timeout")
+          cat /tmp/human-timeout.json
+          echo
+          if [ "$status" != "200" ]; then
+            echo "::error::human-timeout returned HTTP $status"
+            exit 1
+          fi
+
+      - name: Abandoned cart recovery
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+        run: |
+          status=$(curl -sS -o /tmp/cart-recovery.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_BASE_URL/api/cron/cart-recovery")
+          cat /tmp/cart-recovery.json
+          echo
+          if [ "$status" != "200" ]; then
+            echo "::error::cart-recovery returned HTTP $status"
+            exit 1
+          fi

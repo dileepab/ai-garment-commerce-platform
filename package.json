@@ -24,6 +24,7 @@
     "test:contact-profile": "node --test --experimental-strip-types --no-warnings scripts/contact-profile.test.ts",
     "test:meta-profile": "node --test --experimental-strip-types --no-warnings scripts/meta-profile.test.ts",
     "test:retention": "node --test --experimental-strip-types --no-warnings scripts/retention-automation.test.ts",
+    "test:cron-auth": "node --test --experimental-strip-types --no-warnings scripts/cron-auth.test.ts",
     "test:support-inbox": "node --test --experimental-strip-types --no-warnings scripts/support-inbox.test.ts",
     "test:fulfillment": "node --test --experimental-strip-types --no-warnings scripts/fulfillment.test.ts",
     "test:variant-availability": "node --test --experimental-strip-types --no-warnings scripts/variant-availability.test.ts",

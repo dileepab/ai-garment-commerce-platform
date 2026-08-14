@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { runSupportTimeoutAutomation } from '@/lib/retention-automation';
+import { isAuthorizedCronRequest } from '@/lib/cron-auth';
+import { logWarn } from '@/lib/app-log';
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAuthorizedCronRequest(request)) {
+    logWarn('Support Timeout Cron', 'Unauthorized cron request rejected.');
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const result = await runSupportTimeoutAutomation(new Date());
 
