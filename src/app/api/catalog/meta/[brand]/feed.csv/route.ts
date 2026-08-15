@@ -36,6 +36,9 @@ export async function GET(
           notIn: ['archived', 'deleted'],
           mode: 'insensitive',
         },
+        // Only products deliberately listed. New ones stay out until the images
+        // are settled, so customers never see a raw studio shot in WhatsApp.
+        listedInCatalog: true,
       },
       select: {
         id: true,
@@ -49,6 +52,7 @@ export async function GET(
         colors: true,
         stock: true,
         status: true,
+        listedInCatalog: true,
         imageUrl: true,
         fitType: true,
         inventory: {

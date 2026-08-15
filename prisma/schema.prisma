@@ -21,6 +21,11 @@ model Product {
   colors                 String // Store as JSON or comma-separated string
   stock                  Int                 @default(0)
   status                 String              @default("active")
+  // Whether this product appears in the Meta catalog feed. Off by default:
+  // a new product used to reach the WhatsApp catalog within the hour, carrying
+  // whatever photo it had at that moment — usually the raw studio shot, before
+  // the edited image existed. Listing is now a deliberate step.
+  listedInCatalog        Boolean             @default(false)
   imageUrl               String?
   createdAt              DateTime            @default(now())
   garmentLengthCm        Float?

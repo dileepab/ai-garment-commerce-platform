@@ -33,6 +33,7 @@ interface ProductsPageStats {
   inventoryValue: number;
   lowStock: number;
   criticalStock: number;
+  unlisted: number;
 }
 
 type ProductStatusFilter = (typeof STATUS_TABS)[number]['key'];
@@ -205,6 +206,11 @@ export default function ProductsPageClient({
           <div className="kpi-strip-label">Critical Stock</div>
           <div className="kpi-strip-val" style={{ color: "var(--color-error)" }}>{stats.criticalStock}</div>
           <div className="kpi-strip-note">immediate action</div>
+        </div>
+        <div className="kpi-strip-card">
+          <div className="kpi-strip-label">Not Listed</div>
+          <div className="kpi-strip-val" style={stats.unlisted > 0 ? { color: "var(--color-warning)" } : undefined}>{stats.unlisted}</div>
+          <div className="kpi-strip-note">hidden from Meta catalog</div>
         </div>
       </div>
 

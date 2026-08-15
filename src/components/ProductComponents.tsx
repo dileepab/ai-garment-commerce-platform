@@ -59,6 +59,8 @@ export interface Product {
   neckline?: string | null;
   closureDetails?: string | null;
   hasSideSlit?: boolean | null;
+  // Whether the product is published to the Meta catalog feed.
+  listedInCatalog?: boolean | null;
   sideSlitHeightCm?: number | null;
   hemDetails?: string | null;
   sleeveHemDetails?: string | null;

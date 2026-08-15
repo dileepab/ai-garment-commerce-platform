@@ -50,6 +50,9 @@ export default async function ProductsPage({
   const totalProducts = productsWithForecast.length;
   const lowStock = productsWithForecast.filter(p => p.status === 'low-stock').length;
   const criticalStock = productsWithForecast.filter(p => p.status === 'critical').length;
+  // Products held back from the Meta catalog. Surfaced so a product cannot sit
+  // unlisted and forgotten — while it is, the bot cannot send it as a card.
+  const unlisted = productsWithForecast.filter(p => !p.listedInCatalog && p.status !== 'archived').length;
   const inventoryValue = productsWithForecast.reduce((acc, p) => {
     const variantTotal = p.variants && p.variants.length > 0
       ? p.variants.reduce((s, v) => s + (v.inventory?.availableQty ?? 0), 0)
@@ -64,6 +67,7 @@ export default async function ProductsPage({
         totalProducts,
         lowStock,
         criticalStock,
+        unlisted,
         inventoryValue
       }}
       canManageProducts={canScope(scope, 'products:write')}

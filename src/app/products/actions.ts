@@ -38,6 +38,7 @@ export interface ProductFormInput {
   neckline?: string | null;
   closureDetails?: string | null;
   hasSideSlit?: boolean;
+  listedInCatalog?: boolean;
   sideSlitHeightCm?: number | null;
   hemDetails?: string | null;
   sleeveHemDetails?: string | null;
@@ -92,6 +93,9 @@ function productGarmentSpecData(input: ProductFormInput) {
     neckline: cleanOptionalText(input.neckline),
     closureDetails: cleanOptionalText(input.closureDetails),
     hasSideSlit: Boolean(input.hasSideSlit),
+    // Off unless asked for. A new product reaching the WhatsApp catalog on the
+    // next hourly pull is how customers ended up seeing the raw studio shot.
+    listedInCatalog: Boolean(input.listedInCatalog),
     sideSlitHeightCm: input.hasSideSlit ? cleanOptionalNumber(input.sideSlitHeightCm) : null,
     hemDetails: cleanOptionalText(input.hemDetails),
     sleeveHemDetails: cleanOptionalText(input.sleeveHemDetails),
@@ -506,5 +510,52 @@ export async function createProductionBatchFromForecastAction(
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error);
     return { success: false, error: 'Failed to create production batch. Please retry.' };
+  }
+}
+
+/**
+ * Publishes or withdraws a single product from the Meta catalog feed.
+ *
+ * Separate from updateProduct because the publish wizard needs to flip exactly
+ * this one field, without holding — and therefore without overwriting — the
+ * rest of the product form.
+ *
+ * The feed itself is pull-only: Meta re-reads it hourly, so this takes effect
+ * on the next fetch rather than immediately.
+ */
+export async function setProductCatalogListing(
+  productId: number,
+  listed: boolean,
+): Promise<ProductActionResult> {
+  try {
+    const scope = await requireActionPermission('products:write');
+
+    const existing = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { brand: true, name: true, listedInCatalog: true },
+    });
+    if (!existing) return { success: false, error: 'Product not found.' };
+    assertBrandAccess(scope, existing.brand);
+
+    if (existing.listedInCatalog === listed) return { success: true };
+
+    await prisma.product.update({
+      where: { id: productId },
+      data: { listedInCatalog: listed },
+    });
+
+    await logAdminAudit({
+      action: listed ? 'product.catalog.listed' : 'product.catalog.unlisted',
+      summary: `${listed ? 'Listed' : 'Withdrew'} ${existing.name} ${listed ? 'in' : 'from'} the Meta catalog feed`,
+      entityType: 'product',
+      entityId: productId,
+      brand: existing.brand,
+    });
+
+    revalidatePath('/products');
+    return { success: true };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error);
+    return { success: false, error: 'Failed to update catalog listing.' };
   }
 }

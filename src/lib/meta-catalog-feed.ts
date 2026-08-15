@@ -62,6 +62,9 @@ export type MetaCatalogFeedProduct = {
   colors: string | null;
   stock: number | null;
   status: string | null;
+  // Undefined is treated as listed, so a caller that predates this field keeps
+  // working. The database column itself defaults to false for new products.
+  listedInCatalog?: boolean | null;
   imageUrl: string | null;
   fitType?: string | null;
   inventory?: { availableQty: number } | null;
@@ -323,6 +326,12 @@ export function buildMetaCatalogProducts(
 ): MetaCatalogProduct[] {
   const status = product.status?.trim().toLowerCase();
   if (status === 'archived' || status === 'deleted') return [];
+
+  // Not yet listed with Meta. A product used to appear in the WhatsApp catalog
+  // within the hour of being created, carrying whatever photo it had then —
+  // the raw shot, before the edited image existed. Checked here as well as in
+  // the query so a caller that forgets the filter cannot leak a draft product.
+  if (product.listedInCatalog === false) return [];
 
   const basePriceValid = Number.isFinite(product.price) && product.price >= 0;
   const common = {
