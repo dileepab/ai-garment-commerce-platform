@@ -12,8 +12,100 @@ import { getBrandStyle, type BrandStyle } from './brand-style';
 import { PERSONAS_BY_BRAND, type PersonaId, type PersonaDef } from './persona-data';
 export type { PersonaId };
 
+import { resolveScene, sceneClause } from './creative-scene';
+
 function getPersona(brand: string, personaId: string): PersonaDef | undefined {
   return PERSONAS_BY_BRAND[brand]?.find(p => p.id === personaId);
+}
+
+/**
+ * Where `public/` is actually served from.
+ *
+ * APP_BASE_URL first because it is the deliberate setting. The Vercel variables
+ * are the safety net: they are injected automatically, so a deployment that was
+ * never configured still finds its own static assets rather than silently
+ * generating without a model. VERCEL_URL is the per-deployment host, which is
+ * correct here — the persona lives in the same deployment doing the asking.
+ */
+function personaAssetOrigin(): string | null {
+  const explicit = process.env.APP_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+
+  const vercelHost =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
+  if (vercelHost) {
+    return vercelHost.startsWith('http')
+      ? vercelHost.replace(/\/+$/, '')
+      : `https://${vercelHost.replace(/\/+$/, '')}`;
+  }
+
+  return null;
+}
+
+/**
+ * The persona photograph, as bytes ready to attach.
+ *
+ * This was a bare read of `public/<imageUrl>` from the working directory. That
+ * resolves on a developer machine and fails on Vercel, where `public/` is
+ * served by the CDN and is not part of the serverless bundle — and the path is
+ * built from a variable, so file tracing cannot pull it in either. The read
+ * failed, the error was logged, and generation carried on regardless while the
+ * prompt still instructed Gemini to copy "the model from Image A". Nothing was
+ * attached under that label, so it invented a model, and every later reference
+ * to Image B pointed one slot away from the image actually sent.
+ *
+ * Disk first, so local development keeps working offline. HTTP second, so
+ * production works at all. Null is the honest third answer, and the caller must
+ * then build a prompt that never mentions a model reference.
+ */
+async function loadPersonaImage(
+  persona: PersonaDef | undefined,
+): Promise<{ base64: string; mimeType: string } | null> {
+  const url = persona?.imageUrl;
+  if (!url) return null;
+
+  const mimeByExtension = url.endsWith('.png')
+    ? 'image/png'
+    : url.endsWith('.webp')
+      ? 'image/webp'
+      : 'image/jpeg';
+
+  try {
+    const diskPath = path.join(process.cwd(), 'public', url);
+    if (fs.existsSync(diskPath)) {
+      return { base64: fs.readFileSync(diskPath).toString('base64'), mimeType: mimeByExtension };
+    }
+  } catch (e) {
+    logError('CreativeGen', `Persona image unreadable on disk: ${url}`, e);
+  }
+
+  const base = personaAssetOrigin();
+  if (!base) {
+    logError(
+      'CreativeGen',
+      `Persona image ${url} is not on disk and no base URL is available — generating without a model reference.`,
+    );
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${base}${url.startsWith('/') ? '' : '/'}${url}`);
+    if (!res.ok) {
+      logError('CreativeGen', `Persona image fetch failed (HTTP ${res.status}) for ${url}`);
+      return null;
+    }
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const contentType = res.headers.get('content-type');
+    return {
+      base64: buffer.toString('base64'),
+      // Trust the served type, but only when it is actually an image: an error
+      // page returned as HTML must not be handed to Gemini as a photograph.
+      mimeType: contentType?.startsWith('image/') ? contentType : mimeByExtension,
+    };
+  } catch (e) {
+    logError('CreativeGen', `Persona image fetch threw for ${url}`, e);
+    return null;
+  }
 }
 
 // ── Models ───────────────────────────────────────────────────────────────────
@@ -64,6 +156,10 @@ export interface CreativeGenerationInput {
   // Used by per-tile regenerate to fix specific issues (e.g. "no buttons on back").
   // Every past correction is replayed so a new one never undoes an earlier fix.
   corrections?: string[];
+  // Identifies the product, never the angle. Front, side and back must resolve
+  // to the same companion clothing and location, including when one tile is
+  // regenerated on its own long after the others. Falls back to productContext.
+  sceneKey?: string;
 }
 
 const ANGLE_NOUN: Record<ViewAngle, string> = {
@@ -269,11 +365,11 @@ function fitCalibrationClause(persona: PersonaDef | undefined, garmentFitNotes: 
 
 // Instruct the model to complete the outfit when the source garment covers
 // only one half of the body. Gemini infers the garment type from the source image.
-const OUTFIT_COMPLETION_CLAUSE =
-  'OUTFIT COMPLETION: If the garment in Image B is a top/blouse/shirt, pair it with neutral, complementary trousers or a simple skirt that matches the garment palette. ' +
-  'If it is a bottom (pants/skirt/shorts), add a simple, neutral matching top. ' +
-  'If it is already a full-length dress, jumpsuit or one-piece, do NOT add other clothing. ' +
-  'The added clothing must look natural, low-key, and never distract from the hero garment.';
+// Outfit completion used to live here as a single sentence — "add a simple,
+// neutral matching top". Each angle is its own call, so each call answered it
+// differently and a three-angle set came back as three different outfits in
+// three different places. It now comes from creative-scene.ts, which resolves
+// one answer per product. See sceneClause().
 
 export interface CreativeGenerationResult {
   imageData: string; // data URL: data:<mimeType>;base64,<data>
@@ -303,6 +399,8 @@ interface PromptOptions {
   grounded: boolean;
   hasSupporting: boolean;
   hasPersonaImage?: boolean;
+  // Companion clothing and location, already resolved so every angle matches.
+  scene: string;
 }
 
 // Every past correction is replayed, so fixing one issue never silently undoes
@@ -344,7 +442,7 @@ function referenceManifest(
 function buildTryOnPrompt(o: PromptOptions, supportingAngles: ViewAngle[]): string {
   const {
     brand, personaId, productContext, style, viewAngle,
-    garmentFitNotes, poseInstruction, corrections, grounded, hasSupporting,
+    garmentFitNotes, poseInstruction, corrections, grounded, hasSupporting, scene,
   } = o;
   const correctionLine = correctionClause(corrections);
   const persona = getPersona(brand, personaId);
@@ -366,13 +464,13 @@ function buildTryOnPrompt(o: PromptOptions, supportingAngles: ViewAngle[]): stri
       `${poseVariationClause(viewAngle, poseInstruction)}\n` +
       `- The garment must drape naturally on the model's body with realistic folds and shadows.\n` +
       (productContext.trim() ? `- Garment details: ${productContext.trim()}.\n` : '') +
-      `\n${OUTFIT_COMPLETION_CLAUSE}\n` +
+      `\n${scene}\n` +
       `\nPHOTOGRAPHY — MAKE IT LOOK 100% REAL:\n` +
       `- Shot on Canon EOS R5, 85mm f/1.4 lens. Shallow depth of field with creamy bokeh.\n` +
       `- Natural skin texture: visible pores, subtle skin imperfections, realistic subsurface scattering on skin.\n` +
       `- Slight natural wind movement in hair and fabric for a candid, lived-in feel.\n` +
-      `- Setting: Beautiful, aspirational ${style.aesthetic} outdoor location. Golden hour warm sunlight with soft shadows.\n` +
-      `- Realistic catch-lights in the model's eyes. Natural color grading for skin and scene only; keep the garment color matched to Image B.\n` +
+      `- Aesthetic: ${style.aesthetic}. Keep the location and light exactly as specified above.\n` +
+      `- Realistic catch-lights in the model's eyes. Colour-grade the skin and scene only. The garment keeps the hue it has in Image B: warm light must not push a cool or muted colour toward golden, tan, or orange.\n` +
       `- Subtle film grain for an authentic editorial feel. NOT overly smooth or airbrushed.\n` +
       `- ${viewAngleClause(viewAngle)}\n` +
       `- Style: Premium ${brand} brand campaign. ${style.mood}.\n` +
@@ -392,6 +490,7 @@ function buildTryOnPrompt(o: PromptOptions, supportingAngles: ViewAngle[]): stri
     `${garmentAccuracyClause(viewAngle, grounded, hasSupporting)}\n\n` +
     `${fitCalibrationClause(persona, garmentFitNotes)}\n\n` +
     `${poseVariationClause(viewAngle, poseInstruction)}\n\n` +
+    `${scene}\n` +
     `${contextNote} ` +
     `Brand: ${brand}. Visual style: ${style.aesthetic}. Mood: ${style.mood}. ` +
     `High-end editorial composition. Sharp focus, beautiful lighting. ` +
@@ -454,7 +553,17 @@ export async function generateCreative(
 
   if (primary) {
     const selectedPersona = getPersona(input.brand, input.personaId);
-    const hasPersonaImage = !!(selectedPersona?.imageUrl);
+
+    // Loaded before the prompt is written, not after. The prompt describes the
+    // images it is sent with, so it must not be able to promise a model
+    // reference that never arrives.
+    const personaImage = await loadPersonaImage(selectedPersona);
+    const hasPersonaImage = !!personaImage;
+
+    const scene = resolveScene(
+      input.sceneKey?.trim() || input.productContext,
+      `${input.productContext} ${input.garmentFitNotes ?? ''}`,
+    );
     const imageModel = input.quality === 'high_accuracy' ? HIGH_ACCURACY_IMAGE_MODEL : IMAGE_EDIT_MODEL;
     const supportingAngles = supporting.map(ref => ref.angle);
     const prompt = buildTryOnPrompt({
@@ -469,6 +578,7 @@ export async function generateCreative(
       grounded,
       hasSupporting: supporting.length > 0,
       hasPersonaImage,
+      scene: sceneClause(scene),
     }, supportingAngles);
 
     logDebug(
@@ -485,41 +595,31 @@ export async function generateCreative(
       { text: prompt },
     ];
 
-    // Image A — MODEL (persona reference) — goes first to anchor identity
-    if (selectedPersona?.imageUrl) {
-      try {
-        const imagePath = path.join(process.cwd(), 'public', selectedPersona.imageUrl);
-        
-        if (fs.existsSync(imagePath)) {
-          const buffer = fs.readFileSync(imagePath);
-          const base64 = buffer.toString('base64');
-          
-          let contentType = 'image/jpeg';
-          if (selectedPersona.imageUrl.endsWith('.png')) contentType = 'image/png';
-          else if (selectedPersona.imageUrl.endsWith('.webp')) contentType = 'image/webp';
-
-          parts.push({
-            text: 'IMAGE A - MODEL REFERENCE. Use only this person for face, body, hair, and skin tone.',
-          });
-          parts.push({
-            inlineData: {
-              data: base64,
-              mimeType: contentType,
-            },
-          });
-          logDebug('CreativeGen', `[Image A — MODEL] Loaded persona for ${input.personaId} from disk`);
-        } else {
-          logError('CreativeGen', `Persona image not found on disk: ${imagePath}`);
-        }
-      } catch (e) {
-        logError('CreativeGen', 'Failed to load persona image reference from disk', e);
-      }
+    // Image A — MODEL (persona reference) — goes first to anchor identity.
+    // Already loaded, and the prompt above was written knowing whether it
+    // exists, so the labels here cannot drift out of step with the prompt.
+    if (personaImage) {
+      parts.push({
+        text: 'IMAGE A - MODEL REFERENCE. Use only this person for face, body, hair, and skin tone.',
+      });
+      parts.push({
+        inlineData: { data: personaImage.base64, mimeType: personaImage.mimeType },
+      });
+      logDebug('CreativeGen', `[Image A — MODEL] persona "${input.personaId}" attached`);
+    } else if (selectedPersona?.imageUrl) {
+      logError(
+        'CreativeGen',
+        `Persona "${input.personaId}" has image ${selectedPersona.imageUrl} but it could not be loaded — ` +
+        `generating with the persona's written description only.`,
+      );
     }
 
     // Image B — GARMENT, photographed from the angle being generated
     const primaryAngleNoun = ANGLE_NOUN[primary.angle];
     parts.push({
-      text: selectedPersona?.imageUrl
+      // Keyed off the bytes, not the URL. Referring to "the Image A model" when
+      // no Image A was attached is what set the model adrift.
+      text: personaImage
         ? `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Duplicate this garment exactly on the Image A model.`
         : `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Generate this exact garment/product without changing design or color.`,
     });
@@ -592,6 +692,12 @@ export async function generateCreative(
     garmentFitNotes: input.garmentFitNotes,
     poseInstruction: input.poseInstruction,
     corrections: input.corrections,
+    scene: sceneClause(
+      resolveScene(
+        input.sceneKey?.trim() || input.productContext,
+        `${input.productContext} ${input.garmentFitNotes ?? ''}`,
+      ),
+    ),
     // Nothing was photographed, so every detail is inferred.
     grounded: false,
     hasSupporting: false,
