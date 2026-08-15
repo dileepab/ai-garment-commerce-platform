@@ -82,3 +82,32 @@ test('a mixed phrase is treated as naming something else', () => {
   assert.equal(isReferentialProductMention('this red kurta'), false);
   assert.equal(isReferentialProductMention('ගවුම kurta'), false);
 });
+
+/**
+ * A customer asked "Hap-005 available?" about HAP-0005. The code was one zero
+ * short, matched nothing, and the reply fell back to the product discussed
+ * earlier — telling them HAP-0004 was in stock. Naming a code is the most
+ * specific thing a customer can do; failing to find it must not become a
+ * confident answer about something else.
+ */
+test('an unknown item code blocks the remembered product', () => {
+  assert.equal(
+    canFallBackToConversationProduct({
+      extractedProductName: null,
+      matchedProduct: null,
+      quotedUnknownItemCode: true,
+    }),
+    false,
+  );
+});
+
+test('a referential mention still falls back when no code was quoted', () => {
+  assert.equal(
+    canFallBackToConversationProduct({
+      extractedProductName: 'this dress',
+      matchedProduct: null,
+      quotedUnknownItemCode: false,
+    }),
+    true,
+  );
+});

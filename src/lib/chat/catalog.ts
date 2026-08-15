@@ -22,6 +22,7 @@ import {
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { canFallBackToConversationProduct } from '@/lib/chat/product-reference';
+import { extractItemCodes, messageMentionsItemCode } from '@/lib/product-item-code';
 import { generateGroundedProductAnswer } from '@/lib/chat/grounded-answer-gemini';
 import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
 import {
@@ -387,9 +388,17 @@ export async function handle_product_question(ctx: ChatContext) {
   // which matches nothing — and the old gate (`!aiAction.productName`) then
   // threw away the conversation's own memory, so the bot asked which item the
   // customer meant one message after naming it itself.
+  // A code that matches nothing is a specific request we failed to resolve, not
+  // an invitation to reuse the last product.
+  const quotedCodes = extractItemCodes(latestCustomerText ?? '');
+  const quotedUnknownItemCode =
+    quotedCodes.length > 0 &&
+    !globalProducts.some((product) => messageMentionsItemCode(latestCustomerText ?? '', product));
+
   const canUseRememberedProduct = canFallBackToConversationProduct({
     extractedProductName: aiAction.productName,
     matchedProduct: namedProduct,
+    quotedUnknownItemCode,
   });
 
   const selectedProduct =

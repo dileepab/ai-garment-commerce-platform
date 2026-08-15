@@ -81,7 +81,18 @@ export function isReferentialProductMention(
 export function canFallBackToConversationProduct(params: {
   extractedProductName: string | null | undefined;
   matchedProduct: unknown;
+  /**
+   * The customer quoted an item code that matches nothing we sell.
+   *
+   * Naming a code is the opposite of a vague reference: it says precisely which
+   * item is meant. When we cannot find it, answering about whatever was last
+   * discussed is not a helpful guess, it is a confident wrong answer — a
+   * customer who asked whether HAP-0005 was available was told HAP-0004 was in
+   * stock. Better to admit the code is unknown.
+   */
+  quotedUnknownItemCode?: boolean;
 }): boolean {
+  if (params.quotedUnknownItemCode) return false;
   if (params.matchedProduct) return false;
 
   const extracted = params.extractedProductName?.trim();
