@@ -572,6 +572,9 @@ export async function generateCreativeAction(
       viewAngle: params.viewAngle,
       quality: params.quality,
       aspectRatio,
+      // Product-level, deliberately excluding the angle and the colour: all
+      // angles of one product must share a companion outfit and location.
+      sceneKey: params.productId ? `product:${params.productId}` : undefined,
     };
 
     const result = await generateCreativeLib(input);
