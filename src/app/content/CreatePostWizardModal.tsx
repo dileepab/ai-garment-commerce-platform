@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
+import { setProductCatalogListing } from '@/app/products/actions';
 import { PERSONAS_BY_BRAND, type PersonaId } from '@/lib/persona-data';
 import type { CreativeAspectRatio, CreativeGenerationQuality, ViewAngle } from '@/lib/creative-generator';
 import { buildGarmentSpecsForAi } from '@/lib/product-garment-specs';
@@ -224,6 +225,9 @@ export default function CreatePostWizardModal({
 
   // Step 1 cont. — view angles + existing creatives (per linked product)
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
+  // Ticked by default: publishing to Facebook and Instagram is the moment a
+  // product goes live, and the WhatsApp catalog should not lag behind it.
+  const [listInCatalog, setListInCatalog] = useState(true);
   const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('standard');
   const [aspectRatio, setAspectRatio] = useState<CreativeAspectRatio>('4:5');
   const [colorViewAngles, setColorViewAngles] = useState<Record<string, ViewAngle[]>>({});
@@ -842,6 +846,13 @@ export default function CreatePostWizardModal({
         return;
       }
 
+      // Best effort, and only after the post is away: failing to list a product
+      // must not read as a failed publish. The feed is pulled hourly, so this
+      // reaches WhatsApp on the next fetch either way.
+      if (listInCatalog && selectedProduct?.id) {
+        await setProductCatalogListing(selectedProduct.id, true).catch(() => {});
+      }
+
       // Even on partial success, treat as completed — history is visible from main list
       onComplete();
     });
@@ -1099,6 +1110,25 @@ export default function CreatePostWizardModal({
                 >
                   {Ic.save} Save as Draft
                 </button>
+                {/*
+                  Only offered when a product is linked — there is nothing to list
+                  otherwise. Ticked by default so the usual path keeps WhatsApp in
+                  step with Facebook and Instagram.
+                */}
+                {selectedProduct && (
+                  <label
+                    title="Meta re-reads the catalog feed hourly, so this appears in WhatsApp within the hour."
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-fg-2)', marginRight: 4 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={listInCatalog}
+                      onChange={(e) => setListInCatalog(e.target.checked)}
+                      disabled={isLoading}
+                    />
+                    Also list in WhatsApp catalog
+                  </label>
+                )}
                 <button
                   className="btn btn-primary"
                   onClick={handlePublishNow}

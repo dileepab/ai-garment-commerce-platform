@@ -109,6 +109,7 @@ interface ProductForEdit {
   neckline?: string | null;
   closureDetails?: string | null;
   hasSideSlit?: boolean | null;
+  listedInCatalog?: boolean | null;
   sideSlitHeightCm?: number | null;
   hemDetails?: string | null;
   sleeveHemDetails?: string | null;
@@ -228,6 +229,7 @@ interface FormState {
   neckline: string;
   closureDetails: string;
   hasSideSlit: boolean;
+  listedInCatalog: boolean;
   sideSlitHeightCm: string;
   hemDetails: string;
   sleeveHemDetails: string;
@@ -291,6 +293,7 @@ function buildInitialState(product?: ProductForEdit | null): FormState {
     neckline: product?.neckline ?? '',
     closureDetails: product?.closureDetails ?? '',
     hasSideSlit: Boolean(product?.hasSideSlit),
+    listedInCatalog: Boolean(product?.listedInCatalog),
     sideSlitHeightCm: numberToInput(product?.sideSlitHeightCm),
     hemDetails: product?.hemDetails ?? '',
     sleeveHemDetails: product?.sleeveHemDetails ?? '',
@@ -383,7 +386,7 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
   const {
     name, brand, style, fabric, price, status, imageUrl,
     garmentLengthCm, sleeveLengthCm, sleeveType, fitType, neckline,
-    closureDetails, hasSideSlit, sideSlitHeightCm, hemDetails,
+    closureDetails, hasSideSlit, sideSlitHeightCm, hemDetails, listedInCatalog,
     sleeveHemDetails, patternDetails, referenceModelHeightCm,
     wornLengthNote, aiFidelityNotes, variants, colorImages, error,
   } = form;
@@ -539,6 +542,7 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
       neckline: neckline.trim() || null,
       closureDetails: closureDetails.trim() || null,
       hasSideSlit,
+      listedInCatalog,
       sideSlitHeightCm: hasSideSlit ? optionalNumberFromInput(sideSlitHeightCm) : null,
       hemDetails: hemDetails.trim() || null,
       sleeveHemDetails: sleeveHemDetails.trim() || null,
@@ -904,6 +908,29 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
                 <div style={{ fontSize: 10, color: 'var(--color-fg-3)', marginTop: 5, lineHeight: 1.4 }}>
                   Photos are resized to 2048 px before upload (no quality loss for AI generation).
                 </div>
+
+                {/*
+                  Sits with the images because that is what it gates. Meta pulls the
+                  feed hourly, so anything listed here is in front of customers within
+                  the hour — whatever image it happens to have at that moment.
+                */}
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--color-fg-2)', marginTop: 14 }}>
+                  <input
+                    type="checkbox"
+                    checked={listedInCatalog}
+                    onChange={(e) => set('listedInCatalog', e.target.checked)}
+                    disabled={isPending}
+                    style={{ marginTop: 2 }}
+                  />
+                  <span>
+                    List in Meta catalog
+                    <span style={{ display: 'block', fontSize: 10, color: 'var(--color-fg-3)', marginTop: 2, lineHeight: 1.4 }}>
+                      Shows the product in WhatsApp, Facebook and Instagram within the hour, using
+                      the image above. Leave off until the images are final — while it is off, the
+                      bot cannot send this product as a catalog card.
+                    </span>
+                  </span>
+                </label>
                 {uploadError && (
                   <div style={{ fontSize: 11, color: 'var(--color-error)', marginTop: 5 }}>
                     {uploadError}

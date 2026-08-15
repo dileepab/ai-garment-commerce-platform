@@ -267,3 +267,49 @@ describe('Meta catalog CSV', () => {
     assert.match(lines[1], /,in stock,new,3490\.00 LKR,/);
   });
 });
+
+/**
+ * A product used to reach the WhatsApp catalog within the hour of being
+ * created, carrying whatever photo it had at that moment — the raw studio shot,
+ * taken before the edited image existed. Customers saw the unfinished version.
+ */
+describe('catalog listing is deliberate', () => {
+  test('an unlisted product produces no feed rows', () => {
+    const rows = mapProductToMetaCatalogRows(
+      product({ listedInCatalog: false }),
+      getMetaCatalogBrand('Happybuy')!,
+    );
+    assert.equal(rows.length, 0);
+  });
+
+  test('a listed product is unaffected', () => {
+    const rows = mapProductToMetaCatalogRows(
+      product({ listedInCatalog: true }),
+      getMetaCatalogBrand('Happybuy')!,
+    );
+    assert.ok(rows.length > 0, 'a listed product should still produce rows');
+  });
+
+  /**
+   * The column is new. A caller that has not been updated to select it must not
+   * silently empty the live catalog — the database default handles new rows,
+   * and the migration marks every existing product as listed.
+   */
+  test('an absent flag is treated as listed, not as hidden', () => {
+    const withoutFlag = product();
+    delete (withoutFlag as { listedInCatalog?: unknown }).listedInCatalog;
+    assert.ok(mapProductToMetaCatalogRows(withoutFlag, getMetaCatalogBrand('Happybuy')!).length > 0);
+
+    const nullFlag = product({ listedInCatalog: null });
+    assert.ok(mapProductToMetaCatalogRows(nullFlag, getMetaCatalogBrand('Happybuy')!).length > 0);
+  });
+
+  // Archiving still wins: a listed product that gets archived leaves the feed.
+  test('archiving still removes a listed product', () => {
+    const rows = mapProductToMetaCatalogRows(
+      product({ listedInCatalog: true, status: 'archived' }),
+      getMetaCatalogBrand('Happybuy')!,
+    );
+    assert.equal(rows.length, 0);
+  });
+});
