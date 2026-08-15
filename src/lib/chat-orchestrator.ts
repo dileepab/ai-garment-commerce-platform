@@ -637,6 +637,17 @@ export async function routeCustomerMessage(
     ? products.filter((product) => messageMentionsItemCode(input.currentMessage, product))
     : [];
 
+  // TEMPORARY DIAGNOSTIC — remove once the HAP-0005 mis-resolution is understood.
+  //
+  // A correctly spelled code still answers about the wrong product in
+  // production, while the matcher, the name scoring and this block's ordering
+  // all verify correct in isolation. This records what the router actually
+  // decided rather than what the code appears to decide.
+  //
+  // Logs codes and product identifiers only — never the customer's message —
+  // so conversation content cannot leak into the runtime logs.
+  const diagNameBefore = aiAction.productName ?? null;
+
   if (codedProducts.length === 1) {
     const codedProduct = codedProducts[0];
 
@@ -660,6 +671,18 @@ export async function routeCustomerMessage(
     state.lastReferencedProductId = codedProduct.id;
     state.lastReferencedProductName = codedProduct.name;
   }
+
+  logInfo('ItemCodeDiag', 'product resolution', {
+    extractedCodes: extractItemCodes(input.currentMessage),
+    productsInScope: products.length,
+    productSkus: products.map((product) => product.sku ?? `id:${product.id}`),
+    codedMatches: codedProducts.map((product) => product.sku ?? `id:${product.id}`),
+    aiProductNameBefore: diagNameBefore,
+    aiProductNameAfter: aiAction.productName ?? null,
+    resolvesTo: findProductByName(aiAction.productName)?.sku ?? null,
+    action: aiAction.action,
+    lastReferencedProductId: state.lastReferencedProductId ?? null,
+  });
 
   const resolvedCart = resolveCartLines(products, input.cart);
 
