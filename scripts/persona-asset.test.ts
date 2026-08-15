@@ -4,6 +4,7 @@ import {
   isUsableImageResponse,
   personaAssetOrigin,
   personaAssetUrl,
+  sniffImageMimeType,
 } from '../src/lib/persona-asset.ts';
 
 /**
@@ -58,4 +59,34 @@ test('no base URL at all is null, not a broken string', () => {
 test('the asset URL joins cleanly whatever the slashes', () => {
   assert.equal(personaAssetUrl('https://app.deez.lk', '/personas/a.png'), 'https://app.deez.lk/personas/a.png');
   assert.equal(personaAssetUrl('https://app.deez.lk/', 'personas/a.png'), 'https://app.deez.lk/personas/a.png');
+});
+
+/**
+ * Every file in public/personas is a JPEG saved with a .png extension, so the
+ * filename and the served content-type both say PNG while the data is JFIF.
+ */
+test('a JPEG saved as .png is reported as JPEG', () => {
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+  assert.equal(sniffImageMimeType(jpeg), 'image/jpeg');
+});
+
+test('the other formats are recognised from their signatures', () => {
+  assert.equal(
+    sniffImageMimeType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+    'image/png',
+  );
+  assert.equal(
+    sniffImageMimeType(new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])),
+    'image/webp',
+  );
+  assert.equal(sniffImageMimeType(new Uint8Array([0x47, 0x49, 0x46, 0x38])), 'image/gif');
+});
+
+// The second line of defence: an HTML page that somehow passed the transport
+// check still has no image signature.
+test('non-image data sniffs to null', () => {
+  const html = new Uint8Array([...'<!DOCTYPE html>'].map(c => c.charCodeAt(0)));
+  assert.equal(sniffImageMimeType(html), null);
+  assert.equal(sniffImageMimeType(new Uint8Array([])), null);
+  assert.equal(sniffImageMimeType(new Uint8Array([0xff, 0xd8])), null);
 });

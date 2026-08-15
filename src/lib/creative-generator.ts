@@ -13,7 +13,12 @@ import { PERSONAS_BY_BRAND, type PersonaId, type PersonaDef } from './persona-da
 export type { PersonaId };
 
 import { resolveScene, sceneClause } from './creative-scene';
-import { isUsableImageResponse, personaAssetOrigin, personaAssetUrl } from './persona-asset';
+import {
+  isUsableImageResponse,
+  personaAssetOrigin,
+  personaAssetUrl,
+  sniffImageMimeType,
+} from './persona-asset';
 import {
   constructionFidelityLine,
   detectGarmentTraits,
@@ -48,16 +53,16 @@ async function loadPersonaImage(
   const url = persona?.imageUrl;
   if (!url) return null;
 
-  const mimeByExtension = url.endsWith('.png')
-    ? 'image/png'
-    : url.endsWith('.webp')
-      ? 'image/webp'
-      : 'image/jpeg';
-
   try {
     const diskPath = path.join(process.cwd(), 'public', url);
     if (fs.existsSync(diskPath)) {
-      return { base64: fs.readFileSync(diskPath).toString('base64'), mimeType: mimeByExtension };
+      const buffer = fs.readFileSync(diskPath);
+      const mimeType = sniffImageMimeType(buffer);
+      if (!mimeType) {
+        logError('CreativeGen', `Persona file ${url} on disk is not an image — skipping it.`);
+        return null;
+      }
+      return { base64: buffer.toString('base64'), mimeType };
     }
   } catch (e) {
     logError('CreativeGen', `Persona image unreadable on disk: ${url}`, e);
@@ -89,10 +94,20 @@ async function loadPersonaImage(
     }
 
     const buffer = Buffer.from(await res.arrayBuffer());
-    return {
-      base64: buffer.toString('base64'),
-      mimeType: contentType ?? mimeByExtension,
-    };
+
+    // Neither the filename nor the served content-type can be trusted: every
+    // persona .png is really a JPEG, so both say image/png over JFIF data.
+    const mimeType = sniffImageMimeType(buffer);
+    if (!mimeType) {
+      logError(
+        'CreativeGen',
+        `Persona image ${url} returned ${contentType ?? 'no content-type'} but the bytes are not an image — ` +
+        `generating without a model reference.`,
+      );
+      return null;
+    }
+
+    return { base64: buffer.toString('base64'), mimeType };
   } catch (e) {
     logError('CreativeGen', `Persona image fetch threw for ${url}`, e);
     return null;
