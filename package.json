@@ -50,6 +50,7 @@
     "test:message-media": "node --test --experimental-strip-types --no-warnings scripts/message-media.test.ts",
     "test:creative-scene": "node --test --experimental-strip-types --no-warnings scripts/creative-scene.test.ts",
     "test:garment-traits": "node --test --experimental-strip-types --no-warnings scripts/garment-traits.test.ts",
+    "test:persona-asset": "node --test --experimental-strip-types --no-warnings scripts/persona-asset.test.ts",
     "audit:catalog": "node --env-file=.env scripts/audit-catalog-specs.js",
     "test:whatsapp": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-normalize.test.ts scripts/meta-webhook-signature.test.ts scripts/whatsapp-registration.test.ts",
     "test:meta-catalog-feed": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts",

@@ -13,6 +13,7 @@ import { PERSONAS_BY_BRAND, type PersonaId, type PersonaDef } from './persona-da
 export type { PersonaId };
 
 import { resolveScene, sceneClause } from './creative-scene';
+import { isUsableImageResponse, personaAssetOrigin, personaAssetUrl } from './persona-asset';
 import {
   constructionFidelityLine,
   detectGarmentTraits,
@@ -23,30 +24,6 @@ import {
 
 function getPersona(brand: string, personaId: string): PersonaDef | undefined {
   return PERSONAS_BY_BRAND[brand]?.find(p => p.id === personaId);
-}
-
-/**
- * Where `public/` is actually served from.
- *
- * APP_BASE_URL first because it is the deliberate setting. The Vercel variables
- * are the safety net: they are injected automatically, so a deployment that was
- * never configured still finds its own static assets rather than silently
- * generating without a model. VERCEL_URL is the per-deployment host, which is
- * correct here — the persona lives in the same deployment doing the asking.
- */
-function personaAssetOrigin(): string | null {
-  const explicit = process.env.APP_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/+$/, '');
-
-  const vercelHost =
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
-  if (vercelHost) {
-    return vercelHost.startsWith('http')
-      ? vercelHost.replace(/\/+$/, '')
-      : `https://${vercelHost.replace(/\/+$/, '')}`;
-  }
-
-  return null;
 }
 
 /**
@@ -96,18 +73,25 @@ async function loadPersonaImage(
   }
 
   try {
-    const res = await fetch(`${base}${url.startsWith('/') ? '' : '/'}${url}`);
-    if (!res.ok) {
-      logError('CreativeGen', `Persona image fetch failed (HTTP ${res.status}) for ${url}`);
+    const res = await fetch(personaAssetUrl(base, url));
+    const contentType = res.headers.get('content-type');
+
+    // A 200 is not proof. /personas used to sit behind auth, so this fetch
+    // followed a redirect to /login and came back as an 11KB HTML page with
+    // status 200 — which was then sent to Gemini labelled as a PNG.
+    if (!isUsableImageResponse(res.status, contentType)) {
+      logError(
+        'CreativeGen',
+        `Persona image ${url} did not return an image (HTTP ${res.status}, ${contentType ?? 'no content-type'}) — ` +
+        `generating without a model reference.`,
+      );
       return null;
     }
+
     const buffer = Buffer.from(await res.arrayBuffer());
-    const contentType = res.headers.get('content-type');
     return {
       base64: buffer.toString('base64'),
-      // Trust the served type, but only when it is actually an image: an error
-      // page returned as HTML must not be handed to Gemini as a photograph.
-      mimeType: contentType?.startsWith('image/') ? contentType : mimeByExtension,
+      mimeType: contentType ?? mimeByExtension,
     };
   } catch (e) {
     logError('CreativeGen', `Persona image fetch threw for ${url}`, e);
