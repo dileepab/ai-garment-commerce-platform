@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   compactItemCode,
+  normalizeItemCode,
   extractItemCodes,
   messageMentionsItemCode,
   productItemCode,
@@ -61,10 +62,11 @@ test('a code embedded in a longer word does not match', () => {
   assert.equal(messageMentionsItemCode('cheap 0002 dresses', HAP_0002), false);
 });
 
+// Extraction returns the comparison form, which ignores zero padding.
 test('codes are extracted from a message with several of them', () => {
   const codes = extractItemCodes('Can I get HAP-0002 and hap 0003?');
 
-  assert.deepEqual(codes, ['hap0002', 'hap0003']);
+  assert.deepEqual(codes, ['hap2', 'hap3']);
 });
 
 test('compacting strips separators and case', () => {
@@ -120,4 +122,46 @@ test('name matching still works when no code is quoted', () => {
 
   assert.equal(matched.length, 1);
   assert.equal(matched[0].sku, 'HAP-0001');
+});
+
+/**
+ * A real conversation: the customer asked "Hap-005 available?" about HAP-0005.
+ * One zero short, so nothing matched — and with no product pinned the reply
+ * fell back to the product discussed earlier, answering about HAP-0004 instead.
+ */
+test('a dropped zero still finds the product', () => {
+  const HAP_0005 = { id: 9, brand: 'Happybuy', sku: 'HAP-0005' };
+
+  assert.equal(messageMentionsItemCode('Hap-005 available?', HAP_0005), true);
+  assert.equal(messageMentionsItemCode('HAP-0005 available?', HAP_0005), true);
+  assert.equal(messageMentionsItemCode('#hap005', HAP_0005), true);
+});
+
+// Padding is presentation only, so it must not let one product answer for another.
+test('dropping padding does not make two products collide', () => {
+  const HAP_0005 = { id: 9, brand: 'Happybuy', sku: 'HAP-0005' };
+  const HAP_0050 = { id: 50, brand: 'Happybuy', sku: 'HAP-0050' };
+
+  assert.equal(messageMentionsItemCode('Hap-005', HAP_0050), false);
+  assert.equal(messageMentionsItemCode('Hap-050', HAP_0005), false);
+  assert.equal(messageMentionsItemCode('Hap-050', HAP_0050), true);
+});
+
+/**
+ * A single digit is still not a code. "size 4" and "age 8" are the shape the
+ * pattern would otherwise match, and a false code changes how a message routes.
+ */
+test('one digit is not treated as an item code', () => {
+  const HAP_0005 = { id: 9, brand: 'Happybuy', sku: 'HAP-0005' };
+
+  assert.equal(messageMentionsItemCode('hap 5 available?', HAP_0005), false);
+  assert.deepEqual(extractItemCodes('size 4 please'), []);
+});
+
+test('normalizing strips separators, case and padding', () => {
+  assert.equal(normalizeItemCode('HAP-0005'), 'hap5');
+  assert.equal(normalizeItemCode('hap 005'), 'hap5');
+  assert.equal(normalizeItemCode('#HAP5'), 'hap5');
+  // All zeros must not normalize to an empty number.
+  assert.equal(normalizeItemCode('HAP-0000'), 'hap0');
 });

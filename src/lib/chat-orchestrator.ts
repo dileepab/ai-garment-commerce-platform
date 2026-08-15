@@ -640,10 +640,17 @@ export async function routeCustomerMessage(
   if (codedProducts.length === 1) {
     const codedProduct = codedProducts[0];
 
-    if (!aiAction.productName || !findProductByName(aiAction.productName)) {
-      aiAction.productName = codedProduct.name;
-      aiAction.confidence = Math.max(aiAction.confidence, 0.95);
-    }
+    // The quoted code wins outright. It used to apply only when the model had
+    // failed to name a product, which sounds cautious and is the wrong way
+    // round: the model draws the name from conversation context, so after a few
+    // messages about one item it keeps naming that item. A customer who typed
+    // "I want Photo of HAP-0005" was answered about HAP-0004, three times,
+    // because the model's guess outranked the code they had spelled correctly.
+    //
+    // Nothing else is inferred from the code — "Order HAP-0001" and "what sizes
+    // for HAP-0001?" stay different requests.
+    aiAction.productName = codedProduct.name;
+    aiAction.confidence = Math.max(aiAction.confidence, 0.95);
 
     if (aiAction.action === 'fallback') {
       aiAction.action = 'place_order';
