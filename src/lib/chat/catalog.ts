@@ -390,10 +390,19 @@ export async function handle_product_question(ctx: ChatContext) {
   // customer meant one message after naming it itself.
   // A code that matches nothing is a specific request we failed to resolve, not
   // an invitation to reuse the last product.
-  const quotedCodes = extractItemCodes(latestCustomerText ?? '');
+  //
+  // Read from the message being answered. latestCustomerText is the *previous*
+  // customer turn — the inbound message is not persisted until the reply is
+  // built — so this guard used to inspect the wrong message entirely: a code
+  // quoted right now was invisible to it, and it fired a turn late on a code
+  // the customer had already moved on from. Both failures point the same way,
+  // at the remembered product: "Hap-005 available?" resolved to nothing, the
+  // guard stayed silent because the previous turn held no code, and the answer
+  // fell back to the HAP-0004 the conversation had been about.
+  const quotedCodes = extractItemCodes(input.currentMessage);
   const quotedUnknownItemCode =
     quotedCodes.length > 0 &&
-    !globalProducts.some((product) => messageMentionsItemCode(latestCustomerText ?? '', product));
+    !globalProducts.some((product) => messageMentionsItemCode(input.currentMessage, product));
 
   const canUseRememberedProduct = canFallBackToConversationProduct({
     extractedProductName: aiAction.productName,

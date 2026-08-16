@@ -165,3 +165,44 @@ test('normalizing strips separators, case and padding', () => {
   // All zeros must not normalize to an empty number.
   assert.equal(normalizeItemCode('HAP-0000'), 'hap0');
 });
+
+/**
+ * The live Happybuy catalog, which is the shape that produced the bug report:
+ * two colourways of one design, sitting next to each other, their codes one
+ * digit apart. Every way a customer writes the navy skort's code must reach the
+ * navy skort and nothing else — a near miss here answers about the brown one.
+ */
+test('each code in a real catalog matches exactly one product', () => {
+  const catalog = [
+    { id: 5, brand: 'Happybuy', sku: 'HAP-0001' },
+    { id: 6, brand: 'Happybuy', sku: 'HAP-0002' },
+    { id: 7, brand: 'Happybuy', sku: 'HAP-0003' },
+    { id: 8, brand: 'Happybuy', sku: 'HAP-0004' },
+    { id: 9, brand: 'Happybuy', sku: 'HAP-0005' },
+  ];
+
+  const matches = (message: string) =>
+    catalog.filter((product) => messageMentionsItemCode(message, product)).map((p) => p.sku);
+
+  for (const message of [
+    'Is HAP-0005 available?',
+    'Hap-005 available?',
+    'HAP-0005',
+    'I want Photo of HAP-0005',
+    'hap0005 tiyenawada?',
+  ]) {
+    assert.deepEqual(matches(message), ['HAP-0005'], message);
+  }
+
+  assert.deepEqual(matches('HAP-0004 price?'), ['HAP-0004']);
+});
+
+/**
+ * Product ids and SKU numbers are separate sequences — HAP-0001 is row 5 — so a
+ * code derived from the id lands on a different product's SKU. Stored SKUs are
+ * what keep those apart, and every catalog row has one.
+ */
+test('a stored SKU is preferred over one derived from the row id', () => {
+  assert.equal(productItemCode({ id: 5, brand: 'Happybuy', sku: 'HAP-0001' }), 'HAP-0001');
+  assert.equal(productItemCode({ id: 5, brand: 'Happybuy', sku: null }), 'HAP-0005');
+});
