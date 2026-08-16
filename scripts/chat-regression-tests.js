@@ -560,6 +560,69 @@ async function main() {
         },
       },
       {
+        // Production stores an explicit SKU on every product. The seeded dev
+        // catalog stores none, so every other case here matches a code derived
+        // from brand and row id, and nothing exercises the stored-SKU path the
+        // live site actually runs on.
+        //
+        // Two colourways of one design, codes one digit apart, is the shape
+        // that answered about the wrong skort: the design name matches both,
+        // so the code is the only thing separating them.
+        name: 'A quoted item code picks the right colourway of one design',
+        senderId: buildSender(runId, 'coded-colourway'),
+        before: async ({ context }) => {
+          const base = {
+            brand: 'Happybuy',
+            style: 'skort',
+            price: 1690,
+            fabric: 'Linen Blend',
+            sizes: 'S,M,L',
+            stock: 5,
+            status: 'active',
+          };
+
+          const brown = await prisma.product.create({
+            data: {
+              ...base,
+              name: 'ZZ Pleated Wrap Skort Brown Check',
+              sku: 'HAP-9004',
+              colors: 'Brown Check',
+              inventory: { create: { availableQty: 5 } },
+            },
+          });
+
+          const navy = await prisma.product.create({
+            data: {
+              ...base,
+              name: 'ZZ Pleated Wrap Skort Navy Check',
+              sku: 'HAP-9005',
+              colors: 'Navy Check',
+              inventory: { create: { availableQty: 5 } },
+            },
+          });
+
+          context.createdProductIds = [brown.id, navy.id];
+        },
+        messages: ['Is HAP-9005 available?'],
+        verify: async ({ transcript, context }) => {
+          try {
+            assert(
+              transcript[0].bot.includes('Navy Check'),
+              `Quoting HAP-9005 should answer about the navy skort.\n\nActual reply:\n${transcript[0].bot}`
+            );
+            assert(
+              !transcript[0].bot.includes('Brown Check'),
+              `Quoting HAP-9005 must not answer about the brown skort.\n\nActual reply:\n${transcript[0].bot}`
+            );
+          } finally {
+            for (const id of context.createdProductIds || []) {
+              await prisma.inventory.deleteMany({ where: { productId: id } });
+              await prisma.product.delete({ where: { id } }).catch(() => {});
+            }
+          }
+        },
+      },
+      {
         name: 'Catalog size lists are displayed smallest to largest',
         senderId: buildSender(runId, 'catalog-size-sort'),
         before: async ({ context }) => {

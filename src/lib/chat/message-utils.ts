@@ -95,30 +95,37 @@ export function scoreProductMatch(
   text: string
 ): number {
   const normalizedText = normalizeText(text);
-  const candidates = [product.name, product.style || '']
-    .map(normalizeText)
-    .filter(Boolean);
+  const normalizedName = normalizeText(product.name);
+  const normalizedStyle = normalizeText(product.style || '');
 
-  let bestScore = 0;
+  if (!normalizedText || !normalizedName) {
+    return 0;
+  }
 
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
+  // An exact name outranks a partial one. Without this, "Pleated Wrap Skort"
+  // and "Pleated Wrap Skort — Navy Check" tie, and the winner is whichever row
+  // was created first rather than the one the customer named.
+  if (normalizedText === normalizedName) {
+    return 110;
+  }
 
-    if (normalizedText.includes(candidate) || candidate.includes(normalizedText)) {
-      return 100;
-    }
+  if (normalizedText.includes(normalizedName) || normalizedName.includes(normalizedText)) {
+    return 100;
+  }
 
-    const score = candidate
+  // A style is a category, not an identity — every skort in the catalog shares
+  // one. It used to score 100 the moment the text contained the style word,
+  // which any full product name does: "Pleated Wrap Skort — Navy Check"
+  // contains "skort", so both colourways scored 100 and the earlier row won.
+  // A customer quoting HAP-0005 was answered about HAP-0004 for exactly this
+  // reason. The style still counts, but only as one weak token among many.
+  const countTokens = (candidate: string) =>
+    candidate
       .split(' ')
       .filter((token) => token.length > 2)
       .reduce((sum, token) => (normalizedText.includes(token) ? sum + 1 : sum), 0);
 
-    bestScore = Math.max(bestScore, score);
-  }
-
-  return bestScore;
+  return Math.max(countTokens(normalizedName), normalizedStyle ? countTokens(normalizedStyle) : 0);
 }
 
 export function normalizeSize(value?: string | null, allowedSizes?: string[]): string | undefined {
