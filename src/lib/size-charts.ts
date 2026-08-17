@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { normalizeBrandKey } from '@/lib/brand-aliases';
 
-export type SizeChartCategory = 'tops' | 'tshirts' | 'dresses' | 'pants' | 'skirts';
+export type SizeChartCategory = 'tops' | 'tshirts' | 'dresses' | 'pants' | 'skirts' | 'skorts';
 
 interface SizeChartDefinition {
   category: SizeChartCategory;
@@ -48,6 +48,15 @@ const SIZE_CHART_DEFINITIONS: Record<SizeChartCategory, SizeChartDefinition> = {
     label: 'Skirts',
     imagePath: '/size-charts/skirts.png',
     imageFiles: ['skirts.png'],
+  },
+  // A skort is a skirt with shorts built in, so it carries an inseam the skirt
+  // chart has no row for. It falls back to the skirt chart when no skort chart
+  // has been drawn for a brand — the waist and hip measurements are the same.
+  skorts: {
+    category: 'skorts',
+    label: 'Skorts',
+    imagePath: '/size-charts/skorts.png',
+    imageFiles: ['skorts.png', 'skirts.png'],
   },
 };
 
@@ -150,9 +159,13 @@ export function getSizeChartCategoryFromStyle(style?: string | null): SizeChartC
     return 'pants';
   }
 
-  // "skort" does not contain "skirt", so it needs naming explicitly. Sizing
-  // follows the skirt chart because both are fitted at the waist and hip.
-  if (normalizedStyle.includes('skirt') || normalizedStyle.includes('skort')) {
+  // "skort" does not contain "skirt", so it needs naming explicitly, and it is
+  // checked first — a skort is not a skirt for sizing, since it has an inseam.
+  if (normalizedStyle.includes('skort')) {
+    return 'skorts';
+  }
+
+  if (normalizedStyle.includes('skirt')) {
     return 'skirts';
   }
 
@@ -193,7 +206,11 @@ export function getSizeChartCategoryFromText(message: string): SizeChartCategory
     return 'pants';
   }
 
-  if (normalizedMessage.includes('skirt') || normalizedMessage.includes('skort')) {
+  if (normalizedMessage.includes('skort')) {
+    return 'skorts';
+  }
+
+  if (normalizedMessage.includes('skirt')) {
     return 'skirts';
   }
 
