@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Script to generate high-resolution, pixel-perfect size chart images for all brands.
  * Renders HTML templates using headless Chrome into 1231x849 PNG assets.
