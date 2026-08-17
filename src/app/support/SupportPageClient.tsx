@@ -13,6 +13,7 @@ import {
 import { updateEscalationWorkflowAction } from './actions';
 import { BRAND_QUERY_PARAM } from '@/lib/brand-context';
 import { getSupportChannelLabel } from '@/lib/channel-display';
+import type { SupportAttachmentCatalog } from '@/lib/support-attachments';
 
 const Icon = ({ d, size = 15, color = "currentColor", strokeWidth = 1.8 }: { d: string | string[], size?: number, color?: string, strokeWidth?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -65,6 +66,7 @@ const SUPPORT_STATUS_CLASSES: Record<string, string> = {
 };
 
 interface SupportPageClientProps {
+  attachmentsByBrand?: Record<string, SupportAttachmentCatalog>;
   initialConversations: SupportThread[];
   stats: SupportStats;
   canReply: boolean;
@@ -219,7 +221,7 @@ function SupportQuickActions({ conversation, canReply }: { conversation: Support
   );
 }
 
-export default function SupportPageClient({ initialConversations, stats, canReply, selectedBrand }: SupportPageClientProps) {
+export default function SupportPageClient({ initialConversations, stats, canReply, selectedBrand, attachmentsByBrand = {} }: SupportPageClientProps) {
   const [conversations, setConversations] = useState(initialConversations);
   const [liveStats, setLiveStats] = useState(stats);
   const [search, setSearch] = useState("");
@@ -582,7 +584,12 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
             </svg>
             Back to inbox
           </button>
-          <Thread convo={activeConvo} onConvoUpdate={updateConversation} canReply={canReply} />
+          <Thread
+            convo={activeConvo}
+            onConvoUpdate={updateConversation}
+            canReply={canReply}
+            attachments={activeConvo?.brand ? attachmentsByBrand[activeConvo.brand] : undefined}
+          />
         </div>
       </div>
     </main>
