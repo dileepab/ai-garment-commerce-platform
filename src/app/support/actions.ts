@@ -13,7 +13,10 @@ import {
   sendMessengerMessage,
   type MetaSendResult,
 } from '@/lib/meta';
-import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendMessengerImage } from '@/lib/meta';
+import { resolveSupportAttachment } from '@/lib/support-attachments';
+import { personaAssetOrigin } from '@/lib/persona-asset';
+import { sendWhatsAppImage, sendWhatsAppMessage } from '@/lib/whatsapp';
 import { logInfo, logWarn } from '@/lib/app-log';
 import { logAdminAudit } from '@/lib/admin-audit';
 import { createReturnRequest, ReturnRequestError } from '@/lib/returns-service';
@@ -677,4 +680,163 @@ export async function startRefundDamageWorkflowAction(formData: FormData) {
   revalidatePath('/support');
   revalidatePath('/orders');
   revalidatePath('/returns');
+}
+
+
+/**
+ * Sends a size chart or a product photo to the customer from the inbox.
+ *
+ * The bot's own size chart path promises an image and then sends nothing when
+ * none resolves — a customer answered "🤔🤔" to exactly that. Until that is
+ * trustworthy an operator needs to be able to send the chart by hand, and the
+ * product photo is the same one-click need.
+ *
+ * The browser sends an identifier, never a URL: the option is looked up again
+ * here, so a support login cannot push an arbitrary URL through the brand's
+ * WhatsApp number.
+ */
+export async function sendSupportAttachmentAction(formData: FormData) {
+  let scope: UserScope;
+  try {
+    scope = await requireActionPermission('support:reply');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  const escalationId = Number.parseInt(String(formData.get('escalationId') || ''), 10);
+  const attachmentId = String(formData.get('attachmentId') || '').trim();
+  const caption = String(formData.get('caption') || '').trim();
+
+  if (!Number.isInteger(escalationId) || !attachmentId) {
+    return;
+  }
+
+  const escalation = await prisma.supportEscalation.findUnique({
+    where: { id: escalationId },
+  });
+
+  if (!escalation) return;
+
+  try {
+    assertBrandAccess(scope, escalation.brand, 'support case');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  const origin = personaAssetOrigin() ?? '';
+  const attachment = await resolveSupportAttachment(attachmentId, escalation.brand, origin);
+
+  if (!attachment) {
+    logWarn('Support Actions', 'Support attachment could not be resolved.', {
+      escalationId,
+      attachmentId,
+      brand: escalation.brand || null,
+    });
+    return;
+  }
+
+  const messageText = caption || attachment.label;
+
+  await prisma.chatMessage.create({
+    data: {
+      senderId: escalation.senderId,
+      channel: escalation.channel,
+      brand: escalation.brand,
+      role: 'operator',
+      message: messageText,
+      imageUrl: attachment.imageUrl,
+    },
+  });
+
+  await logAdminAudit({
+    action: 'support_attachment_sent',
+    entityType: 'support_escalation',
+    entityId: escalationId,
+    brand: escalation.brand,
+    actorEmail: scope.email ?? null,
+    summary: `Support attachment sent for case #${escalationId}: ${attachment.label}.`,
+    metadata: {
+      channel: escalation.channel,
+      attachmentId,
+      imageUrl: attachment.imageUrl,
+    },
+  });
+
+  await prisma.supportEscalation.update({
+    where: { id: escalationId },
+    data: { status: 'in_progress' },
+  });
+
+  if (process.env.CHAT_TEST_MODE !== '1') {
+    const delivery = await deliverSupportAttachment({
+      senderId: escalation.senderId,
+      channel: escalation.channel,
+      brand: escalation.brand,
+      imageUrl: attachment.imageUrl,
+      caption: messageText,
+    });
+
+    if (!delivery.ok) {
+      logWarn('Support Actions', 'Support attachment was saved, but delivery failed.', {
+        escalationId,
+        channel: escalation.channel,
+        brand: escalation.brand || null,
+        error: delivery.error || String(delivery.status || 'unknown'),
+      });
+    }
+  }
+
+  revalidatePath('/support');
+}
+
+/**
+ * Only Messenger and WhatsApp can carry an image today. Instagram has no image
+ * sender in this codebase, so it is refused loudly rather than silently saving
+ * a message the customer will never see.
+ */
+async function deliverSupportAttachment(params: {
+  senderId: string;
+  channel: string;
+  brand?: string | null;
+  imageUrl: string;
+  caption: string;
+}): Promise<MetaSendResult> {
+  if (params.channel === 'messenger') {
+    const config = params.brand ? await resolveFacebookConfigForBrand(params.brand) : null;
+
+    if (params.brand && !config) {
+      return { ok: false, error: `Missing Facebook Page ID or Page access token for ${params.brand}.` };
+    }
+
+    return sendMessengerImage(params.senderId, params.imageUrl, {
+      pageAccessToken: config?.pageAccessToken,
+    });
+  }
+
+  if (params.channel === 'whatsapp') {
+    const config = params.brand ? await resolveWhatsAppConfigForBrand(params.brand) : null;
+
+    if (!config) {
+      return {
+        ok: false,
+        error: params.brand
+          ? `Missing WhatsApp Phone Number ID or access token for ${params.brand}.`
+          : 'Missing WhatsApp Phone Number ID or access token for this support case.',
+      };
+    }
+
+    return sendWhatsAppImage(
+      params.senderId,
+      params.imageUrl,
+      { phoneNumberId: config.phoneNumberId, accessToken: config.accessToken },
+      params.caption
+    );
+  }
+
+  return {
+    ok: false,
+    error: `Images cannot be sent on ${params.channel} yet. Send a link in a text reply instead.`,
+  };
 }

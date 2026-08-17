@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { SupportThread, SupportThreadMessage } from '@/app/support/types';
+import type { SupportAttachmentCatalog } from '@/lib/support-attachments';
 import {
   formatSupportFullTimestamp,
   formatSupportMessageDateSeparator,
@@ -9,6 +10,7 @@ import {
   SUPPORT_THREAD_POLL_MS,
 } from '@/app/support/format';
 import {
+  sendSupportAttachmentAction,
   sendSupportReplyAction,
   startRefundDamageWorkflowAction,
   takeOverConversationAction,
@@ -33,6 +35,7 @@ const ic = {
   check: "M20 6L9 17l-5-5",
   moreH: ["M12 13a1 1 0 100-2 1 1 0 000 2", "M19 13a1 1 0 100-2 1 1 0 000 2", "M5 13a1 1 0 100-2 1 1 0 000 2"],
   package: ["M21 8l-9 4-9-4 9-4 9 4z", "M3 8v8l9 4 9-4V8", "M12 12v8"],
+  image: ["M3 5h18v14H3z", "M3 16l5-5 4 4 3-3 6 6"],
   arrowLeft: ["M19 12H5", "M12 19l-7-7 7-7"],
 };
 
@@ -247,12 +250,15 @@ export function Thread({
   convo,
   onConvoUpdate = () => {},
   canReply = true,
+  attachments,
 }: {
   convo: SupportThread | null;
   onConvoUpdate?: (id: string, patch: Partial<SupportThread>) => void;
   canReply?: boolean;
+  attachments?: SupportAttachmentCatalog;
 }) {
   const [reply, setReply] = useState("");
+  const [attachmentId, setAttachmentId] = useState("");
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [floatingDateLabel, setFloatingDateLabel] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -450,6 +456,17 @@ export function Thread({
   const escalationId = convo.escalationId;
   const isBotActive = convo.status === "bot_active" || escalationId === null;
   const isResolved = convo.status === "resolved";
+
+  // Only Messenger and WhatsApp can carry an image; Instagram has no image
+  // sender here, so the picker is replaced by a line saying so rather than
+  // offering a button that would fail on send.
+  const channelTakesImages = convo.channel === "messenger" || convo.channel === "whatsapp";
+  const hasAttachments =
+    (attachments?.sizeCharts.length ?? 0) + (attachments?.products.length ?? 0) > 0;
+  const canSendAttachment =
+    canReply && escalationId !== null && channelTakesImages && hasAttachments;
+  const attachmentsUnsupported =
+    canReply && escalationId !== null && !channelTakesImages && hasAttachments;
   const canTake = canReply && escalationId !== null && !isResolved && convo.status !== "in_progress";
   const statusClass = STATUS_CLASS[convo.status || 'pending'] || "pill-pending";
   const statusLabel = STATUS_LABEL[convo.status || 'pending'] || "Pending Reply";
@@ -675,6 +692,53 @@ export function Thread({
             <span style={{ fontSize: 11, color: "var(--color-fg-3)" }}>·</span>
             <span className="ai-badge"><Icon d={ic.clock} size={10} color="#7A3A18" />Bot paused</span>
           </div>
+          {canSendAttachment && (
+            <form
+              action={sendSupportAttachmentAction}
+              className="reply-attach"
+              onSubmit={() => setAttachmentId("")}
+              style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}
+            >
+              <input type="hidden" name="escalationId" value={escalationId ?? ''} />
+              <Icon d={ic.image} size={13} color="var(--color-fg-3)" />
+              <select
+                name="attachmentId"
+                value={attachmentId}
+                onChange={(event) => setAttachmentId(event.target.value)}
+                style={{ flex: 1, fontSize: 11, padding: "4px 6px", maxWidth: 320 }}
+                aria-label="Attachment to send"
+              >
+                <option value="">Send a size chart or photo…</option>
+                {(attachments?.sizeCharts.length ?? 0) > 0 && (
+                  <optgroup label="Size charts">
+                    {attachments?.sizeCharts.map((option) => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {(attachments?.products.length ?? 0) > 0 && (
+                  <optgroup label="Product photos">
+                    {attachments?.products.map((option) => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <button
+                type="submit"
+                className="btn"
+                style={{ fontSize: 11, padding: "5px 10px" }}
+                disabled={!attachmentId}
+              >
+                Send image
+              </button>
+            </form>
+          )}
+          {attachmentsUnsupported && (
+            <div style={{ fontSize: 11, color: "var(--color-fg-3)", marginBottom: 8 }}>
+              Images cannot be sent on {convo.channel} yet — paste a link in the reply instead.
+            </div>
+          )}
           <form
             action={sendSupportReplyAction}
             className="reply-inner"
