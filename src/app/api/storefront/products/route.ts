@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
 import { productDisplayImageUrls, type DisplayCreative } from '@/lib/product-display-images';
+import { sortSizes } from '@/lib/size-order';
 
 export const revalidate = 60;
 
@@ -167,7 +168,7 @@ function mapProductForStorefront(
   product: StorefrontProductRecord,
   origin: string
 ) {
-  const sizes = parseList(product.sizes);
+  const sizes = sortSizes(parseList(product.sizes));
   const colors = parseList(product.colors).map(formatColorName);
   const variants = product.variants
     .filter((variant) => variant.status !== 'archived')

@@ -1,3 +1,5 @@
+import { sortSizes } from './size-order.ts';
+
 /**
  * The item details block that rides along with a published post.
  *
@@ -35,30 +37,13 @@ export function formatRsPrice(price?: number | null): string {
     : 'N/A';
 }
 
-// Sizes are typed by hand on the product row, so they arrive in whatever order
-// they were entered — "L,M,S,XL" went out on a live post. A shopper reads a size
-// list as a range, and an unsorted one reads as a mistake.
-const SIZE_ORDER = ['XXXS', 'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL'];
-const SIZE_ALIASES: Record<string, string> = {
-  '2XS': 'XXS',
-  '3XS': 'XXXS',
-  '2XL': 'XXL',
-  '3XL': 'XXXL',
-  '4XL': 'XXXXL',
-  SMALL: 'S',
-  MEDIUM: 'M',
-  LARGE: 'L',
-};
-
-function sizeRank(size: string): number {
-  const key = size.toUpperCase().replace(/[\s.]/g, '');
-  return SIZE_ORDER.indexOf(SIZE_ALIASES[key] ?? key);
-}
-
 /**
- * Canonical smallest-to-largest order. Lettered sizes lead, then numeric ones
- * ascending, then anything unrecognised in the order it was entered — an
- * unfamiliar value is never dropped, only moved to the end.
+ * Sizes as one display string. The ordering itself lives in size-order, so a
+ * caption and the storefront cannot drift apart; this only splits, removes
+ * duplicates and joins.
+ *
+ * Sizes are typed by hand on the product row, so they arrive in whatever order
+ * they were entered — "L,M,S,XL" went out on a live post.
  */
 export function formatSizes(value?: string | null): string | null {
   const raw = value?.trim();
@@ -78,25 +63,7 @@ export function formatSizes(value?: string | null): string | null {
 
   if (sizes.length === 0) return null;
 
-  const decorated = sizes.map((size, index) => {
-    const rank = sizeRank(size);
-    const numeric = /^\d+(\.\d+)?$/.test(size) ? Number(size) : null;
-    return {
-      size,
-      index,
-      bucket: rank >= 0 ? 0 : numeric !== null ? 1 : 2,
-      weight: rank >= 0 ? rank : numeric ?? 0,
-    };
-  });
-
-  decorated.sort((a, b) => {
-    if (a.bucket !== b.bucket) return a.bucket - b.bucket;
-    if (a.bucket === 2) return a.index - b.index;
-    if (a.weight !== b.weight) return a.weight - b.weight;
-    return a.index - b.index;
-  });
-
-  return decorated.map((entry) => entry.size).join(', ');
+  return sortSizes(sizes).join(', ');
 }
 
 /** Mirrors productSkuPrefix — three letters of the brand, uppercased. */

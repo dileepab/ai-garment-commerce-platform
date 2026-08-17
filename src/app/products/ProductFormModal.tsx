@@ -4,6 +4,7 @@ import React, { useRef, useState, useTransition } from 'react';
 import { createProduct, updateProduct, uploadProductImage } from './actions';
 import type { VariantInput, ProductFormInput } from './actions';
 import { resizeImageFile } from '@/lib/image-resize';
+import { sortSizes } from '@/lib/size-order';
 
 // ── Static option lists ──────────────────────────────────────────────────────
 
@@ -156,15 +157,6 @@ function uniqueValues(values: Array<string | null | undefined>): string[] {
     result.push(trimmed);
   }
   return result;
-}
-
-function sortSizes(sizes: string[]): string[] {
-  return [...sizes].sort((a, b) => {
-    const ai = PRESET_SIZE_OPTIONS.findIndex((size) => size.toLowerCase() === a.toLowerCase());
-    const bi = PRESET_SIZE_OPTIONS.findIndex((size) => size.toLowerCase() === b.toLowerCase());
-    if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    return a.localeCompare(b);
-  });
 }
 
 function rowsFromProduct(product: ProductForEdit): VariantRow[] {
