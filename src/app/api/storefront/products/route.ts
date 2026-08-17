@@ -4,6 +4,11 @@ import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
 import { productDisplayImageUrls, type DisplayCreative } from '@/lib/product-display-images';
 import { sortSizes } from '@/lib/size-order';
+import {
+  getSizeChartCategoryFromStyle,
+  getSizeChartDefinition,
+  getSizeChartImagePath,
+} from '@/lib/size-charts';
 
 export const revalidate = 60;
 
@@ -164,6 +169,40 @@ function publicProductImage(
   return chosen ? toAbsoluteUrl(chosen, origin) : null;
 }
 
+/**
+ * Every image worth showing, best first.
+ *
+ * The storefront card swaps to the second on hover and the product page builds
+ * its thumbnail strip from the rest. Both were falling back to a single photo
+ * because this route only ever sent one, even though the resolver ranks four.
+ */
+function publicProductImages(
+  product: {
+    imageUrl: string | null;
+    colorImages: Array<{ color?: string | null; imageUrl: string }>;
+    creatives: Array<DisplayCreative & { sourceImageUrl: string | null }>;
+  },
+  origin: string,
+  preferredColor?: string | null
+): string[] {
+  const images = productDisplayImageUrls(product, {
+    limit: 4,
+    preferredColor,
+    resolveCreativeUrl: (creative) =>
+      creative.imageUrl?.trim() || `${origin}/api/content/creatives/${creative.id}/image`,
+  });
+
+  const seen = new Set<string>();
+  const absolute: string[] = [];
+  for (const image of images) {
+    const url = toAbsoluteUrl(image, origin);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    absolute.push(url);
+  }
+  return absolute;
+}
+
 function mapProductForStorefront(
   product: StorefrontProductRecord,
   origin: string
@@ -187,7 +226,12 @@ function mapProductForStorefront(
   const stockQty = variants.length > 0
     ? variantStock
     : product.inventory?.availableQty ?? product.stock;
-  const image = publicProductImage(product, origin);
+  const images = publicProductImages(product, origin);
+  const image = images[0] ?? publicProductImage(product, origin);
+  const sizeChartCategory = getSizeChartCategoryFromStyle(product.style);
+  const sizeChartImagePath = sizeChartCategory
+    ? getSizeChartImagePath(sizeChartCategory, product.brand)
+    : null;
   const slug = `${slugify(product.name)}-${product.id}`;
   const swatchA = colorHex(colors[0], '#D9A899');
   const swatchB = colorHex(colors[1], '#9DB09A');
@@ -205,13 +249,23 @@ function mapProductForStorefront(
     swatchA,
     swatchB,
     desc: describeProduct(product),
-    stock: stockQty > 0 ? `In stock - ${stockQty} available` : 'Sold out',
+    // Just the state, not the number. A live count invites "only 3 left?" and
+    // goes stale between the page render and the order.
+    stock: stockQty > 0 ? 'In stock' : 'Sold out',
     stockQty,
     style: product.style,
     fabric: product.fabric,
     sizes,
     colors,
     image,
+    images,
+    sizeChart: sizeChartCategory && sizeChartImagePath
+      ? {
+          category: sizeChartCategory,
+          label: getSizeChartDefinition(sizeChartCategory).label,
+          imageUrl: toAbsoluteUrl(sizeChartImagePath, origin),
+        }
+      : null,
     colorImages: product.colorImages.map((entry) => ({
       color: entry.color,
       imageUrl: toAbsoluteUrl(entry.imageUrl, origin),
