@@ -86,6 +86,16 @@ export function getDefaultSizeChartCategories(): SizeChartCategory[] {
   return [...DEFAULT_SIZE_CHART_CATEGORIES];
 }
 
+/**
+ * Every category that has a definition, not just the four the bot offers by
+ * default. An operator sending a chart by hand should be able to reach any
+ * chart that has been drawn, whether or not the brand currently stocks that
+ * category.
+ */
+export function getAllSizeChartCategories(): SizeChartCategory[] {
+  return Object.keys(SIZE_CHART_DEFINITIONS) as SizeChartCategory[];
+}
+
 export function getSizeChartImagePath(
   category: SizeChartCategory,
   brand?: string | null

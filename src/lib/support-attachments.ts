@@ -1,8 +1,7 @@
 import prisma from '@/lib/prisma';
 import { brandsMatch } from '@/lib/brand-aliases';
 import {
-  getDefaultSizeChartCategories,
-  getSizeChartCategoryFromStyle,
+  getAllSizeChartCategories,
   getSizeChartDefinition,
   getSizeChartImagePath,
   type SizeChartCategory,
@@ -48,31 +47,21 @@ function absolute(url: string, origin: string): string {
 }
 
 /**
- * Every chart that has an image for this brand, plus every chart a product in
- * the brand's catalogue actually needs — a skort category is useless to
- * Cleopatra and confusing in the list.
+ * Every chart that has an image for this brand.
+ *
+ * This deliberately does not filter by what the brand currently stocks. It used
+ * to start from the bot's four default categories and add whatever the
+ * catalogue implied, which meant Skirts vanished from the list the moment
+ * skorts stopped mapping to it — an operator could no longer send a chart that
+ * was sitting right there in public/. A category with no drawn chart is still
+ * left out below, so the list only ever offers what can actually be sent.
  */
 async function sizeChartOptions(
   brand: string | null,
   origin: string
 ): Promise<SupportAttachmentOption[]> {
-  const products = await prisma.product.findMany({
-    where: { status: 'active' },
-    select: { brand: true, style: true },
-  });
-
-  const scoped = brand
-    ? products.filter((product) => brandsMatch(product.brand, brand))
-    : products;
-
-  const categories = new Set<SizeChartCategory>(getDefaultSizeChartCategories());
-  for (const product of scoped) {
-    const category = getSizeChartCategoryFromStyle(product.style);
-    if (category) categories.add(category);
-  }
-
   const options: SupportAttachmentOption[] = [];
-  for (const category of categories) {
+  for (const category of getAllSizeChartCategories()) {
     const imagePath = getSizeChartImagePath(category, brand);
     // A category with no drawn chart is left out rather than offered and then
     // failing at send time.
