@@ -560,6 +560,67 @@ async function main() {
         },
       },
       {
+        // From production: after "What is the fabric of the Sundress?" answered
+        // about all three, a bare "price?" narrowed back to one colourway — the
+        // set the previous answer covered was forgotten. All three share a
+        // price, so the design name carries the answer and no colourway is
+        // singled out.
+        name: 'A follow-up keeps the set the previous answer covered',
+        senderId: buildSender(runId, 'sundress-followup'),
+        before: async ({ context }) => {
+          const base = {
+            brand: 'Happybuy',
+            style: 'summer_dress',
+            price: 1990,
+            fabric: 'Cheesecloth',
+            sizes: 'S,M,L',
+            stock: 5,
+            status: 'active',
+          };
+
+          const created = [];
+          for (const color of ['Blue Grey', 'Cream Red Floral', 'Red Floral']) {
+            const row = await prisma.product.create({
+              data: {
+                ...base,
+                name: `ZZ Tie-Strap Smocked Frock ${color}`,
+                sku: `HAP-92${created.length}0`,
+                colors: color,
+                inventory: { create: { availableQty: 5 } },
+              },
+            });
+            created.push(row.id);
+          }
+
+          context.createdProductIds = created;
+        },
+        messages: ['What is the price of the smocked frock?', 'price?'],
+        verify: async ({ transcript, context }) => {
+          try {
+            const followUp = transcript[1].bot;
+            assert(
+              /1990/.test(followUp),
+              `The follow-up should still answer the price.\n\nActual reply:\n${followUp}`
+            );
+            assert(
+              !/Blue Grey/i.test(followUp)
+                && !/Cream Red Floral/i.test(followUp)
+                && !/Red Floral/i.test(followUp),
+              `All three share a price, so no colourway should be singled out.\n\nActual reply:\n${followUp}`
+            );
+            assert(
+              /Frock/i.test(followUp),
+              `The design name should carry the answer.\n\nActual reply:\n${followUp}`
+            );
+          } finally {
+            for (const id of context.createdProductIds || []) {
+              await prisma.inventory.deleteMany({ where: { productId: id } });
+              await prisma.product.delete({ where: { id } }).catch(() => {});
+            }
+          }
+        },
+      },
+      {
         // From production: "What is the fabric of the skort?" came back naming
         // only the brown one, with four photographs attached. There are two
         // skorts and both are a linen blend, so the colourway is a guess the

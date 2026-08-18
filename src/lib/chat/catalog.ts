@@ -413,6 +413,23 @@ function siblingProductsForQuestion<T extends { id: number; name: string; style?
  * The name prefix is dropped in the shared case — repeating a colourway the
  * customer did not ask about is what made the old reply look like a guess.
  */
+function sharedNamePrefix(names: string[]): string | null {
+  if (names.length < 2) return null;
+
+  const wordLists = names.map((name) => name.split(/\s+/));
+  const shared: string[] = [];
+  for (let index = 0; index < wordLists[0].length; index += 1) {
+    const word = wordLists[0][index];
+    if (!wordLists.every((words) => words[index] === word)) break;
+    shared.push(word);
+  }
+
+  // Trim the separator the colourway hung off — "Tie-Strap Smocked Sundress —"
+  // reads as an unfinished sentence.
+  const prefix = shared.join(' ').replace(/[\s\-–—:,]+$/, '').trim();
+  return prefix.length > 2 ? prefix : null;
+}
+
 function mergeProductAnswers(
   answers: Array<{ name: string; reply: string }>
 ): string {
@@ -429,7 +446,13 @@ function mergeProductAnswers(
   // Anything phrased as a sentence keeps its own block.
   if (bodies.every((body): body is string => body !== null)) {
     const unique = [...new Set(bodies)];
-    if (unique.length === 1) return unique[0];
+    if (unique.length === 1) {
+      // Name the design, not the colourway. "Price: Rs 1990" on its own leaves
+      // a bare "price?" with nothing to anchor it, and naming one of three
+      // colourways states a choice the customer never made.
+      const stem = sharedNamePrefix(answers.map((entry) => entry.name));
+      return stem ? `${stem} — ${unique[0]}` : unique[0];
+    }
   }
 
   return answers.map((entry) => entry.reply).join('\n\n');
@@ -602,7 +625,20 @@ export async function handle_product_question(ctx: ChatContext) {
   // Answer for every product the question could be about, not just the first
   // one that matched. A grounded answer is written about the selected product
   // alone, so it only stands in when the question was unambiguous.
-  const siblings = siblingProductsForQuestion(input.currentMessage, selectedProduct, products);
+  let siblings = siblingProductsForQuestion(input.currentMessage, selectedProduct, products);
+
+  // "price?" names no product at all. Without this the set the previous answer
+  // covered is forgotten and the reply narrows to whichever product happened to
+  // be pinned — the customer asked about the Sundress and got one colourway.
+  if (siblings.length === 1 && extractItemCodes(input.currentMessage).length === 0) {
+    const remembered = (state.lastReferencedProductIds ?? [])
+      .map((productId) => products.find((product) => product.id === productId))
+      .filter((product): product is typeof selectedProduct => Boolean(product));
+
+    if (remembered.length > 1 && remembered.some((product) => product.id === selectedProduct.id)) {
+      siblings = remembered;
+    }
+  }
   const mergedReply = siblings.length > 1
     ? mergeProductAnswers(
         siblings.map((sibling) => ({
@@ -628,6 +664,7 @@ export async function handle_product_question(ctx: ChatContext) {
       lastMissingOrderId: null,
       lastReferencedProductId: selectedProduct.id,
       lastReferencedProductName: selectedProduct.name,
+      lastReferencedProductIds: siblings.map((sibling) => sibling.id),
     },
   });
 }
