@@ -24,15 +24,11 @@ import {
   parseInstagramUserProfile,
   parseMessengerUserProfile,
 } from '../src/lib/meta-profile.ts';
+import { isSyntheticSenderId } from '../src/lib/synthetic-sender.ts';
 
 const prisma = new PrismaClient();
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v22.0';
 const COMMIT = process.argv.includes('--commit');
-
-/** Chat Simulator runs share the inbox but have no person behind them. */
-function isSyntheticSender(senderId: string): boolean {
-  return /^(?:sim|zz|repeat|test)-/i.test(senderId);
-}
 
 async function readJson(url: string, init: RequestInit): Promise<unknown> {
   const response = await fetch(url, init);
@@ -120,7 +116,7 @@ async function main() {
   for (const identity of identities) {
     const { brand, channel, senderId } = identity;
 
-    if (isSyntheticSender(senderId)) {
+    if (isSyntheticSenderId(senderId)) {
       skipped += 1;
       continue;
     }
