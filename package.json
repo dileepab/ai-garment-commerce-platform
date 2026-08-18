@@ -60,7 +60,8 @@
     "test:tiktok": "node --test --experimental-strip-types --no-warnings scripts/tiktok-security.test.ts scripts/tiktok-webhook-signature.test.ts scripts/tiktok-normalize.test.ts scripts/tiktok-api.test.ts scripts/tiktok-account-api.test.ts scripts/tiktok-config.test.ts scripts/tiktok-account-config.test.ts",
     "cleanup:conversation": "node scripts/prune-conversation-data.js",
     "cleanup:test-data": "node scripts/cleanup-production-test-data.js",
-    "reset:chat": "node scripts/reset-dev-chat-data.js"
+    "reset:chat": "node scripts/reset-dev-chat-data.js",
+    "backfill:names": "node --env-file=.env --experimental-strip-types --no-warnings scripts/backfill-meta-contact-names.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

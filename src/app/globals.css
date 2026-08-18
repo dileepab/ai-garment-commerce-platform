@@ -3013,6 +3013,141 @@ select.filter-select-sm:focus-visible,
   }
 }
 
+/* ── Support inbox on a phone ─────────────────────────────────
+   The inbox opened with two rows of nav buttons, four stat cells, a search
+   box, three filter tabs, three dropdowns and a result count stacked above
+   the list — about two thirds of an 812pt screen before the first
+   conversation, and the same block again above an open thread. Nothing is
+   dropped below; each row stops claiming a line of its own.            */
+@media (max-width: 768px) {
+
+  /* Page nav scrolls sideways rather than wrapping onto a second row.
+     Selected through the parent to outrank the `.topbar-actions > div`
+     wrap rule above. display and gap are set inline on this element, so
+     only properties the inline style leaves alone are used here. */
+  .topbar-actions > .support-header-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+  }
+
+  .support-header-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Without this the buttons compress to fit instead of scrolling */
+  .support-header-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .support-header-actions .btn {
+    padding: 5px 9px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  /* Four stat cells become one scrollable line, label beside value */
+  .support-stat-strip {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .support-stat-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .support-stat-strip .stat-cell {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 8px 12px;
+    border-right: 1px solid var(--color-border-subtle);
+  }
+
+  /* The strip draws its dividers with a 1px gap over a tinted background
+     when it is a grid; as a flex row the cells carry their own. */
+  .support-stat-strip .stat-cell:last-child {
+    border-right: none;
+  }
+
+  .support-stat-strip .stat-label {
+    margin-bottom: 0;
+    font-size: 9px;
+  }
+
+  .support-stat-strip .stat-val {
+    font-size: 15px;
+  }
+
+  /* "across 4 channels", "need human reply" and the rest only qualify the
+     number they sit under; the figure and its label carry the meaning. */
+  .support-stat-strip .stat-note {
+    display: none;
+  }
+
+  .convo-header {
+    padding: 10px 12px 8px;
+  }
+
+  .convo-search {
+    margin-bottom: 8px;
+  }
+
+  /* Channel, brand and sort scroll sideways instead of wrapping to two rows */
+  .convo-secondary-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-top: 8px;
+    padding-bottom: 2px;
+  }
+
+  .convo-secondary-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .convo-secondary-filters > * {
+    flex: 0 0 auto;
+  }
+
+  .convo-result-count {
+    margin-top: 4px;
+  }
+
+  /* Reading a thread is a screen of its own here — the list's header and
+     figures are behind the back button and cost the message content the
+     top third of the screen. */
+  .support-main--thread .topbar,
+  .support-main--thread .support-stat-strip {
+    display: none;
+  }
+
+  /* The hamburger is fixed at the top-left corner and would otherwise sit
+     on top of the back button once the header above it is gone. */
+  .support-main--thread .mobile-back-btn {
+    padding-left: 60px;
+  }
+
+  /* Name, channel, status and the case actions sat on one unwrapping row,
+     which pushed the actions ~17px past the right edge and clipped them. */
+  .thread-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .thread-header-info {
+    min-width: 0;
+  }
+}
+
 /* Prevent long unbroken strings (IDs, URLs, emails) forcing overflow */
 @media (max-width: 768px) {
 
