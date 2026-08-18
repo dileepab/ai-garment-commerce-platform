@@ -3025,8 +3025,15 @@ select.filter-select-sm:focus-visible,
 .push-panel--hint {
   font-size: 11px;
   color: var(--color-fg-3);
-  max-width: 220px;
-  line-height: 1.35;
+  max-width: 260px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* "in Safari" is the one part of the instruction that cannot be skipped. */
+.push-panel--hint strong {
+  color: var(--color-fg-2);
+  font-weight: 700;
 }
 
 .push-toggle {

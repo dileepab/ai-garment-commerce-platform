@@ -9,9 +9,11 @@ import React, { useCallback, useEffect, useState } from 'react';
  * the state of the device it is running on. The permission prompt is fired
  * from the button press because browsers refuse it otherwise.
  *
- * On iOS none of this appears until the app has been added to the Home Screen:
- * Safari only exposes PushManager to an installed app, so the panel says so
- * rather than offering a button that cannot work.
+ * On iOS none of this appears until the app has been added to the Home Screen
+ * from Safari specifically. Chrome for iOS can place a shortcut there too, but
+ * it is a bookmark rather than a standalone web app, so it never gets a
+ * PushManager and the notifications silently never arrive. The panel names
+ * Safari for that reason instead of offering a button that cannot work.
  */
 
 interface PushState {
@@ -223,7 +225,9 @@ export default function SupportNotificationSettings() {
   if (status === 'needs-install') {
     return (
       <div className="push-panel push-panel--hint">
-        Add GarmentOS to your Home Screen to get notifications on this iPhone.
+        To get notifications on this iPhone, open this page <strong>in Safari</strong>, then
+        Share → Add to Home Screen, and turn them on from the installed app. Adding it from
+        Chrome will not work.
       </div>
     );
   }
