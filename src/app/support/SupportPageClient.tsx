@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Thread } from '@/components/SupportComponents';
 import { PageHeader } from '@/components/PageHeader';
+import SupportNotificationSettings from '@/components/SupportNotificationSettings';
 import type { SupportStats, SupportThread } from './types';
 import {
   formatSupportConversationListTimestamp,
@@ -421,6 +422,7 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
             <Link className="btn btn-secondary" href="/support/training">Training</Link>
             <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
             <Link className="btn btn-secondary" href="/support/reply-qa">Reply QA</Link>
+            <SupportNotificationSettings />
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "var(--color-accent-muted)", borderRadius: "var(--radius-md)" }}>
               <Icon d={ic.zap} size={12} color="var(--color-accent)" />
               <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-accent)" }}>{liveStats.open > 0 ? `${liveStats.open} Case Lock${liveStats.open === 1 ? "" : "s"}` : "AI Live"}</span>

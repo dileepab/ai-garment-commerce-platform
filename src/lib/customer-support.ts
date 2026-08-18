@@ -1,4 +1,6 @@
 import prisma from '@/lib/prisma';
+import { notifySupportEscalation } from '@/lib/push-notifications';
+import { logWarn } from '@/lib/app-log';
 import {
   getDefaultMerchantSettings,
   getMerchantSettings,
@@ -250,7 +252,7 @@ export async function upsertSupportEscalation(input: SupportEscalationInput) {
     });
   }
 
-  return prisma.supportEscalation.create({
+  const escalation = await prisma.supportEscalation.create({
     data: {
       senderId: input.senderId,
       channel: input.channel,
@@ -265,4 +267,24 @@ export async function upsertSupportEscalation(input: SupportEscalationInput) {
       summary: input.summary,
     },
   });
+
+  // Only on the first hand-over. The branch above reuses an open case for
+  // every later message, and buzzing again for each one is what makes a
+  // person turn notifications off.
+  try {
+    await notifySupportEscalation({
+      senderId: input.senderId,
+      channel: input.channel,
+      brand: input.brand,
+      contactName: input.contactName,
+    });
+  } catch (error) {
+    // A push that will not send must never cost the customer their escalation.
+    logWarn('Push', 'Could not notify about a new escalation.', {
+      channel: input.channel,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return escalation;
 }

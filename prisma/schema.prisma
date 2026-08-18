@@ -857,3 +857,32 @@ model ReturnRequest {
   @@index([orderId])
   @@index([brand, status, createdAt])
 }
+
+/// One browser's push subscription, created when an operator turns notifications
+/// on for that device. Keyed by endpoint because that is what the browser gives
+/// back and what identifies a dead subscription when the push service returns
+/// 404 or 410.
+model OperatorPushSubscription {
+  id            Int      @id @default(autoincrement())
+  endpoint      String   @unique
+  p256dh        String
+  auth          String
+  /// Who turned it on. Sessions are shortcut users keyed by email.
+  operatorEmail String
+  /// Brands this operator may see, as stored on their session. Empty means all.
+  brands        String?
+  /// Cases the bot handed to a human.
+  notifyEscalations Boolean @default(true)
+  /// Every inbound customer message, answered by the bot or not.
+  notifyAllMessages Boolean @default(false)
+  /// Enough to tell two of an operator's devices apart in the settings list.
+  deviceLabel   String?
+  /// Consecutive delivery failures; the row is deleted once the push service
+  /// says the subscription is gone.
+  failureCount  Int      @default(0)
+  lastNotifiedAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([operatorEmail])
+}
