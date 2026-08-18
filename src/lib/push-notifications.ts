@@ -53,6 +53,51 @@ export function isPushConfigured(): boolean {
   return vapidDetails() !== null;
 }
 
+const EXPECTED_VAPID_VARIABLES = [
+  'VAPID_PUBLIC_KEY',
+  'VAPID_PRIVATE_KEY',
+  'VAPID_SUBJECT',
+] as const;
+
+export interface PushConfigurationReport {
+  present: Record<string, boolean>;
+  /**
+   * Variables whose name mentions VAPID but is not one of the three expected.
+   * Only counted, never named: pasting a whole `NAME=value` line into a
+   * hosting dashboard's name field is the usual cause, and the name would then
+   * carry the private key inside it.
+   */
+  unrecognisedCount: number;
+  /** The signature of that mistake — an `=` inside a variable name. */
+  looksLikePastedAssignment: boolean;
+}
+
+/**
+ * What the running server can actually see, for when the switch does not
+ * appear and the dashboard says the variables are set.
+ *
+ * Reports presence only. No value is ever returned, and no unrecognised name
+ * is echoed back.
+ */
+export function describePushConfiguration(): PushConfigurationReport {
+  const present: Record<string, boolean> = {};
+  for (const name of EXPECTED_VAPID_VARIABLES) {
+    present[name] = Boolean(process.env[name]?.trim());
+  }
+
+  const strays = Object.keys(process.env).filter(
+    (name) =>
+      /vapid/i.test(name) &&
+      !EXPECTED_VAPID_VARIABLES.includes(name as (typeof EXPECTED_VAPID_VARIABLES)[number])
+  );
+
+  return {
+    present,
+    unrecognisedCount: strays.length,
+    looksLikePastedAssignment: strays.some((name) => name.includes('=')),
+  };
+}
+
 export function getPushPublicKey(): string {
   return vapidDetails()?.publicKey ?? '';
 }

@@ -6,6 +6,7 @@ import {
 } from '@/lib/authz';
 import {
   deleteOperatorPushSubscription,
+  describePushConfiguration,
   getOperatorPushSubscription,
   getPushPublicKey,
   isPushConfigured,
@@ -45,6 +46,9 @@ export async function GET(request: Request) {
         configured: isPushConfigured(),
         publicKey: getPushPublicKey(),
         subscription,
+        // Presence only, never values — so a switch that refuses to appear can
+        // be told apart from a dashboard that only looks correct.
+        configuration: describePushConfiguration(),
       },
     });
   } catch (error) {
