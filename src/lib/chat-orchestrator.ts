@@ -91,6 +91,7 @@ import {
   mergeContactDetails,
 } from '@/lib/contact-profile';
 import { preferStoredMetaProfileName } from '@/lib/meta-profile';
+import { notifyInboundCustomerMessage } from '@/lib/push-notifications';
 import { isClearConfirmation } from '@/lib/order-confirmation';
 import {
   buildHumanSupportReply,
@@ -382,6 +383,21 @@ export async function routeCustomerMessage(
     brand: input.brand || null,
     hasImage: Boolean(input.imageUrl),
   });
+
+  // Sent before the reply is composed rather than after, so an operator who
+  // asked to see every message still hears about one the bot then failed on.
+  // Only devices with that switch on are targeted, so this is a single indexed
+  // query returning nothing for everyone else.
+  try {
+    await notifyInboundCustomerMessage({
+      senderId: input.senderId,
+      channel: input.channel,
+      brand: input.brand,
+      contactName: input.customerName,
+    });
+  } catch {
+    // Notifying is never worth failing a customer's message over.
+  }
 
   const state = await loadConversationState(input.senderId, input.channel);
   const languageResolution = resolveCustomerLanguage(input.currentMessage, state.preferredLanguage);

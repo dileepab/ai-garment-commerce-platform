@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Cormorant_Garamond, JetBrains_Mono } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import AppShell from "@/components/AppShell";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -30,6 +31,26 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "GarmentOS — Operations",
   description: "Operations dashboard for catalog, orders, production, and AI-assisted garment sales.",
+  // Named explicitly rather than left to the manifest: iOS reads these two
+  // and ignores the manifest's name and icons when adding to the Home Screen.
+  appleWebApp: {
+    capable: true,
+    title: "GarmentOS",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#C4622D",
+  // An installed console is a full-screen app; letting the page zoom on a
+  // double tap makes the conversation list jump around under the thumb.
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -44,6 +65,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <SessionProvider>
+          <ServiceWorkerRegistrar />
           <AppShell>{children}</AppShell>
         </SessionProvider>
       </body>

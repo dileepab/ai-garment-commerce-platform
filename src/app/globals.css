@@ -3013,6 +3013,121 @@ select.filter-select-sm:focus-visible,
   }
 }
 
+/* ── Support notification settings ───────────────────────────
+   Sits in the inbox header. The options panel is anchored so it does not
+   push the header taller when it opens.                                */
+.push-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.push-panel--hint {
+  font-size: 11px;
+  color: var(--color-fg-3);
+  max-width: 220px;
+  line-height: 1.35;
+}
+
+.push-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.push-panel-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 260px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.push-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.push-option input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.push-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.push-option strong {
+  font-weight: 600;
+  color: var(--color-fg-1);
+}
+
+.push-option em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--color-fg-3);
+}
+
+.push-disable {
+  align-self: flex-start;
+  font-size: 11px;
+  padding: 4px 8px;
+  color: var(--color-danger, #8B2020);
+}
+
+.push-panel-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  font-size: 11px;
+  color: #8B2020;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+
+  /* The header is a sideways-scrolling row on a phone, so anchoring the
+     panel to its button would clip it and scroll it off. It becomes a sheet
+     at the bottom of the viewport instead — within reach of a thumb, and
+     positioned without depending on where the button ended up. */
+  .push-panel-options {
+    position: fixed;
+    top: auto;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+
+  .push-panel-error {
+    position: fixed;
+    top: auto;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
+    left: 12px;
+    white-space: normal;
+  }
+
+  .push-panel--hint {
+    max-width: 180px;
+    font-size: 10px;
+  }
+}
+
 /* ── Support inbox on a phone ─────────────────────────────────
    The inbox opened with two rows of nav buttons, four stat cells, a search
    box, three filter tabs, three dropdowns and a result count stacked above
