@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import {
-  getInstagramUserProfile,
+  resolveInstagramCustomerName,
   sendInstagramMessage,
   type MetaSendResult,
 } from '@/lib/meta';
-import { getInstagramProfileDisplayName } from '@/lib/meta-profile';
 import { persistMetaCustomerProfile } from '@/lib/meta-customer-profile';
 import { sendInstagramCommentReply, sendInstagramPrivateReply } from '@/lib/meta-comments';
 import { getErrorMessage } from '@/lib/error-message';
@@ -311,10 +310,13 @@ async function processInstagramEvent(params: {
       isPostback: normalized.isPostback,
     });
 
-    const profile = IS_CHAT_TEST_MODE ? null : await getInstagramUserProfile(normalized.senderId, {
-      pageAccessToken: params.pageAccessToken,
-    });
-    const customerName = profile ? getInstagramProfileDisplayName(profile) : undefined;
+    const resolvedName = IS_CHAT_TEST_MODE
+      ? ''
+      : await resolveInstagramCustomerName(normalized.senderId, {
+          pageAccessToken: params.pageAccessToken,
+          accountId: normalized.pageOrAccountId || params.accountId,
+        });
+    const customerName = resolvedName || undefined;
 
     if (customerName) {
       await persistMetaCustomerProfile({

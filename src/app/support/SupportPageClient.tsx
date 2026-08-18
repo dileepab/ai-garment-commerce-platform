@@ -76,11 +76,18 @@ interface SupportPageClientProps {
 type SupportFilter = "all" | "active" | "resolved";
 type SupportSort = "priority" | "waiting" | "newest" | "updated";
 
+/**
+ * Recent activity first. The inbox opened on "Active first", which buries a
+ * customer who just wrote in behind week-old cases that happen to be open —
+ * the opposite of how an inbox is read on a phone.
+ */
+const DEFAULT_SORT: SupportSort = "updated";
+
 const SORT_OPTIONS: { value: SupportSort; label: string }[] = [
-  { value: "priority", label: "Active first" },
-  { value: "waiting", label: "Waiting longest" },
   { value: "updated", label: "Recently updated" },
   { value: "newest", label: "Newest" },
+  { value: "priority", label: "Active first" },
+  { value: "waiting", label: "Waiting longest" },
 ];
 
 interface SupportInboxResponse {
@@ -228,7 +235,7 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
   const [filter, setFilter] = useState<SupportFilter>("all");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [sort, setSort] = useState<SupportSort>("priority");
+  const [sort, setSort] = useState<SupportSort>(DEFAULT_SORT);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialConversations.find((conversation) => conversation.status !== "resolved")?.id ??
       initialConversations[0]?.id ??
@@ -389,17 +396,17 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
   );
 
   const averageWaitLabel = useMemo(() => getAverageWaitLabel(conversations), [conversations]);
-  const hasActiveInboxFilters = filter !== "all" || channelFilter !== "all" || brandFilter !== "all" || sort !== "priority" || !!search.trim();
+  const hasActiveInboxFilters = filter !== "all" || channelFilter !== "all" || brandFilter !== "all" || sort !== DEFAULT_SORT || !!search.trim();
   const clearInboxFilters = () => {
     setSearch("");
     setFilter("all");
     setChannelFilter("all");
     setBrandFilter("all");
-    setSort("priority");
+    setSort(DEFAULT_SORT);
   };
 
   return (
-    <main className="main support-main">
+    <main className={`main support-main${mobileView === 'thread' ? ' support-main--thread' : ''}`}>
       <PageHeader
         title="Support Inbox"
         subtitle={
@@ -409,7 +416,7 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
           </div>
         }
         actions={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="support-header-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Link className="btn btn-secondary" href="/support/insights">Bot Insights</Link>
             <Link className="btn btn-secondary" href="/support/training">Training</Link>
             <Link className="btn btn-secondary" href="/support/simulator">Simulator</Link>
@@ -422,7 +429,7 @@ export default function SupportPageClient({ initialConversations, stats, canRepl
         }
       />
 
-      <div className="stat-strip">
+      <div className="stat-strip support-stat-strip">
         <div className="stat-cell">
           <div className="stat-label">Open Cases</div>
           <div className="stat-val">{liveStats.open}</div>

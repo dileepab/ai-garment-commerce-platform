@@ -11,8 +11,12 @@ import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
 import { describeMetaGraphError } from '@/lib/meta-error';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import {
+  buildConversationParticipantsRequest,
   buildInstagramProfileRequest,
   buildMessengerProfileRequest,
+  getInstagramProfileDisplayName,
+  getMessengerProfileDisplayName,
+  parseConversationParticipantName,
   parseInstagramUserProfile,
   parseMessengerUserProfile,
   type InstagramUserProfile,
@@ -588,4 +592,104 @@ export async function getInstagramUserProfile(
     });
     return null;
   }
+}
+
+/**
+ * The customer's name from the page's conversation with them.
+ *
+ * Used when the direct profile lookup comes back empty, which is what happens
+ * for everyone who does not hold a role on the Meta app.
+ */
+async function getConversationParticipantName(params: {
+  senderId: string;
+  pageOrAccountId: string;
+  accessToken: string;
+  platform: 'messenger' | 'instagram';
+}): Promise<string> {
+  try {
+    const request = buildConversationParticipantsRequest({
+      graphVersion: META_GRAPH_VERSION,
+      pageOrAccountId: params.pageOrAccountId,
+      senderId: params.senderId,
+      accessToken: params.accessToken,
+      platform: params.platform,
+    });
+    const response = await fetch(request.url, request.init);
+    const data = await readGraphResponseBody(response);
+
+    if (!response.ok) {
+      logWarn('Meta', 'Conversation participant lookup was unavailable.', {
+        platform: params.platform,
+        status: response.status,
+        error: getPayloadError(data),
+      });
+      return '';
+    }
+
+    const name = parseConversationParticipantName(data, {
+      senderId: params.senderId,
+      pageOrAccountId: params.pageOrAccountId,
+    });
+
+    if (!name) {
+      logWarn('Meta', 'Conversation participant lookup named nobody.', {
+        platform: params.platform,
+      });
+    }
+
+    return name;
+  } catch (error) {
+    logWarn('Meta', 'Conversation participant lookup failed.', {
+      platform: params.platform,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return '';
+  }
+}
+
+/**
+ * The name to show in the support inbox for a Messenger customer.
+ *
+ * Tries the profile API first because it is one call and gives the name in
+ * parts, then falls back to the page's conversation with this customer.
+ */
+export async function resolveMessengerCustomerName(
+  senderId: string,
+  options?: MetaPageTokenOptions & { pageId?: string | null }
+): Promise<string> {
+  const profile = await getMessengerUserProfile(senderId, options);
+  const profileName = profile ? getMessengerProfileDisplayName(profile) : '';
+  if (profileName) return profileName;
+
+  const accessToken = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
+  const pageId = options?.pageId?.trim();
+  if (!accessToken || !pageId) return '';
+
+  return getConversationParticipantName({
+    senderId,
+    pageOrAccountId: pageId,
+    accessToken,
+    platform: 'messenger',
+  });
+}
+
+/** As resolveMessengerCustomerName, for an Instagram business account. */
+export async function resolveInstagramCustomerName(
+  senderId: string,
+  options?: MetaPageTokenOptions & { accountId?: string | null }
+): Promise<string> {
+  const profile = await getInstagramUserProfile(senderId, options);
+  const profileName = profile ? getInstagramProfileDisplayName(profile) : '';
+  if (profileName) return profileName;
+
+  const accessToken = options?.pageAccessToken || process.env.META_PAGE_ACCESS_TOKEN;
+  const accountId = options?.accountId?.trim();
+  if (!accessToken || !accountId) return '';
+
+  return getConversationParticipantName({
+    senderId,
+    pageOrAccountId: accountId,
+    accessToken,
+    platform: 'instagram',
+  });
 }

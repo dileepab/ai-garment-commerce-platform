@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import {
-  getMessengerUserProfile,
+  resolveMessengerCustomerName,
   sendMessengerCarousel,
   sendMessengerImage,
   sendMessengerMessage,
   type MetaSendResult,
 } from '@/lib/meta';
-import { getMessengerProfileDisplayName } from '@/lib/meta-profile';
 import { persistMetaCustomerProfile } from '@/lib/meta-customer-profile';
 import { getErrorMessage } from '@/lib/error-message';
 import { routeCustomerMessage } from '@/lib/chat-orchestrator';
@@ -389,10 +388,13 @@ async function processMessengerEvent(params: {
       isPostback: normalized.isPostback,
     });
 
-    const profile = IS_CHAT_TEST_MODE ? null : await getMessengerUserProfile(normalized.senderId, {
-      pageAccessToken: params.pageAccessToken,
-    });
-    const customerName = profile ? getMessengerProfileDisplayName(profile) : undefined;
+    const resolvedName = IS_CHAT_TEST_MODE
+      ? ''
+      : await resolveMessengerCustomerName(normalized.senderId, {
+          pageAccessToken: params.pageAccessToken,
+          pageId: normalized.pageOrAccountId || params.pageId,
+        });
+    const customerName = resolvedName || undefined;
 
     if (customerName) {
       await persistMetaCustomerProfile({
