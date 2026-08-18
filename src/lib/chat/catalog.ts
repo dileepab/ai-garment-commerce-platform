@@ -22,6 +22,7 @@ import {
 import { getPublicAssetUrl } from '@/lib/runtime-config';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { canFallBackToConversationProduct } from '@/lib/chat/product-reference';
+import { looksLikePhotoRequest } from '@/lib/chat/photo-request';
 import { extractItemCodes, messageMentionsItemCode } from '@/lib/product-item-code';
 import { generateGroundedProductAnswer } from '@/lib/chat/grounded-answer-gemini';
 import { buildGarmentSpecsForCustomer } from '@/lib/product-garment-specs';
@@ -367,6 +368,73 @@ export async function handle_catalog_list(ctx: ChatContext) {
   });
 }
 
+
+/**
+ * The other products the same question could equally be about.
+ *
+ * "What is the fabric of the skort?" is a fair question with two skorts in the
+ * catalogue, and answering only about the brown one is a guess presented as
+ * fact. Matching is on the words the customer actually used — a name token or
+ * the style — and only when they quoted no item code, since a code is already
+ * unambiguous.
+ */
+function siblingProductsForQuestion<T extends { id: number; name: string; style?: string | null }>(
+  message: string,
+  selected: T,
+  products: T[]
+): T[] {
+  if (extractItemCodes(message).length > 0) return [selected];
+
+  const text = ` ${message.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ')} `;
+  const mentions = (value?: string | null) => {
+    const token = (value || '').toLowerCase().trim();
+    return token.length > 2 && text.includes(` ${token} `);
+  };
+
+  const matched = products.filter((product) => {
+    if (mentions(product.style)) return true;
+    return product.name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .some((token) => token.length > 3 && mentions(token));
+  });
+
+  return matched.some((product) => product.id === selected.id) && matched.length > 1
+    ? matched
+    : [selected];
+}
+
+/**
+ * One answer when the answer is the same for every candidate, a labelled block
+ * each when it is not.
+ *
+ * Both skorts are a linen blend, so "Fabric: Linen Blend" answers the question
+ * once. If one were cotton the customer needs both, named, to tell them apart.
+ * The name prefix is dropped in the shared case — repeating a colourway the
+ * customer did not ask about is what made the old reply look like a guess.
+ */
+function mergeProductAnswers(
+  answers: Array<{ name: string; reply: string }>
+): string {
+  if (answers.length === 1) return answers[0].reply;
+
+  const bodyOf = (entry: { name: string; reply: string }) => {
+    const prefix = `${entry.name}:\n`;
+    return entry.reply.startsWith(prefix) ? entry.reply.slice(prefix.length) : null;
+  };
+
+  const bodies = answers.map(bodyOf);
+
+  // Only the "Name:\nfield: value" shape can have its label removed cleanly.
+  // Anything phrased as a sentence keeps its own block.
+  if (bodies.every((body): body is string => body !== null)) {
+    const unique = [...new Set(bodies)];
+    if (unique.length === 1) return unique[0];
+  }
+
+  return answers.map((entry) => entry.reply).join('\n\n');
+}
+
 export async function handle_product_question(ctx: ChatContext) {
   const { aiAction, brandFilter, globalProducts, input, latestAssistantText, latestCustomerText, products, requestedProductTypes, state } = ctx;
   const { findProductByName, finalizeReply } = ctx.helpers;
@@ -531,9 +599,31 @@ export async function handle_product_question(ctx: ChatContext) {
     scriptStyle: 'native',
   });
 
+  // Answer for every product the question could be about, not just the first
+  // one that matched. A grounded answer is written about the selected product
+  // alone, so it only stands in when the question was unambiguous.
+  const siblings = siblingProductsForQuestion(input.currentMessage, selectedProduct, products);
+  const mergedReply = siblings.length > 1
+    ? mergeProductAnswers(
+        siblings.map((sibling) => ({
+          name: sibling.name,
+          reply: buildProductQuestionReply(
+            sibling,
+            aiAction.questionType,
+            input.currentMessage,
+            requestedVariant
+          ),
+        }))
+      )
+    : (groundedReply ?? builtReply);
+
   return finalizeReply({
-    reply: groundedReply ?? builtReply,
-    imagePaths: productImageUrls(selectedProduct, 4, aiAction.color),
+    reply: mergedReply,
+    // Photographs only when the customer asked to see the item. Every answer
+    // used to carry four of them, so "Price" arrived behind two downloads.
+    imagePaths: looksLikePhotoRequest(input.currentMessage)
+      ? productImageUrls(selectedProduct, 4, aiAction.color)
+      : undefined,
     nextState: {
       lastMissingOrderId: null,
       lastReferencedProductId: selectedProduct.id,

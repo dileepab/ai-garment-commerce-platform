@@ -36,6 +36,7 @@
     "test:whatsapp-product": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-product-message.test.ts",
     "test:whatsapp-cart": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-cart.test.ts",
     "test:size-order": "node --test --experimental-strip-types --no-warnings scripts/size-order.test.ts",
+    "test:photo-request": "node --test --experimental-strip-types --no-warnings scripts/photo-request.test.ts",
     "test:post-items": "node --test --experimental-strip-types --no-warnings scripts/post-item-details.test.ts",
     "test:order-items": "node --test --experimental-strip-types --no-warnings scripts/order-draft-items.test.ts",
     "test:royal-express": "node --test --experimental-strip-types --no-warnings scripts/royal-express-city-match.test.ts scripts/delivery-town-ambiguity.test.ts",

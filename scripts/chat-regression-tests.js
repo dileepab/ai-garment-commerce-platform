@@ -560,6 +560,65 @@ async function main() {
         },
       },
       {
+        // From production: "What is the fabric of the skort?" came back naming
+        // only the brown one, with four photographs attached. There are two
+        // skorts and both are a linen blend, so the colourway is a guess the
+        // customer never asked about and the photos bury the one line of answer.
+        name: 'One answer covers both colourways when the answer is the same',
+        senderId: buildSender(runId, 'skort-fabric'),
+        before: async ({ context }) => {
+          const base = {
+            brand: 'Happybuy',
+            style: 'skort',
+            price: 1690,
+            fabric: 'Linen Blend',
+            sizes: 'S,M,L',
+            stock: 5,
+            status: 'active',
+          };
+
+          const brown = await prisma.product.create({
+            data: {
+              ...base,
+              name: 'ZZ Wrap Skort Brown Check',
+              sku: 'HAP-9104',
+              colors: 'Brown Check',
+              inventory: { create: { availableQty: 5 } },
+            },
+          });
+
+          const navy = await prisma.product.create({
+            data: {
+              ...base,
+              name: 'ZZ Wrap Skort Navy Check',
+              sku: 'HAP-9105',
+              colors: 'Navy Check',
+              inventory: { create: { availableQty: 5 } },
+            },
+          });
+
+          context.createdProductIds = [brown.id, navy.id];
+        },
+        messages: ['What is the fabric of the skort?'],
+        verify: async ({ transcript, context }) => {
+          try {
+            assert(
+              /Linen Blend/i.test(transcript[0].bot),
+              `The fabric should still be answered.\n\nActual reply:\n${transcript[0].bot}`
+            );
+            assert(
+              !/Brown Check/i.test(transcript[0].bot) && !/Navy Check/i.test(transcript[0].bot),
+              `Both skorts share a fabric, so neither colourway should be named.\n\nActual reply:\n${transcript[0].bot}`
+            );
+          } finally {
+            for (const id of context.createdProductIds || []) {
+              await prisma.inventory.deleteMany({ where: { productId: id } });
+              await prisma.product.delete({ where: { id } }).catch(() => {});
+            }
+          }
+        },
+      },
+      {
         // Production stores an explicit SKU on every product. The seeded dev
         // catalog stores none, so every other case here matches a code derived
         // from brand and row id, and nothing exercises the stored-SKU path the
