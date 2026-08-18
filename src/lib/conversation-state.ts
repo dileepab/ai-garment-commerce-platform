@@ -71,6 +71,10 @@ export interface ConversationStateData {
   preferredScriptStyle: CustomerScriptStyle;
   lastReferencedProductId: number | null;
   lastReferencedProductName: string | null;
+  // Every product the last answer covered. "What is the fabric of the Sundress?"
+  // is about all three; the follow-up "price?" names nothing, and with only the
+  // singular id remembered it narrowed to whichever one happened to be pinned.
+  lastReferencedProductIds: number[];
   lastRecommendedProductIds: number[];
   lastRecommendationConstraints: RecommendationConstraints | null;
 }
@@ -133,6 +137,7 @@ export const DEFAULT_CONVERSATION_STATE: ConversationStateData = {
   preferredScriptStyle: 'native',
   lastReferencedProductId: null,
   lastReferencedProductName: null,
+  lastReferencedProductIds: [],
   lastRecommendedProductIds: [],
   lastRecommendationConstraints: null,
 };
@@ -225,6 +230,16 @@ export function normalizeConversationState(
       typeof nextState.lastReferencedProductName === 'string' && nextState.lastReferencedProductName.trim()
         ? nextState.lastReferencedProductName.trim()
         : null,
+    lastReferencedProductIds: Array.isArray(nextState.lastReferencedProductIds)
+      ? Array.from(
+          new Set(
+            nextState.lastReferencedProductIds.filter(
+              (productId): productId is number =>
+                typeof productId === 'number' && Number.isInteger(productId) && productId > 0
+            )
+          )
+        ).slice(0, 6)
+      : [],
     lastRecommendedProductIds: Array.isArray(nextState.lastRecommendedProductIds)
       ? Array.from(
           new Set(
