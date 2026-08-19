@@ -370,14 +370,20 @@ export function buildHeuristicAction(
     };
   }
 
-  if (product && (/\bwhat colors?\b|\bavailable colors?\b|\bwhat (?:sizes?|szes?)\b|\bavailable (?:sizes?|szes?)\b|\bprice\b|\bprce\b|\bprise\b|\bhow much\b|\bfabric\b|\bmaterial\b|\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized) || /මිල|ගාන|ප්‍රමාණ|පාට|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்|விலை|அளவு|நிறம்/.test(message))) {
+  // Plurals are how customers actually write this. "Prices , sizes" matched
+  // none of these — \bprice\b cannot match "Prices", and the size patterns all
+  // required a leading "what" or "available" — so a customer asking for both
+  // was routed to the catch-all and told to phone the shop.
+  if (product && (/\bwhat colou?rs?\b|\bavailable colou?rs?\b|\bcolou?rs\b|\bwhat (?:sizes?|szes?)\b|\bavailable (?:sizes?|szes?)\b|\bsizes\b|\bprices?\b|\bprces?\b|\bprises?\b|\bcosts?\b|\bhow much\b|\bfabrics?\b|\bmaterials?\b|\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized) || /මිල|ගාන|ප්‍රමාණ|පාට|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்|விலை|அளவு|நிறம்/.test(message))) {
     let questionType: AiRoutedAction['questionType'] = 'availability';
 
-    if (/\bcolor\b/.test(normalized)) {
+    // \bcolor\b could not match "colors" either, so "what colors?" was being
+    // labelled an availability question.
+    if (/\bcolou?rs?\b/.test(normalized)) {
       questionType = 'colors';
-    } else if (/\b(?:size|sizes|sze|szes)\b/.test(normalized)) {
+    } else if (/\b(?:sizes?|szes?)\b/.test(normalized)) {
       questionType = 'sizes';
-    } else if (/\b(?:price|prce|prise)\b|\bhow much\b/.test(normalized)) {
+    } else if (/\b(?:prices?|prces?|prises?|costs?)\b|\bhow much\b/.test(normalized)) {
       questionType = 'price';
     } else if (/\blength\b|\bsleeve\b|\bfit\b|\bside slit\b|\bslit\b|\bhem\b|\bneckline\b|\bcollar\b|\bcuff\b|\bdetails?\b/.test(normalized)) {
       questionType = 'fit';

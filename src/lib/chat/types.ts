@@ -61,6 +61,8 @@ export interface FinalizeReplyParams {
   nextState?: Partial<ConversationStateData>;
   imagePath?: string;
   imagePaths?: string[];
+  /** Aligned by index with imagePaths. See CustomerMessageResult. */
+  imageCaptions?: string[];
   quickReplies?: CustomerQuickReply[];
   carouselProducts?: Array<{
     id: number;

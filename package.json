@@ -64,7 +64,8 @@
     "backfill:names": "node --env-file=.env --experimental-strip-types --no-warnings scripts/backfill-meta-contact-names.ts",
     "push:keys": "node scripts/generate-vapid-keys.js",
     "icons:app": "node scripts/generate-app-icons.js",
-    "test:push-targeting": "node --test --experimental-strip-types --no-warnings scripts/push-targeting.test.ts scripts/synthetic-sender.test.ts"
+    "test:push-targeting": "node --test --experimental-strip-types --no-warnings scripts/push-targeting.test.ts scripts/synthetic-sender.test.ts",
+    "test:ad-arrival": "node --test --experimental-strip-types --no-warnings scripts/ad-referral-product.test.ts scripts/acknowledgement.test.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

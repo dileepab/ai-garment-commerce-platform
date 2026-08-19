@@ -96,6 +96,57 @@ function productPrimaryImageUrl(product: ProductImageSource): string | undefined
   return productImageUrls(product, 1)[0];
 }
 
+/**
+ * The photographs that belong with an answer, and a caption for each.
+ *
+ * A merged answer names every matching product, but the pictures used to come
+ * from the selected one alone — so "red sundress and flower sundress pictures
+ * please" sent two photographs of the grey dress. When the answer covers
+ * several products they get one photograph each: enough to tell them apart
+ * without turning a question into six downloads on a phone.
+ */
+type AnsweredProduct = ProductImageSource & {
+  name: string;
+  style?: string | null;
+  id?: number;
+};
+
+/**
+ * Four is the same ceiling a single product's gallery uses. Without it the
+ * catalogue listing below would answer "dress pictures" with a photograph of
+ * every dress in the brand — the flood this reply path was trimmed back from
+ * in the first place.
+ */
+const MAX_ANSWER_PHOTOS = 4;
+
+function photosForAnsweredProducts(
+  answeredProducts: AnsweredProduct[],
+  preferredColor?: string | null
+): { urls: string[]; captions: string[] } {
+  if (answeredProducts.length <= 1) {
+    const only = answeredProducts[0];
+    if (!only) return { urls: [], captions: [] };
+    const urls = productImageUrls(only, 4, preferredColor);
+    // One product, several angles of it — the reply text already names it, so
+    // repeating the name on every photograph would only be noise.
+    return { urls, captions: urls.map(() => '') };
+  }
+
+  const urls: string[] = [];
+  const captions: string[] = [];
+
+  for (const product of answeredProducts) {
+    if (urls.length >= MAX_ANSWER_PHOTOS) break;
+    const [url] = productImageUrls(product, 1, preferredColor);
+    if (!url) continue;
+    urls.push(url);
+    const itemCode = productItemCode(product as Parameters<typeof productItemCode>[0]);
+    captions.push(itemCode ? `${product.name} (${itemCode})` : product.name);
+  }
+
+  return { urls, captions };
+}
+
 type CarouselSourceProduct = {
   id: number;
   sku?: string | null;
@@ -537,11 +588,21 @@ export async function handle_product_question(ctx: ChatContext) {
         }
       }
 
+      // "Red dress pictures" names no single product, so it lands here — and
+      // this branch used to answer an explicit request to see the dresses with
+      // a text list and no photograph at all.
+      const listingPhotos =
+        availableFilteredProducts.length > 0 && looksLikePhotoRequest(input.currentMessage)
+          ? photosForAnsweredProducts(availableFilteredProducts, aiAction.color)
+          : null;
+
       return finalizeReply({
         reply:
           availableFilteredProducts.length === 0
             ? unavailableReply
             : `Here is what we have available:\n\n${formatCatalogLines(availableFilteredProducts)}`,
+        imagePaths: listingPhotos?.urls.length ? listingPhotos.urls : undefined,
+        imageCaptions: listingPhotos?.urls.length ? listingPhotos.captions : undefined,
         carouselProducts:
           availableFilteredProducts.length === 0
             ? undefined
@@ -653,13 +714,16 @@ export async function handle_product_question(ctx: ChatContext) {
       )
     : (groundedReply ?? builtReply);
 
+  // Photographs only when the customer asked to see the item. Every answer
+  // used to carry four of them, so "Price" arrived behind two downloads.
+  const answerPhotos = looksLikePhotoRequest(input.currentMessage)
+    ? photosForAnsweredProducts(siblings.length > 0 ? siblings : [selectedProduct], aiAction.color)
+    : null;
+
   return finalizeReply({
     reply: mergedReply,
-    // Photographs only when the customer asked to see the item. Every answer
-    // used to carry four of them, so "Price" arrived behind two downloads.
-    imagePaths: looksLikePhotoRequest(input.currentMessage)
-      ? productImageUrls(selectedProduct, 4, aiAction.color)
-      : undefined,
+    imagePaths: answerPhotos?.urls.length ? answerPhotos.urls : undefined,
+    imageCaptions: answerPhotos?.urls.length ? answerPhotos.captions : undefined,
     nextState: {
       lastMissingOrderId: null,
       lastReferencedProductId: selectedProduct.id,

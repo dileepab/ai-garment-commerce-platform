@@ -91,6 +91,16 @@ import {
   mergeContactDetails,
 } from '@/lib/contact-profile';
 import { preferStoredMetaProfileName } from '@/lib/meta-profile';
+import {
+  buildEmojiAcknowledgementReply,
+  isEmojiOnlyMessage,
+} from '@/lib/chat/acknowledgement';
+import {
+  buildAdArrivalReply,
+  resolveProductFromAdReferral,
+} from '@/lib/chat/ad-referral-product';
+import { findRecentAdReferralHint } from '@/lib/ad-referral';
+import { sortSizes } from '@/lib/size-order';
 import { notifyInboundCustomerMessage } from '@/lib/push-notifications';
 import { isClearConfirmation } from '@/lib/order-confirmation';
 import {
@@ -999,6 +1009,8 @@ export async function routeCustomerMessage(
     nextState?: Partial<ConversationStateData>;
     imagePath?: string;
     imagePaths?: string[];
+    /** Aligned by index with imagePaths. See CustomerMessageResult. */
+    imageCaptions?: string[];
     quickReplies?: CustomerMessageResult['quickReplies'];
     carouselProducts?: Array<{
       id: number;
@@ -1244,6 +1256,7 @@ export async function routeCustomerMessage(
       reply: localizedReply,
       imagePath: params.imagePath ?? params.imagePaths?.[0],
       imagePaths: params.imagePaths ?? (params.imagePath ? [params.imagePath] : undefined),
+      imageCaptions: params.imageCaptions,
       quickReplies: params.quickReplies,
       carouselProducts: params.carouselProducts,
       orderId: params.orderId ?? null,
@@ -1387,6 +1400,21 @@ export async function routeCustomerMessage(
     return finalizeSupportSilentHold(pausedSupportMode);
   }
 
+  // A bare emoji carries no question. Left alone it reached the catch-all and
+  // answered a thumbs-up with a support phone number. Pending steps are left
+  // untouched: mid-confirmation a "👍" plausibly means yes, and that branch
+  // already asks them to confirm in words.
+  if (state.pendingStep === 'none' && isEmojiOnlyMessage(input.currentMessage)) {
+    setDiagnosticEffectiveAction('acknowledgement', 1);
+    return finalizeReply({
+      reply: buildEmojiAcknowledgementReply(),
+      assistantReplyKind: 'generic',
+      nextState: {
+        lastMissingOrderId: null,
+      },
+    });
+  }
+
   if (isThanksMessage(input.currentMessage)) {
     setDiagnosticEffectiveAction('acknowledgement', 1);
     return finalizeReply({
@@ -1422,6 +1450,50 @@ export async function routeCustomerMessage(
         skipLocalization: trainingRule.language === replyLanguage,
         nextState: {
           lastMissingOrderId: null,
+        },
+      });
+    }
+  }
+
+  // Someone arriving from a Click-to-WhatsApp ad sends Meta's own prefill,
+  // "Hello! Can I get more info on this?", and "this" never travels with it.
+  // The ad was recorded moments ago by the webhook, so the item it advertised
+  // can be named instead of asking a customer to describe what they just
+  // tapped. Only reached on a greeting-shaped opener, so it costs one lookup
+  // on a first message rather than one per message.
+  if (useGreetingShortcut) {
+    const referralHint = await findRecentAdReferralHint(prisma, input.channel, input.senderId);
+    const advertisedProduct = referralHint
+      ? resolveProductFromAdReferral(
+          referralHint,
+          products.map((product) => ({
+            id: product.id,
+            name: product.name,
+            itemCode: productItemCode(product),
+          }))
+        )
+      : null;
+    const advertised = advertisedProduct
+      ? products.find((product) => product.id === advertisedProduct.id)
+      : null;
+
+    if (advertised) {
+      setDiagnosticEffectiveAction('ad_arrival', 1);
+      return finalizeReply({
+        reply: buildAdArrivalReply({
+          customerName: mergedContact.name || customer?.name,
+          brandName: settings.displayName,
+          productName: advertised.name,
+          itemCode: productItemCode(advertised),
+          price: `Rs ${advertised.price}`,
+          sizes: sortSizes(splitCsv(advertised.sizes)).join(', '),
+        }),
+        assistantReplyKind: 'generic',
+        nextState: {
+          lastMissingOrderId: null,
+          lastReferencedProductId: advertised.id,
+          lastReferencedProductName: advertised.name,
+          lastReferencedProductIds: [advertised.id],
         },
       });
     }

@@ -102,3 +102,36 @@ export async function findOrderAdAttribution(
     return {};
   }
 }
+
+
+/**
+ * The ad behind the message being answered right now, for shaping the reply.
+ *
+ * Separate from findOrderAdAttribution: that one credits an order weeks later
+ * and takes the full attribution window, while this one is about the sentence
+ * the customer is reading, so a click from last month must not decide it.
+ */
+export const AD_REFERRAL_REPLY_HOURS = 24;
+
+export async function findRecentAdReferralHint(
+  db: AdReferralClient,
+  channel: string,
+  senderId: string,
+  now: Date = new Date()
+): Promise<{ headline: string | null; sourceUrl: string | null } | null> {
+  try {
+    const referral = await db.adReferral.findUnique({
+      where: { channel_senderId: { channel, senderId } },
+    });
+    if (!referral) return null;
+
+    const ageMs = now.getTime() - new Date(referral.capturedAt).getTime();
+    if (ageMs > AD_REFERRAL_REPLY_HOURS * 60 * 60 * 1000) return null;
+    if (!referral.headline && !referral.sourceUrl) return null;
+
+    return { headline: referral.headline, sourceUrl: referral.sourceUrl };
+  } catch {
+    // Shaping a nicer opening is never worth failing the reply over.
+    return null;
+  }
+}
