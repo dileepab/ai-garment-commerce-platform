@@ -118,7 +118,7 @@ export async function findRecentAdReferralHint(
   channel: string,
   senderId: string,
   now: Date = new Date()
-): Promise<{ headline: string | null; sourceUrl: string | null } | null> {
+): Promise<{ headline: string | null; sourceUrl: string | null; capturedAt: Date } | null> {
   try {
     const referral = await db.adReferral.findUnique({
       where: { channel_senderId: { channel, senderId } },
@@ -129,7 +129,14 @@ export async function findRecentAdReferralHint(
     if (ageMs > AD_REFERRAL_REPLY_HOURS * 60 * 60 * 1000) return null;
     if (!referral.headline && !referral.sourceUrl) return null;
 
-    return { headline: referral.headline, sourceUrl: referral.sourceUrl };
+    // capturedAt is the click, not this message: a later "Hi" carries no
+    // referral of its own, so the row keeps the original timestamp and the
+    // caller can tell whether the ad has already been answered.
+    return {
+      headline: referral.headline,
+      sourceUrl: referral.sourceUrl,
+      capturedAt: new Date(referral.capturedAt),
+    };
   } catch {
     // Shaping a nicer opening is never worth failing the reply over.
     return null;

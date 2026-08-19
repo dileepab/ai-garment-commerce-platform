@@ -511,6 +511,8 @@ export async function routeCustomerMessage(
     select: {
       role: true,
       message: true,
+      // Used to tell whether the ad click has already been answered.
+      createdAt: true,
     },
   });
   const settings = await getMerchantSettings(brandFilter);
@@ -1468,7 +1470,18 @@ export async function routeCustomerMessage(
   // on a first message rather than one per message.
   if (useGreetingShortcut) {
     const referralHint = await findRecentAdReferralHint(prisma, input.channel, input.senderId);
-    const advertisedProduct = referralHint
+    // Say it once. The referral stays warm for a day, so without this a plain
+    // "Hi" a minute later was answered with the same four lines about the same
+    // skort — which is what one customer got. The repeat guard does not catch
+    // it: that one only fires on a repeated fallback, and this is an answer.
+    const alreadyAnswered = referralHint
+      ? recentMessages.some(
+          (entry) =>
+            entry.role === 'assistant' &&
+            entry.createdAt.getTime() >= referralHint.capturedAt.getTime()
+        )
+      : false;
+    const advertisedProduct = referralHint && !alreadyAnswered
       ? resolveProductFromAdReferral(
           referralHint,
           products.map((product) => ({
