@@ -95,7 +95,13 @@ export function resolveProductFromAdReferral(
   return scored[0].product;
 }
 
-/** The opening line for someone who arrived from an ad we can identify. */
+/**
+ * The opening line for someone who arrived from an ad we can identify.
+ *
+ * `introduce` says this is an AI. Most ad arrivals never see a greeting at all
+ * — this reply takes its place — so leaving it out here would skip the
+ * disclosure for the channel bringing in the most customers.
+ */
 export function buildAdArrivalReply(params: {
   customerName?: string | null;
   brandName: string;
@@ -103,10 +109,16 @@ export function buildAdArrivalReply(params: {
   itemCode?: string | null;
   price: string;
   sizes: string;
+  introduce?: boolean;
 }): string {
-  const greeting = params.customerName?.trim()
-    ? `Hi ${params.customerName.trim()}, welcome to ${params.brandName}.`
-    : `Welcome to ${params.brandName}.`;
+  const name = params.customerName?.trim();
+  const greeting = params.introduce
+    ? name
+      ? `Hi ${name}, you are chatting with ${params.brandName}'s AI assistant.`
+      : `You are chatting with ${params.brandName}'s AI assistant.`
+    : name
+      ? `Hi ${name}, welcome to ${params.brandName}.`
+      : `Welcome to ${params.brandName}.`;
 
   const lines = [
     `${greeting} The item in that ad is ${params.productName} — ${params.price}.`,

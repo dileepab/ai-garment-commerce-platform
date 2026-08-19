@@ -22,7 +22,7 @@ import {
 } from '@/lib/size-charts';
 import { getBusinessDayRangeFromEstimate } from '@/lib/order-draft';
 import { splitCsv, firstNameOf, sortSizeOptions, formatSizeList } from '@/lib/chat/message-utils';
-import { pickGreetingVariant } from '@/lib/chat/greeting-variants';
+import { pickGreetingVariant, pickIntroVariant } from '@/lib/chat/greeting-variants';
 import { buildGarmentSpecsForCustomer, type ProductGarmentSpecSource } from '@/lib/product-garment-specs';
 import {
   buildAvailableVariantReply,
@@ -590,6 +590,19 @@ export function buildGreetingReply(name?: string | null, brand?: string): string
   // Seeded on the customer, so their wording stays the same across their own
   // messages while other customers get different text. See greeting-variants.
   const variant = pickGreetingVariant(firstName || '');
+
+  return variant.en(firstName ? ` ${firstName}` : '', storeName);
+}
+
+/**
+ * The greeting for someone we have not spoken to recently, which says that
+ * they are talking to an AI. Same seeding as the plain greeting, so a customer
+ * keeps one voice.
+ */
+export function buildIntroGreetingReply(name?: string | null, brand?: string): string {
+  const firstName = firstNameOf(name);
+  const storeName = brand || 'our store';
+  const variant = pickIntroVariant(firstName || '');
 
   return variant.en(firstName ? ` ${firstName}` : '', storeName);
 }

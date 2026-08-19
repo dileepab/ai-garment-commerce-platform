@@ -2761,6 +2761,25 @@ async function main() {
         },
       },
       {
+        name: 'A first hello is told it is an AI assistant, a later one is not',
+        senderId: buildSender(runId, 'assistant-intro'),
+        messages: [
+          'Hello',
+          'Hi',
+        ],
+        verify: async ({ transcript }) => {
+          assert(
+            /AI assistant/i.test(transcript[0].bot),
+            `First contact should say it is an AI assistant.\n\nActual reply:\n${transcript[0].bot}`
+          );
+          // Said once a day, not on every hello.
+          assert(
+            !/AI assistant/i.test(transcript[1].bot),
+            `Second hello should not repeat the introduction.\n\nActual reply:\n${transcript[1].bot}`
+          );
+        },
+      },
+      {
         name: 'A plural "Prices , sizes" is answered with both, not just sizes',
         senderId: buildSender(runId, 'plural-price'),
         messages: [
