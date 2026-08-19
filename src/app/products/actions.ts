@@ -10,6 +10,13 @@ import {
 } from '@/lib/authz';
 import { nextProductSku } from '@/lib/product-sku';
 import { logAdminAudit } from '@/lib/admin-audit';
+import {
+  garmentTypeForProduct,
+  getStoredProductChart,
+  resolveTemplate,
+  writeProductChart,
+} from '@/lib/size-chart-store';
+import { normalizeChartInput, type SizeChartData } from '@/lib/size-chart-templates';
 
 export interface VariantInput {
   id?: number;
@@ -48,6 +55,12 @@ export interface ProductFormInput {
   aiFidelityNotes?: string | null;
   colorImages?: Array<{ color: string; angle?: string | null; imageUrl: string | null }>;
   variants: VariantInput[];
+  /**
+   * This product's own measurements, seeded from the brand's template for the
+   * garment type and then corrected by hand. Validated server-side against the
+   * type's own column vocabulary, so the form cannot introduce a column.
+   */
+  sizeChart?: unknown;
 }
 
 export interface ProductActionResult {
@@ -201,6 +214,10 @@ export async function createProduct(input: ProductFormInput): Promise<ProductAct
             },
           },
         });
+      }
+
+      if (input.sizeChart !== undefined) {
+        await writeProductChart(tx, created.id, normalizeChartInput(input.sizeChart));
       }
 
       return created;
@@ -397,6 +414,13 @@ export async function updateProduct(
           },
         });
       }
+
+      // Absent means the caller had nothing to say about the chart, which is
+      // not the same as clearing it — an update from elsewhere must not wipe
+      // measurements taken off the finished garment.
+      if (input.sizeChart !== undefined) {
+        await writeProductChart(tx, productId, normalizeChartInput(input.sizeChart));
+      }
     });
 
     revalidatePath('/products');
@@ -557,5 +581,50 @@ export async function setProductCatalogListing(
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error);
     return { success: false, error: 'Failed to update catalog listing.' };
+  }
+}
+
+// ── Size chart ───────────────────────────────────────────────────────────────
+
+export interface SizeChartFormData {
+  /** The garment type the style resolves to, or null when it resolves to none. */
+  garmentType: string | null;
+  /** The brand's full grading for this type. The form cuts it to the product's sizes. */
+  template: SizeChartData | null;
+  /** What this product already has stored, when it is an edit rather than a new product. */
+  storedChart: SizeChartData | null;
+}
+
+/**
+ * What the product form needs to show a chart: the brand's template for the
+ * chosen style, plus whatever the product already had. Resolved on the server
+ * because the style-to-garment-type mapping reads the chart assets from disk.
+ */
+export async function loadSizeChartForForm(input: {
+  productId?: number;
+  brand: string;
+  style: string;
+}): Promise<SizeChartFormData> {
+  const empty: SizeChartFormData = { garmentType: null, template: null, storedChart: null };
+
+  try {
+    const scope = await requireActionPermission('products:view');
+    if (input.brand.trim()) assertBrandAccess(scope, input.brand);
+
+    const garmentType = garmentTypeForProduct(input.style);
+    if (!garmentType) return empty;
+
+    const template = await resolveTemplate(input.brand, garmentType);
+    const storedChart = input.productId ? await getStoredProductChart(input.productId) : null;
+
+    return {
+      garmentType,
+      template,
+      storedChart: storedChart && storedChart.garmentType === garmentType ? storedChart : null,
+    };
+  } catch {
+    // The form falls back to showing no chart section rather than an error —
+    // a chart it cannot load must not block saving the product.
+    return empty;
   }
 }

@@ -1202,6 +1202,16 @@ export default async function SettingsPage({
               className="btn btn-secondary"
               href={
                 selectedBrand
+                  ? `/settings/size-charts?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
+                  : '/settings/size-charts'
+              }
+            >
+              Size charts
+            </Link>
+            <Link
+              className="btn btn-secondary"
+              href={
+                selectedBrand
                   ? `/settings/meta?${BRAND_QUERY_PARAM}=${encodeURIComponent(selectedBrand)}`
                   : '/settings/meta'
               }

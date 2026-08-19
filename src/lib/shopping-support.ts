@@ -21,6 +21,7 @@ import {
   getSizeChartDefinition,
   getSizeChartImagePath,
 } from '@/lib/size-charts';
+import { productSizeChartUrl } from '@/lib/size-chart-url';
 import {
   calculateSriLankaDeliveryWindow,
   formatSriLankaDisplayDate,
@@ -158,6 +159,7 @@ export async function tryHandleShoppingSupport(
         ? { brand: customer.preferredBrand }
         : undefined,
     select: {
+      id: true,
       name: true,
       price: true,
       sizes: true,
@@ -263,10 +265,15 @@ export async function tryHandleShoppingSupport(
         reply = `Sure. Here is our ${chart.label} size chart.`;
       }
 
-      imagePath = getSizeChartImagePath(
-        chartCategory,
-        params.brand || customer?.preferredBrand || null
-      ) || undefined;
+      // The chart for the dress they named, not for dresses in general. Falls
+      // back to the brand's drawn chart when no public base URL is configured.
+      imagePath =
+        (explicitProduct ? productSizeChartUrl(explicitProduct.id) : null) ||
+        getSizeChartImagePath(
+          chartCategory,
+          params.brand || customer?.preferredBrand || null
+        ) ||
+        undefined;
     } else {
       reply = buildSizeChartSelectionReply(products);
     }

@@ -8,7 +8,15 @@ import {
   getSizeChartCategoryFromStyle,
   getSizeChartDefinition,
   getSizeChartImagePath,
+  type SizeChartCategory,
 } from '@/lib/size-charts';
+import { listBrandTemplates } from '@/lib/size-chart-store';
+import {
+  buildChartForSizes,
+  chartHasValues,
+  parseStoredChart,
+  type SizeChartData,
+} from '@/lib/size-chart-templates';
 
 export const revalidate = 60;
 
@@ -59,6 +67,7 @@ type StorefrontProductRecord = Prisma.ProductGetPayload<{
       include: { inventory: true };
     };
     colorImages: true;
+    sizeChart: true;
     creatives: {
       select: {
         id: true;
@@ -203,9 +212,32 @@ function publicProductImages(
   return absolute;
 }
 
+/**
+ * The chart to publish for one product: its own measurements when it has them,
+ * otherwise its brand's template cut down to the sizes it is actually made in.
+ * Products created before charts became data have no row of their own, so the
+ * template path is the normal one for them rather than a fallback.
+ */
+function storefrontChart(
+  product: StorefrontProductRecord,
+  sizes: string[],
+  templates: Map<SizeChartCategory, SizeChartData>
+): SizeChartData | null {
+  const stored = product.sizeChart ? parseStoredChart(product.sizeChart) : null;
+  if (stored && chartHasValues(stored)) return stored;
+
+  const category = getSizeChartCategoryFromStyle(product.style);
+  const template = category ? templates.get(category) : null;
+  if (!template) return null;
+
+  const chart = sizes.length > 0 ? buildChartForSizes(template, sizes) : template;
+  return chartHasValues(chart) ? chart : null;
+}
+
 function mapProductForStorefront(
   product: StorefrontProductRecord,
-  origin: string
+  origin: string,
+  templates: Map<SizeChartCategory, SizeChartData>
 ) {
   const sizes = sortSizes(parseList(product.sizes));
   const colors = parseList(product.colors).map(formatColorName);
@@ -232,6 +264,7 @@ function mapProductForStorefront(
   const sizeChartImagePath = sizeChartCategory
     ? getSizeChartImagePath(sizeChartCategory, product.brand)
     : null;
+  const chart = storefrontChart(product, sizes, templates);
   const slug = `${slugify(product.name)}-${product.id}`;
   const swatchA = colorHex(colors[0], '#D9A899');
   const swatchB = colorHex(colors[1], '#9DB09A');
@@ -259,11 +292,23 @@ function mapProductForStorefront(
     colors,
     image,
     images,
-    sizeChart: sizeChartCategory && sizeChartImagePath
+    // Measurements, not a picture. The image URL stays on the payload — it is
+    // what every storefront reads today — but it now renders this product's own
+    // chart rather than one drawing shared by everything the brand sells.
+    sizeChart: chart
       ? {
-          category: sizeChartCategory,
-          label: getSizeChartDefinition(sizeChartCategory).label,
-          imageUrl: toAbsoluteUrl(sizeChartImagePath, origin),
+          // The chart's own type, not the style's. A product restyled after its
+          // chart was saved would otherwise be labelled "Dresses" over a table
+          // of inseams.
+          category: chart.garmentType,
+          label: getSizeChartDefinition(chart.garmentType).label,
+          unit: chart.unit,
+          imageUrl: toAbsoluteUrl(`/api/size-charts/${product.id}/image`, origin),
+          columns: chart.columns,
+          rows: chart.rows,
+          footerNote: chart.footerNote,
+          // The hand-drawn brand chart, while storefronts move across.
+          legacyImageUrl: sizeChartImagePath ? toAbsoluteUrl(sizeChartImagePath, origin) : null,
         }
       : null,
     colorImages: product.colorImages.map((entry) => ({
@@ -318,6 +363,7 @@ export async function GET(request: Request) {
         colorImages: {
           orderBy: { color: 'asc' },
         },
+        sizeChart: true,
         creatives: {
           where: { status: 'saved' },
           orderBy: { createdAt: 'desc' },
@@ -336,12 +382,17 @@ export async function GET(request: Request) {
       orderBy: [{ createdAt: 'desc' }],
     });
 
+    // One read for the whole brand rather than one per product.
+    const templates = new Map(
+      (await listBrandTemplates(brand)).map((entry) => [entry.garmentType, entry.chart] as const)
+    );
+
     const response = NextResponse.json({
       success: true,
       data: {
         brand: PLATFORM_TO_BRAND_SLUG[brand],
         platformBrand: brand,
-        products: products.map((product) => mapProductForStorefront(product, origin)),
+        products: products.map((product) => mapProductForStorefront(product, origin, templates)),
       },
     });
     response.headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');

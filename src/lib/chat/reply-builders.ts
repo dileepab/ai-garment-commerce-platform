@@ -716,15 +716,25 @@ export function buildSizeChartSelectionReply(categories: SizeChartCategory[]): s
 export function buildSizeChartReply(
   categories: SizeChartCategory[],
   specificProductName?: string | null,
-  brand?: string | null
+  brand?: string | null,
+  /**
+   * The rendered chart for the one product being asked about. Used in place of
+   * the brand's drawn chart when the question is about a single product and a
+   * single garment type — that chart carries this product's own measurements
+   * and only the sizes it is made in. Resolved by the caller, since building it
+   * needs the app's public base URL.
+   */
+  productChartUrl?: string | null
 ): {
   reply: string;
   imagePaths: string[];
 } {
   const uniqueCategories = [...new Set(categories)];
-  const imagePaths = uniqueCategories
+  const brandChartPaths = uniqueCategories
     .map((category) => getSizeChartImagePath(category, brand))
     .filter((imagePath): imagePath is string => Boolean(imagePath));
+  const imagePaths =
+    productChartUrl && uniqueCategories.length === 1 ? [productChartUrl] : brandChartPaths;
 
   if (specificProductName && uniqueCategories.length === 1) {
     return {
