@@ -87,6 +87,9 @@ const replyBuilders = loadModule<{
     buildAvailableVariantReply,
     resolveRequestedVariant,
   },
+  '@/lib/chat/language': {
+    EMPTY_CATALOG_REPLY: 'There are no items listed right now. Please check again later.',
+  },
   '@/lib/contact-profile': { getMissingContactFields: () => [] },
   '@/lib/delivery-calendar': {
     calculateSriLankaDeliveryWindow: () => ({

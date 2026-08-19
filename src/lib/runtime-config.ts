@@ -187,7 +187,7 @@ export function getDefaultMerchantSettings(): MerchantSettings {
       hours: cleanText(process.env.STORE_SUPPORT_HOURS, '9:00 AM to 6:00 PM'),
       handoffMessage: null,
       processingErrorMessage:
-        'Sorry, something went wrong while handling your last message. Please reply once more, or contact support if it is urgent.',
+        'Sorry, that didn’t go through. Please send your message once more.',
     },
     delivery: {
       colomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,

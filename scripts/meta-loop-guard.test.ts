@@ -37,6 +37,18 @@ test('detects managed Instagram fallback auto-replies', () => {
     ),
     true,
   );
+  assert.equal(
+    isManagedInstagramAutoReplyText(
+      'I’ve passed this to our team so they can help. Please call or WhatsApp our team on 0701234567 during 9:00 AM to 6:00 PM.',
+    ),
+    true,
+  );
+  assert.equal(
+    isManagedInstagramAutoReplyText(
+      'Please call or WhatsApp our team on 0701234567 during 9:00 AM to 6:00 PM.',
+    ),
+    true,
+  );
 });
 
 test('extracts sender IDs and message text from webhook events', () => {

@@ -37,6 +37,7 @@ function loadTypeScriptModule(relativePath, dependencyOverrides = {}) {
 
 const language = loadTypeScriptModule('src/lib/chat/language.ts', {
   '@/lib/app-log': { logDebug: () => {}, logError: () => {}, logWarn: () => {} },
+  '@/lib/chat/greeting-variants': { matchGreeting: () => null },
 });
 const messageUtils = loadTypeScriptModule('src/lib/chat/message-utils.ts', {
   '@/lib/contact-profile': { cleanStoredContactName: (value) => value },
@@ -44,6 +45,10 @@ const messageUtils = loadTypeScriptModule('src/lib/chat/message-utils.ts', {
 const catalogGuidance = loadTypeScriptModule('src/lib/chat/catalog-guidance.ts');
 const replyBuilders = loadTypeScriptModule('src/lib/chat/reply-builders.ts', {
   '@/lib/chat/catalog-guidance': catalogGuidance,
+  '@/lib/chat/language': language,
+  '@/lib/variant-availability': { isVariantAvailable: () => true },
+  '@/lib/product-item-code': { productItemCode: () => null },
+  '@/lib/chat/greeting-variants': { pickGreetingVariant: () => ({ en: () => 'Hello.' }) },
   '@/lib/contact-profile': {
     getMissingContactFields: () => [],
   },

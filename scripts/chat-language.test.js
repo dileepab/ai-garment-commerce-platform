@@ -25,6 +25,9 @@ function loadLanguageModule() {
     if (request === '@/lib/app-log') {
       return { logDebug: () => {}, logError: () => {}, logWarn: () => {} };
     }
+    if (request === '@/lib/chat/greeting-variants') {
+      return { matchGreeting: () => null };
+    }
     return originalRequire(request);
   };
   moduleInstance._compile(result.outputText, LANGUAGE_FILE);
@@ -61,7 +64,7 @@ assert.equal(
 
 async function run() {
   const romanDelivery = await localizeReplyWithGemini(
-    'Delivery to Negombo costs Rs 450. Delivery to Negombo usually takes 2-3 business days, excluding weekends and Sri Lankan public holidays. If the order is confirmed on July 24, 2026, the expected delivery window is July 28, 2026 to July 30, 2026.\n\nYes, COD works for us. Available payment methods are COD and Online Transfer.',
+    'Delivery to Negombo costs Rs 450. Delivery to Negombo usually takes 2-3 business days, excluding weekends and Sri Lankan public holidays. If the order is confirmed on July 24, 2026, the expected delivery window is July 28, 2026 to July 30, 2026.\n\nYes, COD is available. Available payment methods are COD and Online Transfer.',
     'sinhala',
     'roman'
   );
@@ -69,6 +72,41 @@ async function run() {
   assert.match(romanDelivery, /Negombo walata delivery charge eka Rs 450/);
   assert.match(romanDelivery, /Ow, COD puluwan/);
   assert.doesNotMatch(romanDelivery, /[\u0D80-\u0DFF]/);
+
+  const romanChargeOnly = await localizeReplyWithGemini(
+    'Delivery to Bingiriya costs Rs 425.',
+    'sinhala',
+    'roman'
+  );
+  assert.equal(romanChargeOnly, 'Bingiriya walata delivery charge eka Rs 425.');
+
+  const romanClarification = await localizeReplyWithGemini(
+    'Sorry, I missed that. Which item or order do you mean?',
+    'sinhala',
+    'roman'
+  );
+  assert.match(romanClarification, /mona item eka hari order eka ganada/);
+
+  const tamilThanks = await localizeReplyWithGemini("You're welcome 😊", 'tamil', 'native');
+  assert.equal(tamilThanks, 'பரவாயில்லை 😊');
+
+  // Every wording buildAcknowledgementReply can produce needs an entry, not
+  // just the generic one — otherwise a thanks mid-order answers in English.
+  const romanAcknowledgement = await localizeReplyWithGemini(
+    "Anytime — mention order #1042 when you need another update.",
+    'sinhala',
+    'roman'
+  );
+  assert.match(romanAcknowledgement, /order #1042/);
+  assert.doesNotMatch(romanAcknowledgement, /Anytime|another update/);
+  assert.doesNotMatch(romanAcknowledgement, /[\u0D80-\u0DFF]/);
+
+  const tamilAcknowledgement = await localizeReplyWithGemini(
+    'No problem. Reply "yes" when you are ready, or tell me what to change.',
+    'tamil',
+    'native'
+  );
+  assert.doesNotMatch(tamilAcknowledgement, /No problem|tell me what to change/);
 
   const romanVariantUpdate = await localizeReplyWithGemini(
     "Got it — I've updated the selection to size L.\n\nPlease let me know the color you need for Breezy Summer Dress. Available colors: Coral, Sage.",

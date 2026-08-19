@@ -232,11 +232,17 @@ export function inferAssistantReplyKind(text: string): string {
   const normalized = text.toLowerCase();
 
   if (!text.trim()) return 'no_reply';
-  if (normalized.includes('flagged this conversation') || normalized.includes('team follow-up')) {
+  if (
+    normalized.includes('flagged this conversation') ||
+    normalized.includes('team follow-up') ||
+    (normalized.includes('passed this') && normalized.includes('our team')) ||
+    normalized.includes('asked our team to call you')
+  ) {
     return 'support_handoff';
   }
   if (
     normalized.includes("didn't quite catch") ||
+    normalized.includes('sorry, i missed that') ||
     text.includes('පැහැදිලිව තේරුණේ නැහැ') ||
     text.includes('தெளிவாக புரியவில்லை')
   ) {
@@ -252,6 +258,7 @@ export function inferAssistantReplyKind(text: string): string {
   if (
     normalized.includes('latest collection is dropping') ||
     normalized.includes('do not have any items listed right now') ||
+    normalized.includes('there are no items listed right now') ||
     text.includes('අලුත්ම ඇඳුම් එකතුව') ||
     text.includes('භාණ්ඩ කිසිවක් ලැයිස්තුගත කර නැහැ') ||
     text.includes('புதிய ஆடைகள் விரைவில்') ||
@@ -264,10 +271,24 @@ export function inferAssistantReplyKind(text: string): string {
   if (normalized.includes('delivery window') || text.includes('අපේක්ෂිත භාරදීමේ කාලය')) {
     return 'delivery_question';
   }
-  if (normalized.includes('cod works') || text.includes('COD පහසුකම')) {
+  if (
+    normalized.includes('cod works') ||
+    // Covers "Yes, COD is available.", "Yes, Online Transfer is available."
+    // and "Yes, both COD and Online Transfer are available." — one marker per
+    // wording kept letting the online-transfer answers fall through to generic.
+    /\byes, (?:both .+ and .+ are|.+ is) available\b/.test(normalized) ||
+    text.includes('COD පහසුකම')
+  ) {
     return 'payment_question';
   }
-  if (normalized.includes('support team directly') || normalized.includes('call or whatsapp')) {
+  if (
+    normalized.includes('support team directly') ||
+    normalized.includes('call or whatsapp') ||
+    normalized.includes('please call our team') ||
+    normalized.includes('please whatsapp our team') ||
+    // What a brand with no phone or WhatsApp configured sends instead.
+    normalized.includes('our team will reply here during')
+  ) {
     return 'support_contact';
   }
   if (/^hello\b/i.test(text) || text.startsWith('ආයුබෝවන්') || text.startsWith('வணக்கம்')) {

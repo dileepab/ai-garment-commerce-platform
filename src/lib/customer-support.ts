@@ -59,7 +59,7 @@ function formatSupportContactLine(
     : '';
 
   if (!directPhone && !directWhatsapp) {
-    return `Please reply here and our support team will follow up during ${config.hours}.${orderReference}`;
+    return `Our team will reply here during ${config.hours}.${orderReference}`;
   }
 
   if (directPhone && directWhatsapp && directPhone === directWhatsapp) {
@@ -138,18 +138,11 @@ export function buildSupportContactReply(options?: {
     ? buildSupportContactLineFromConfig(options.supportConfig, options)
     : buildSupportContactLine(options);
 
-  return `You can reach our support team directly. ${contactLine}`;
+  return contactLine;
 }
 
-export function buildSupportContactAcknowledgement(options?: {
-  orderId?: number | null;
-  supportConfig?: SupportContactConfig;
-}): string {
-  const contactLine = options?.supportConfig
-    ? buildSupportContactLineFromConfig(options.supportConfig, options)
-    : buildSupportContactLine(options);
-
-  return `You are welcome. ${contactLine}`;
+export function buildSupportContactAcknowledgement(): string {
+  return "You're welcome 😊";
 }
 
 export function buildSupportWaitingReply(params: {
@@ -173,26 +166,29 @@ export function buildHumanSupportReply(params: {
   orderId?: number | null;
   supportConfig?: SupportContactConfig;
 }): string {
-  const contactLine = params.supportConfig
-    ? buildSupportContactLineFromConfig(params.supportConfig, { orderId: params.orderId })
-    : buildSupportContactLine({ orderId: params.orderId });
-  const defaultLead = `I want to make sure you get the right help for this ${getSupportReasonLabel(
-    params.reason
-  )}.`;
-  const reasonLead: Partial<Record<SupportIssueReason, string>> = {
-    refund_or_damage:
-      'I want to make sure you get the right help for this order issue. Please send your order number and clear photos of the item and package so our team can review the refund or replacement options.',
-    return_request:
-      'We can help with the return request. Please send your order number and the reason for returning the item so our team can review it.',
-    exchange_request:
-      'We can check the exchange options for you. Please send your order number and the size, color, or item you want instead, subject to stock availability.',
+  const reasonLead: Record<SupportIssueReason, string> = {
+    human_request: 'I’ve passed this to our team so they can help.',
+    delivery_issue: 'I’ve passed this delivery issue to our team to check.',
+    payment_issue: 'I’ve passed this payment issue to our team to check.',
+    refund_or_damage: params.orderId
+      ? 'I’m sorry about this. Please send clear photos of the item and package so our team can review it.'
+      : 'I’m sorry about this. Please send your order number and clear photos of the item and package so our team can review it.',
+    return_request: params.orderId
+      ? 'We can help with the return. Please send the reason for returning the item.'
+      : 'We can help with the return. Please send your order number and the reason for returning the item.',
+    exchange_request: params.orderId
+      ? 'We can check the exchange, subject to stock. Please send the size, color, or item you want instead.'
+      : 'We can check the exchange, subject to stock. Please send your order number and the size, color, or item you want instead.',
+    unclear_request: 'I’m not fully sure what you mean, so I’ve passed this to our team.',
   };
-  const handoffLead =
+  // Reasons are also read back from the database and cast, so a row written
+  // before a reason was renamed reaches here outside the union. Without a
+  // fallback that customer is sent the literal string "undefined".
+  return (
     params.supportConfig?.handoffMessage?.trim() ||
     reasonLead[params.reason] ||
-    defaultLead;
-
-  return `${handoffLead} ${contactLine} I have also flagged this conversation for a team follow-up.`;
+    'I’ve passed this to our team so they can help.'
+  );
 }
 
 export function buildSupportConversationSummary(params: {

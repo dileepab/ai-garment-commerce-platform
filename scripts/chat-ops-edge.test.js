@@ -75,7 +75,12 @@ const {
 
 const {
   extractDeliveryLocationHint,
+  looksLikeCallbackRequest,
   looksLikeDeliveryChargeQuestion,
+  looksLikeDeliveryQuestion,
+  looksLikeDeliveryTimingQuestion,
+  looksLikeHumanEscalationRequest,
+  looksLikeStoreLocationQuestion,
   shouldIncludeDeliveryCharge,
 } = loadModule(MESSAGE_UTILS_FILE, {
   '@/lib/contact-profile': {
@@ -86,10 +91,22 @@ const {
 const catalogGuidance = loadModule(CATALOG_GUIDANCE_FILE, {});
 
 const {
+  buildAcknowledgementReply,
+  buildClarificationReply,
   buildDeliveryReply,
   buildPaymentAvailabilityReply,
+  buildStoreLocationReply,
 } = loadModule(REPLY_BUILDERS_FILE, {
   '@/lib/chat/catalog-guidance': catalogGuidance,
+  '@/lib/chat/language': {
+    EMPTY_CATALOG_REPLY: 'There are no items listed right now. Please check again later.',
+  },
+  '@/lib/variant-availability': {
+    isVariantAvailable: () => true,
+  },
+  '@/lib/product-item-code': {
+    productItemCode: () => null,
+  },
   '@/lib/contact-profile': {
     getMissingContactFields: () => [],
   },
@@ -101,9 +118,9 @@ const {
     formatSriLankaDisplayDate: (date) => date.toISOString().slice(0, 10),
   },
   '@/lib/customer-support': {
-    buildSupportContactAcknowledgement: () => '',
-    buildSupportContactLine: () => '',
-    buildSupportContactLineFromConfig: () => '',
+    buildSupportContactAcknowledgement: () => "You're welcome 😊",
+    buildSupportContactLine: () => 'Please call or WhatsApp our team on 0700000000 during 9:00 AM to 6:00 PM.',
+    buildSupportContactLineFromConfig: () => 'Please call or WhatsApp our team on 0700000000 during 9:00 AM to 6:00 PM.',
   },
   '@/lib/order-status-display': {
     getOrderStageLabel: (status) => status,
@@ -121,6 +138,11 @@ const {
     formatSizeList: (value) => value || '',
     sortSizeOptions: (values) => values,
     splitCsv: (value) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean),
+  },
+  '@/lib/chat/greeting-variants': {
+    pickGreetingVariant: () => ({
+      en: (_name, storeName) => `Hello. How can I help you with ${storeName} today?`,
+    }),
   },
   '@/lib/product-garment-specs': {
     buildGarmentSpecsForCustomer: () => '',
@@ -158,8 +180,13 @@ function loadOrderHandlers() {
     '@/lib/order-draft': {
       buildContactConfirmationReply: noOp,
       buildOrderSummaryReply: noOp,
+      draftItemCount: () => 1,
+      draftItems: (draft) => [draft],
       getDeliveryChargeForAddress: () => 0,
       getDeliveryEstimateForAddress: () => '2-3 business days',
+      looksLikeItemAdditionRequest: () => false,
+      startNewDraftItem: (draft) => draft,
+      withDraftTotal: (draft) => draft,
     },
     '@/lib/order-details': {
       buildCancellationSuccessReply: noOp,
@@ -176,6 +203,9 @@ function loadOrderHandlers() {
       isOrderMutableStatus: () => false,
       OrderRequestError: class OrderRequestError extends Error {},
       updateSingleItemOrderQuantityById: noOp,
+    },
+    '@/lib/ad-referral': {
+      findOrderAdAttribution: noOp,
     },
     '@/lib/koombiyo-courier': {
       autoAssignKoombiyoWaybill: noOp,
@@ -262,6 +292,39 @@ test('courier charge wording and common deliver typo request a price', () => {
     looksLikeDeliveryChargeQuestion('How much is delivery to Negombo, how long will it take?'),
     true
   );
+});
+
+test('charge-only delivery questions receive only the verified charge', () => {
+  const reply = buildDeliveryReply({
+    address: 'Bingiriya',
+    referenceDate: new Date('2026-07-24T00:00:00.000Z'),
+    requestedDate: null,
+    isDraft: true,
+    getDeliveryEstimateForAddress: () => '2-3 business days',
+    getDeliveryChargeForAddress: () => 425,
+    includeCharge: true,
+    includeTiming: false,
+  });
+
+  assert.equal(reply, 'Delivery to Bingiriya costs Rs 425.');
+  assert.doesNotMatch(reply, /business days|public holidays|delivery window/i);
+  assert.equal(looksLikeDeliveryTimingQuestion('Delivery charge to Bingiriya?'), false);
+  assert.equal(
+    looksLikeDeliveryTimingQuestion('How much is delivery to Bingiriya, and how long will it take?'),
+    true
+  );
+
+  const missingLocationReply = buildDeliveryReply({
+    address: null,
+    referenceDate: new Date('2026-07-24T00:00:00.000Z'),
+    requestedDate: null,
+    isDraft: true,
+    getDeliveryEstimateForAddress: () => '2-3 business days',
+    getDeliveryChargeForAddress: () => 425,
+    includeCharge: true,
+    includeTiming: false,
+  });
+  assert.equal(missingLocationReply, 'Which city or town is the delivery for?');
 });
 
 test('Sinhala delivery-charge wording and contextual location follow-ups request a price', () => {
@@ -354,7 +417,7 @@ test('split transfer and COD question is answered explicitly', () => {
 
   assert.match(reply, /split|half.*rest|combine|single payment/i);
   assert.match(reply, /not supported|not available|cannot|can't|confirm/i);
-  assert.doesNotMatch(reply, /^Yes, COD works for us\./i);
+  assert.doesNotMatch(reply, /^Yes, COD (?:works for us|is available)\./i);
 });
 
 test('asking whether COD and transfer are both offered is not treated as split payment', () => {
@@ -366,6 +429,110 @@ test('asking whether COD and transfer are both offered is not treated as split p
 
   assert.match(reply, /both COD and Online Transfer are available/i);
   assert.doesNotMatch(reply, /split payment|not supported/i);
+});
+
+test('a direct COD question gets a direct answer without listing unrelated methods', () => {
+  const reply = buildPaymentAvailabilityReply({
+    message: 'Do you have COD?',
+    methods: ['COD', 'Online Transfer'],
+    onlineTransferLabel: 'Online Transfer',
+  });
+
+  assert.equal(reply, 'Yes, COD is available.');
+  assert.doesNotMatch(reply, /online transfer|available payment methods/i);
+});
+
+test('callback requests are human handoffs, not requests for the support number', () => {
+  for (const message of [
+    'Please call me',
+    'Can someone from your team call me?',
+    'Mata call ekak denna',
+    'මට කෝල් කරන්න',
+    'Enna call pannunga',
+    'என்னை அழையுங்கள்',
+  ]) {
+    assert.equal(looksLikeCallbackRequest(message), true, message);
+    assert.equal(looksLikeHumanEscalationRequest(message), true, message);
+  }
+
+  assert.equal(looksLikeCallbackRequest('Can I have your support phone number?'), false);
+});
+
+test('a customer giving their name is not mistaken for a callback request', () => {
+  // "You can call me Sam" is how a customer answers the name prompt. Treating
+  // it as a callback escalated the conversation to a human and lost the order.
+  for (const message of ['You can call me Sam', 'my friends call me Nishi']) {
+    assert.equal(looksLikeCallbackRequest(message), false, message);
+    assert.equal(looksLikeHumanEscalationRequest(message), false, message);
+  }
+
+  // The opposite request must not escalate either.
+  assert.equal(looksLikeCallbackRequest('Do not call me, just message here'), false);
+
+  // Still a callback when the phrase continues the request.
+  assert.equal(looksLikeCallbackRequest('call me back'), true);
+  assert.equal(looksLikeCallbackRequest('call me on 0771234567'), true);
+});
+
+test('delivery routing ignores timing words that carry no delivery context', () => {
+  // A bare "when" or "days" belongs to store hours and production time as often
+  // as to delivery, and routing those here answers the wrong question.
+  for (const message of [
+    'When do you open?',
+    'When is the shop open?',
+    'How many days do you take to make it?',
+  ]) {
+    assert.equal(looksLikeDeliveryQuestion(message), false, message);
+  }
+
+  // එවන්න on its own means "send", so it must not stand in for delivery.
+  assert.equal(looksLikeDeliveryQuestion('photo එවන්න'), false);
+  assert.equal(looksLikeDeliveryQuestion('එවන්න දවස් කීයක් යනවද'), true);
+
+  for (const message of [
+    'How long is delivery?',
+    'When will it arrive?',
+    'delivery charge to Kandy?',
+  ]) {
+    assert.equal(looksLikeDeliveryQuestion(message), true, message);
+  }
+});
+
+test('a declined payment method still lists what is available', () => {
+  const reply = buildPaymentAvailabilityReply({
+    message: 'Can I pay COD?',
+    methods: ['Online Transfer'],
+    onlineTransferLabel: 'Online Transfer',
+  });
+
+  assert.match(reply, /COD is not available right now\./);
+  assert.match(reply, /Online Transfer/);
+});
+
+test('colloquial Roman Sinhala location questions use the store-location route', () => {
+  assert.equal(looksLikeStoreLocationQuestion('Oya.. bingiriyeda...........s?'), true);
+  assert.equal(looksLikeStoreLocationQuestion('Oya koheda?'), true);
+  assert.equal(looksLikeStoreLocationQuestion('shop eka koheda?'), true);
+  assert.equal(looksLikeStoreLocationQuestion('Oya hondada?'), false);
+});
+
+test('common conversational replies stay short and avoid a phone-number dump', () => {
+  const baseState = {
+    pendingStep: 'none',
+    lastReferencedOrderId: null,
+    lastAssistantReplyKind: 'generic',
+  };
+
+  assert.equal(
+    buildClarificationReply(baseState),
+    'Sorry, I missed that. Which item or order do you mean?'
+  );
+  assert.doesNotMatch(buildClarificationReply(baseState), /call|whatsapp|support/i);
+  assert.equal(buildAcknowledgementReply(baseState), "You're welcome 😊");
+  assert.equal(
+    buildStoreLocationReply(),
+    'We take orders online and do not have a confirmed branch list here. For store locations, please call or WhatsApp our team on 0700000000 during 9:00 AM to 6:00 PM.'
+  );
 });
 
 test('credit-card and PayPal question rejects unsupported methods and lists valid options', () => {
@@ -428,6 +595,9 @@ async function runPreOrderVariantChange() {
   };
 
   return handlePlaceOrder({
+    input: {
+      currentMessage: 'Actually change it to White, size L',
+    },
     aiAction: {
       action: 'place_order',
       productName: product.name,

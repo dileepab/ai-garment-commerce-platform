@@ -785,7 +785,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
       });
 
       return finalizeReply({
-        reply: buildOrderPlacedReply(state.orderDraft, order.id, ctx.settings.support),
+        reply: buildOrderPlacedReply(state.orderDraft, order.id),
         orderId: order.id,
         assistantReplyKind: 'order_confirmed',
         nextState: {
@@ -829,7 +829,7 @@ export async function handle_confirm_pending(ctx: ChatContext) {
       );
 
       return finalizeReply({
-        reply: buildQuantityUpdateSuccessReply(state.quantityUpdate, ctx.settings.support),
+        reply: buildQuantityUpdateSuccessReply(state.quantityUpdate),
         orderId: state.quantityUpdate.orderId,
         assistantReplyKind: 'order_confirmed',
         nextState: {
@@ -1340,9 +1340,9 @@ export async function handle_update_order_quantity(ctx: ChatContext) {
     return escalateToSupport(
       'human_request',
       targetOrder.id,
-      `Order #${targetOrder.id} has already been processed for courier handover, so I cannot update the quantity in chat. ${buildSupportContactLineFromConfig(ctx.settings.support, {
+      `Order #${targetOrder.id} has already been processed for courier handover, so I cannot update the quantity in chat. I’ve passed this to our team for follow-up. ${buildSupportContactLineFromConfig(ctx.settings.support, {
         orderId: targetOrder.id,
-      })} I have also flagged this conversation for a team follow-up.`
+      })}`
     );
   }
 

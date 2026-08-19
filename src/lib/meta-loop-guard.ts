@@ -98,9 +98,17 @@ function getManagedMetaAutoReplyTextKind(messageText?: string | null): 'greeting
   const lower = normalized.toLowerCase();
   if (
     lower.includes("sorry, i didn't quite catch that") ||
+    lower.includes('sorry, i missed that') ||
     lower.includes('you can reach our support team directly') ||
     lower.includes('i have also flagged this conversation for a team follow-up') ||
-    lower.includes('i want to make sure you get the right help for this')
+    lower.includes('i want to make sure you get the right help for this') ||
+    // Matched as two parts rather than as one phrase: the handoff leads word
+    // this differently per reason ("passed this delivery issue to our team"),
+    // and a literal phrase check silently missed those.
+    (lower.includes('passed this') && lower.includes('our team')) ||
+    lower.includes('asked our team to call you') ||
+    lower.startsWith('our team will reply here during ') ||
+    /^please (?:call|whatsapp|call or whatsapp) our team on .+ during .+\.$/i.test(normalized)
   ) {
     return 'fallback';
   }

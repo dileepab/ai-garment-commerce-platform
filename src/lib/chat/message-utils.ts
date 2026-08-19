@@ -359,6 +359,10 @@ export function looksLikeExchangeQuestion(message: string): boolean {
 export function looksLikeHumanSupportRequest(message: string): boolean {
   const normalized = normalizeText(message);
 
+  if (looksLikeCallbackRequest(message)) {
+    return true;
+  }
+
   if (
     /\b(change|update|correct|edit)\b.*\b(phone|contact|mobile)\b.*\bnumber\b/.test(normalized)
   ) {
@@ -585,12 +589,13 @@ export function extractGiftNoteFromText(message: string): string | null {
   return null;
 }
 
-export function looksLikeDeliveryQuestion(message: string): boolean {
+/**
+ * Sinhala and Tamil delivery-timing wording: a send-or-deliver word together
+ * with a duration word. Scoped on purpose — එවන්න and அனுப்ப both mean "send",
+ * so on their own they match "photo එවන්න", which is a request for a photo.
+ */
+function looksLikeLocalizedDeliveryTimingQuestion(message: string): boolean {
   return (
-    /\bhow long\b|\bdelivery\b|\bdeliver(?:ed|y)?\b|\bship(?:ped|ping)?\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/i.test(
-      message
-    ) ||
-    looksLikeDeliveryChargeQuestion(message) ||
     /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|කීයක්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(
       message
     ) ||
@@ -601,6 +606,38 @@ export function looksLikeDeliveryQuestion(message: string): boolean {
       message
     ) ||
     /(எத்தனை|நாட்கள்|நேரம்|எப்போது).*(அனுப்ப|டெலிவரி|delivery)/i.test(message)
+  );
+}
+
+export function looksLikeDeliveryQuestion(message: string): boolean {
+  return (
+    // Every timing word here is anchored to delivery wording. A bare "when" or
+    // "days" belongs to "when do you open?" and "how many days to make it?" as
+    // often as to delivery, and routing those to the delivery handler answers
+    // a store-hours question with a delivery estimate.
+    /\bhow long\b|\bdelivery\b|\bdeliver(?:ed|y)?\b|\bship(?:ped|ping)?\b|\barrive\b|\bbefore\b|\bwhen can i get\b|\bwhen will it arrive\b/i.test(
+      message
+    ) ||
+    looksLikeDeliveryChargeQuestion(message) ||
+    looksLikeLocalizedDeliveryTimingQuestion(message)
+  );
+}
+
+/**
+ * Whether a message already known to be about delivery is asking about timing
+ * rather than only about the charge.
+ *
+ * Deliberately looser than looksLikeDeliveryQuestion: it runs after delivery
+ * intent is established, so a bare "when" is a fair signal here. It is not a
+ * classifier on its own and must not be used as one.
+ */
+export function looksLikeDeliveryTimingQuestion(message: string): boolean {
+  const normalized = normalizeText(message);
+
+  return (
+    /\b(?:how long|when|days?|duration|estimate|eta|arrive|before)\b|\bdelivery (?:time|duration|estimate|eta)\b/i.test(
+      normalized
+    ) || looksLikeLocalizedDeliveryTimingQuestion(message)
   );
 }
 
@@ -767,6 +804,11 @@ export function looksLikeStoreLocationQuestion(message: string): boolean {
     /\b(shop|store|outlet|branch|branches|opening hours|outside colombo)\b/i.test(
       normalized
     ) ||
+    // Common Roman Sinhala location wording. A live customer wrote
+    // "Oya.. bingiriyeda...........s?" (roughly "Are you in Bingiriya?").
+    // Requiring either `koheda` or the location suffix `-yeda` avoids treating
+    // ordinary "oya ... da?" questions as store-location requests.
+    /\b(?:oya|oyala)\s+(?:koheda|[a-z]{3,}yeda)\b/i.test(normalized) ||
     /(කඩේ|කඩය|ශාඛා|branch|shop|store|ලිපිනය|තැන|කොහෙද|කොහෙද තියෙන්නේ|විවෘත|වහන්නේ|කීයට|කොළඹින් පිට)/i.test(
       message
     ) ||
@@ -902,10 +944,54 @@ export function isUnambiguousCancellationMessage(message: string): boolean {
 export function looksLikeHumanEscalationRequest(message: string): boolean {
   const lower = message.toLowerCase();
   return (
+    looksLikeCallbackRequest(message) ||
     /\b(real person|live agent|human agent|actual person|talk to someone|speak to someone|talk to a human|speak to a human)\b/.test(
       lower
     ) ||
     /\b(talk|speak|chat)\b.{0,20}\b(someone|person|human|agent|representative)\b/.test(lower) ||
     /\b(i need|i want|need to|want to|can i)\b.{0,25}\b(human|agent|real person)\b/.test(lower)
+  );
+}
+
+/**
+ * A request for the merchant to call the customer is a human handoff, not a
+ * request for the store's phone number. Keeping it separate prevents replies
+ * such as "please call support" when the customer explicitly asked us to call.
+ */
+/**
+ * "Call me" is a request only when nothing name-like follows it. "You can call
+ * me Sam" is how a customer answers the name prompt, and treating that as a
+ * callback request escalates the conversation to a human instead of taking the
+ * name — so the phrase counts only at the end of the message or before a word
+ * that continues the request.
+ */
+const CALLBACK_CALL_ME =
+  /\bcall\s+me\b(?=$|\s+(?:back|please|pls|now|soon|asap|urgently|quickly|directly|today|tomorrow|on|at|about|regarding|when|once|first|instead)\b|\s+\d)/;
+
+/** "Do not call me, just message here" is the opposite request. */
+const CALLBACK_REFUSED = /\b(?:do not|dont|don t|no need to|never)\s+(?:call|phone|contact)\s+me\b/;
+
+export function looksLikeCallbackRequest(message: string): boolean {
+  const normalized = normalizeText(message);
+
+  if (CALLBACK_REFUSED.test(normalized)) {
+    return false;
+  }
+
+  return (
+    CALLBACK_CALL_ME.test(normalized) ||
+    /\b(?:give|make)\s+me\s+a\s+call\b/.test(normalized) ||
+    /\b(?:contact|phone|ring)\s+me\b/.test(normalized) ||
+    /\bmata\b.{0,24}\bcall(?:\s+ekak)?\b.{0,20}\b(?:denna|ganna|karanna)\b/.test(
+      normalized
+    ) ||
+    /\bcall(?:\s+ekak)?\b.{0,20}\b(?:denna|ganna|karanna)\b.{0,20}\bmata\b/.test(
+      normalized
+    ) ||
+    /(මට).{0,24}(කෝල්|අමතන්න)|(කෝල්|අමතන්න).{0,24}(මට)/i.test(message) ||
+    /\b(?:enna|enakku)\b.{0,24}\bcall\b.{0,20}\b(?:pannu|pannunga|seiyunga)\b/.test(
+      normalized
+    ) ||
+    /(என்னை|எனக்கு).{0,24}(அழைக்க|அழையுங்கள்|கால்)/i.test(message)
   );
 }

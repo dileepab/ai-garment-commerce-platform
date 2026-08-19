@@ -15,6 +15,7 @@ import {
   isThanksMessage,
   isUnambiguousCancellationMessage,
   looksLikeCatalogQuestion,
+  looksLikeCallbackRequest,
   looksLikeCasualWellbeingQuestion,
   looksLikeCourierProviderQuestion,
   looksLikeDeliveryQuestion,
@@ -1331,6 +1332,10 @@ export async function routeCustomerMessage(
       },
       data: {
         orderId: params.orderId ?? activeSupportEscalation.orderId ?? null,
+        contactName:
+          mergedContact.name || customer?.name || activeSupportEscalation.contactName || null,
+        contactPhone:
+          mergedContact.phone || customer?.phone || activeSupportEscalation.contactPhone || null,
         latestCustomerMessage: input.currentMessage,
         summary: buildSupportConversationSummary({
           reason: activeSupportEscalation.reason as SupportIssueReason,
@@ -1418,7 +1423,7 @@ export async function routeCustomerMessage(
   if (isThanksMessage(input.currentMessage)) {
     setDiagnosticEffectiveAction('acknowledgement', 1);
     return finalizeReply({
-      reply: buildAcknowledgementReply(state, settings.support),
+      reply: buildAcknowledgementReply(state),
       assistantReplyKind: 'generic',
       nextState: {
         lastMissingOrderId: null,
@@ -1548,7 +1553,7 @@ export async function routeCustomerMessage(
       )
     ) {
       return finalizeReply({
-        reply: buildAcknowledgementReply(state, settings.support),
+        reply: buildAcknowledgementReply(state),
         assistantReplyKind: 'generic',
         nextState: {
           lastMissingOrderId: null,
@@ -1837,6 +1842,14 @@ export async function routeCustomerMessage(
         ? latestActiveOrder?.id ?? latestOrder?.id ?? null
         : null) ??
       null;
+
+    if (supportIssueReason === 'human_request' && looksLikeCallbackRequest(input.currentMessage)) {
+      const callbackReply = mergedContact.phone || customer?.phone
+        ? 'Sure — I’ve asked our team to call you. If you prefer a different number, send it here.'
+        : 'Sure — I’ve passed this to our team. What number should they call?';
+
+      return escalateToSupport(supportIssueReason, relatedOrderId, callbackReply);
+    }
 
     return escalateToSupport(supportIssueReason, relatedOrderId);
   }
