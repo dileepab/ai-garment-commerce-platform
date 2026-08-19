@@ -4,6 +4,7 @@ import {
   extractGiftNoteFromText,
   inferSupportIssueReason,
   looksLikeDeliveryLogisticsQuestion,
+  looksLikeDeliveryTimingQuestion,
   looksLikeCasualWellbeingQuestion,
   looksLikeCourierProviderQuestion,
   looksLikePaymentQuestion,
@@ -111,7 +112,7 @@ export async function handle_greeting(ctx: ChatContext) {
 
   if (looksLikeCasualWellbeingQuestion(input.currentMessage)) {
     return finalizeReply({
-      reply: 'I am doing well, thank you. I can help with available items, sizes, COD, delivery, or an order.',
+      reply: 'Doing well, thanks 😊 What can I help you with?',
       assistantReplyKind: 'greeting',
       nextState: {
         lastMissingOrderId: null,
@@ -349,6 +350,7 @@ export async function handle_delivery_question(
     previousCustomerMessage: latestCustomerText,
     currentLocation: locationHint,
   });
+  const includeTiming = !includeCharge || looksLikeDeliveryTimingQuestion(input.currentMessage);
   const requestedDate =
     parseRequestedDateFromMessage(input.currentMessage, getSriLankaToday()) ||
     (aiAction.requestedDate ? new Date(aiAction.requestedDate) : null);
@@ -388,6 +390,7 @@ export async function handle_delivery_question(
         getDeliveryEstimateForAddress: deliveryEstimateForAddress,
         getDeliveryChargeForAddress: deliveryChargeForAddress,
         includeCharge,
+        includeTiming,
         defaultDeliveryText: describeDeliveryEstimates(settings),
         paymentReply,
       }),
@@ -407,6 +410,7 @@ export async function handle_delivery_question(
         getDeliveryEstimateForAddress: deliveryEstimateForAddress,
         getDeliveryChargeForAddress: deliveryChargeForAddress,
         includeCharge,
+        includeTiming,
         defaultDeliveryText: describeDeliveryEstimates(settings),
         paymentReply,
       }),
@@ -427,6 +431,7 @@ export async function handle_delivery_question(
         getDeliveryEstimateForAddress: deliveryEstimateForAddress,
         getDeliveryChargeForAddress: deliveryChargeForAddress,
         includeCharge,
+        includeTiming,
         defaultDeliveryText: describeDeliveryEstimates(settings),
         paymentReply,
       }),
@@ -447,6 +452,7 @@ export async function handle_delivery_question(
       getDeliveryEstimateForAddress: deliveryEstimateForAddress,
       getDeliveryChargeForAddress: deliveryChargeForAddress,
       includeCharge,
+      includeTiming,
       defaultDeliveryText: describeDeliveryEstimates(settings),
       paymentReply,
     }),
@@ -836,7 +842,7 @@ export async function handle_fallback(ctx: ChatContext) {
   }
 
   return finalizeReply({
-    reply: buildClarificationReply(state, ctx.settings.support),
+    reply: buildClarificationReply(state),
     assistantReplyKind: 'fallback',
     nextState: {
       unclearMessageCount,
@@ -856,10 +862,7 @@ export async function handle_thanks_acknowledgement(ctx: ChatContext) {
       null;
 
     return ctx.helpers.finalizeReply({
-      reply: buildSupportContactAcknowledgement({
-        orderId,
-        supportConfig: ctx.settings.support,
-      }),
+      reply: buildSupportContactAcknowledgement(),
       assistantReplyKind: 'support_contact',
       nextState: {
         lastReferencedOrderId: orderId,
@@ -869,7 +872,7 @@ export async function handle_thanks_acknowledgement(ctx: ChatContext) {
   }
 
   return ctx.helpers.finalizeReply({
-    reply: "You're welcome! Let me know if there's anything else I can help with.",
+    reply: "You're welcome 😊",
     nextState: {
       lastMissingOrderId: null,
     },

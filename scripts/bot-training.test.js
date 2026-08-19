@@ -41,6 +41,9 @@ const languageModule = loadModule(LANGUAGE_FILE, {
     logError: () => {},
     logWarn: () => {},
   },
+  '@/lib/chat/greeting-variants': {
+    matchGreeting: () => null,
+  },
 });
 const training = loadModule(BOT_TRAINING_FILE, {
   '@/lib/chat/language': languageModule,

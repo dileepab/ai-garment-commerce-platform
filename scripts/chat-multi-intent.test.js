@@ -58,6 +58,12 @@ function loadReplyBuilders() {
   const catalogGuidance = loadModule(CATALOG_GUIDANCE_FILE, {});
   const replacements = {
     '@/lib/chat/catalog-guidance': catalogGuidance,
+    '@/lib/variant-availability': { isVariantAvailable: () => true },
+    '@/lib/product-item-code': { productItemCode: () => null },
+    '@/lib/chat/greeting-variants': { pickGreetingVariant: () => ({ en: () => 'Hello.' }) },
+    '@/lib/chat/language': {
+      EMPTY_CATALOG_REPLY: 'There are no items listed right now. Please check again later.',
+    },
     '@/lib/contact-profile': {
       getMissingContactFields: () => [],
     },
@@ -135,8 +141,10 @@ test('delivery reply answers charge, ETA, and COD in one response', () => {
   assert.match(reply, /Delivery to Negombo costs Rs 450\./);
   assert.match(reply, /usually takes 2-3 business days/);
   assert.match(reply, /expected delivery window is 2026-07-28 to 2026-07-30/);
-  assert.match(reply, /Yes, COD works for us\./);
-  assert.match(reply, /Available payment methods are COD and Online Transfer\./);
+  assert.match(reply, /Yes, COD is available\./);
+  // A "yes" no longer recites the full method list — the customer named the
+  // method they were asking about.
+  assert.doesNotMatch(reply, /Available payment methods are/);
 });
 
 test('payment availability is grounded in configured methods', () => {

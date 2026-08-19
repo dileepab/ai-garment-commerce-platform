@@ -41,10 +41,26 @@ const languageModule = loadModule(LANGUAGE_FILE, {
     logError: () => {},
     logWarn: () => {},
   },
+  '@/lib/chat/greeting-variants': {
+    matchGreeting: () => null,
+  },
 });
-const { buildBotInsightsReport } = loadModule(BOT_INSIGHTS_FILE, {
+const { buildBotInsightsReport, inferAssistantReplyKind } = loadModule(BOT_INSIGHTS_FILE, {
   '@/lib/chat/language': languageModule,
 });
+
+assert.equal(
+  inferAssistantReplyKind('I’ve passed this to our team so they can help.'),
+  'support_handoff'
+);
+assert.equal(
+  inferAssistantReplyKind('Sorry, I missed that. Which item or order do you mean?'),
+  'fallback'
+);
+assert.equal(
+  inferAssistantReplyKind('There are no items listed right now. Please check again later.'),
+  'empty_catalog'
+);
 
 const base = new Date('2026-05-30T09:00:00.000Z');
 const minutes = (value) => new Date(base.getTime() + value * 60000);

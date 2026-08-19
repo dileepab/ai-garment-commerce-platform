@@ -12,11 +12,11 @@ export const REPLY_QA_TEMPLATES: ReplyQaTemplate[] = [
     label: 'Empty catalog',
     templates: {
       english:
-        'We do not have any items listed right now. New products will be available soon—follow our page for updates.',
+        'There are no items listed right now. Please check again later.',
       sinhala:
-        'දැනට අපගේ catalog එකේ භාණ්ඩ කිසිවක් ලැයිස්තුගත කර නැහැ. අලුත් භාණ්ඩ ළඟදීම එක් කරනු ඇත—updates සඳහා අපගේ page එක follow කරන්න.',
+        'දැනට භාණ්ඩ ලැයිස්තුගත කර නැහැ. පසුව නැවත බලන්න.',
       tamil:
-        'தற்போது எங்கள் catalog-ல் எந்தப் பொருட்களும் பட்டியலிடப்படவில்லை. புதிய பொருட்கள் விரைவில் சேர்க்கப்படும்—updates-க்கு எங்கள் page-ஐ follow செய்யுங்கள்.',
+        'இப்போது பொருட்கள் பட்டியலிடப்படவில்லை. பிறகு மீண்டும் பார்க்கவும்.',
     },
   },
   {
@@ -24,7 +24,7 @@ export const REPLY_QA_TEMPLATES: ReplyQaTemplate[] = [
     label: 'Damaged item / refund',
     templates: {
       english:
-        'I want to make sure you get the right help for this order issue. Please send your order number and clear photos of the item and package so our team can review the refund or replacement options.',
+        'I’m sorry about this. Please send your order number and clear photos of the item and package so our team can review it.',
       sinhala:
         'ඔබට ලැබුණු භාණ්ඩය ගැන ඇති ගැටලුවට කණගාටුයි. කරුණාකර ඔබේ ඇණවුම් අංකය සහ භාණ්ඩයේ හා පැකේජයේ පැහැදිලි ඡායාරූප එවන්න. අපගේ කණ්ඩායම refund හෝ replacement විකල්ප පරීක්ෂා කරයි.',
       tamil:
@@ -36,7 +36,7 @@ export const REPLY_QA_TEMPLATES: ReplyQaTemplate[] = [
     label: 'Size / item exchange',
     templates: {
       english:
-        'We can check the exchange options for you. Please send your order number and the size, color, or item you want instead, subject to stock availability.',
+        'We can check the exchange options. Please send your order number and the size, color, or item you want instead.',
       sinhala:
         'ඔබට exchange විකල්ප පරීක්ෂා කර දෙන්නම්. කරුණාකර ඔබේ ඇණවුම් අංකය සහ ඔබට අවශ්‍ය size, color, හෝ item එක එවන්න. මෙය stock තිබීම මත රඳා පවතී.',
       tamil:
@@ -48,7 +48,7 @@ export const REPLY_QA_TEMPLATES: ReplyQaTemplate[] = [
     label: 'Location / branches',
     templates: {
       english:
-        'At the moment this chat is set up for online orders. You can message us here for item details, delivery, COD, or orders. For store location or branch details, our support team can confirm the latest information.',
+        'We take orders online and do not have a confirmed branch list here. Our support team can confirm store locations.',
       sinhala:
         'දැනට මෙම chat එක online orders සඳහා සකසා ඇත. Item details, delivery, COD, හෝ orders ගැන මෙතැනින්ම පණිවිඩයක් එවිය හැක. Store location හෝ branch විස්තර සඳහා අපගේ support team එක නවතම තොරතුරු තහවුරු කරයි.',
       tamil:

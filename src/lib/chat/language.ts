@@ -60,6 +60,29 @@ function isUnsafeConversationalRewrite(rewritten: string): boolean {
   return /\[(?:insert|placeholder|add|image|photo|size chart)[^\]]*\]/i.test(rewritten);
 }
 
+/**
+ * A line belonging to a structured block rather than to the conversation: a
+ * bullet, a numbered catalog entry, or a "Label: value" row.
+ */
+const STRUCTURED_LINE = /^\s*(?:[-•*]\s|\d+[.)]\s|[^\s:]{1,30}(?:\s[^\s:]{1,30}){0,3}:\s)/;
+
+/**
+ * The prompt caps the conversational part of a rewrite and states outright that
+ * structured blocks do not count toward it. Counting every word instead threw
+ * away exactly the replies that carry a block — a catalog list runs past any
+ * conversational cap on its own — so the customer lost the translation for the
+ * replies where it mattered most.
+ */
+function isOverlongConversationalRewrite(rewritten: string): boolean {
+  const conversational = rewritten
+    .split('\n')
+    .filter((line) => line.trim() && !STRUCTURED_LINE.test(line))
+    .join(' ');
+  const wordCount = conversational.trim().split(/\s+/).filter(Boolean).length;
+
+  return wordCount > 60;
+}
+
 export function detectCustomerLanguage(message: string): CustomerLanguage | null {
   const normalized = message.trim();
 
@@ -242,6 +265,8 @@ function localizeFallback(
       .replace('I do not have a confirmed branch list saved here yet.', 'Confirm karapu branch list ekak danata save wela naha.')
       .replace('You can message us here for item details, delivery, COD, or orders.', 'Item details, delivery, COD, saha orders gana me chat ekenma ahanna puluwan.')
       .replace('For store location or branch details,', 'Store location hari branch details walata,')
+      .replace('We take orders online and do not have a confirmed branch list here.', 'Api orders online gannawa; confirmed branch list ekak me chat eke naha.')
+      .replace('For store locations,', 'Store locations walata,')
       .replaceAll('Please send the item name', 'Item eke nama ewanawada')
       .replaceAll('I will share the correct details for it.', 'Mama eka gana hari details dennam.')
       .replaceAll('Sorry, I did not quite catch that.', 'Sorry, mata eka hariyata therune naha.')
@@ -256,6 +281,8 @@ function localizeFallback(
       .replaceAll('Out of stock right now.', 'Ippo stock illa.')
       .replaceAll('Please send the item name', 'Item name anuppunga')
       .replaceAll('I will share the correct details for it.', 'Athoda correct details anuppuren.')
+      .replace('We take orders online and do not have a confirmed branch list here.', 'Naanga online orders eduthukkrom; confirmed branch list indha chat-la illa.')
+      .replace('For store locations,', 'Store locations-ku,')
       .replaceAll('Sorry, I did not quite catch that.', 'Sorry, adhu enakku clear-a puriyala.')
       .replaceAll("Sorry, I didn't quite catch that.", 'Sorry, adhu enakku clear-a puriyala.');
   }
@@ -274,6 +301,8 @@ function localizeFallback(
       .replace('I do not have a confirmed branch list saved here yet.', 'තහවුරු කළ branch ලැයිස්තුවක් මෙහි තවම save කර නැහැ.')
       .replace('You can message us here for item details, delivery, COD, or orders.', 'Item details, delivery, COD, හෝ orders ගැන ඔබට මෙතැනින්ම message කළ හැක.')
       .replace('For store location or branch details,', 'Store location හෝ branch විස්තර සඳහා,')
+      .replace('We take orders online and do not have a confirmed branch list here.', 'අපි online orders භාර ගන්නවා. තහවුරු කළ branch ලැයිස්තුවක් මේ chat එකේ නැහැ.')
+      .replace('For store locations,', 'Store locations සඳහා,')
       .replaceAll('Please send the item name', 'කරුණාකර භාණ්ඩයේ නම එවන්න')
       .replaceAll('I will share the correct details for it.', 'මම එහි නිවැරදි විස්තර එවන්නම්.')
       .replaceAll('Sorry, I did not quite catch that.', 'සමාවෙන්න, මට ඒක පැහැදිලිව තේරුණේ නැහැ.')
@@ -293,26 +322,34 @@ function localizeFallback(
     .replace('I do not have a confirmed branch list saved here yet.', 'உறுதிப்படுத்தப்பட்ட கிளை பட்டியல் இங்கே இன்னும் சேமிக்கப்படவில்லை.')
     .replace('You can message us here for item details, delivery, COD, or orders.', 'Item details, delivery, COD, அல்லது orders பற்றி இங்கே message செய்யலாம்.')
     .replace('For store location or branch details,', 'Store location அல்லது கிளை விவரங்களுக்கு,')
+    .replace('We take orders online and do not have a confirmed branch list here.', 'நாங்கள் online orders ஏற்கிறோம். உறுதிப்படுத்தப்பட்ட branch பட்டியல் இந்த chat-ல் இல்லை.')
+    .replace('For store locations,', 'Store locations பற்றி,')
     .replaceAll('Please send the item name', 'தயவுசெய்து பொருளின் பெயரை அனுப்புங்கள்')
     .replaceAll('I will share the correct details for it.', 'அதற்கான சரியான விவரங்களை அனுப்புகிறேன்.')
     .replaceAll('Sorry, I did not quite catch that.', 'மன்னிக்கவும், அது தெளிவாக புரியவில்லை.')
     .replaceAll("Sorry, I didn't quite catch that.", 'மன்னிக்கவும், அது தெளிவாக புரியவில்லை.');
 }
 
-const EMPTY_CATALOG_REPLY =
-  'We do not have any items listed right now. New products will be available soon—follow our page for updates.';
+/**
+ * Declared here, beside its translations, and re-exported by reply-builders.
+ * localizeKnownReply matches this reply by exact string equality, so a second
+ * copy elsewhere means editing one of them silently stops Sinhala and Tamil
+ * customers from getting a translation, with nothing failing to say so.
+ */
+export const EMPTY_CATALOG_REPLY =
+  'There are no items listed right now. Please check again later.';
 
 const EMPTY_CATALOG_REPLY_SINHALA =
-  'දැනට අපගේ catalog එකේ භාණ්ඩ කිසිවක් ලැයිස්තුගත කර නැහැ. අලුත් භාණ්ඩ ළඟදීම එක් කරනු ඇත—updates සඳහා අපගේ page එක follow කරන්න.';
+  'දැනට භාණ්ඩ ලැයිස්තුගත කර නැහැ. පසුව නැවත බලන්න.';
 
 const EMPTY_CATALOG_REPLY_TAMIL =
-  'தற்போது எங்கள் catalog-ல் எந்தப் பொருட்களும் பட்டியலிடப்படவில்லை. புதிய பொருட்கள் விரைவில் சேர்க்கப்படும்—updates-க்கு எங்கள் page-ஐ follow செய்யுங்கள்.';
+  'இப்போது பொருட்கள் பட்டியலிடப்படவில்லை. பிறகு மீண்டும் பார்க்கவும்.';
 
 const EMPTY_CATALOG_REPLY_ROMAN_SINHALA =
-  'Danata catalog eke items list karala naha. Aluth items langadima add karanawa—updates walata page eka follow karanna.';
+  'Danata items list karala naha. Passe aye balannako.';
 
 const EMPTY_CATALOG_REPLY_ROMAN_TAMIL =
-  'Ippo catalog-la items list pannala. Pudhu items seekiram add pannuvom—updates-ku page-a follow pannunga.';
+  'Ippo items list pannala. Piragu thirumba paarunga.';
 
 function localizeBusinessDayEstimate(estimate: string, language: CustomerLanguage): string {
   if (language === 'sinhala') {
@@ -335,6 +372,28 @@ function localizeDeliveryReply(
   language: CustomerLanguage,
   scriptStyle: CustomerScriptStyle = 'native'
 ): string | null {
+  const chargeOnlyMatch = reply.match(/^Delivery to (.+?) costs Rs (\d+)\.$/);
+
+  if (chargeOnlyMatch) {
+    const [, address, charge] = chargeOnlyMatch;
+
+    if (language === 'sinhala' && scriptStyle === 'roman') {
+      return `${address} walata delivery charge eka Rs ${charge}.`;
+    }
+
+    if (language === 'tamil' && scriptStyle === 'roman') {
+      return `${address}-ku delivery charge Rs ${charge}.`;
+    }
+
+    if (language === 'sinhala') {
+      return `${address} වෙත delivery charge එක Rs ${charge} කි.`;
+    }
+
+    if (language === 'tamil') {
+      return `${address}க்கு delivery charge Rs ${charge}.`;
+    }
+  }
+
   const chargedPreOrderMatch = reply.match(
     /^Delivery to (.+?) costs Rs (\d+)\. Delivery to \1 usually takes (.+?), excluding weekends and Sri Lankan public holidays\. If the order is confirmed on (.+?), the expected delivery window is (.+?) to (.+?)\.$/
   );
@@ -432,6 +491,201 @@ function localizeDeliveryReply(
 
     if (language === 'tamil') {
       return `${address}க்கு டெலிவரி பொதுவாக ${localizedEstimate} ஆகும், வார இறுதி நாட்கள் மற்றும் இலங்கை பொது விடுமுறை நாட்களை தவிர்த்து. எதிர்பார்க்கப்படும் delivery window ${earliestDate} முதல் ${latestDate} வரை இருக்கும்.`;
+    }
+  }
+
+  return null;
+}
+
+function localizeClarificationReply(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string | null {
+  const orderMatch = reply.match(
+    /^Sorry, I missed that\. What would you like to change on order #(\d+)\?$/
+  );
+
+  if (language === 'sinhala' && scriptStyle === 'roman') {
+    if (reply === 'Which city or town is the delivery for?') {
+      return 'Delivery eka mona city ekata hari town ekatada?';
+    }
+    if (reply === 'Sorry, I missed that. Which item or order do you mean?') {
+      return 'Sorry, mata eka therune naha. Oya kiyanne mona item eka hari order eka ganada?';
+    }
+    if (orderMatch) return `Sorry, mata eka therune naha. Order #${orderMatch[1]} eke monawada wenas karanna one?`;
+    if (reply === 'Are the delivery details above correct? Reply "yes", or send the correction.') {
+      return 'Uda delivery details hari da? "yes" kiyanna, nathnam correction eka ewanna.';
+    }
+    if (reply === 'Should I place the order above? Reply "yes", or tell me what to change.') {
+      return 'Uda order eka place karannada? "yes" kiyanna, nathnam wenas karanna ona de kiyanna.';
+    }
+    if (reply === 'Should I apply the update above? Reply "yes", or tell me what to change.') {
+      return 'Uda update eka apply karannada? "yes" kiyanna, nathnam wenas karanna ona de kiyanna.';
+    }
+  }
+
+  if (language === 'tamil' && scriptStyle === 'roman') {
+    if (reply === 'Which city or town is the delivery for?') {
+      return 'Delivery endha city illa town-ku?';
+    }
+    if (reply === 'Sorry, I missed that. Which item or order do you mean?') {
+      return 'Sorry, adhu enakku puriyala. Endha item illa order-a solreenga?';
+    }
+    if (orderMatch) return `Sorry, adhu enakku puriyala. Order #${orderMatch[1]}-la enna maathanum?`;
+    if (reply === 'Are the delivery details above correct? Reply "yes", or send the correction.') {
+      return 'Mela irukkura delivery details correct-a? "yes" nu sollunga, illaina correction-a anuppunga.';
+    }
+    if (reply === 'Should I place the order above? Reply "yes", or tell me what to change.') {
+      return 'Mela irukkura order-a place pannava? "yes" nu sollunga, illaina enna maathanum-nu sollunga.';
+    }
+    if (reply === 'Should I apply the update above? Reply "yes", or tell me what to change.') {
+      return 'Mela irukkura update-a apply pannava? "yes" nu sollunga, illaina enna maathanum-nu sollunga.';
+    }
+  }
+
+  if (language === 'sinhala') {
+    if (reply === 'Which city or town is the delivery for?') {
+      return 'Delivery එක යවන්න ඕනේ කුමන city එකට හෝ town එකටද?';
+    }
+    if (reply === 'Sorry, I missed that. Which item or order do you mean?') {
+      return 'සමාවෙන්න, මට ඒක තේරුණේ නැහැ. ඔබ කියන්නේ කුමන item එක හෝ order එක ගැනද?';
+    }
+    if (orderMatch) return `සමාවෙන්න, මට ඒක තේරුණේ නැහැ. Order #${orderMatch[1]} එකේ වෙනස් කරන්න ඕනේ මොනවාද?`;
+    if (reply === 'Are the delivery details above correct? Reply "yes", or send the correction.') {
+      return 'ඉහත delivery details නිවැරදිද? "yes" කියන්න, නැත්නම් නිවැරදි කිරීම එවන්න.';
+    }
+    if (reply === 'Should I place the order above? Reply "yes", or tell me what to change.') {
+      return 'ඉහත order එක place කරන්නද? "yes" කියන්න, නැත්නම් වෙනස් කරන්න ඕනේ දේ කියන්න.';
+    }
+    if (reply === 'Should I apply the update above? Reply "yes", or tell me what to change.') {
+      return 'ඉහත update එක apply කරන්නද? "yes" කියන්න, නැත්නම් වෙනස් කරන්න ඕනේ දේ කියන්න.';
+    }
+  }
+
+  if (language === 'tamil') {
+    if (reply === 'Which city or town is the delivery for?') {
+      return 'Delivery எந்த city அல்லது town-க்கு?';
+    }
+    if (reply === 'Sorry, I missed that. Which item or order do you mean?') {
+      return 'மன்னிக்கவும், அது புரியவில்லை. எந்த item அல்லது order பற்றி சொல்கிறீர்கள்?';
+    }
+    if (orderMatch) return `மன்னிக்கவும், அது புரியவில்லை. Order #${orderMatch[1]}-ல் என்ன மாற்ற வேண்டும்?`;
+    if (reply === 'Are the delivery details above correct? Reply "yes", or send the correction.') {
+      return 'மேலுள்ள delivery details சரியா? "yes" என்று பதிலளிக்கவும், இல்லையெனில் திருத்தத்தை அனுப்பவும்.';
+    }
+    if (reply === 'Should I place the order above? Reply "yes", or tell me what to change.') {
+      return 'மேலுள்ள order-ஐ place செய்யவா? "yes" என்று பதிலளிக்கவும், இல்லையெனில் என்ன மாற்ற வேண்டும் என்று சொல்லவும்.';
+    }
+    if (reply === 'Should I apply the update above? Reply "yes", or tell me what to change.') {
+      return 'மேலுள்ள update-ஐ apply செய்யவா? "yes" என்று பதிலளிக்கவும், இல்லையெனில் என்ன மாற்ற வேண்டும் என்று சொல்லவும்.';
+    }
+  }
+
+  return null;
+}
+
+/**
+ * The short replies sent when a customer says thanks.
+ *
+ * They are matched by exact text, so every wording buildAcknowledgementReply
+ * can produce needs an entry here — otherwise a Sinhala or Tamil customer gets
+ * an English sentence in the middle of an otherwise translated conversation.
+ * Kept as a table rather than a branch per string: there are nine wordings and
+ * four locales, and the if-chain form of that is unreadable.
+ */
+interface AcknowledgementWording {
+  /** Captures the order id in group 1 when the wording carries one. */
+  match: RegExp;
+  sinhalaRoman: (orderId: string) => string;
+  sinhala: (orderId: string) => string;
+  tamilRoman: (orderId: string) => string;
+  tamil: (orderId: string) => string;
+}
+
+const ACKNOWLEDGEMENT_WORDINGS: AcknowledgementWording[] = [
+  {
+    match: /^You're welcome — we'll keep you posted on order #(\d+)\.$/,
+    sinhalaRoman: (id) => `Prashnayak naha — order #${id} gana api oyata update karannam.`,
+    sinhala: (id) => `ප්‍රශ්නයක් නැහැ — order #${id} ගැන අපි ඔබට update කරන්නම්.`,
+    tamilRoman: (id) => `Parava illa — order #${id} pathi naanga update panren.`,
+    tamil: (id) => `பரவாயில்லை — order #${id} பற்றி நாங்கள் update செய்கிறோம்.`,
+  },
+  {
+    match: /^You're welcome — we'll keep you posted on your order\.$/,
+    sinhalaRoman: () => 'Prashnayak naha — oyage order eka gana api update karannam.',
+    sinhala: () => 'ප්‍රශ්නයක් නැහැ — ඔබේ order එක ගැන අපි update කරන්නම්.',
+    tamilRoman: () => 'Parava illa — unga order pathi naanga update panren.',
+    tamil: () => 'பரவாயில்லை — உங்கள் order பற்றி நாங்கள் update செய்கிறோம்.',
+  },
+  {
+    match: /^Anytime — mention order #(\d+) when you need another update\.$/,
+    sinhalaRoman: (id) => `Kamak naha — thawa update ekak ona nam order #${id} kiyanna.`,
+    sinhala: (id) => `කමක් නැහැ — තවත් update එකක් ඕනේ නම් order #${id} කියන්න.`,
+    tamilRoman: (id) => `Parava illa — innoru update venumna order #${id} sollunga.`,
+    tamil: (id) => `பரவாயில்லை — இன்னொரு update வேண்டுமெனில் order #${id} சொல்லுங்கள்.`,
+  },
+  {
+    match: /^Anytime — message us when you need another update\.$/,
+    sinhalaRoman: () => 'Kamak naha — thawa update ekak ona nam message karanna.',
+    sinhala: () => 'කමක් නැහැ — තවත් update එකක් ඕනේ නම් message කරන්න.',
+    tamilRoman: () => 'Parava illa — innoru update venumna message pannunga.',
+    tamil: () => 'பரவாயில்லை — இன்னொரு update வேண்டுமெனில் message செய்யுங்கள்.',
+  },
+  {
+    match: /^No problem\. Reply "yes" when the delivery details are correct, or send the change\.$/,
+    sinhalaRoman: () => 'Kamak naha. Delivery details hari nam "yes" kiyanna, nathnam wenasa ewanna.',
+    sinhala: () => 'කමක් නැහැ. Delivery details නිවැරදි නම් "yes" කියන්න, නැත්නම් වෙනස එවන්න.',
+    tamilRoman: () => 'Parava illa. Delivery details correct-a irundha "yes" nu sollunga, illaina maatram anuppunga.',
+    tamil: () => 'பரவாயில்லை. Delivery details சரியாக இருந்தால் "yes" என்று சொல்லுங்கள், இல்லையெனில் மாற்றத்தை அனுப்பவும்.',
+  },
+  {
+    match: /^No problem\. Reply "yes" when you are ready, or tell me what to change\.$/,
+    sinhalaRoman: () => 'Kamak naha. Ready unahama "yes" kiyanna, nathnam wenas karanna ona de kiyanna.',
+    sinhala: () => 'කමක් නැහැ. සූදානම් වූ පසු "yes" කියන්න, නැත්නම් වෙනස් කරන්න ඕනේ දේ කියන්න.',
+    tamilRoman: () => 'Parava illa. Ready aana odane "yes" nu sollunga, illaina enna maathanum-nu sollunga.',
+    tamil: () => 'பரவாயில்லை. தயாரானதும் "yes" என்று சொல்லுங்கள், இல்லையெனில் என்ன மாற்ற வேண்டும் என்று சொல்லவும்.',
+  },
+  {
+    match: /^No problem\. Send the new quantity for order #(\d+) when you are ready\.$/,
+    sinhalaRoman: (id) => `Kamak naha. Ready unahama order #${id} ta aluth quantity eka ewanna.`,
+    sinhala: (id) => `කමක් නැහැ. සූදානම් වූ පසු order #${id} සඳහා අලුත් quantity එක එවන්න.`,
+    tamilRoman: (id) => `Parava illa. Ready aana odane order #${id}-ku pudhu quantity anuppunga.`,
+    tamil: (id) => `பரவாயில்லை. தயாரானதும் order #${id}-க்கு புதிய quantity அனுப்பவும்.`,
+  },
+  {
+    match: /^No problem\. Send the quantity when you are ready\.$/,
+    sinhalaRoman: () => 'Kamak naha. Ready unahama quantity eka ewanna.',
+    sinhala: () => 'කමක් නැහැ. සූදානම් වූ පසු quantity එක එවන්න.',
+    tamilRoman: () => 'Parava illa. Ready aana odane quantity anuppunga.',
+    tamil: () => 'பரவாயில்லை. தயாரானதும் quantity அனுப்பவும்.',
+  },
+  {
+    match: /^No problem\. Reply "yes" to apply the update, or tell me what to change\.$/,
+    sinhalaRoman: () => 'Kamak naha. Update eka apply karanna "yes" kiyanna, nathnam wenas karanna ona de kiyanna.',
+    sinhala: () => 'කමක් නැහැ. Update එක apply කරන්න "yes" කියන්න, නැත්නම් වෙනස් කරන්න ඕනේ දේ කියන්න.',
+    tamilRoman: () => 'Parava illa. Update-a apply panna "yes" nu sollunga, illaina enna maathanum-nu sollunga.',
+    tamil: () => 'பரவாயில்லை. Update-ஐ apply செய்ய "yes" என்று சொல்லுங்கள், இல்லையெனில் என்ன மாற்ற வேண்டும் என்று சொல்லவும்.',
+  },
+];
+
+function localizeAcknowledgementReply(
+  reply: string,
+  language: CustomerLanguage,
+  scriptStyle: CustomerScriptStyle = 'native'
+): string | null {
+  for (const wording of ACKNOWLEDGEMENT_WORDINGS) {
+    const matched = reply.match(wording.match);
+    if (!matched) continue;
+
+    const orderId = matched[1] ?? '';
+
+    if (language === 'sinhala') {
+      return scriptStyle === 'roman' ? wording.sinhalaRoman(orderId) : wording.sinhala(orderId);
+    }
+
+    if (language === 'tamil') {
+      return scriptStyle === 'roman' ? wording.tamilRoman(orderId) : wording.tamil(orderId);
     }
   }
 
@@ -544,6 +798,9 @@ function localizePaymentReply(
   if (language === 'sinhala' && scriptStyle === 'roman') {
     return reply
       .replace('Yes, COD works for us.', 'Ow, COD puluwan.')
+      .replace('Yes, COD is available.', 'Ow, COD puluwan.')
+      .replace(/^Yes, both (.+?) and (.+?) are available\.$/, 'Ow, $1 saha $2 dekama available.')
+      .replace(/^Yes, (.+?) is available\.$/, 'Ow, $1 available.')
       .replace('COD is not available right now.', 'Danata COD available naha.')
       .replace(/Available payment methods are (.+?)\./, 'Payment karanna puluwan methods: $1.')
       .replace(/Available payment method is (.+?)\./, 'Payment karanna puluwan method eka: $1.');
@@ -552,6 +809,9 @@ function localizePaymentReply(
   if (language === 'sinhala') {
     return reply
       .replace('Yes, COD works for us.', 'ඔව්, COD භාවිතා කළ හැක.')
+      .replace('Yes, COD is available.', 'ඔව්, COD තිබෙනවා.')
+      .replace(/^Yes, both (.+?) and (.+?) are available\.$/, 'ඔව්, $1 සහ $2 දෙකම තිබෙනවා.')
+      .replace(/^Yes, (.+?) is available\.$/, 'ඔව්, $1 තිබෙනවා.')
       .replace('COD is not available right now.', 'දැනට COD ලබා ගත නොහැක.')
       .replace(/Available payment methods are (.+?)\./, 'ලබා ගත හැකි ගෙවීම් ක්‍රම: $1.')
       .replace(/Available payment method is (.+?)\./, 'ලබා ගත හැකි ගෙවීම් ක්‍රමය: $1.');
@@ -560,6 +820,9 @@ function localizePaymentReply(
   if (language === 'tamil' && scriptStyle === 'roman') {
     return reply
       .replace('Yes, COD works for us.', 'Aam, COD irukku.')
+      .replace('Yes, COD is available.', 'Aam, COD irukku.')
+      .replace(/^Yes, both (.+?) and (.+?) are available\.$/, 'Aam, $1-um $2-um irukku.')
+      .replace(/^Yes, (.+?) is available\.$/, 'Aam, $1 irukku.')
       .replace('COD is not available right now.', 'Ippo COD available illa.')
       .replace(/Available payment methods are (.+?)\./, 'Payment panna mudiyum methods: $1.')
       .replace(/Available payment method is (.+?)\./, 'Payment panna mudiyum method: $1.');
@@ -568,6 +831,9 @@ function localizePaymentReply(
   if (language === 'tamil') {
     return reply
       .replace('Yes, COD works for us.', 'ஆம், COD உள்ளது.')
+      .replace('Yes, COD is available.', 'ஆம், COD உள்ளது.')
+      .replace(/^Yes, both (.+?) and (.+?) are available\.$/, 'ஆம், $1 மற்றும் $2 இரண்டும் உள்ளன.')
+      .replace(/^Yes, (.+?) is available\.$/, 'ஆம், $1 உள்ளது.')
       .replace('COD is not available right now.', 'தற்போது COD கிடைக்கவில்லை.')
       .replace(/Available payment methods are (.+?)\./, 'கிடைக்கும் கட்டண முறைகள்: $1.')
       .replace(/Available payment method is (.+?)\./, 'கிடைக்கும் கட்டண முறை: $1.');
@@ -581,34 +847,31 @@ function localizeKnownReply(
   language: CustomerLanguage,
   scriptStyle: CustomerScriptStyle = 'native'
 ): string | null {
-  if (
-    reply ===
-    'I am doing well, thank you. I can help with available items, sizes, COD, delivery, or an order.'
-  ) {
+  if (reply === 'Doing well, thanks 😊 What can I help you with?') {
     if (language === 'sinhala') {
       return scriptStyle === 'roman'
-        ? 'Mama hondin, sthuthi. Available items, sizes, COD, delivery, hari order ekak gana mama help karannam.'
-        : 'මම හොඳින්, ස්තුතියි. තිබෙන භාණ්ඩ, sizes, COD, delivery, හෝ order එකක් ගැන මට උදව් කළ හැක.';
+        ? 'Mama hondin, sthuthi 😊 Monawada help one?'
+        : 'මම හොඳින්, ස්තුතියි 😊 මොනවාටද උදව් ඕනේ?';
     }
 
     if (language === 'tamil') {
       return scriptStyle === 'roman'
-        ? 'Naan nalla irukken, nandri. Available items, sizes, COD, delivery, illa order pathi help panren.'
-        : 'நான் நலமாக இருக்கிறேன், நன்றி. கிடைக்கும் பொருட்கள், sizes, COD, delivery, அல்லது order பற்றி உதவுகிறேன்.';
+        ? 'Naan nalla irukken, nandri 😊 Enna help venum?'
+        : 'நான் நலமாக இருக்கிறேன், நன்றி 😊 என்ன உதவி வேண்டும்?';
     }
   }
 
-  if (reply === 'You are welcome. Let me know if there is anything else.') {
+  if (reply === "You're welcome 😊") {
     if (language === 'sinhala') {
       return scriptStyle === 'roman'
-        ? 'Prashnayak naha. Thawa monawath ona nam kiyannako.'
-        : 'ප්‍රශ්නයක් නැහැ. තවත් උදව්වක් අවශ්‍ය නම් කියන්න.';
+        ? 'Prashnayak naha 😊'
+        : 'ප්‍රශ්නයක් නැහැ 😊';
     }
 
     if (language === 'tamil') {
       return scriptStyle === 'roman'
-        ? 'Parava illa. Vera edhavathu help venumna sollunga.'
-        : 'பரவாயில்லை. வேறு ஏதாவது உதவி வேண்டுமெனில் சொல்லுங்கள்.';
+        ? 'Parava illa 😊'
+        : 'பரவாயில்லை 😊';
     }
   }
 
@@ -661,6 +924,8 @@ function localizeKnownReply(
     }
 
     return (
+      localizeAcknowledgementReply(reply, language, scriptStyle) ||
+      localizeClarificationReply(reply, language, scriptStyle) ||
       localizeVariantPromptFallback(reply, language, scriptStyle) ||
       localizePaymentReply(reply, language, scriptStyle)
     );
@@ -834,9 +1099,11 @@ CRITICAL RULES FOR REWRITING:
    - Use the customer's name sparingly—at most once, only when a real name is known and it feels natural.
    - Do not claim to be human, and do not announce that you are an AI or virtual assistant. Simply speak in the store's customer-service voice.
    - Do not force a follow-up question when DATABASE_VERIFIED_REPLY already fully resolves the request.
+   - Lead with the answer. Remove filler, repeated explanations, and generic closing invitations.
+   - Ask at most one question. Do not add a question, support contact, or next step unless it appears in DATABASE_VERIFIED_REPLY.
    - Mirror the language and style of the customer, replying in ${scriptInstruction}
    - Product names, brand names, order IDs, prices, sizes, and colors must remain in their original form (e.g. "Rs 1650").
-   - Keep the response concise (1-3 sentences maximum for the conversational parts).
+   - Keep conversational parts to at most 2 short sentences and about 45 words. Structured blocks do not count toward this limit.
 
 Output only the final rewritten reply.`;
 
@@ -859,8 +1126,8 @@ Output only the final rewritten reply.`;
       const rewritten = response.text?.trim();
 
       if (rewritten) {
-        if (isUnsafeConversationalRewrite(rewritten)) {
-          logWarn('Chat Language', 'Gemini conversational rewrite returned unsafe placeholder; using deterministic reply.', {
+        if (isUnsafeConversationalRewrite(rewritten) || isOverlongConversationalRewrite(rewritten)) {
+          logWarn('Chat Language', 'Gemini conversational rewrite failed the reply-quality guard; using deterministic reply.', {
             language,
           });
           return null;

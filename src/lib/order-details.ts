@@ -4,11 +4,6 @@ import {
   draftItemCount,
   getDeliveryChargeForAddress,
 } from '@/lib/order-draft';
-import {
-  buildSupportContactLine,
-  buildSupportContactLineFromConfig,
-  type SupportContactConfig,
-} from '@/lib/customer-support';
 import type { MerchantDeliverySettings } from '@/lib/runtime-config';
 import {
   getOrderStageLabel,
@@ -71,8 +66,7 @@ interface OrderStatusLike {
 }
 
 export const ORDER_CONFIRMATION_CALL_NOTICE = [
-  'Next Step: Our team will call you to confirm the order before dispatching it to the courier.',
-  'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
+  'We’ll call to verify the delivery details before courier dispatch. Please answer so the order is not delayed.',
 ] as const;
 
 function formatSizeForDisplay(size?: string | null): string {
@@ -169,36 +163,37 @@ export function calculateOrderGrandTotal(
 
 export function buildOrderPlacedReply(
   draft: ResolvedOrderDraft,
-  orderId: number,
-  supportConfig?: SupportContactConfig
+  orderId: number
 ): string {
   const specialInstructions = buildSpecialInstructions(draft.giftWrap, draft.giftNote);
-  const supportLine = supportConfig
-    ? buildSupportContactLineFromConfig(supportConfig, { orderId })
-    : buildSupportContactLine({ orderId });
 
   const itemLines =
     draftItemCount(draft) > 1
       ? buildDraftItemLines(draft)
-      : [`Product: ${draft.productName}`, `Quantity: ${draft.quantity}`];
+      : [
+          `Product: ${draft.productName}`,
+          `Quantity: ${draft.quantity}`,
+          `Size: ${formatSizeForDisplay(draft.size)}`,
+          `Color: ${formatColorForDisplay(draft.color)}`,
+        ];
 
   return [
-    'Thank you. Your order has been confirmed successfully ✅',
+    'Your order has been confirmed successfully ✅',
     '',
     `Order ID: #${orderId}`,
     ...itemLines,
     `Total: Rs ${draft.total}`,
     `Payment Method: ${draft.paymentMethod}`,
+    // The delivery details stay on the confirmation. This is the one moment a
+    // customer reads carefully, and the notice below promises a call to verify
+    // details they would otherwise never have been shown — a mistyped address
+    // or phone number has to be catchable here rather than at the doorstep.
     `Name: ${draft.name}`,
-    `Street Address: ${draft.streetAddress || 'Not provided'}`,
-    `City/Town: ${draft.city || 'Not provided'}`,
-    `District: ${draft.district || 'Not provided'}`,
+    `Address: ${[draft.streetAddress, draft.city, draft.district].filter(Boolean).join(', ') || 'Not provided'}`,
     `Phone Number: ${draft.phone}`,
-    `Current Stage: ${getOrderStageLabel('confirmed')}`,
     ...specialInstructions,
     '',
     ...ORDER_CONFIRMATION_CALL_NOTICE,
-    `Need help? ${supportLine}`,
   ].join('\n');
 }
 
@@ -226,30 +221,18 @@ export function buildQuantityUpdateSummaryReply(summary: QuantityUpdateSummary):
 }
 
 export function buildQuantityUpdateSuccessReply(
-  summary: QuantityUpdateSummary,
-  supportConfig?: SupportContactConfig
+  summary: QuantityUpdateSummary
 ): string {
   const specialInstructions = buildSpecialInstructions(summary.giftWrap, summary.giftNote);
-  const supportLine = supportConfig
-    ? buildSupportContactLineFromConfig(supportConfig, { orderId: summary.orderId })
-    : buildSupportContactLine({ orderId: summary.orderId });
 
   return [
-    'Thank you. Your order has been updated successfully ✅',
+    'Your order has been updated successfully ✅',
     '',
     `Order ID: #${summary.orderId}`,
     `Product: ${summary.productName}`,
     `Quantity: ${summary.quantity}`,
     `Total: Rs ${summary.total}`,
-    `Payment Method: ${summary.paymentMethod || 'COD'}`,
-    `Name: ${summary.name}`,
-    `Address: ${summary.address}`,
-    `Phone Number: ${summary.phone}`,
-    `Current Stage: ${getOrderStageLabel('confirmed')}`,
     ...specialInstructions,
-    '',
-    'Next Step: We will continue processing this order with the updated quantity.',
-    `Need help? ${supportLine}`,
   ].join('\n');
 }
 

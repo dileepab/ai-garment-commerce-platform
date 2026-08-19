@@ -1,3 +1,4 @@
+import { EMPTY_CATALOG_REPLY } from '@/lib/chat/language';
 import { getMissingContactFields, type ContactField } from '@/lib/contact-profile';
 import { isVariantAvailable } from '@/lib/variant-availability';
 import { productItemCode } from '@/lib/product-item-code';
@@ -29,8 +30,9 @@ import {
   type CatalogGuidanceProduct,
 } from '@/lib/chat/catalog-guidance';
 
-export const EMPTY_CATALOG_REPLY =
-  'We do not have any items listed right now. New products will be available soon—follow our page for updates.';
+// Declared in the language module, next to the translations that have to match
+// it word for word. Re-exported here because this is where callers look for it.
+export { EMPTY_CATALOG_REPLY };
 
 export function buildMissingFieldLabels(missingFields: ContactField[]): string {
   return missingFields
@@ -448,25 +450,25 @@ export function buildPaymentAvailabilityReply(params: {
     } not available right now. ${methodsSummary}`;
   }
 
+  // A "yes" needs nothing more — the customer named the method themselves. A
+  // "no" still lists what is available, or the answer is a dead end.
   if (requestedCod && requestedOnlineTransfer) {
     const bothAvailable = Boolean(codMethod && onlineTransferMethod);
-    return `${
-      bothAvailable
-        ? `Yes, both ${codMethod} and ${onlineTransferMethod} are available.`
-        : 'One or more of those payment methods is not available right now.'
-    } ${methodsSummary}`;
+    return bothAvailable
+      ? `Yes, both ${codMethod} and ${onlineTransferMethod} are available.`
+      : `One or more of those payment methods is not available right now. ${methodsSummary}`;
   }
 
   if (requestedCod) {
-    return `${codMethod ? 'Yes, COD works for us.' : 'COD is not available right now.'} ${methodsSummary}`;
+    return codMethod
+      ? 'Yes, COD is available.'
+      : `COD is not available right now. ${methodsSummary}`;
   }
 
   if (requestedOnlineTransfer) {
-    return `${
-      onlineTransferMethod
-        ? `Yes, ${onlineTransferMethod} works for us.`
-        : 'Online transfer is not available right now.'
-    } ${methodsSummary}`;
+    return onlineTransferMethod
+      ? `Yes, ${onlineTransferMethod} is available.`
+      : `Online transfer is not available right now. ${methodsSummary}`;
   }
 
   return methodsSummary;
@@ -481,6 +483,7 @@ export function buildDeliveryReply(params: {
   getDeliveryEstimateForAddress: (address: string) => string;
   getDeliveryChargeForAddress?: (address: string) => number;
   includeCharge?: boolean;
+  includeTiming?: boolean;
   defaultDeliveryText?: string;
   paymentReply?: string | null;
 }): string {
@@ -491,14 +494,12 @@ export function buildDeliveryReply(params: {
       : deliveryReply;
 
   if (!address) {
-    const chargeText =
-      params.includeCharge && params.defaultDeliveryText
-        ? `${params.defaultDeliveryText}.`
-        : '';
+    if (params.includeCharge) {
+      return withPaymentReply('Which city or town is the delivery for?');
+    }
 
     return withPaymentReply(
-      chargeText ||
-        params.defaultDeliveryText ||
+      params.defaultDeliveryText ||
         'Delivery usually takes 1-2 business days within Colombo and 2-3 business days outside Colombo, excluding weekends and Sri Lankan public holidays.'
     );
   }
@@ -516,6 +517,10 @@ export function buildDeliveryReply(params: {
     return withPaymentReply(
       `I couldn't verify ${address} in our delivery rate list. Please confirm the city or town, district, or postal code before I quote a delivery charge or delivery window.`
     );
+  }
+
+  if (deliveryCharge !== null && params.includeTiming === false && !params.requestedDate) {
+    return withPaymentReply(`Delivery to ${address} costs Rs ${deliveryCharge}.`);
   }
 
   const estimate = params.getDeliveryEstimateForAddress(address);
@@ -593,23 +598,14 @@ export function buildStoreLocationReply(supportConfig?: SupportContactConfig): s
   const supportLine = supportConfig
     ? buildSupportContactLineFromConfig(supportConfig)
     : buildSupportContactLine();
+  const inlineSupportLine = supportLine
+    ? `${supportLine[0].toLowerCase()}${supportLine.slice(1)}`
+    : supportLine;
 
-  return [
-    'At the moment this chat is set up for online orders.',
-    'I do not have a confirmed branch list saved here yet.',
-    'You can message us here for item details, delivery, COD, or orders.',
-    `For store location or branch details, ${supportLine.toLowerCase()}`,
-  ].join(' ');
+  return `We take orders online and do not have a confirmed branch list here. For store locations, ${inlineSupportLine}`;
 }
 
-export function buildClarificationReply(
-  state: ConversationStateData,
-  supportConfig?: SupportContactConfig
-): string {
-  const supportLine = supportConfig
-    ? buildSupportContactLineFromConfig(supportConfig)
-    : buildSupportContactLine();
-
+export function buildClarificationReply(state: ConversationStateData): string {
   if (state.pendingStep === 'size_chart_selection') {
     return 'Could you tell me which size chart you need — Oversized Tops, T-Shirts, Dresses, or Pants?';
   }
@@ -624,62 +620,59 @@ export function buildClarificationReply(
       phone: state.orderDraft.phone,
     });
 
-    return `${buildMissingContactPrompt(missingFields)}\n\nIf you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
+    return buildMissingContactPrompt(missingFields, { city: state.orderDraft.city });
   }
 
   if (state.pendingStep === 'contact_confirmation') {
-    return `Just to confirm — are the delivery details above correct, or is there something to change? If you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
+    return 'Are the delivery details above correct? Reply "yes", or send the correction.';
   }
 
   if (state.pendingStep === 'order_confirmation') {
-    return `Just to confirm — should I go ahead with the order summary above, or is there something to change? If you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
+    return 'Should I place the order above? Reply "yes", or tell me what to change.';
   }
 
   if (state.pendingStep === 'quantity_update_confirmation') {
-    return `Just to confirm — should I apply the order update above, or is there something to change? If you would rather speak to someone from our team, ${supportLine.toLowerCase()}`;
+    return 'Should I apply the update above? Reply "yes", or tell me what to change.';
   }
 
   if (state.lastReferencedOrderId) {
-    return `Sorry, I want to make sure I get this right for order #${state.lastReferencedOrderId}. Could you tell me the exact change you need? Or ${supportLine.toLowerCase()}`;
+    return `Sorry, I missed that. What would you like to change on order #${state.lastReferencedOrderId}?`;
   }
 
-  return `Sorry, I didn't quite catch that. Could you share the item name, order ID, or the change you need? Or ${supportLine.toLowerCase()}`;
+  return 'Sorry, I missed that. Which item or order do you mean?';
 }
 
-export function buildAcknowledgementReply(
-  state: ConversationStateData,
-  supportConfig?: SupportContactConfig
-): string {
+export function buildAcknowledgementReply(state: ConversationStateData): string {
   const orderId = state.lastReferencedOrderId;
 
   switch (state.lastAssistantReplyKind) {
     case 'support_contact':
     case 'support_handoff':
     case 'support_waiting':
-      return buildSupportContactAcknowledgement({ orderId, supportConfig });
+      return buildSupportContactAcknowledgement();
     case 'order_confirmed':
       return orderId
-        ? `You are welcome. We'll keep you posted on order #${orderId}.`
-        : "You are welcome. We'll keep you posted on your order.";
+        ? `You're welcome — we'll keep you posted on order #${orderId}.`
+        : "You're welcome — we'll keep you posted on your order.";
     case 'order_status':
     case 'order_details':
       return orderId
-        ? `You are welcome. Just mention order #${orderId} whenever you need another update.`
-        : 'You are welcome. Just let me know whenever you need another update.';
+        ? `Anytime — mention order #${orderId} when you need another update.`
+        : 'Anytime — message us when you need another update.';
     case 'contact_confirmation':
-      return 'You are welcome. Take your time — reply "yes" when the delivery details look correct, or send the change you need.';
+      return 'No problem. Reply "yes" when the delivery details are correct, or send the change.';
     case 'order_summary':
-      return 'You are welcome. Take your time — reply "yes" when you are ready to confirm, or tell me what to change.';
+      return 'No problem. Reply "yes" when you are ready, or tell me what to change.';
     case 'quantity_prompt':
       return orderId
-        ? `You are welcome. Just send the new quantity for order #${orderId} when you are ready.`
-        : 'You are welcome. Just send the quantity you want when you are ready.';
+        ? `No problem. Send the new quantity for order #${orderId} when you are ready.`
+        : 'No problem. Send the quantity when you are ready.';
     case 'quantity_update_summary':
-      return 'You are welcome. Take your time — reply "yes" to apply the update, or tell me what to change.';
+      return 'No problem. Reply "yes" to apply the update, or tell me what to change.';
     case 'greeting':
     case 'generic':
     default:
-      return 'You are welcome. Let me know if there is anything else.';
+      return "You're welcome 😊";
   }
 }
 

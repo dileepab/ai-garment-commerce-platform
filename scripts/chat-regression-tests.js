@@ -308,8 +308,7 @@ async function main() {
         messages: ['I need to talk to a real person'],
         verify: async ({ transcript, senderId }) => {
           assertIncludes(transcript[0].bot, [
-            'I want to make sure you get the right help for this support request.',
-            'I have also flagged this conversation for a team follow-up.',
+            'I’ve passed this to our team so they can help.',
           ], 'Human support handoff reply');
 
           const escalation = await prisma.supportEscalation.findFirst({
@@ -327,6 +326,36 @@ async function main() {
           assert(
             conversationState?.supportMode === 'handoff_requested',
             `Expected supportMode handoff_requested, received ${String(conversationState?.supportMode)}.`
+          );
+        },
+      },
+      {
+        name: 'Fresh callback request creates a human handoff instead of returning the hotline',
+        senderId: buildSender(runId, 'callback-request'),
+        messages: ['Please call me'],
+        verify: async ({ transcript, senderId }) => {
+          assertIncludes(transcript[0].bot, [
+            'I’ve passed this to our team.',
+            'What number should they call?',
+          ], 'Callback handoff reply');
+          assert(
+            !transcript[0].bot.includes('Please call or WhatsApp our team'),
+            `Callback request incorrectly told the customer to call us.\n\nActual reply:\n${transcript[0].bot}`
+          );
+
+          const escalations = await prisma.supportEscalation.findMany({
+            where: { senderId, channel: 'messenger' },
+          });
+          assert(escalations.length === 1, `Expected one callback escalation, received ${escalations.length}.`);
+          assert(
+            escalations[0].reason === 'human_request',
+            `Expected callback reason human_request, received ${String(escalations[0].reason)}.`
+          );
+
+          const conversationState = await getConversationState(senderId);
+          assert(
+            conversationState?.supportMode === 'handoff_requested',
+            `Expected callback supportMode handoff_requested, received ${String(conversationState?.supportMode)}.`
           );
         },
       },
@@ -836,16 +865,16 @@ async function main() {
         ],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
-            'We do not have any items listed right now.',
-            'New products will be available soon',
+            'There are no items listed right now.',
+            'Please check again later.',
           ], 'English empty catalog reply');
           assertIncludes(transcript[1].bot, [
-            'භාණ්ඩ කිසිවක් ලැයිස්තුගත කර නැහැ',
-            'page එක follow කරන්න',
+            'දැනට භාණ්ඩ ලැයිස්තුගත කර නැහැ',
+            'පසුව නැවත බලන්න',
           ], 'Sinhala empty catalog reply');
           assertIncludes(transcript[2].bot, [
-            'எந்தப் பொருட்களும் பட்டியலிடப்படவில்லை',
-            'page-ஐ follow செய்யுங்கள்',
+            'இப்போது பொருட்கள் பட்டியலிடப்படவில்லை',
+            'பிறகு மீண்டும் பார்க்கவும்',
           ], 'Tamil empty catalog reply');
         },
       },
@@ -889,8 +918,8 @@ async function main() {
           }
 
           assertIncludes(transcript[2].bot, [
-            'At the moment this chat is set up for online orders.',
-            'I do not have a confirmed branch list saved here yet.',
+            'We take orders online',
+            'do not have a confirmed branch list here.',
           ], 'English location reply after Tamil context');
           assert(
             !transcript[2].bot.includes('தற்போது') && !transcript[2].bot.includes('கிளை'),
@@ -904,7 +933,7 @@ async function main() {
         messages: ['COD available?'],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
-            'Yes, COD works for us.',
+            'Yes, COD is available.',
           ], 'COD availability reply');
         },
       },
@@ -934,6 +963,10 @@ async function main() {
           // Rs 425 is the real Colombo delivery charge and the schema default.
           // The old Rs 150 came from a settings row no environment has.
           assertIncludes(transcript[0].bot, ['Colombo', 'Rs 425'], 'Sinhala delivery charge reply');
+          assert(
+            !/business days|public holidays|delivery window|භාරදීමේ කාලය/i.test(transcript[0].bot),
+            `Charge-only question should not include timing boilerplate.\n\nActual reply:\n${transcript[0].bot}`
+          );
         },
       },
       {
@@ -994,8 +1027,8 @@ async function main() {
         messages: ['How are you'],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
-            'I am doing well, thank you.',
-            'available items',
+            'Doing well, thanks',
+            'What can I help you with?',
           ], 'Casual wellbeing reply');
           assert(
             !transcript[0].bot.includes('How can I assist you with your'),
@@ -1041,11 +1074,11 @@ async function main() {
           ], 'Order summary reply');
 
           assertIncludes(transcript[5].bot, [
-            'Thank you. Your order has been confirmed successfully ✅',
+            'Your order has been confirmed successfully ✅',
             'Order ID: #',
-            'Current Stage: Confirmed',
-            'Our team will call you to confirm the order before dispatching it to the courier.',
-            'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
+            'Size: Medium',
+            'Color: Beige',
+            'We’ll call to verify the delivery details before courier dispatch.',
           ], 'Order placed reply');
 
           const { latestOrder } = await getLatestOrderForSender(senderId);
@@ -1081,11 +1114,9 @@ async function main() {
             'District: Colombo',
           ], 'Clean contact confirmation after city correction');
           assertIncludes(transcript[5].bot, [
-            'Thank you. Your order has been confirmed successfully',
-            'Name: Dil',
-            'Street Address: 12 Main St',
-            'City/Town: Colombo',
-            'District: Colombo',
+            'Your order has been confirmed successfully',
+            'Order ID: #',
+            'We’ll call to verify the delivery details before courier dispatch.',
           ], 'Final order confirmation with clean contact data');
         },
       },
@@ -1112,11 +1143,9 @@ async function main() {
           ], 'Instagram initial contact collection reply');
 
           assertIncludes(transcript[5].bot, [
-            'Thank you. Your order has been confirmed successfully ✅',
+            'Your order has been confirmed successfully ✅',
             'Order ID: #',
-            'Current Stage: Confirmed',
-            'Our team will call you to confirm the order before dispatching it to the courier.',
-            'Please answer the confirmation call. If we cannot reach you, your order may be delayed.',
+            'We’ll call to verify the delivery details before courier dispatch.',
           ], 'Instagram order placed reply');
 
           const { customer, latestOrder } = await getLatestOrderForSender(senderId);
@@ -1593,8 +1622,8 @@ async function main() {
           assert(latestOrder, 'Expected a latest order for the complaint escalation test.');
 
           assertIncludes(transcript[6].bot, [
-            'I want to make sure you get the right help for this order issue.',
-            `Please mention order #${latestOrder.id}`,
+            'I’m sorry about this.',
+            'Please send clear photos of the item and package',
           ], 'Complaint escalation reply');
 
           const escalation = await prisma.supportEscalation.findFirst({
@@ -1632,7 +1661,6 @@ async function main() {
           assert(supportContact, 'Expected a configured support contact number.');
 
           assertIncludes(transcript[6].bot, [
-            'You can reach our support team directly.',
             `Please call or WhatsApp our team on ${supportContact}`,
           ], 'Support center contact reply');
           assert(
@@ -1640,13 +1668,13 @@ async function main() {
             `Support contact reply should not create a handoff escalation.\n\nActual reply:\n${transcript[6].bot}`
           );
           assertIncludes(transcript[7].bot, [
-            'You can reach our support team directly.',
             `Please call or WhatsApp our team on ${supportContact}`,
           ], 'Generic contact number follow-up reply');
-          assertIncludes(transcript[8].bot, [
-            'You are welcome.',
-            `Please call or WhatsApp our team on ${supportContact}`,
-          ], 'Support contact thanks acknowledgement');
+          assertIncludes(transcript[8].bot, ["You're welcome 😊"], 'Support contact thanks acknowledgement');
+          assert(
+            !transcript[8].bot.includes(supportContact),
+            `Thanks acknowledgement should not repeat the hotline.\n\nActual reply:\n${transcript[8].bot}`
+          );
           assert(
             !transcript[8].bot.includes('Hello'),
             `Thanks acknowledgement incorrectly restarted with a greeting.\n\nActual reply:\n${transcript[8].bot}`
@@ -1720,7 +1748,7 @@ async function main() {
         ],
         verify: async ({ transcript, senderId }) => {
           assertIncludes(transcript[0].bot, [
-            'I have also flagged this conversation for a team follow-up.',
+            'I’m sorry about this.',
           ], 'Sinhala damaged refund handoff reply');
           assert(
             !transcript[0].bot.includes('exchange') && !transcript[0].bot.includes('හුවමාරු'),
@@ -1830,11 +1858,10 @@ async function main() {
         ],
         verify: async ({ transcript, senderId }) => {
           assertIncludes(transcript[0].bot, [
-            'You can reach our support team directly.',
+            'Please call or WhatsApp our team',
           ], 'Initial support contact reply');
           assertIncludes(transcript[1].bot, [
-            'I want to make sure you get the right help for this support request.',
-            'I have also flagged this conversation for a team follow-up.',
+            'I’ve passed this to our team so they can help.',
           ], 'Support contact failure handoff reply');
 
           const escalation = await prisma.supportEscalation.findFirst({
@@ -2102,7 +2129,7 @@ async function main() {
           assertIncludes(followUpTranscript[0].bot, [
             `Order #${latestOrder.id} is already at the dispatched stage`,
             'cannot update delivery details automatically',
-            'I have also flagged this conversation for a team follow-up.',
+            'I’ve passed this to our team for follow-up.',
           ], 'Blocked contact update reply');
 
           const orderAfter = await prisma.order.findUnique({
@@ -2142,8 +2169,7 @@ async function main() {
         ],
         verify: async ({ transcript, senderId }) => {
           assertIncludes(transcript[6].bot, [
-            'I want to make sure you get the right help for this support request.',
-            'I have also flagged this conversation for a team follow-up.',
+            'I’ve passed this to our team so they can help.',
           ], 'Human contact update handoff reply');
           assert(
             !transcript[6].bot.includes('please send the new delivery address'),
@@ -2205,7 +2231,7 @@ async function main() {
           assertIncludes(followUpTranscript[0].bot, [
             `Order #${latestOrder.id} is already at the dispatched stage`,
             'cannot cancel it automatically',
-            'I have also flagged this conversation for a team follow-up.',
+            'I’ve passed this to our team for follow-up.',
           ], 'Blocked cancellation reply');
 
           const orderAfter = await prisma.order.findUnique({
@@ -2300,9 +2326,8 @@ async function main() {
             'Color: Black',
           ], 'Reorder summary reply');
           assertIncludes(reorderConfirmationTranscript[1].bot, [
-            'Thank you. Your order has been confirmed successfully ✅',
+            'Your order has been confirmed successfully ✅',
             'Order ID: #',
-            'Current Stage: Confirmed',
           ], 'Reorder confirmation reply');
 
           const ordersAfterReorder = await getOrdersForSender(senderId);
@@ -2442,7 +2467,8 @@ async function main() {
         messages: ['blargh blargh blargh'],
         verify: async ({ transcript }) => {
           assertIncludes(transcript[0].bot, [
-            "Sorry, I didn't quite catch that.",
+            'Sorry, I missed that.',
+            'Which item or order do you mean?',
           ], 'Polished fallback wording');
           assert(
             !transcript[0].bot.includes('I am not fully sure I understood that.'),
@@ -2480,7 +2506,7 @@ async function main() {
             'Color: Beige',
           ], 'Existing-customer second order summary');
           assertIncludes(transcript[8].bot, [
-            'Thank you. Your order has been confirmed successfully ✅',
+            'Your order has been confirmed successfully ✅',
             'Order ID: #',
           ], 'Existing-customer second order confirmation');
 
@@ -2604,7 +2630,7 @@ async function main() {
         ],
         verify: async ({ transcript, senderId, context }) => {
           assertIncludes(transcript[5].bot, [
-            'Thank you. Your order has been confirmed successfully ✅',
+            'Your order has been confirmed successfully ✅',
             'Order ID: #',
           ], 'Variant order placed reply');
 
@@ -2722,7 +2748,7 @@ async function main() {
           );
           assert(
             !allReplies.includes('Order Summary') &&
-              !allReplies.includes('Thank you. Your order has been confirmed successfully'),
+              !allReplies.includes('Your order has been confirmed successfully'),
             `Expected no order summary or confirmation for out-of-stock variant.\n\nTranscript:\n${allReplies}`
           );
           assert(

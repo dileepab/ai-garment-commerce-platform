@@ -43,7 +43,7 @@ export function buildSelfServiceEscalationReply(params: {
       params.action === 'cancel'
         ? 'cancel it automatically'
         : 'update delivery details automatically';
-    return `Order #${params.orderId} has already been processed for courier handover, so I cannot ${actionText} in chat. ${params.supportLine} I have also flagged this conversation for a team follow-up.`;
+    return `Order #${params.orderId} has already been processed for courier handover, so I cannot ${actionText} in chat. I’ve passed this to our team for follow-up. ${params.supportLine}`;
   }
 
   const stage = getFulfillmentLabel(params.status).toLowerCase();
@@ -52,5 +52,5 @@ export function buildSelfServiceEscalationReply(params: {
       ? 'cancel it automatically'
       : 'update delivery details automatically';
 
-  return `Order #${params.orderId} is already at the ${stage} stage, so I cannot ${actionText} in chat. ${params.supportLine} I have also flagged this conversation for a team follow-up.`;
+  return `Order #${params.orderId} is already at the ${stage} stage, so I cannot ${actionText} in chat. I’ve passed this to our team for follow-up. ${params.supportLine}`;
 }
