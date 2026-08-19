@@ -44,6 +44,7 @@ import {
 import {
   buildAcknowledgementReply,
   buildGreetingReply,
+  buildIntroGreetingReply,
   buildMissingContactPrompt,
   buildStoreLocationReply,
   buildSizeChartReply,
@@ -134,6 +135,9 @@ import * as OrderingHandlers from './chat/orders';
 import * as InfoHandlers from './chat/info';
 import { logInfo, logWarn } from '@/lib/app-log';
 import { encodeMessageImages } from '@/lib/chat/message-media';
+
+/** How long a customer is remembered as already introduced to. */
+const ASSISTANT_INTRO_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const LOW_CONFIDENCE_ACTION_THRESHOLD = 0.55;
 const ACTIONS_REQUIRING_HIGH_CONFIDENCE = new Set([
@@ -1468,6 +1472,15 @@ export async function routeCustomerMessage(
   // can be named instead of asking a customer to describe what they just
   // tapped. Only reached on a greeting-shaped opener, so it costs one lookup
   // on a first message rather than one per message.
+  // Said once a day, not once ever and not on every message. A conversation
+  // here is one number on one channel for as long as that number exists, so
+  // "first contact" has to mean a gap rather than a beginning — otherwise a
+  // customer returning three months later is never told what they are talking
+  // to, and a customer mid-order is told twice in an hour.
+  const lastAssistantAt = recentMessages.find((entry) => entry.role === 'assistant')?.createdAt;
+  const shouldIntroduceAssistant =
+    !lastAssistantAt || Date.now() - lastAssistantAt.getTime() > ASSISTANT_INTRO_WINDOW_MS;
+
   if (useGreetingShortcut) {
     const referralHint = await findRecentAdReferralHint(prisma, input.channel, input.senderId);
     // Say it once. The referral stays warm for a day, so without this a plain
@@ -1505,6 +1518,7 @@ export async function routeCustomerMessage(
           itemCode: productItemCode(advertised),
           price: `Rs ${advertised.price}`,
           sizes: sortSizes(splitCsv(advertised.sizes)).join(', '),
+          introduce: shouldIntroduceAssistant,
         }),
         assistantReplyKind: 'generic',
         nextState: {
@@ -1522,7 +1536,9 @@ export async function routeCustomerMessage(
     return finalizeReply({
       reply: looksLikeCapabilityQuestion(input.currentMessage)
         ? 'I can help you browse available items, compare products, check sizes and colors, confirm stock, calculate delivery charges and timing, explain COD or payment options, place an order, and connect you with support when needed.'
-        : buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
+        : shouldIntroduceAssistant
+          ? buildIntroGreetingReply(mergedContact.name || customer?.name, settings.displayName)
+          : buildGreetingReply(mergedContact.name || customer?.name, settings.displayName),
       assistantReplyKind: 'greeting',
       nextState: {
         lastMissingOrderId: null,
