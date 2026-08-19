@@ -53,6 +53,12 @@ export interface CustomerMessageResult {
   silentReason?: 'support_handoff' | 'human_active';
   imagePath?: string;
   imagePaths?: string[];
+  /**
+   * Captions aligned by index with imagePaths. Only WhatsApp can show them —
+   * Messenger attachments carry no caption — so elsewhere the reply text and
+   * the order of the photographs do the naming.
+   */
+  imageCaptions?: string[];
   quickReplies?: CustomerQuickReply[];
   carouselProducts?: Array<{
     id: number;

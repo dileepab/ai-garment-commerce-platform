@@ -139,11 +139,20 @@ async function deliverCustomerResult(
       ? [result.imagePath]
       : [];
 
-  for (const imagePath of imagePaths) {
-    const delivery = await sendWhatsAppImage(senderId, imagePath, {
-      phoneNumberId: config.phoneNumberId,
-      accessToken: config.accessToken,
-    });
+  for (const [index, imagePath] of imagePaths.entries()) {
+    // Photographs arrive as separate messages after the text, so when several
+    // products are being shown the caption is the only thing tying each
+    // picture to the dress it belongs to.
+    const caption = result.imageCaptions?.[index]?.trim() || undefined;
+    const delivery = await sendWhatsAppImage(
+      senderId,
+      imagePath,
+      {
+        phoneNumberId: config.phoneNumberId,
+        accessToken: config.accessToken,
+      },
+      caption
+    );
     if (!delivery.ok) {
       stats.deliveryFailures += 1;
       logWarn('WhatsApp Webhook', 'Text reply succeeded but image delivery failed.', {

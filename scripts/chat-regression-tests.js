@@ -2735,6 +2735,42 @@ async function main() {
         },
       },
       {
+        name: 'A plural "Prices , sizes" is answered with both, not just sizes',
+        senderId: buildSender(runId, 'plural-price'),
+        messages: [
+          'What is the price of the Breezy Summer Dress?',
+          'Prices  , sizes',
+        ],
+        verify: async ({ transcript }) => {
+          // Straight from the inbox: asksPrice matched \bprice\b and could not
+          // match "Prices", so a customer asking for both was told the sizes.
+          const reply = transcript[1].bot;
+          assert(
+            /Rs\s*\d/.test(reply),
+            `Expected a price in the reply to "Prices , sizes".\n\nActual reply:\n${reply}`
+          );
+          assertIncludes(transcript[1].bot, ['Sizes'], 'Plural price reply still answers sizes');
+        },
+      },
+      {
+        name: 'A bare emoji is answered in kind, not with the support number',
+        senderId: buildSender(runId, 'emoji-ack'),
+        messages: [
+          '\u{1F44D}\u{1F3FD}',
+        ],
+        verify: async ({ transcript }) => {
+          const reply = transcript[0].bot;
+          assert(
+            !/didn't quite catch|item name, order ID/i.test(reply),
+            `A thumbs-up should not be answered with the catch-all.\n\nActual reply:\n${reply}`
+          );
+          assert(
+            reply.trim().length <= 8,
+            `A thumbs-up deserves a short reply.\n\nActual reply:\n${reply}`
+          );
+        },
+      },
+      {
         name: 'Variant-aware availability reply distinguishes which sizes+colors are in stock',
         senderId: buildSender(runId, 'variant-avail'),
         messages: [

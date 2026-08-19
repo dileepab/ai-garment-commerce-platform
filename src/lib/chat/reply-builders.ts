@@ -246,15 +246,19 @@ function buildProductQuestionReplyBody(
     return { reply: exactVariantReply, isOverview: false };
   }
 
-  const asksPrice = /\b(?:price|prce|prise|cost|how much|මිල|ගාන|கட்டணம்|விலை)\b/i.test(customerMessage);
+  // Plurals matter here. "Prices , sizes" answered sizes and nothing else,
+  // because \bprice\b cannot match "Prices" — `size` was given its plural
+  // years ago and `price` never was, so asking for both got one.
+  const asksPrice =
+    /\b(?:prices?|prces?|prises?|costs?|how much|මිල|ගාන|கட்டணம்|விலை)\b/i.test(customerMessage);
   const asksSizes = /\b(?:size|sizes|sizing|sze|szes|sisez)\b/i.test(customerMessage);
-  const asksColors = /\b(?:colou?rs?|පාට|நிறம்|நிறங்கள்)\b/i.test(customerMessage);
+  const asksColors = /\b(?:colou?rs?|shades?|පාට|நிறம்|நிறங்கள்)\b/i.test(customerMessage);
   // "මැටීරියල්" is simply "material" typed on a Sinhala keyboard, and it is what
   // customers actually send — the native words are the rarer spelling. Missing it
   // sent a fabric question down the catch-all branch and buried the one-word
   // answer in a spec sheet.
   const asksFabric =
-    /\b(?:fabric|material|cloth)\b|මැටීරි|මැටිරි|ෆැබ්රි|රෙදි|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்/i.test(
+    /\b(?:fabrics?|materials?|cloth)\b|මැටීරි|මැටිරි|ෆැබ්රි|රෙදි|රෙද්ද|අමුද්‍රව්‍ය|துணி|பொருள்/i.test(
       customerMessage
     );
   // "M thiyeida" is how a customer asks whether M is in stock. Only the English
