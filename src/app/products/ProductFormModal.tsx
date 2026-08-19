@@ -1,10 +1,16 @@
 'use client';
 
-import React, { useRef, useState, useTransition } from 'react';
-import { createProduct, updateProduct, uploadProductImage } from './actions';
+import React, { useEffect, useRef, useState, useTransition } from 'react';
+import { createProduct, loadSizeChartForForm, updateProduct, uploadProductImage } from './actions';
 import type { VariantInput, ProductFormInput } from './actions';
 import { resizeImageFile } from '@/lib/image-resize';
 import { sortSizes } from '@/lib/size-order';
+import {
+  buildChartForSizes,
+  syncChartWithSizes,
+  type SizeChartData,
+} from '@/lib/size-chart-templates';
+import { SizeChartEditor } from '@/components/SizeChartEditor';
 
 // ── Static option lists ──────────────────────────────────────────────────────
 
@@ -194,6 +200,13 @@ const inp: React.CSSProperties = {
 
 const inpSm: React.CSSProperties = { ...inp, fontSize: 12, padding: '6px 8px' };
 
+const chartHint: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--color-fg-3)',
+  lineHeight: 1.5,
+  margin: 0,
+};
+
 const lbl: React.CSSProperties = {
   display: 'block',
   fontSize: 10,
@@ -341,6 +354,16 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
   );
   const [sizeDraft, setSizeDraft] = useState('');
   const [colorDraft, setColorDraft] = useState('');
+  // The product's own chart, and the brand template it was seeded from. The
+  // template stays around so a size added later arrives pre-filled and so
+  // "reset" has something to reset to.
+  const [sizeChart, setSizeChart] = useState<SizeChartData | null>(null);
+  const [chartTemplate, setChartTemplate] = useState<SizeChartData | null>(null);
+  const [chartLoading, setChartLoading] = useState(false);
+  // Until the template has been fetched once, the form has nothing to say about
+  // the chart. Submitting in that window must leave the stored one alone rather
+  // than clear it.
+  const [chartReady, setChartReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -385,6 +408,73 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // ── Size chart ──
+  // The chart follows the garment type, which is derived from the style on the
+  // server — the mapping reads the chart assets from disk. Refetched only when
+  // the brand or style moves, never on every size toggle.
+  const productId = product?.id;
+  // A duplicate is seeded from its source, chart included — colourways of one
+  // style share every measurement, which is the reason to duplicate at all.
+  const chartSourceId = product?.id ?? duplicateFrom?.id;
+  const sizesKey = JSON.stringify(selectedSizes);
+
+  useEffect(() => {
+    const chosenStyle = style.trim();
+    if (!chosenStyle) {
+      setChartTemplate(null);
+      setSizeChart(null);
+      setChartReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setChartLoading(true);
+
+    loadSizeChartForForm({ productId: chartSourceId, brand: brand.trim(), style: chosenStyle })
+      .then((result) => {
+        if (cancelled) return;
+        setChartTemplate(result.template);
+        setSizeChart((previous) => {
+          if (!result.template) return null;
+          // Only the sizes changed under an unchanged garment type — whatever is
+          // on screen has already been edited and must survive.
+          if (previous && previous.garmentType === result.template.garmentType) return previous;
+          return result.storedChart ?? result.template;
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setChartTemplate(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setChartLoading(false);
+        setChartReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [brand, style, chartSourceId]);
+
+  // Rows track the sizes the product is made in. A size added here arrives
+  // seeded from the template; a size removed takes its row with it; a row
+  // already corrected by hand is left exactly as it is.
+  useEffect(() => {
+    if (!chartTemplate) return;
+    const sizes: string[] = JSON.parse(sizesKey);
+
+    setSizeChart((previous) =>
+      previous && previous.garmentType === chartTemplate.garmentType
+        ? syncChartWithSizes(previous, sizes, chartTemplate)
+        : buildChartForSizes(chartTemplate, sizes),
+    );
+  }, [chartTemplate, sizesKey]);
+
+  function resetSizeChart() {
+    if (!chartTemplate) return;
+    setSizeChart(buildChartForSizes(chartTemplate, selectedSizes));
+  }
 
   // ── Variant helpers ──
 
@@ -549,6 +639,10 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
           imageUrl: colorImages[colorImageKey(color, angle.id)] || null,
         })),
       ),
+      // Null clears the stored chart, which is what a style change away from a
+      // charted garment type should do. Undefined leaves it untouched, which is
+      // what a submit before the template loaded should do.
+      sizeChart: chartReady ? sizeChart : undefined,
       variants: variants.map((v) => ({
         id: v.id,
         size: v.size.trim(),
@@ -1219,6 +1313,40 @@ export function ProductFormModal({ product, duplicateFrom, availableBrands, onCl
                 </details>
               )}
             </div>
+          </section>
+
+          {/* ── Size Chart ── */}
+          <section>
+            <div className="drawer-section-label">Size Chart</div>
+            {!style.trim() ? (
+              <p style={chartHint}>Pick a style first — the chart follows the garment type.</p>
+            ) : chartLoading ? (
+              <p style={chartHint}>Loading the brand template…</p>
+            ) : !sizeChart ? (
+              <p style={chartHint}>
+                This style has no size chart type, so no chart will be shown for the product.
+              </p>
+            ) : selectedSizes.length === 0 ? (
+              <p style={chartHint}>
+                Select the sizes this product is made in — the chart has a row per size.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={chartHint}>
+                  Pre-filled from the brand template for this garment type. Correct anything this
+                  product measures differently — edited cells are marked.
+                  {!productId && ' The customer-facing chart is generated once the product is saved.'}
+                </p>
+                <SizeChartEditor
+                  chart={sizeChart}
+                  template={chartTemplate}
+                  disabled={isPending}
+                  previewUrl={productId ? `/api/size-charts/${productId}/image` : null}
+                  onChange={setSizeChart}
+                  onReset={resetSizeChart}
+                />
+              </div>
+            )}
           </section>
 
           {error && <div className="drawer-error" role="alert">{error}</div>}

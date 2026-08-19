@@ -11,6 +11,8 @@ export const config = {
      * - api/content/creatives/.../image (public image URLs for Meta publishing/replies)
      * - api/cron (background CRON jobs)
      * - size-charts (public size chart images for chat/storefront)
+     * - api/size-charts (per-product charts rendered for WhatsApp, which
+     *   fetches the URL without a session)
      * - manifest.webmanifest, sw.js, icons (the installable app. A manifest
      *   link is fetched without credentials, so behind auth it resolves to a
      *   login page and the browser offers no install at all. None of the three
@@ -24,6 +26,6 @@ export const config = {
      * - favicon.ico, sitemap.xml, robots.txt
      * - login page
      */
-    '/((?!api/auth|api/webhooks|api/storefront|api/catalog/meta|api/content/creatives/[^/]+/image|api/cron|size-charts|personas|manifest\\.webmanifest|sw\\.js|icons|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|login).*)',
+    '/((?!api/auth|api/webhooks|api/storefront|api/catalog/meta|api/content/creatives/[^/]+/image|api/cron|api/size-charts|size-charts|personas|manifest\\.webmanifest|sw\\.js|icons|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|login).*)',
   ],
 };

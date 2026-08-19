@@ -38,6 +38,10 @@ export function sizeChartAttachmentId(category: SizeChartCategory): string {
   return `chart:${category}`;
 }
 
+export function productSizeChartAttachmentId(productId: number): string {
+  return `chart:product:${productId}`;
+}
+
 export function productAttachmentId(productId: number, index: number): string {
   return `product:${productId}:${index}`;
 }
@@ -58,7 +62,13 @@ async function sizeChartOptions(
 ): Promise<SupportAttachmentOption[]> {
   const products = await prisma.product.findMany({
     where: { status: 'active' },
-    select: { brand: true, style: true },
+    select: {
+      id: true,
+      name: true,
+      brand: true,
+      style: true,
+      sizeChart: { select: { id: true } },
+    },
   });
 
   const scoped = brand
@@ -84,7 +94,22 @@ async function sizeChartOptions(
     });
   }
 
-  return options.sort((a, b) => a.label.localeCompare(b.label));
+  options.sort((a, b) => a.label.localeCompare(b.label));
+
+  // Products that carry their own measurements get their own entry, listed
+  // after the general charts. Only those — a product measuring exactly like its
+  // type is already covered above, and one entry per product would bury the
+  // list an operator is scanning mid-conversation.
+  const productCharts = scoped
+    .filter((product) => product.sizeChart)
+    .map((product) => ({
+      id: productSizeChartAttachmentId(product.id),
+      label: `${product.name} · size chart`,
+      imageUrl: absolute(`/api/size-charts/${product.id}/image`, origin),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return [...options, ...productCharts];
 }
 
 async function productOptions(

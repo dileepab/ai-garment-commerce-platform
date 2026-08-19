@@ -1,4 +1,10 @@
 export interface CatalogProduct {
+  /**
+   * Optional because several matchers are handed trimmed product shapes. Set it
+   * wherever the chart is sent: without it a customer asking about one dress is
+   * answered with the chart for every dress the brand sells.
+   */
+  id?: number;
   name: string;
   price: number;
   sizes: string;

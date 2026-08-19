@@ -20,6 +20,7 @@ import {
   buildSizeChartSelectionReply,
 } from '@/lib/chat/reply-builders';
 import { getPublicAssetUrl } from '@/lib/runtime-config';
+import { productSizeChartUrl } from '@/lib/size-chart-url';
 import { brandsMatch } from '@/lib/brand-aliases';
 import { canFallBackToConversationProduct } from '@/lib/chat/product-reference';
 import { looksLikePhotoRequest } from '@/lib/chat/photo-request';
@@ -790,7 +791,8 @@ export async function handle_size_chart(ctx: ChatContext) {
   const payload = buildSizeChartReply(
     categoriesToSend,
     selectedProduct?.name || null,
-    selectedProduct?.brand || brandFilter
+    selectedProduct?.brand || brandFilter,
+    productSizeChartUrl(selectedProduct?.id)
   );
   return finalizeReply({
     reply: payload.reply,

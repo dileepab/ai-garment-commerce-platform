@@ -47,6 +47,7 @@ model Product {
   colorImages            ProductColorImage[]
   orderItems             OrderItem[]
   creatives              GeneratedCreative[]
+  sizeChart              ProductSizeChart?
 
   @@unique([brand, sku])
 }
@@ -885,4 +886,40 @@ model OperatorPushSubscription {
   updatedAt     DateTime @updatedAt
 
   @@index([operatorEmail])
+}
+
+/// The measurements a brand grades one garment type to, before any particular
+/// product exists. Copied into a product when it is created; editing it later
+/// never rewrites a chart someone has already checked against a real garment.
+model SizeChartTemplate {
+  id          Int      @id @default(autoincrement())
+  /// Normalised brand key, so "Happy Buy" and "Happybuy" share one template.
+  brandKey    String
+  garmentType String
+  unit        String   @default("in")
+  /// [{ key, label, group: body|garment, kind: measure|text }]
+  columnsJson String
+  /// [{ size, values: { columnKey: value } }]
+  rowsJson    String
+  footerNote  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([brandKey, garmentType])
+}
+
+/// One product's own chart. A snapshot, not a reference: the template it came
+/// from can change afterwards without moving numbers that were measured off the
+/// finished garment.
+model ProductSizeChart {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @unique
+  garmentType String
+  unit        String   @default("in")
+  columnsJson String
+  rowsJson    String
+  footerNote  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
