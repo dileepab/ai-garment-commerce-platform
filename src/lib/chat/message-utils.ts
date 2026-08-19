@@ -596,10 +596,16 @@ export function extractGiftNoteFromText(message: string): string | null {
  */
 function looksLikeLocalizedDeliveryTimingQuestion(message: string): boolean {
   return (
-    /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|කීයක්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(
+    // "කීයක්" is deliberately absent. It carries both senses — "how many" of
+    // something countable and "how much" of money — so counting it as a timing
+    // word made "Colombo වලට ඩිලිවරි කරන්න කීයක් ගන්නවද?" ("how much do you
+    // charge to deliver to Colombo?") a question about days, and the charge
+    // answer arrived with the whole delivery-window recital attached. Genuine
+    // "how many days" questions say දවස් and are still matched by it.
+    /(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery).*(දවස්|යයිද|කොච්චර|කල්|ලැබෙයි|එයි)/i.test(
       message
     ) ||
-    /(දවස්|කීයක්|යයිද|කොච්චර|කල්).*(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i.test(
+    /(දවස්|යයිද|කොච්චර|කල්).*(එවන්න|යවන්න|එවීමට|යවීමට|ඩිලිවරි|delivery)/i.test(
       message
     ) ||
     /(அனுப்ப|டெலிவரி|delivery).*(எத்தனை|நாட்கள்|நேரம்|எப்போது|வரும்|கிடைக்கும்)/i.test(
