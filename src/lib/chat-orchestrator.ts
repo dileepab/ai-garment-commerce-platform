@@ -1709,11 +1709,14 @@ export async function routeCustomerMessage(
         ? `Got it — I've updated the ${changedFields.map((field) => FIELD_LABELS[field]).join(' and ')}.\n\n`
         : '';
 
+    // A corrected address goes back to the same single summary, so a customer
+    // who fixes a typo is not sent through two confirmations to reach the
+    // order they had already agreed to.
     return finalizeReply({
-      reply: `${acknowledgement}${buildContactConfirmationReply(nextDraft.name, nextDraft.address, nextDraft.phone, nextDraft)}`,
-      assistantReplyKind: 'contact_confirmation',
+      reply: `${acknowledgement}${buildOrderSummaryReply(nextDraft)}`,
+      assistantReplyKind: 'order_summary',
       nextState: {
-        pendingStep: 'contact_confirmation',
+        pendingStep: 'order_confirmation',
         orderDraft: nextDraft,
         quantityUpdate: null,
         lastMissingOrderId: null,
