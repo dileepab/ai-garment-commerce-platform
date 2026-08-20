@@ -31,6 +31,28 @@ function assertIncludes(actual, expectedSnippets, label) {
   }
 }
 
+/**
+ * The bot reply that contains a marker, wherever it landed in the transcript.
+ *
+ * Assertions used to index turns directly, so collapsing the two order
+ * confirmations into one shifted twenty-eight cases at once and none of them
+ * were really about position. Finding the reply by what it says survives the
+ * next change to the number of steps.
+ */
+function botReplyContaining(transcript, marker, label, options = {}) {
+  const matches = transcript.filter((entry) => (entry.bot || '').includes(marker));
+  // A conversation that places two orders shows two summaries; `last` is how a
+  // case says it means the second one.
+  const turn = options.last ? matches[matches.length - 1] : matches[0];
+  assert(
+    turn,
+    `${label}: no bot reply contained ${JSON.stringify(marker)}.\n\nTranscript:\n${transcript
+      .map((entry, index) => `[${index}] ${entry.user} -> ${entry.bot}`)
+      .join('\n')}`
+  );
+  return turn.bot;
+}
+
 async function waitForServer(baseUrl, server, timeoutMs = 40000) {
   const deadline = Date.now() + timeoutMs;
 
@@ -1057,24 +1079,26 @@ async function main() {
             'Phone Number:',
           ], 'Initial contact collection reply');
 
-          assertIncludes(transcript[3].bot, [
-            'Please confirm if these delivery details are correct:',
+          // One summary now carries the delivery details and the money, and a
+          // single yes places the order.
+          const summary = botReplyContaining(transcript, 'Order Summary', 'Order summary');
+          assertIncludes(summary, [
+            'Product: Relaxed Linen Pants',
+            'Size: Medium',
+            'Color: Beige',
             'Name: Regression Customer',
             'Street Address: 12 Main Street',
             'City/Town: Bingiriya',
             'District: Kurunegala',
             'Phone Number: 0771009999',
-          ], 'Contact confirmation reply');
-
-          assertIncludes(transcript[4].bot, [
-            'Order Summary',
-            'Product: Relaxed Linen Pants',
-            'Size: Medium',
-            'Color: Beige',
           ], 'Order summary reply');
 
-          assertIncludes(transcript[5].bot, [
+          const placed = botReplyContaining(
+            transcript,
             'Your order has been confirmed successfully ✅',
+            'Order placed'
+          );
+          assertIncludes(placed, [
             'Order ID: #',
             'Size: Medium',
             'Color: Beige',
@@ -1107,14 +1131,12 @@ async function main() {
             !transcript[2].bot.includes('Yes, that is correct'),
             `Confirmation phrase was treated as contact data.\n\nActual reply:\n${transcript[2].bot}`
           );
-          assertIncludes(transcript[3].bot, [
-            'Please confirm if these delivery details are correct:',
+          assertIncludes(botReplyContaining(transcript, 'Order Summary', 'Order summary'), [
             'Street Address: 12 Main St',
             'City/Town: Colombo',
             'District: Colombo',
           ], 'Clean contact confirmation after city correction');
-          assertIncludes(transcript[5].bot, [
-            'Your order has been confirmed successfully',
+          assertIncludes(botReplyContaining(transcript, 'Your order has been confirmed successfully', 'Order placed'), [
             'Order ID: #',
             'We’ll call to verify the delivery details before courier dispatch.',
           ], 'Final order confirmation with clean contact data');
@@ -1142,8 +1164,7 @@ async function main() {
             'Phone Number:',
           ], 'Instagram initial contact collection reply');
 
-          assertIncludes(transcript[5].bot, [
-            'Your order has been confirmed successfully ✅',
+          assertIncludes(botReplyContaining(transcript, 'Your order has been confirmed successfully ✅', 'Order placed'), [
             'Order ID: #',
             'We’ll call to verify the delivery details before courier dispatch.',
           ], 'Instagram order placed reply');
@@ -1490,7 +1511,7 @@ async function main() {
         verify: async ({ transcript }) => {
           assertIncludes(transcript[5].bot, [
             "Got it — I've updated the address.",
-            'Please confirm if these delivery details are correct:',
+            'Order Summary',
             'Name: Correction Customer',
             'Street Address: 12 Main Street',
             'City/Town: Bingiriya',
@@ -2278,8 +2299,7 @@ async function main() {
           assertIncludes(transcript[6].bot, [
             'Cancelled Order ID: #',
           ], 'Cancellation reply');
-          assertIncludes(transcript[7].bot, [
-            'Please confirm if these delivery details are correct:',
+          assertIncludes(botReplyContaining(transcript, 'Order Summary', 'Order summary'), [
             'Name: Reorder Customer',
             'Street Address: 12 Main Street',
             'City/Town: Bingiriya',
@@ -2390,7 +2410,7 @@ async function main() {
         },
       },
       {
-        name: 'Neutral acknowledgement during contact confirmation re-opens the prompt warmly',
+        name: 'Neutral acknowledgement at the summary re-opens the prompt warmly',
         senderId: buildSender(runId, 'neutral-ack-contact'),
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
@@ -2400,9 +2420,11 @@ async function main() {
           'okay',
         ],
         verify: async ({ transcript }) => {
+          // "okay" is not a yes. It waits at the one summary there now is,
+          // rather than at a delivery-details gate that no longer exists.
           assertIncludes(transcript[4].bot, [
-            'Whenever you are ready, reply "yes" to confirm the delivery details',
-          ], 'Neutral acknowledgement reply during contact confirmation');
+            'Whenever you are ready, reply "yes" to confirm the order summary',
+          ], 'Neutral acknowledgement reply at the order summary');
           assert(
             !transcript[4].bot.includes('Please confirm the delivery details or send the correction you need.'),
             `Neutral ack still uses the old terse confirmation prompt.\n\nActual reply:\n${transcript[4].bot}`
@@ -2410,24 +2432,31 @@ async function main() {
         },
       },
       {
-        name: 'Order summary uses the polished close-out wording',
+        name: 'One summary asks once, carrying both the address and the total',
         senderId: buildSender(runId, 'summary-wording'),
         messages: [
           'I want Relaxed Linen Pants in beige, M size',
           'Summary Wording Customer',
           '12 Main Street, Bingiriya, Kurunegala',
           '0771007272',
-          'yes correct',
         ],
         verify: async ({ transcript }) => {
-          assertIncludes(transcript[4].bot, [
-            'Order Summary',
+          // The delivery details used to get a confirmation of their own,
+          // answered, and then an order summary repeating them asked again.
+          // A customer answered both and stopped, believing she had ordered.
+          assertIncludes(botReplyContaining(transcript, 'Order Summary', 'Order summary'), [
+            'Product:',
+            'Total: Rs',
+            'Name: Summary Wording Customer',
+            'Street Address: 12 Main Street',
+            'Phone Number:',
             'Reply "yes" to confirm, or tell me what to change.',
-          ], 'Polished order summary wording');
-          assertIncludes(transcript[3].bot, [
-            'Please confirm if these delivery details are correct:',
-            'Reply "yes" to confirm, or send the correction you need.',
-          ], 'Polished contact confirmation wording');
+          ], 'A single summary carries the address and the money');
+
+          assert(
+            !transcript[3].bot.includes('Please confirm if these delivery details are correct:'),
+            `The separate delivery-details gate should be gone.\n\nActual reply:\n${transcript[3].bot}`
+          );
         },
       },
       {
@@ -2442,11 +2471,11 @@ async function main() {
           'Yes. Place it now.',
         ],
         verify: async ({ transcript, senderId }) => {
-          assertIncludes(transcript[4].bot, [
-            'Order Summary',
-          ], 'Natural contact confirmation');
-          assertIncludes(transcript[5].bot, [
-            'confirmed successfully',
+          assertIncludes(botReplyContaining(transcript, 'Order Summary', 'Order summary'), [
+            'Name:',
+            'Total: Rs',
+          ], 'Natural order summary');
+          assertIncludes(botReplyContaining(transcript, 'confirmed successfully', 'Order placed'), [
             'Order ID:',
           ], 'Natural order confirmation');
 
@@ -2491,22 +2520,19 @@ async function main() {
           'yes correct',
         ],
         verify: async ({ transcript, senderId }) => {
-          assertIncludes(transcript[6].bot, [
-            'Please confirm if these delivery details are correct:',
+          assertIncludes(botReplyContaining(transcript, 'Order Summary', 'Order summary'), [
             'Name: Explicit Lookup Customer',
             'Street Address: 12 Main Street',
             'City/Town: Bingiriya',
             'District: Kurunegala',
             'Phone Number: 0771008888',
           ], 'Existing-customer contact confirmation reply');
-          assertIncludes(transcript[7].bot, [
-            'Order Summary',
-            'Product: Relaxed Linen Pants',
-            'Size: Medium',
-            'Color: Beige',
-          ], 'Existing-customer second order summary');
-          assertIncludes(transcript[8].bot, [
-            'Your order has been confirmed successfully ✅',
+          assertIncludes(
+            botReplyContaining(transcript, 'Order Summary', 'Second order summary', { last: true }),
+            ['Product: Relaxed Linen Pants', 'Size: Medium', 'Color: Beige'],
+            'Existing-customer second order summary'
+          );
+          assertIncludes(botReplyContaining(transcript, 'Your order has been confirmed successfully ✅', 'Order placed'), [
             'Order ID: #',
           ], 'Existing-customer second order confirmation');
 
@@ -2629,8 +2655,7 @@ async function main() {
           'yes correct',
         ],
         verify: async ({ transcript, senderId, context }) => {
-          assertIncludes(transcript[5].bot, [
-            'Your order has been confirmed successfully ✅',
+          assertIncludes(botReplyContaining(transcript, 'Your order has been confirmed successfully ✅', 'Order placed'), [
             'Order ID: #',
           ], 'Variant order placed reply');
 

@@ -656,16 +656,16 @@ export async function handle_confirm_pending(ctx: ChatContext) {
       });
     }
 
+    // Straight to the summary, which already lists the name, address and
+    // phone alongside the price and the total. Asking to confirm the delivery
+    // details and then asking again to confirm an order restating them is the
+    // same question twice: one customer answered both — "Yes confirm❤️", then
+    // "Correct details" — and stopped replying believing she had ordered.
     return finalizeReply({
-      reply: buildContactConfirmationReply(
-        state.orderDraft.name,
-        state.orderDraft.address,
-        state.orderDraft.phone,
-        state.orderDraft
-      ),
-      assistantReplyKind: 'contact_confirmation',
+      reply: buildOrderSummaryReply(state.orderDraft),
+      assistantReplyKind: 'order_summary',
       nextState: {
-        pendingStep: 'contact_confirmation',
+        pendingStep: 'order_confirmation',
         orderDraft: state.orderDraft,
         quantityUpdate: null,
         lastMissingOrderId: null,
@@ -673,6 +673,9 @@ export async function handle_confirm_pending(ctx: ChatContext) {
     });
   }
 
+  // Kept for conversations already parked at the old step when this shipped.
+  // Their next "yes" has to land somewhere, and it is one deploy's worth of
+  // customers, not a permanent second gate.
   if (state.pendingStep === 'contact_confirmation' && state.orderDraft) {
     return finalizeReply({
       reply: buildOrderSummaryReply(state.orderDraft),
