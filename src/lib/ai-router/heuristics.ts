@@ -2,6 +2,7 @@ import { RouterProductContext, RouterInput, AiRoutedAction } from './types';
 import { extractContactDetailsFromText } from '@/lib/contact-profile';
 import { looksLikeCourierProviderQuestion } from '@/lib/chat/message-utils';
 import { SizeChartCategory } from '@/lib/size-charts';
+import { looksLikePurchaseIntent } from '@/lib/chat/purchase-intent';
 import { isClearConfirmation } from '@/lib/confirmation-intent';
 
 export const SIZE_PATTERN = /\b(4XL|3XL|2XL|XXL|XL|XS|S|M|L|small|medium|large|extra small|extra large|double extra large)\b/i;
@@ -444,6 +445,10 @@ export function buildHeuristicAction(
     product &&
     (
       /\bi want\b|\bi need\b|\bi would like\b|\border\b|\bbuy\b|\bget\b/.test(normalized) ||
+      // Sinhala and Tamil say the same thing, and used to reach the catch-all.
+      // Safe here because a product is already resolved: on its own "ඕන" is
+      // just "want", but after a price it is the sale.
+      looksLikePurchaseIntent(message) ||
       input.pendingStep === 'order_draft'
     )
   ) {

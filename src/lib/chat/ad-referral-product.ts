@@ -125,7 +125,14 @@ export function buildAdArrivalReply(params: {
   ];
   if (params.sizes) lines.push(`Sizes: ${params.sizes}`);
   if (params.itemCode) lines.push(`Item code: ${params.itemCode}`);
-  lines.push('Happy to send photos or take your order.');
+  // "Happy to send photos or take your order" left the next move to the
+  // customer, and the customer's next move was usually to stop replying. One
+  // thing to do, and the payment worry answered before it is raised.
+  lines.push(
+    params.sizes
+      ? 'Reply with your size and I will reserve it for you. Cash on delivery is available.'
+      : 'Reply here and I will set the order up for you. Cash on delivery is available.'
+  );
 
   return lines.join('\n');
 }

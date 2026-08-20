@@ -9,10 +9,27 @@ export interface RetentionDecision {
   reason?: string;
 }
 
-export const RETENTION_SUPPORTED_CHANNELS = ['messenger', 'instagram'] as const;
+/**
+ * WhatsApp is included because that is where the customers are — every recent
+ * conversation in the inbox arrived there, so a reminder that skipped it was a
+ * reminder that never ran.
+ *
+ * It is safe alongside CART_RECOVERY_MESSAGING_WINDOW_MS and not before it: a
+ * free-form WhatsApp message is only allowed within 24 hours of the customer's
+ * own last message, and the window check is what keeps every send inside that.
+ */
+export const RETENTION_SUPPORTED_CHANNELS = ['messenger', 'instagram', 'whatsapp'] as const;
 
 export const CART_RECOVERY_DELAY_MS = 12 * 60 * 60 * 1000;
 export const CART_RECOVERY_COOLDOWN_MS = 72 * 60 * 60 * 1000;
+/**
+ * WhatsApp only allows a free-form message within 24 hours of the customer's
+ * last one; past that it takes an approved template. Two hours of margin, so a
+ * reminder is never sent into a window that has closed by the time it arrives.
+ * This Page has been restricted once already — rejected sends are not a bill
+ * worth running up.
+ */
+export const CART_RECOVERY_MESSAGING_WINDOW_MS = 22 * 60 * 60 * 1000;
 // Four hours, not twenty-four. The bot goes silent the moment a case is
 // escalated, so this message is the only thing the customer hears until someone
 // picks the case up. Open cases were averaging a 10h54m wait with the oldest at
@@ -144,8 +161,14 @@ export function shouldSendCartRecoveryReminder(params: {
     return block('no_pending_order_flow');
   }
 
-  if (params.now.getTime() - params.stateUpdatedAt.getTime() < automation.cartRecoveryDelayMs) {
+  const staleFor = params.now.getTime() - params.stateUpdatedAt.getTime();
+
+  if (staleFor < automation.cartRecoveryDelayMs) {
     return block('not_stale_enough');
+  }
+
+  if (staleFor > CART_RECOVERY_MESSAGING_WINDOW_MS) {
+    return block('outside_messaging_window');
   }
 
   if (
