@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { formatDeliveryAddress } from '@/lib/contact-profile';
+import { reportOrderConversionById } from '@/lib/meta-conversions';
 
 export interface CreateOrderItemInput {
   productId: number;
@@ -54,7 +55,7 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
     throw new OrderRequestError('At least one order item is required.');
   }
 
-  return db.$transaction(async (tx) => {
+  const order = await db.$transaction(async (tx) => {
     const customer = await tx.customer.findUnique({
       where: { id: input.customerId },
       select: { id: true },
@@ -274,6 +275,14 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
     maxWait: 10_000,
     timeout: 30_000,
   });
+
+  // Told to Meta only once the order is committed, and never at the order's
+  // expense — this is the signal that lets a Click-to-WhatsApp campaign
+  // optimise for buyers instead of for whoever will send a message. It is a
+  // no-op for organic orders and for orders with no click behind them.
+  await reportOrderConversionById(order.id);
+
+  return order;
 }
 
 export async function cancelOrderById(db: PrismaClient, orderId: number) {
