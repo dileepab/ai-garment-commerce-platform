@@ -15,6 +15,7 @@ import {
   startRefundDamageWorkflowAction,
   takeOverConversationAction,
   updateEscalationWorkflowAction,
+  placeDraftedOrderAction,
 } from '@/app/support/actions';
 import {
   getSupportChannelColor,
@@ -509,6 +510,27 @@ export function Thread({
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canReply && !convo.orderId && (
+            <form
+              action={placeDraftedOrderAction}
+              onSubmit={(event) => {
+                // This places a real order and messages the customer, so it
+                // does not happen on a stray click.
+                if (
+                  !window.confirm(
+                    `Place the order the bot has drafted for ${displayName}, and send them the confirmation?`
+                  )
+                ) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              <input type="hidden" name="conversationKey" value={convo.conversationKey} />
+              <button type="submit" className="btn btn-primary" style={{ fontSize: 11 }}>
+                Place order &amp; tell customer
+              </button>
+            </form>
+          )}
           {canTake && (
             <form action={updateEscalationWorkflowAction}>
               <input type="hidden" name="escalationId" value={escalationId ?? ''} />

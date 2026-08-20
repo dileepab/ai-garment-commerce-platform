@@ -18,6 +18,8 @@ import { resolveSupportAttachment } from '@/lib/support-attachments';
 import { personaAssetOrigin } from '@/lib/persona-asset';
 import { sendWhatsAppImage, sendWhatsAppMessage } from '@/lib/whatsapp';
 import { logInfo, logWarn } from '@/lib/app-log';
+import { parseSupportConversationKey } from '@/lib/support-inbox-core';
+import { routeCustomerMessage } from '@/lib/chat-orchestrator';
 import { logAdminAudit } from '@/lib/admin-audit';
 import { createReturnRequest, ReturnRequestError } from '@/lib/returns-service';
 import {
@@ -839,4 +841,106 @@ async function deliverSupportAttachment(params: {
     ok: false,
     error: `Images cannot be sent on ${params.channel} yet. Send a link in a text reply instead.`,
   };
+}
+
+/**
+ * Lets an operator finish an order the bot has already drafted.
+ *
+ * A customer confirmed twice — "Yes confirm❤️", then "Correct details" — and
+ * the bot asked a third time. From her side the order was placed; there was no
+ * order. An operator could message her and could not act, because the only way
+ * to create an order was for the customer to type the right word.
+ *
+ * This runs the bot's own confirmation rather than reimplementing it, so stock,
+ * the waybill, the ad conversion and the customer's message are exactly what
+ * they would have been. The customer is not recorded as having said anything:
+ * the transcript keeps an operator line naming who placed it.
+ */
+export async function placeDraftedOrderAction(formData: FormData) {
+  let scope: UserScope;
+  try {
+    scope = await requireActionPermission('support:reply');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  const conversationKey = String(formData.get('conversationKey') || '').trim();
+  if (!conversationKey) return;
+
+  let identity;
+  try {
+    identity = parseSupportConversationKey(conversationKey);
+  } catch {
+    return;
+  }
+
+  try {
+    assertBrandAccess(scope, identity.brand, 'support case');
+  } catch (error) {
+    if (isAuthorizationError(error)) return;
+    throw error;
+  }
+
+  // The bot's own path. `transcriptMessage` is empty so the confirmation is
+  // never written into the transcript as the customer's words — she did not
+  // send it, and a support record that says otherwise is worse than useless.
+  const result = await routeCustomerMessage({
+    senderId: identity.senderId,
+    channel: identity.channel,
+    brand: identity.brand || undefined,
+    currentMessage: 'yes',
+    transcriptMessage: '',
+  });
+
+  const placedOrderId = result.orderId ?? null;
+
+  await prisma.chatMessage.create({
+    data: {
+      senderId: identity.senderId,
+      channel: identity.channel,
+      brand: identity.brand,
+      role: 'operator',
+      message: placedOrderId
+        ? `Placed order #${placedOrderId} for the customer.`
+        : 'Tried to place the drafted order; the bot did not have a complete draft.',
+    },
+  });
+
+  if (result.reply) {
+    const delivery = await deliverSupportReply({
+      senderId: identity.senderId,
+      channel: identity.channel,
+      brand: identity.brand,
+      reply: result.reply,
+    });
+
+    if (!delivery.ok) {
+      // Saved but undelivered is the state worth shouting about: the order may
+      // exist while the customer is still waiting to hear anything.
+      logWarn('Support Actions', 'Placed the order but could not tell the customer.', {
+        channel: identity.channel,
+        orderId: placedOrderId,
+        error: delivery.error || String(delivery.status || 'unknown'),
+      });
+    }
+  }
+
+  await logAdminAudit({
+    action: 'support_order_placed',
+    entityType: 'order',
+    entityId: placedOrderId,
+    brand: identity.brand,
+    actorEmail: scope.email ?? null,
+    summary: placedOrderId
+      ? `Operator placed order #${placedOrderId} from the support inbox.`
+      : 'Operator tried to place a drafted order with no complete draft.',
+    metadata: {
+      channel: identity.channel,
+      senderId: identity.senderId,
+      conversationKey,
+    },
+  });
+
+  revalidatePath('/support');
 }
