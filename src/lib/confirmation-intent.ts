@@ -63,6 +63,13 @@ const CONFIRMATION_PATTERNS = [
   /\b(ow|hari|hariyata)\b.*\b(confirm|karanna|danna|place)\b/i,
   /\b(confirm|place)\b.*\b(karanna|danna)\b/i,
   /^(ඔව්|හරි|හරියට|තහවුරු කරන්න|ඇණවුම තහවුරු කරන්න)[\s.!✅]*$/i,
+  // The list above matches whole phrases, so "correct" confirmed an order and
+  // "Correct details" did not. A customer who had already said "Yes confirm❤️"
+  // said this, was asked a third time, and stopped replying believing she had
+  // ordered. Emoji are common on the end of a yes and must not break it.
+  /^(?:that|this|these|all)?\s*(?:looks?|is|are)?\s*correct(?:\s+details?)?\s*[\s.!✅❤️👍🙏]*$/i,
+  /^(?:details?|address)\s+(?:is|are)?\s*correct\s*[\s.!✅]*$/i,
+  /\byes\b[\s,.]*\bconfirm(?:ed|ing)?\b/i,
   /^(ஆம்|சரி|உறுதி செய்|ஆர்டர் செய்|ஆர்டர் பண்ணுங்கள்)[\s.!✅]*$/i,
 ];
 
