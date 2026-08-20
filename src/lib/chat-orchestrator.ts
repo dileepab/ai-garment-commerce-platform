@@ -103,6 +103,7 @@ import {
 } from '@/lib/chat/ad-referral-product';
 import { findRecentAdReferralHint } from '@/lib/ad-referral';
 import { sortSizes } from '@/lib/size-order';
+import { photosForAnsweredProducts } from '@/lib/chat/product-photos';
 import { notifyInboundCustomerMessage } from '@/lib/push-notifications';
 import { isClearConfirmation } from '@/lib/order-confirmation';
 import {
@@ -1510,7 +1511,13 @@ export async function routeCustomerMessage(
 
     if (advertised) {
       setDiagnosticEffectiveAction('ad_arrival', 1);
+      // They tapped a picture. Sending prose back is where most of them
+      // stopped replying, so the photograph goes with the answer rather than
+      // waiting to be asked for.
+      const adPhotos = photosForAnsweredProducts([advertised]);
       return finalizeReply({
+        imagePaths: adPhotos.urls.length ? adPhotos.urls : undefined,
+        imageCaptions: adPhotos.urls.length ? adPhotos.captions : undefined,
         reply: buildAdArrivalReply({
           customerName: mergedContact.name || customer?.name,
           brandName: settings.displayName,

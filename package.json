@@ -68,7 +68,8 @@
     "test:push-targeting": "node --test --experimental-strip-types --no-warnings scripts/push-targeting.test.ts scripts/synthetic-sender.test.ts",
     "test:ad-arrival": "node --test --experimental-strip-types --no-warnings scripts/ad-referral-product.test.ts scripts/acknowledgement.test.ts",
     "test:assistant-intro": "node --test --experimental-strip-types --no-warnings scripts/assistant-intro.test.ts",
-    "test:meta-conversions": "node --test --experimental-strip-types --no-warnings scripts/meta-conversions.test.ts"
+    "test:meta-conversions": "node --test --experimental-strip-types --no-warnings scripts/meta-conversions.test.ts",
+    "test:purchase-intent": "node --test --experimental-strip-types --no-warnings scripts/purchase-intent.test.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

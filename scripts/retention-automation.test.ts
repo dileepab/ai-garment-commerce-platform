@@ -7,6 +7,7 @@ import {
   buildSupportTimeoutMessage,
   CART_RECOVERY_DELAY_MS,
   CART_RECOVERY_COOLDOWN_MS,
+  CART_RECOVERY_MESSAGING_WINDOW_MS,
   getSupportAutomationBlockReason,
   PURCHASE_NUDGE_COOLDOWN_MS,
   shouldSendCartRecoveryReminder,
@@ -253,4 +254,32 @@ test('retention messages stay concise and professional', () => {
     assert(message.length <= 160, `Expected short message, received: ${message}`);
     assert(!/sorry to say|occupied|spam/i.test(message), `Message has poor wording: ${message}`);
   }
+});
+
+
+test('a reminder is never sent once WhatsApp\'s 24-hour window has closed', () => {
+  // Inside the window, and stale enough to be worth a nudge.
+  assert.deepEqual(
+    shouldSendCartRecoveryReminder({
+      channel: 'whatsapp',
+      hasOrderDraft: true,
+      pendingStep: 'order_confirmation',
+      stateUpdatedAt: ago(CART_RECOVERY_DELAY_MS + 1),
+      now,
+    }),
+    { send: true }
+  );
+
+  // Past the margin a free-form message would be refused by Meta, and this
+  // Page has been restricted from messaging once already.
+  assert.equal(
+    shouldSendCartRecoveryReminder({
+      channel: 'whatsapp',
+      hasOrderDraft: true,
+      pendingStep: 'order_confirmation',
+      stateUpdatedAt: ago(CART_RECOVERY_MESSAGING_WINDOW_MS + 60_000),
+      now,
+    }).reason,
+    'outside_messaging_window'
+  );
 });

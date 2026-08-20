@@ -85,6 +85,35 @@ test('the ad opener introduces the assistant only on first contact', () => {
   assert.match(returning, /Hi dilula, welcome to Happybuy\./);
 });
 
+test('the ad reply asks for one thing and answers the payment worry', () => {
+  const reply = buildAdArrivalReply({
+    customerName: 'dilula',
+    brandName: 'Happybuy',
+    productName: 'Pleated Wrap Skort — Brown Check',
+    itemCode: 'HAP-0004',
+    price: 'Rs 1690',
+    sizes: 'S, M, L, XL',
+  });
+
+  // The old close, "Happy to send photos or take your order", left the next
+  // move to the customer and the customer usually stopped replying.
+  assert.match(reply, /Reply with your size and I will reserve it for you\./);
+  assert.match(reply, /Cash on delivery is available\./);
+  assert.doesNotMatch(reply, /Happy to send photos/);
+});
+
+test('a product with no sizes recorded still gets a way to go on', () => {
+  const reply = buildAdArrivalReply({
+    customerName: null,
+    brandName: 'Happybuy',
+    productName: 'Gift Card',
+    price: 'Rs 1000',
+    sizes: '',
+  });
+  assert.match(reply, /Reply here and I will set the order up for you\./);
+  assert.doesNotMatch(reply, /Sizes:/);
+});
+
 test('an unnamed customer is still told it is an AI', () => {
   const reply = buildAdArrivalReply({
     customerName: null,
