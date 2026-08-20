@@ -173,6 +173,23 @@ function ChannelHealthBlock({
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-fg-1)' }}>Messaging</div>
           )}
         </div>
+        {channel === 'whatsapp' && (
+          <div>
+            {/* Without a catalog id the bot answers "what do you have?" with a
+                paragraph instead of tappable cards, and falls back silently —
+                so whether it is set belongs on the page, not only in a log. */}
+            <div className="app-section-label">Product cards</div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: config.whatsappCatalogId ? 'var(--color-fg-1)' : 'var(--color-warning, #9B6B00)',
+              }}
+            >
+              {config.whatsappCatalogId ? 'Catalog linked' : 'Text only — no catalog id'}
+            </div>
+          </div>
+        )}
       </div>
 
       <MetaConnectionTestButton brand={brand} channel={channel} disabled={!ready} />

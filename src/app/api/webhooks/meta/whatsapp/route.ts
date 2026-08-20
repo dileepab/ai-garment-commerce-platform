@@ -98,7 +98,25 @@ async function deliverCustomerResult(
     // customer can act on a recommendation without leaving the chat. Falls back
     // to the text list when the brand has no catalog, or when nothing in the
     // reply has a sellable variant to point at.
-    const productPayload = config.catalogId
+    const sellable = result.carouselProducts.filter((product) => product.retailerId);
+
+    // A card converts and a text list does not, so when the card cannot be
+    // built the reason is worth saying. Falling back silently is how this has
+    // been sending paragraphs to customers who tapped an ad, with nothing
+    // anywhere to show it was happening.
+    if (!config.catalogId) {
+      logWarn('WhatsApp Webhook', 'Sent the catalog as text: this brand has no WhatsApp catalog id.', {
+        brand: config.brand || 'unknown',
+        products: result.carouselProducts.length,
+      });
+    } else if (sellable.length === 0) {
+      logWarn('WhatsApp Webhook', 'Sent the catalog as text: nothing in the reply had a sellable variant.', {
+        brand: config.brand || 'unknown',
+        products: result.carouselProducts.length,
+      });
+    }
+
+    const productPayload = config.catalogId && sellable.length > 0
       ? buildProductListPayload({
           recipient: senderId,
           catalogId: config.catalogId,
@@ -107,9 +125,7 @@ async function deliverCustomerResult(
           sections: [
             {
               title: 'Available now',
-              products: result.carouselProducts
-                .filter((product) => product.retailerId)
-                .map((product) => ({ retailerId: product.retailerId! })),
+              products: sellable.map((product) => ({ retailerId: product.retailerId! })),
             },
           ],
         })
