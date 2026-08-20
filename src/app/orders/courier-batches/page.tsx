@@ -8,7 +8,19 @@ import { RoyalExpressBatchForm } from './RoyalExpressBatchForm';
 
 export const dynamic = 'force-dynamic';
 
-function sriLankaNoonDateTimeLocal() {
+/**
+ * The end of today in Colombo, as the batch form's starting cutoff.
+ *
+ * It used to be noon, which quietly made every afternoon order unreachable.
+ * The page counts eligible orders against this value, and the form disables
+ * itself — brand, cutoff and button together — when that count is zero. So an
+ * order placed at seven in the evening left a dead form whose own cutoff field
+ * was the thing that could have included it, until the date rolled over.
+ *
+ * A batch run is a "send what we have" action, so the day it is run is the
+ * span it should start from.
+ */
+function sriLankaEndOfDayDateTimeLocal() {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Colombo',
@@ -17,7 +29,7 @@ function sriLankaNoonDateTimeLocal() {
     day: '2-digit',
   }).formatToParts(now);
   const value = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
-  return `${value('year')}-${value('month')}-${value('day')}T12:00`;
+  return `${value('year')}-${value('month')}-${value('day')}T23:59`;
 }
 
 function parseSriLankaDateTimeLocal(value: string) {
@@ -59,7 +71,7 @@ function formatRoyalExpressDebug(rawResponse?: string | null) {
 
 export default async function CourierBatchesPage() {
   const scope = await requirePagePermission('orders:view');
-  const defaultCutoff = sriLankaNoonDateTimeLocal();
+  const defaultCutoff = sriLankaEndOfDayDateTimeLocal();
   const cutoffAt = parseSriLankaDateTimeLocal(defaultCutoff);
   const activeSettings = await prisma.courierIntegrationSetting.findMany({
     where: {
