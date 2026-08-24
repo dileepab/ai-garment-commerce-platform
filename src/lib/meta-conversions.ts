@@ -190,6 +190,13 @@ export function describeConversionsConfiguration(): ConversionsConfigurationRepo
 }
 
 /**
+ * Meta validates this and refuses it, which is the point: the refusal proves
+ * the request got past the dataset lookup and the token check to reach field
+ * validation, without inventing a sale against a real ad.
+ */
+const PLACEHOLDER_CLICK_ID = 'verification-not-a-real-click';
+
+/**
  * Posts one synthetic Purchase so the credentials can be proven before a real
  * sale depends on them.
  *
@@ -198,7 +205,8 @@ export function describeConversionsConfiguration(): ConversionsConfigurationRepo
  * reports. The value is zero for the same reason.
  */
 export async function sendVerificationEvent(
-  brand: string
+  brand: string,
+  clickId?: string | null
 ): Promise<{ ok: boolean; status: number; response: string; reason?: string }> {
   const dataset = datasetId();
   if (!dataset) return { ok: false, status: 0, response: '', reason: 'no_dataset_id' };
@@ -212,7 +220,7 @@ export async function sendVerificationEvent(
 
   const payload = buildMessagingConversionPayload({
     eventName: 'Purchase',
-    clickId: 'verification-not-a-real-click',
+    clickId: clickId?.trim() || PLACEHOLDER_CLICK_ID,
     whatsappBusinessAccountId: businessAccountId,
     currency: 'LKR',
     value: 0,
