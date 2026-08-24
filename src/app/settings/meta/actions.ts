@@ -13,6 +13,10 @@ import {
 } from '@/lib/authz';
 import { logAdminAudit } from '@/lib/admin-audit';
 import {
+  describeConversionsConfiguration,
+  sendVerificationEvent,
+} from '@/lib/meta-conversions';
+import {
   isValidWhatsAppRegistrationPin,
   registerWhatsAppPhone,
   subscribeWhatsAppBusinessAccount,
@@ -598,6 +602,94 @@ export async function subscribeWhatsAppWebhooksAction(
       error: isAuthorizationError(error)
         ? error.message
         : 'WhatsApp webhook subscription failed.',
+    };
+  }
+}
+
+
+export interface ConversionsApiTestResult {
+  success: boolean;
+  ok: boolean;
+  brand: string;
+  checkedAt: string;
+  datasetIdSuffix: string;
+  testEventCodeActive: boolean;
+  missing: string[];
+  status?: number;
+  detail?: string;
+  error?: string;
+}
+
+/**
+ * Proves the Purchase event reaches Meta, using the token already deployed.
+ *
+ * The dataset stays empty until an ad-sourced customer buys something, so
+ * without this there is no way to tell a working integration from one whose
+ * token cannot write to the dataset — both look like nothing happening.
+ */
+export async function testConversionsApiAction(brand: string): Promise<ConversionsApiTestResult> {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const scope = await requireActionPermission('settings:write');
+    assertBrandAccess(scope, brand, 'Meta channel');
+
+    const config = describeConversionsConfiguration();
+    const missing = Object.entries(config.present)
+      .filter(([, isPresent]) => !isPresent)
+      .map(([name]) => name);
+
+    const base = {
+      success: true,
+      brand,
+      checkedAt,
+      datasetIdSuffix: config.datasetIdSuffix,
+      testEventCodeActive: config.testEventCodeActive,
+      missing,
+    };
+
+    if (missing.length) {
+      return { ...base, ok: false, error: `Not configured: ${missing.join(', ')}.` };
+    }
+
+    const result = await sendVerificationEvent(brand);
+
+    await logAdminAudit({
+      action: 'meta.conversions.verify',
+      brand,
+      actorEmail: scope.email ?? null,
+      // The outcome only; the verification payload carries no customer data.
+      summary: `Conversions API check ${result.ok ? 'accepted' : 'rejected'} (status ${result.status}).`,
+    });
+
+    if (result.ok) return { ...base, ok: true, status: result.status };
+
+    return {
+      ...base,
+      ok: false,
+      status: result.status,
+      detail: result.response,
+      error:
+        result.reason === 'no_waba_id'
+          ? `No WhatsApp Business Account ID configured for ${brand}.`
+          : result.reason === 'no_token'
+            ? 'No Conversions API access token available.'
+            : result.reason === 'network_error'
+              ? 'Could not reach Meta.'
+              : 'Meta rejected the event.',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      brand,
+      checkedAt,
+      datasetIdSuffix: '',
+      testEventCodeActive: false,
+      missing: [],
+      error: isAuthorizationError(error)
+        ? error.message
+        : 'Could not run the Conversions API check.',
     };
   }
 }
