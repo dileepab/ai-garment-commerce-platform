@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { getMerchantSettings } from '@/lib/runtime-config';
 import { getErrorMessage } from '@/lib/error-message';
 import { productDisplayImageUrls, type DisplayCreative } from '@/lib/product-display-images';
 import { sortSizes } from '@/lib/size-order';
@@ -346,6 +347,8 @@ export async function GET(request: Request) {
       );
     }
 
+    const { delivery } = await getMerchantSettings(brand);
+
     const products = await prisma.product.findMany({
       where: {
         brand: {
@@ -392,6 +395,15 @@ export async function GET(request: Request) {
       data: {
         brand: PLATFORM_TO_BRAND_SLUG[brand],
         platformBrand: brand,
+        // The storefront cart quotes delivery before checkout, and the order
+        // is built from the same rule, so it has to read it rather than keep
+        // its own copy that can drift.
+        delivery: {
+          flatFee: delivery.colomboCharge,
+          freeOver: delivery.freeDeliveryOver,
+          colomboEstimate: delivery.colomboEstimate,
+          outsideColomboEstimate: delivery.outsideColomboEstimate,
+        },
         products: products.map((product) => mapProductForStorefront(product, origin, templates)),
       },
     });

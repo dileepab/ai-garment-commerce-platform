@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  deliveryFeeFor,
   MAX_QUANTITY_PER_ITEM,
   normaliseSriLankanPhone,
   parseStorefrontOrder,
@@ -107,4 +108,19 @@ test('only real brand slugs resolve', () => {
   assert.equal(resolveBrandSlug('cleopatra'), 'Cleopatra');
   assert.equal(resolveBrandSlug('__proto__'), null);
   assert.equal(resolveBrandSlug(''), null);
+});
+
+test('delivery is charged below the brand threshold and dropped above it', () => {
+  // Happybuy's configured rule at the time of writing.
+  const happybuy = { flatFee: 425, freeOver: 7000 };
+
+  assert.equal(deliveryFeeFor(1990, happybuy), 425);
+  assert.equal(deliveryFeeFor(6999, happybuy), 425);
+  assert.equal(deliveryFeeFor(7000, happybuy), 0, 'exactly the threshold qualifies');
+  assert.equal(deliveryFeeFor(9000, happybuy), 0);
+
+  // A different brand sets a different threshold; nothing is hardcoded.
+  const cleopatra = { flatFee: 425, freeOver: 50000 };
+  assert.equal(deliveryFeeFor(9000, cleopatra), 425);
+  assert.equal(deliveryFeeFor(50000, cleopatra), 0);
 });

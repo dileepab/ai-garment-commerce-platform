@@ -4,6 +4,7 @@ import { getErrorMessage } from '@/lib/error-message';
 import { logInfo, logWarn } from '@/lib/app-log';
 import { createOrderFromCatalog } from '@/lib/orders';
 import { parseStorefrontOrder } from '@/lib/storefront-checkout';
+import { getMerchantSettings } from '@/lib/runtime-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +93,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // The brand's own rule, so the cart and the courier agree on the amount.
+    const { delivery: deliverySettings } = await getMerchantSettings(order.brand);
+
     const created = await createOrderFromCatalog(prisma, {
       customerId: customer.id,
       brand: order.brand,
@@ -107,6 +111,10 @@ export async function POST(request: Request) {
       orderStatus: 'pending',
       adSourceType: order.adClickId ? 'ad' : null,
       adClickId: order.adClickId,
+      deliveryFeeRule: {
+        flatFee: deliverySettings.colomboCharge,
+        freeOver: deliverySettings.freeDeliveryOver,
+      },
       items: order.items,
     });
 

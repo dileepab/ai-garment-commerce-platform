@@ -75,6 +75,7 @@ export async function saveMerchantSettingsAction(formData: FormData) {
     onlineTransferLabel: readText(formData, 'onlineTransferLabel'),
     deliveryColomboCharge: readNumber(formData, 'deliveryColomboCharge'),
     deliveryOutsideColomboCharge: readNumber(formData, 'deliveryOutsideColomboCharge'),
+    freeDeliveryOverAmount: readNumber(formData, 'freeDeliveryOverAmount'),
     deliveryColomboEstimate: readText(formData, 'deliveryColomboEstimate'),
     deliveryOutsideColomboEstimate: readText(formData, 'deliveryOutsideColomboEstimate'),
     cartRecoveryEnabled: readBoolean(formData, 'cartRecoveryEnabled'),

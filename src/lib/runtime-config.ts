@@ -1,6 +1,9 @@
 import prisma from '@/lib/prisma';
 import { getBrandChannelConfigView } from '@/lib/brand-channel-config';
-import { ROYALEXPRESS_FLAT_DELIVERY_CHARGE } from '@/lib/delivery-policy';
+import {
+  DEFAULT_FREE_DELIVERY_OVER,
+  ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+} from '@/lib/delivery-policy';
 
 const warnedKeys = new Set<string>();
 
@@ -19,6 +22,8 @@ export interface MerchantDeliverySettings {
   outsideColomboCharge: number;
   colomboEstimate: string;
   outsideColomboEstimate: string;
+  /** Order value at or above which delivery is not charged. */
+  freeDeliveryOver: number;
 }
 
 export interface MerchantPaymentSettings {
@@ -92,6 +97,7 @@ interface MerchantSettingsRecord {
   defaultPaymentMethod: string;
   onlineTransferLabel: string;
   deliveryColomboCharge: number;
+  freeDeliveryOverAmount: number;
   deliveryOutsideColomboCharge: number;
   deliveryColomboEstimate: string;
   deliveryOutsideColomboEstimate: string;
@@ -123,6 +129,7 @@ export interface MerchantSettingsFormInput {
   defaultPaymentMethod?: string | null;
   onlineTransferLabel?: string | null;
   deliveryColomboCharge?: number | null;
+  freeDeliveryOverAmount?: number | null;
   deliveryOutsideColomboCharge?: number | null;
   deliveryColomboEstimate?: string | null;
   deliveryOutsideColomboEstimate?: string | null;
@@ -192,6 +199,7 @@ export function getDefaultMerchantSettings(): MerchantSettings {
     delivery: {
       colomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
       outsideColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+      freeDeliveryOver: DEFAULT_FREE_DELIVERY_OVER,
       colomboEstimate: '1-2 business days',
       outsideColomboEstimate: '2-3 business days',
     },
@@ -289,6 +297,10 @@ function overlayMerchantSettings(
     delivery: {
       colomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
       outsideColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+      freeDeliveryOver:
+        typeof record.freeDeliveryOverAmount === 'number' && record.freeDeliveryOverAmount > 0
+          ? record.freeDeliveryOverAmount
+          : base.delivery.freeDeliveryOver,
       colomboEstimate: textValue(record.deliveryColomboEstimate, base.delivery.colomboEstimate) || base.delivery.colomboEstimate,
       outsideColomboEstimate:
         textValue(record.deliveryOutsideColomboEstimate, base.delivery.outsideColomboEstimate) ||
@@ -444,6 +456,12 @@ export function buildMerchantSettingsPersistenceInput(input: MerchantSettingsFor
     onlineTransferLabel,
     deliveryColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
     deliveryOutsideColomboCharge: ROYALEXPRESS_FLAT_DELIVERY_CHARGE,
+    // A zero or negative threshold would make every order ship free, so a
+    // mistyped value falls back rather than giving the courier away.
+    freeDeliveryOverAmount:
+      typeof input.freeDeliveryOverAmount === 'number' && input.freeDeliveryOverAmount > 0
+        ? Math.round(input.freeDeliveryOverAmount)
+        : defaults.delivery.freeDeliveryOver,
     deliveryColomboEstimate: cleanText(
       input.deliveryColomboEstimate,
       defaults.delivery.colomboEstimate

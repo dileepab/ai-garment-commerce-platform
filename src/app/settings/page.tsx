@@ -878,7 +878,7 @@ function SettingsForm({
             {settings.brand && (
               <CollapsibleSection title="Delivery and Payments">
                 <p className="app-muted" style={{ marginBottom: 12 }}>
-                  Delivery and payment rules are store-specific. The delivery fee is fixed by the primary courier configuration and cannot be overridden here.
+                  Delivery and payment rules are store-specific. The delivery fee is fixed by the primary courier configuration and cannot be overridden here. Free delivery is a margin decision, so each brand sets its own threshold.
                 </p>
                 <div style={gridStyle}>
                   <label style={fieldStyle}>
@@ -893,6 +893,16 @@ function SettingsForm({
                       readOnly
                     />
                   </label>
+                  {/* The storefront cart and the order total are both built
+                      from this, so a shopper is never shown one figure and
+                      charged another. */}
+                  <NumberField
+                    label="Free delivery over"
+                    name="freeDeliveryOverAmount"
+                    value={settings.delivery.freeDeliveryOver}
+                    disabled={!canManage}
+                    suffix="LKR"
+                  />
                   <TextField label="Colombo window" name="deliveryColomboEstimate" value={settings.delivery.colomboEstimate} disabled={!canManage} />
                   <TextField label="Outside window" name="deliveryOutsideColomboEstimate" value={settings.delivery.outsideColomboEstimate} disabled={!canManage} />
                 </div>

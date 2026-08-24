@@ -8,6 +8,20 @@
  * Kept free of path aliases so it can be tested.
  */
 
+/**
+ * Whether an order of this size pays for delivery.
+ *
+ * The rates are the brand's own, from Settings, rather than literals here:
+ * the storefront shows them in the cart and the order is built from them, so
+ * a number baked into code would mean a deploy to change what a shopper owes.
+ */
+export function deliveryFeeFor(
+  subtotal: number,
+  rule: { flatFee: number; freeOver: number }
+): number {
+  return subtotal >= rule.freeOver ? 0 : rule.flatFee;
+}
+
 export const MAX_ITEMS_PER_ORDER = 20;
 export const MAX_QUANTITY_PER_ITEM = 10;
 
