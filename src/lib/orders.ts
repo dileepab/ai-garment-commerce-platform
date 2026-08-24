@@ -25,6 +25,13 @@ export interface CreateOrderInput {
   adSourceType?: string | null;
   adSourceId?: string | null;
   adClickId?: string | null;
+  /**
+   * Applied to the catalogue subtotal, never taken from the caller as an
+   * amount. A website order shows the shopper a delivery charge before they
+   * commit, so leaving it out means the courier collects less than the
+   * customer agreed to pay.
+   */
+  deliveryFeeRule?: { flatFee: number; freeOver: number };
   items: CreateOrderItemInput[];
 }
 
@@ -225,6 +232,13 @@ export async function createOrderFromCatalog(db: PrismaClient, input: CreateOrde
 
     if (brandSet.size > 1) {
       throw new OrderRequestError('Each order must contain items from a single brand.');
+    }
+
+    // Added after the catalogue subtotal is known, so the amount the courier
+    // collects is the amount the shopper was shown.
+    if (input.deliveryFeeRule && totalAmount > 0) {
+      const { flatFee, freeOver } = input.deliveryFeeRule;
+      totalAmount += totalAmount >= freeOver ? 0 : flatFee;
     }
 
     const resolvedBrand = [...brandSet][0] || '';

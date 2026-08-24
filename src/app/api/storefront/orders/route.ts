@@ -3,7 +3,11 @@ import prisma from '@/lib/prisma';
 import { getErrorMessage } from '@/lib/error-message';
 import { logInfo, logWarn } from '@/lib/app-log';
 import { createOrderFromCatalog } from '@/lib/orders';
-import { parseStorefrontOrder } from '@/lib/storefront-checkout';
+import {
+  DELIVERY_FEE_LKR,
+  FREE_DELIVERY_OVER_LKR,
+  parseStorefrontOrder,
+} from '@/lib/storefront-checkout';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,6 +111,7 @@ export async function POST(request: Request) {
       orderStatus: 'pending',
       adSourceType: order.adClickId ? 'ad' : null,
       adClickId: order.adClickId,
+      deliveryFeeRule: { flatFee: DELIVERY_FEE_LKR, freeOver: FREE_DELIVERY_OVER_LKR },
       items: order.items,
     });
 

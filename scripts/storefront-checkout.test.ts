@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  DELIVERY_FEE_LKR,
+  FREE_DELIVERY_OVER_LKR,
+  deliveryFeeFor,
   MAX_QUANTITY_PER_ITEM,
   normaliseSriLankanPhone,
   parseStorefrontOrder,
@@ -107,4 +110,16 @@ test('only real brand slugs resolve', () => {
   assert.equal(resolveBrandSlug('cleopatra'), 'Cleopatra');
   assert.equal(resolveBrandSlug('__proto__'), null);
   assert.equal(resolveBrandSlug(''), null);
+});
+
+test('delivery is charged below the threshold and dropped above it', () => {
+  // The storefront shows these numbers in the cart before the shopper
+  // commits, so the order has to be built from the same ones.
+  assert.equal(DELIVERY_FEE_LKR, 425);
+  assert.equal(FREE_DELIVERY_OVER_LKR, 7000);
+
+  assert.equal(deliveryFeeFor(1990), 425);
+  assert.equal(deliveryFeeFor(6999), 425);
+  assert.equal(deliveryFeeFor(7000), 0, 'exactly the threshold qualifies');
+  assert.equal(deliveryFeeFor(9000), 0);
 });
