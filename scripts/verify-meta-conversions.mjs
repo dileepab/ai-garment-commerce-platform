@@ -10,7 +10,7 @@
  *
  *   META_CONVERSIONS_DATASET_ID=... \
  *   META_CONVERSIONS_ACCESS_TOKEN=... \
- *   META_WHATSAPP_BUSINESS_ACCOUNT_ID=... \
+ *   META_WHATSAPP_WABA_ID=... \
  *   node scripts/verify-meta-conversions.mjs [TEST_EVENT_CODE]
  *
  * With a test event code the event lands in the Test Events tab and is never
@@ -20,14 +20,16 @@
 
 const dataset = (process.env.META_CONVERSIONS_DATASET_ID || '').trim();
 const token = (process.env.META_CONVERSIONS_ACCESS_TOKEN || '').trim();
-const waba = (process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim();
+// META_WHATSAPP_WABA_ID is the name the rest of the project uses; the longer
+// one is accepted so either value already to hand works.
+const waba = (process.env.META_WHATSAPP_WABA_ID || process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim();
 const testEventCode = (process.argv[2] || process.env.META_CONVERSIONS_TEST_EVENT_CODE || '').trim();
 const version = process.env.META_GRAPH_VERSION || 'v22.0';
 
 const missing = [
   !dataset && 'META_CONVERSIONS_DATASET_ID',
   !token && 'META_CONVERSIONS_ACCESS_TOKEN',
-  !waba && 'META_WHATSAPP_BUSINESS_ACCOUNT_ID',
+  !waba && 'META_WHATSAPP_WABA_ID',
 ].filter(Boolean);
 
 if (missing.length) {
