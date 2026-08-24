@@ -26,6 +26,17 @@ function datasetId(): string {
   return (process.env.META_CONVERSIONS_DATASET_ID || '').trim();
 }
 
+/**
+ * Present only while proving the pipeline works.
+ *
+ * Meta routes an event carrying this code to the Test Events tab and never
+ * credits it to an ad, so leaving it set in production would silently stop
+ * every real sale from counting. Unset it once a live event has landed.
+ */
+function testEventCode(): string {
+  return (process.env.META_CONVERSIONS_TEST_EVENT_CODE || '').trim();
+}
+
 export function isConversionsApiConfigured(): boolean {
   return Boolean(datasetId());
 }
@@ -104,6 +115,7 @@ export async function reportOrderConversion(
     // The order id, so a retry is deduplicated rather than counted twice.
     eventId: `order-${input.orderId}`,
     eventTime: new Date(),
+    testEventCode: testEventCode() || null,
   } satisfies MessagingConversionInput);
 
   try {
@@ -136,6 +148,9 @@ export async function reportOrderConversion(
       orderId: input.orderId,
       brand: input.brand || 'unknown',
       value: input.totalAmount,
+      // Says plainly that this sale went to Test Events and was not credited,
+      // so a log full of successes is not mistaken for a working funnel.
+      ...(testEventCode() ? { testEventOnly: true } : {}),
     });
     return { sent: true };
   } catch (error) {
