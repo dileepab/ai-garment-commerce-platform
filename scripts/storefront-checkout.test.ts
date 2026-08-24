@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  DELIVERY_FEE_LKR,
-  FREE_DELIVERY_OVER_LKR,
   deliveryFeeFor,
   MAX_QUANTITY_PER_ITEM,
   normaliseSriLankanPhone,
@@ -112,14 +110,17 @@ test('only real brand slugs resolve', () => {
   assert.equal(resolveBrandSlug(''), null);
 });
 
-test('delivery is charged below the threshold and dropped above it', () => {
-  // The storefront shows these numbers in the cart before the shopper
-  // commits, so the order has to be built from the same ones.
-  assert.equal(DELIVERY_FEE_LKR, 425);
-  assert.equal(FREE_DELIVERY_OVER_LKR, 7000);
+test('delivery is charged below the brand threshold and dropped above it', () => {
+  // Happybuy's configured rule at the time of writing.
+  const happybuy = { flatFee: 425, freeOver: 7000 };
 
-  assert.equal(deliveryFeeFor(1990), 425);
-  assert.equal(deliveryFeeFor(6999), 425);
-  assert.equal(deliveryFeeFor(7000), 0, 'exactly the threshold qualifies');
-  assert.equal(deliveryFeeFor(9000), 0);
+  assert.equal(deliveryFeeFor(1990, happybuy), 425);
+  assert.equal(deliveryFeeFor(6999, happybuy), 425);
+  assert.equal(deliveryFeeFor(7000, happybuy), 0, 'exactly the threshold qualifies');
+  assert.equal(deliveryFeeFor(9000, happybuy), 0);
+
+  // A different brand sets a different threshold; nothing is hardcoded.
+  const cleopatra = { flatFee: 425, freeOver: 50000 };
+  assert.equal(deliveryFeeFor(9000, cleopatra), 425);
+  assert.equal(deliveryFeeFor(50000, cleopatra), 0);
 });

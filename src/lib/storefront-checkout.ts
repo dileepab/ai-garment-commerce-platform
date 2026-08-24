@@ -9,16 +9,17 @@
  */
 
 /**
- * What the shopper is told delivery costs, and when it stops being charged.
+ * Whether an order of this size pays for delivery.
  *
- * The storefront shows these in the cart, so the order has to be built with
- * the same numbers or the courier collects the wrong amount.
+ * The rates are the brand's own, from Settings, rather than literals here:
+ * the storefront shows them in the cart and the order is built from them, so
+ * a number baked into code would mean a deploy to change what a shopper owes.
  */
-export const DELIVERY_FEE_LKR = 425;
-export const FREE_DELIVERY_OVER_LKR = 7000;
-
-export function deliveryFeeFor(subtotal: number): number {
-  return subtotal >= FREE_DELIVERY_OVER_LKR ? 0 : DELIVERY_FEE_LKR;
+export function deliveryFeeFor(
+  subtotal: number,
+  rule: { flatFee: number; freeOver: number }
+): number {
+  return subtotal >= rule.freeOver ? 0 : rule.flatFee;
 }
 
 export const MAX_ITEMS_PER_ORDER = 20;

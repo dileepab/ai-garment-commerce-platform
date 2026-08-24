@@ -602,6 +602,7 @@ model MerchantSettings {
   deliveryOutsideColomboCharge   Int      @default(425)
   deliveryColomboEstimate        String   @default("1-2 business days")
   deliveryOutsideColomboEstimate String   @default("2-3 business days")
+  freeDeliveryOverAmount         Int      @default(7000)
   cartRecoveryEnabled            Boolean  @default(true)
   cartRecoveryDelayHours         Int      @default(12)
   cartRecoveryCooldownHours      Int      @default(72)
