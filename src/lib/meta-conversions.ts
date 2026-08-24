@@ -162,6 +162,92 @@ export async function reportOrderConversion(
   }
 }
 
+export interface ConversionsConfigurationReport {
+  present: Record<string, boolean>;
+  /** Last four digits only, so the dataset can be told apart without exposing it. */
+  datasetIdSuffix: string;
+  /** Set means every sale goes to Test Events and is credited to nothing. */
+  testEventCodeActive: boolean;
+}
+
+/**
+ * What is actually configured, without revealing any of it.
+ *
+ * A variable that exists but holds an empty string is indistinguishable from
+ * a missing one in the dashboard, and that is exactly how a whole feature can
+ * sit dead for days looking correctly configured.
+ */
+export function describeConversionsConfiguration(): ConversionsConfigurationReport {
+  const dataset = datasetId();
+  return {
+    present: {
+      META_CONVERSIONS_DATASET_ID: Boolean(dataset),
+      META_CONVERSIONS_ACCESS_TOKEN: Boolean((process.env.META_CONVERSIONS_ACCESS_TOKEN || '').trim()),
+    },
+    datasetIdSuffix: dataset ? dataset.slice(-4) : '',
+    testEventCodeActive: Boolean(testEventCode()),
+  };
+}
+
+/**
+ * Posts one synthetic Purchase so the credentials can be proven before a real
+ * sale depends on them.
+ *
+ * The click id is deliberately not a real one: Meta accepts the event and
+ * credits it to no ad, so running this can never change what a campaign
+ * reports. The value is zero for the same reason.
+ */
+export async function sendVerificationEvent(
+  brand: string
+): Promise<{ ok: boolean; status: number; response: string; reason?: string }> {
+  const dataset = datasetId();
+  if (!dataset) return { ok: false, status: 0, response: '', reason: 'no_dataset_id' };
+
+  const config = await resolveWhatsAppConfigForBrand(brand);
+  const businessAccountId = config?.businessAccountId?.trim();
+  if (!businessAccountId) return { ok: false, status: 0, response: '', reason: 'no_waba_id' };
+
+  const accessToken = conversionsAccessToken(config?.accessToken);
+  if (!accessToken) return { ok: false, status: 0, response: '', reason: 'no_token' };
+
+  const payload = buildMessagingConversionPayload({
+    eventName: 'Purchase',
+    clickId: 'verification-not-a-real-click',
+    whatsappBusinessAccountId: businessAccountId,
+    currency: 'LKR',
+    value: 0,
+    eventId: `verify-${Date.now()}`,
+    eventTime: new Date(),
+    testEventCode: testEventCode() || null,
+  } satisfies MessagingConversionInput);
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(dataset)}/events`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      }
+    );
+    const text = await response.text();
+    return {
+      ok: response.ok,
+      status: response.status,
+      // Meta's error body names the offending field, which is the only way to
+      // tell a wrong dataset id from a token that cannot write to it.
+      response: text.slice(0, 500),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      response: error instanceof Error ? error.message : String(error),
+      reason: 'network_error',
+    };
+  }
+}
+
 /**
  * Looks the order's attribution up and reports it.
  *

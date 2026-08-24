@@ -14,6 +14,7 @@ import {
 import { getMetaCommentAutoReplyMode } from '@/lib/meta-feature-flags';
 import { getMetaCatalogBrand } from '@/lib/meta-catalog-feed';
 import { PageHeader } from '@/components/PageHeader';
+import { ConversionsApiTestButton } from './ConversionsApiTestButton';
 import { MetaConnectionTestButton } from './MetaConnectionTestButton';
 import { FacebookPostVerification } from './FacebookPostVerification';
 import { WhatsAppCatalogControls } from './WhatsAppCatalogControls';
@@ -193,6 +194,11 @@ function ChannelHealthBlock({
       </div>
 
       <MetaConnectionTestButton brand={brand} channel={channel} disabled={!ready} />
+      {/* Purchases only reach Meta through the WhatsApp click id, so this
+          belongs beside the WhatsApp channel and nowhere else. */}
+      {channel === 'whatsapp' && (
+        <ConversionsApiTestButton brand={brand} disabled={!ready} />
+      )}
       {channel === 'facebook' && (
         <FacebookPostVerification brand={brand} disabled={!ready} />
       )}
