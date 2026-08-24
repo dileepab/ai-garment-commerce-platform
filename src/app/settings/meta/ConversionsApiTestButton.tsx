@@ -82,8 +82,18 @@ export function ConversionsApiTestButton({
         >
           {result.ok ? (
             <>
-              Meta accepted the purchase event
-              {result.datasetIdSuffix ? ` into dataset …${result.datasetIdSuffix}` : ''}.
+              {result.credentialsOnly ? (
+                <>
+                  Dataset{result.datasetIdSuffix ? ` …${result.datasetIdSuffix}` : ''} and the
+                  access token both work — Meta only refused the placeholder click reference
+                  this check sends, which it is meant to. A real order carries a real one.
+                </>
+              ) : (
+                <>
+                  Meta accepted the purchase event
+                  {result.datasetIdSuffix ? ` into dataset …${result.datasetIdSuffix}` : ''}.
+                </>
+              )}
               {result.testEventCodeActive && (
                 <>
                   {' '}

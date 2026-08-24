@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   buildMessagingConversionPayload,
   isWithinAttributionWindow,
+  isPlaceholderClickIdRejection,
   CTWA_ATTRIBUTION_WINDOW_DAYS,
 } from '../src/lib/meta-conversions-payload.ts';
 
@@ -89,4 +90,35 @@ test('a blank test event code is treated as absent', () => {
     const payload = buildMessagingConversionPayload({ ...BASE, testEventCode: blank });
     assert.equal('test_event_code' in payload, false, `blank: ${JSON.stringify(blank)}`);
   }
+});
+
+test("Meta refusing the placeholder click id is not an integration failure", () => {
+  // Verbatim from the live dataset, which is the only way to be sure the
+  // subcode is read from where Meta actually puts it.
+  const body = JSON.stringify({
+    error: {
+      message: 'Invalid parameter',
+      type: 'OAuthException',
+      code: 100,
+      error_subcode: 2804087,
+      error_user_title: 'Messaging Event Invalid Ctwa Clid',
+    },
+  });
+
+  assert.equal(isPlaceholderClickIdRejection(body), true);
+});
+
+test('a wrong dataset id or a refused token is still a failure', () => {
+  const badDataset = JSON.stringify({
+    error: { message: 'Unsupported post request.', code: 100, error_subcode: 33 },
+  });
+  const badToken = JSON.stringify({
+    error: { message: 'Invalid OAuth access token.', code: 190 },
+  });
+
+  assert.equal(isPlaceholderClickIdRejection(badDataset), false);
+  assert.equal(isPlaceholderClickIdRejection(badToken), false);
+  // A body that is not JSON at all must not read as success.
+  assert.equal(isPlaceholderClickIdRejection('<html>502</html>'), false);
+  assert.equal(isPlaceholderClickIdRejection(''), false);
 });

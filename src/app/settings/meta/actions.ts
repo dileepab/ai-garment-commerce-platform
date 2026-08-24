@@ -17,6 +17,11 @@ import {
   sendVerificationEvent,
 } from '@/lib/meta-conversions';
 import {
+  CTWA_ATTRIBUTION_WINDOW_DAYS,
+  isPlaceholderClickIdRejection,
+} from '@/lib/meta-conversions-payload';
+import prisma from '@/lib/prisma';
+import {
   isValidWhatsAppRegistrationPin,
   registerWhatsAppPhone,
   subscribeWhatsAppBusinessAccount,
@@ -618,6 +623,8 @@ export interface ConversionsApiTestResult {
   status?: number;
   detail?: string;
   error?: string;
+  /** Set when the run proved the credentials but not a real click id. */
+  credentialsOnly?: boolean;
 }
 
 /**
@@ -652,7 +659,12 @@ export async function testConversionsApiAction(brand: string): Promise<Conversio
       return { ...base, ok: false, error: `Not configured: ${missing.join(', ')}.` };
     }
 
-    const result = await sendVerificationEvent(brand);
+    // A real click id is only used when the event goes to Test Events, where
+    // Meta credits nothing. Sending a fabricated sale against a live ad would
+    // put a purchase that never happened into the campaign's numbers.
+    const realClickId = config.testEventCodeActive ? await recentAdClickId() : null;
+
+    const result = await sendVerificationEvent(brand, realClickId);
 
     await logAdminAudit({
       action: 'meta.conversions.verify',
@@ -663,6 +675,13 @@ export async function testConversionsApiAction(brand: string): Promise<Conversio
     });
 
     if (result.ok) return { ...base, ok: true, status: result.status };
+
+    // Meta refusing the placeholder click id means the request already cleared
+    // the dataset lookup and the token check — everything a synthetic event can
+    // prove. Reporting that as a failure would send us hunting a working setup.
+    if (!realClickId && isPlaceholderClickIdRejection(result.response)) {
+      return { ...base, ok: true, status: result.status, credentialsOnly: true };
+    }
 
     return {
       ...base,
@@ -692,4 +711,26 @@ export async function testConversionsApiAction(brand: string): Promise<Conversio
         : 'Could not run the Conversions API check.',
     };
   }
+}
+
+
+/**
+ * The newest ad click still inside the window Meta credits.
+ *
+ * Referrals carry no brand, so this is the newest across all of them. That is
+ * accurate enough for a check whose event is discarded either way.
+ */
+async function recentAdClickId(): Promise<string | null> {
+  const referral = await prisma.adReferral.findFirst({
+    where: {
+      clickId: { not: null },
+      capturedAt: {
+        gte: new Date(Date.now() - CTWA_ATTRIBUTION_WINDOW_DAYS * 24 * 60 * 60 * 1000),
+      },
+    },
+    orderBy: { capturedAt: 'desc' },
+    select: { clickId: true },
+  });
+
+  return referral?.clickId ?? null;
 }

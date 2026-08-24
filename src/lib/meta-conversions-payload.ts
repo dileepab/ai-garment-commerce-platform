@@ -98,3 +98,23 @@ export function isWithinAttributionWindow(
   if (Number.isNaN(ageMs) || ageMs < 0) return false;
   return ageMs <= CTWA_ATTRIBUTION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 }
+
+/** Meta's code for a ctwa_clid it will not accept. */
+const INVALID_CTWA_CLID_SUBCODE = 2804087;
+
+/**
+ * Whether a rejection is Meta refusing our deliberately fake click id.
+ *
+ * Everything before that check passed: a wrong dataset id fails the object
+ * lookup, and a token from the wrong business portfolio fails authorisation,
+ * both long before any field is validated. So this particular refusal is the
+ * strongest confirmation available without a real sale.
+ */
+export function isPlaceholderClickIdRejection(body: string): boolean {
+  try {
+    const parsed = JSON.parse(body);
+    return parsed?.error?.error_subcode === INVALID_CTWA_CLID_SUBCODE;
+  } catch {
+    return false;
+  }
+}
