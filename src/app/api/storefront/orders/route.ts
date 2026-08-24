@@ -15,44 +15,39 @@ export const dynamic = 'force-dynamic';
  * it. That is also why no ad could be optimised for purchases: there were no
  * purchases to report.
  *
- * Unauthenticated by necessity — shoppers have no account. Everything that
- * matters is therefore recomputed here or in createOrderFromCatalog, and
- * nothing about money is taken from the request.
+ * The shopper's browser never reaches here — the storefront's own server
+ * forwards the order, so this is a server-to-server call and no cross-origin
+ * request is involved.
+ *
+ * Shoppers have no account, so the request is authenticated by a shared key
+ * rather than a session. Everything that matters is recomputed here or in
+ * createOrderFromCatalog, and nothing about money is taken from the request.
  */
 
 /** Cash on delivery costs the shopper nothing up front, so spam is cheap. */
 const MAX_ORDERS_PER_PHONE_PER_HOUR = 3;
 
-function allowedOrigins(): string[] {
-  return (process.env.STOREFRONT_ORIGINS || 'https://happybuyfashion.com,https://www.happybuyfashion.com')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-}
-
-function corsHeaders(origin: string | null): Record<string, string> {
-  // Echoing only a known origin keeps any other site from placing orders
-  // through a visitor's browser.
-  const allowed = origin && allowedOrigins().includes(origin) ? origin : '';
-  if (!allowed) return {};
-
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    Vary: 'Origin',
-  };
-}
-
-export async function OPTIONS(request: Request) {
-  return new NextResponse(null, {
-    status: 204,
-    headers: corsHeaders(request.headers.get('origin')),
-  });
+/**
+ * Whether the caller is the storefront.
+ *
+ * Fails closed when no key is configured: an open endpoint that creates cash
+ * on delivery orders costs real packing and courier work per abusive request.
+ */
+function isStorefront(request: Request): boolean {
+  const expected = (process.env.STOREFRONT_API_KEY || '').trim();
+  if (!expected) return false;
+  return request.headers.get('x-storefront-key') === expected;
 }
 
 export async function POST(request: Request) {
-  const headers = corsHeaders(request.headers.get('origin'));
+  const headers: Record<string, string> = {};
+
+  if (!isStorefront(request)) {
+    return NextResponse.json(
+      { success: false, error: 'Ordering is unavailable right now.' },
+      { status: 401 }
+    );
+  }
 
   try {
     const parsed = parseStorefrontOrder(await request.json().catch(() => null));
