@@ -26,6 +26,12 @@ export interface MessagingConversionInput {
   /** Meta deduplicates on event name plus this, so retries cost nothing. */
   eventId: string;
   eventTime: Date;
+  /**
+   * Routes the event to the Test Events tab instead of the live dataset.
+   * Set only when proving the pipeline works; a real sale must never carry
+   * one, because a test event is never credited to the ad.
+   */
+  testEventCode?: string | null;
 }
 
 export interface MessagingConversionPayload {
@@ -44,12 +50,17 @@ export interface MessagingConversionPayload {
       value: number;
     };
   }>;
+  /** Top level, beside `data` — not a field on the event itself. */
+  test_event_code?: string;
 }
 
 export function buildMessagingConversionPayload(
   input: MessagingConversionInput
 ): MessagingConversionPayload {
+  const testEventCode = input.testEventCode?.trim();
+
   return {
+    ...(testEventCode ? { test_event_code: testEventCode } : {}),
     data: [
       {
         event_name: input.eventName,

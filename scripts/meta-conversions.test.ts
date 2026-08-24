@@ -66,3 +66,27 @@ test('a click timestamp in the future is not treated as fresh', () => {
   assert.equal(isWithinAttributionWindow(tomorrow, now), false);
   assert.equal(isWithinAttributionWindow(new Date('nonsense'), now), false);
 });
+
+test('a real sale carries no test event code, so it is actually credited', () => {
+  const payload = buildMessagingConversionPayload(BASE);
+  // Present-but-empty would route every sale to Test Events, where Meta
+  // credits nothing. The key has to be absent.
+  assert.equal('test_event_code' in payload, false);
+});
+
+test('a test event code rides beside data, not inside the event', () => {
+  const payload = buildMessagingConversionPayload({ ...BASE, testEventCode: 'TEST12345' });
+
+  assert.equal(payload.test_event_code, 'TEST12345');
+  assert.equal('test_event_code' in payload.data[0], false);
+  // Everything else is unchanged, so what we verify is what we send.
+  assert.equal(payload.data[0].action_source, 'business_messaging');
+  assert.equal(payload.data[0].user_data.ctwa_clid, BASE.clickId);
+});
+
+test('a blank test event code is treated as absent', () => {
+  for (const blank of ['', '   ', null, undefined]) {
+    const payload = buildMessagingConversionPayload({ ...BASE, testEventCode: blank });
+    assert.equal('test_event_code' in payload, false, `blank: ${JSON.stringify(blank)}`);
+  }
+});
