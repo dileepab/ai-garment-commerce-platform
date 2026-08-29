@@ -58,7 +58,7 @@
     "test:whatsapp": "node --test --experimental-strip-types --no-warnings scripts/whatsapp-normalize.test.ts scripts/meta-webhook-signature.test.ts scripts/whatsapp-registration.test.ts",
     "test:meta-catalog-feed": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts",
     "test:meta-catalog": "node --test --experimental-strip-types --no-warnings scripts/meta-catalog-feed.test.ts scripts/meta-catalog-batch.test.ts",
-    "test:tiktok": "node --test --experimental-strip-types --no-warnings scripts/tiktok-security.test.ts scripts/tiktok-webhook-signature.test.ts scripts/tiktok-normalize.test.ts scripts/tiktok-api.test.ts scripts/tiktok-account-api.test.ts scripts/tiktok-config.test.ts scripts/tiktok-account-config.test.ts",
+    "test:tiktok": "node --test --experimental-strip-types --no-warnings scripts/tiktok-security.test.ts scripts/tiktok-webhook-signature.test.ts scripts/tiktok-normalize.test.ts scripts/tiktok-api.test.ts scripts/tiktok-account-api.test.ts scripts/tiktok-config.test.ts scripts/tiktok-account-config.test.ts scripts/tiktok-creative-image.test.ts",
     "cleanup:conversation": "node scripts/prune-conversation-data.js",
     "cleanup:test-data": "node scripts/cleanup-production-test-data.js",
     "reset:chat": "node scripts/reset-dev-chat-data.js",
@@ -85,6 +85,7 @@
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "sharp": "^0.34.5",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

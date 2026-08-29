@@ -26,7 +26,9 @@ function settingsRedirect(request: Request, error: string): NextResponse {
 export async function GET(request: Request) {
   try {
     const scope = await requireApiPermission('settings:write');
-    const brand = new URL(request.url).searchParams.get('brand')?.trim();
+    const requestUrl = new URL(request.url);
+    const brand = requestUrl.searchParams.get('brand')?.trim();
+    const reauthorize = requestUrl.searchParams.get('reauthorize') === '1';
     if (!brand) return settingsRedirect(request, 'missing_brand');
     assertBrandAccess(scope, brand, 'TikTok Business Account connection');
 
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
       where: { brand },
       select: { id: true },
     });
-    if (existing) return settingsRedirect(request, 'account_disconnect_first');
+    if (existing && !reauthorize) return settingsRedirect(request, 'account_disconnect_first');
 
     const config = getTikTokAccountOAuthConfig();
     const oauth = createTikTokOAuthState({

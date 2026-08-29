@@ -27,6 +27,60 @@ export interface TikTokAccountSendResult {
   requestId?: string | null;
 }
 
+export type TikTokPrivacyLevel =
+  | 'PUBLIC_TO_EVERYONE'
+  | 'MUTUAL_FOLLOW_FRIENDS'
+  | 'FOLLOWER_OF_CREATOR'
+  | 'SELF_ONLY';
+
+export type TikTokPublishStatus =
+  | 'PROCESSING_DOWNLOAD'
+  | 'PUBLISH_COMPLETE'
+  | 'FAILED'
+  | 'SEND_TO_USER_INBOX';
+
+export interface TikTokAccountRequestInput {
+  accessToken: string;
+  businessId: string;
+  apiBaseUrl?: string;
+  fetchImpl?: FetchLike;
+}
+
+export interface PublishTikTokPhotoInput extends TikTokAccountRequestInput {
+  imageUrls: string[];
+  caption: string;
+  privacyLevel: TikTokPrivacyLevel;
+  disableComment: boolean;
+  isBrandOrganic: boolean;
+  isBrandedContent: boolean;
+  autoAddMusic?: boolean;
+}
+
+export interface TikTokPhotoPublishResult {
+  shareId: string;
+  requestId: string | null;
+}
+
+export interface GetTikTokPublishStatusInput extends TikTokAccountRequestInput {
+  publishId: string;
+}
+
+export interface TikTokPublishStatusResult {
+  status: TikTokPublishStatus;
+  postIds: string[];
+  reason: string | null;
+  requestId: string | null;
+}
+
+export interface TikTokPostSettingsResult {
+  privacyLevelOptions: TikTokPrivacyLevel[];
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxVideoPostDurationSeconds: number;
+  requestId: string | null;
+}
+
 interface TikTokAccountCredentials {
   clientId: string;
   clientSecret: string;
@@ -95,6 +149,78 @@ function requireValue(value: string, label: string): string {
   return cleaned;
 }
 
+const TIKTOK_PRIVACY_LEVELS = new Set<TikTokPrivacyLevel>([
+  'PUBLIC_TO_EVERYONE',
+  'MUTUAL_FOLLOW_FRIENDS',
+  'FOLLOWER_OF_CREATOR',
+  'SELF_ONLY',
+]);
+
+const TIKTOK_PUBLISH_STATUSES = new Set<TikTokPublishStatus>([
+  'PROCESSING_DOWNLOAD',
+  'PUBLISH_COMPLETE',
+  'FAILED',
+  'SEND_TO_USER_INBOX',
+]);
+
+function requireBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`${label} must be a boolean.`);
+  return value;
+}
+
+function normalizePhotoUrls(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length < 1) {
+    throw new Error('TikTok photo publish requires at least one HTTPS image URL.');
+  }
+  if (value.length > 35) throw new Error('TikTok photo publish supports at most 35 image URLs.');
+
+  return value.map((item, index) => {
+    const label = `TikTok photo image URL ${index + 1}`;
+    if (typeof item !== 'string' || !item.trim()) {
+      throw new Error(`${label} is required.`);
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(item.trim());
+    } catch {
+      throw new Error(`${label} must be a valid HTTPS URL.`);
+    }
+    if (
+      parsed.protocol !== 'https:'
+      || !parsed.hostname
+      || parsed.username
+      || parsed.password
+      || parsed.hash
+    ) {
+      throw new Error(`${label} must be a valid HTTPS URL without credentials or a fragment.`);
+    }
+    return parsed.toString();
+  });
+}
+
+function normalizePhotoCaption(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('TikTok photo caption is required.');
+  }
+  const caption = value.trim();
+  if (caption.length > 4_000) {
+    throw new Error('TikTok photo caption must not exceed 4,000 UTF-16 code units.');
+  }
+  const mentionCount = Array.from(caption.matchAll(/(?:^|\s)@[\p{L}\p{N}._]+/gu)).length;
+  if (mentionCount > 30) {
+    throw new Error('TikTok photo caption must not include more than 30 mentions.');
+  }
+  return caption;
+}
+
+function normalizePrivacyLevel(value: unknown, label = 'TikTok privacy level'): TikTokPrivacyLevel {
+  if (typeof value !== 'string' || !TIKTOK_PRIVACY_LEVELS.has(value as TikTokPrivacyLevel)) {
+    throw new Error(`${label} is invalid.`);
+  }
+  return value as TikTokPrivacyLevel;
+}
+
 function normalizeApiBaseUrl(value?: string): string {
   const parsed = new URL((value?.trim() || DEFAULT_API_BASE_URL).replace(/\/+$/, ''));
   if (parsed.protocol !== 'https:') throw new Error('TikTok API base URL must use HTTPS.');
@@ -159,6 +285,44 @@ function assertSuccessfulEnvelope<T>(
     );
   }
   return envelope.data;
+}
+
+function invalidResponse(
+  response: Response,
+  envelope: TikTokEnvelope<unknown>,
+  operation: string,
+): never {
+  throw new TikTokAccountApiError(`${operation} returned incomplete data.`, {
+    status: response.status,
+    requestId: envelope.request_id ?? null,
+  });
+}
+
+async function getTikTokAccountEnvelope<T>(
+  input: TikTokAccountRequestInput,
+  endpoint: string,
+  query: Record<string, string>,
+  operation: string,
+): Promise<{ response: Response; envelope: TikTokEnvelope<T>; data: T | undefined }> {
+  const url = new URL(`${normalizeApiBaseUrl(input.apiBaseUrl)}${endpoint}`);
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  const response = await safeFetch(
+    input.fetchImpl ?? fetch,
+    url.toString(),
+    {
+      method: 'GET',
+      headers: {
+        'Access-Token': requireValue(input.accessToken, 'TikTok access token'),
+      },
+    },
+    operation,
+  );
+  const envelope = await parseEnvelope<T>(response);
+  return {
+    response,
+    envelope,
+    data: assertSuccessfulEnvelope(response, envelope, operation),
+  };
 }
 
 function parseTokenResult(
@@ -287,6 +451,139 @@ export async function configureTikTokAccountWebhook(
     `TikTok ${input.eventType} webhook configuration`,
   );
   return { requestId: envelope.request_id ?? null };
+}
+
+export async function publishTikTokPhoto(
+  input: PublishTikTokPhotoInput,
+): Promise<TikTokPhotoPublishResult> {
+  const postInfo: Record<string, unknown> = {
+    caption: normalizePhotoCaption(input.caption),
+    privacy_level: normalizePrivacyLevel(input.privacyLevel),
+    disable_comment: requireBoolean(input.disableComment, 'TikTok disable-comment setting'),
+    is_brand_organic: requireBoolean(input.isBrandOrganic, 'TikTok brand-organic setting'),
+    is_branded_content: requireBoolean(input.isBrandedContent, 'TikTok branded-content setting'),
+  };
+  if (input.autoAddMusic !== undefined) {
+    postInfo.auto_add_music = requireBoolean(input.autoAddMusic, 'TikTok auto-add-music setting');
+  }
+
+  const operation = 'TikTok photo publish';
+  const response = await safeFetch(
+    input.fetchImpl ?? fetch,
+    `${normalizeApiBaseUrl(input.apiBaseUrl)}/business/photo/publish/`,
+    {
+      method: 'POST',
+      headers: {
+        'Access-Token': requireValue(input.accessToken, 'TikTok access token'),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        business_id: requireValue(input.businessId, 'TikTok Business Account ID'),
+        photo_images: normalizePhotoUrls(input.imageUrls),
+        post_info: postInfo,
+      }),
+    },
+    operation,
+  );
+  const envelope = await parseEnvelope<{ share_id?: unknown }>(response);
+  const data = assertSuccessfulEnvelope(response, envelope, operation);
+  if (typeof data?.share_id !== 'string' || !data.share_id.trim()) {
+    return invalidResponse(response, envelope, operation);
+  }
+  return {
+    shareId: data.share_id.trim(),
+    requestId: envelope.request_id ?? null,
+  };
+}
+
+export async function getTikTokPostSettings(
+  input: TikTokAccountRequestInput,
+): Promise<TikTokPostSettingsResult> {
+  const operation = 'TikTok post settings lookup';
+  const { response, envelope, data } = await getTikTokAccountEnvelope<{
+    privacy_level_options?: unknown;
+    comment_disabled?: unknown;
+    duet_disabled?: unknown;
+    stitch_disabled?: unknown;
+    max_video_post_duration_sec?: unknown;
+  }>(
+    input,
+    '/business/video/settings/',
+    { business_id: requireValue(input.businessId, 'TikTok Business Account ID') },
+    operation,
+  );
+  if (
+    !Array.isArray(data?.privacy_level_options)
+    || !data.privacy_level_options.every(
+      (value) => typeof value === 'string' && TIKTOK_PRIVACY_LEVELS.has(value as TikTokPrivacyLevel),
+    )
+    || typeof data.comment_disabled !== 'boolean'
+    || typeof data.duet_disabled !== 'boolean'
+    || typeof data.stitch_disabled !== 'boolean'
+    || typeof data.max_video_post_duration_sec !== 'number'
+    || !Number.isInteger(data.max_video_post_duration_sec)
+    || data.max_video_post_duration_sec < 0
+  ) {
+    return invalidResponse(response, envelope, operation);
+  }
+
+  return {
+    privacyLevelOptions: data.privacy_level_options as TikTokPrivacyLevel[],
+    commentDisabled: data.comment_disabled,
+    duetDisabled: data.duet_disabled,
+    stitchDisabled: data.stitch_disabled,
+    maxVideoPostDurationSeconds: data.max_video_post_duration_sec,
+    requestId: envelope.request_id ?? null,
+  };
+}
+
+export async function getTikTokPublishStatus(
+  input: GetTikTokPublishStatusInput,
+): Promise<TikTokPublishStatusResult> {
+  const operation = 'TikTok publish status lookup';
+  const { response, envelope, data } = await getTikTokAccountEnvelope<{
+    status?: unknown;
+    post_ids?: unknown;
+    reason?: unknown;
+  }>(
+    input,
+    '/business/publish/status/',
+    {
+      business_id: requireValue(input.businessId, 'TikTok Business Account ID'),
+      publish_id: requireValue(input.publishId, 'TikTok publish ID'),
+    },
+    operation,
+  );
+  if (
+    typeof data?.status !== 'string'
+    || !TIKTOK_PUBLISH_STATUSES.has(data.status as TikTokPublishStatus)
+  ) {
+    return invalidResponse(response, envelope, operation);
+  }
+
+  let postIds: string[] = [];
+  if (data.post_ids !== undefined && data.post_ids !== null) {
+    if (
+      !Array.isArray(data.post_ids)
+      || !data.post_ids.every((value) => typeof value === 'string' && Boolean(value.trim()))
+    ) {
+      return invalidResponse(response, envelope, operation);
+    }
+    postIds = data.post_ids.map((value) => (value as string).trim());
+  }
+
+  let reason: string | null = null;
+  if (data.reason !== undefined && data.reason !== null) {
+    if (typeof data.reason !== 'string') return invalidResponse(response, envelope, operation);
+    reason = data.reason.trim() || null;
+  }
+
+  return {
+    status: data.status as TikTokPublishStatus,
+    postIds,
+    reason,
+    requestId: envelope.request_id ?? null,
+  };
 }
 
 function clampCommentReply(text: string): string {

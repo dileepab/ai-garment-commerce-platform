@@ -211,12 +211,44 @@ ask for an address, phone number, or payment details in a public thread. Human
 replies from Support use the stored video and comment IDs. TikTok Shop messages
 are a separate product and are not handled by this integration.
 
+## TikTok Content Studio Publishing
+
+GarmentOS can publish image creatives from Content Studio as organic TikTok
+photo posts through the same per-brand Business Account connection used by the
+Support Inbox. TikTok accepts the post asynchronously, so GarmentOS stores the
+returned share ID as `processing` and exposes a status check in Publish History
+until TikTok reports `PUBLISH_COMPLETE` or `FAILED`.
+
+Before enabling TikTok as a Content Studio channel:
+
+1. Obtain **TikTok Accounts → Account Post Content → Photo Publish** approval.
+2. Also obtain **Video Publish** approval; TikTok requires it for the account
+   settings and publishing-status endpoints used by the safe direct-post flow.
+3. Verify `https://app.deez.lk` as a TikTok URL property. GarmentOS serves each
+   selected creative from a signed `app.deez.lk` URL that responds directly with
+   TikTok-compatible WebP bytes; TikTok rejects PNG and HTTP redirects.
+4. Deploy with `APP_BASE_URL`, `CREATIVE_IMAGE_SECRET` (or `AUTH_SECRET`), and
+   the existing TikTok account credentials configured.
+5. Open **Settings → TikTok → Reconnect permissions** for every brand after the
+   new permissions are approved.
+6. Select TikTok in Content Studio, publish a test photo post, and use
+   **Publish History → Check TikTok Publish Status** if it remains processing.
+
+TikTok currently limits photo publishing to 35 images per post, 6 photo posts
+per minute, and 15 photo posts per day for each account. This integration posts
+the brand's own promotional content, does not mark it as paid partnership, does
+not add music automatically, and respects the account's current comment and
+privacy settings.
+
 Official TikTok references:
 
 - [Account token exchange and refresh](https://business-api.tiktok.com/portal/docs/obtain-a-short-term-access-token/v1.3)
 - [Business Messaging access](https://business-api.tiktok.com/portal/docs/access-to-business-messaging-api/v1.3)
 - [Comment webhook events](https://business-api.tiktok.com/portal/docs/comment-update-event/v1.3)
 - [Webhook verification](https://business-api.tiktok.com/portal/docs/webhook-verification/v1.3)
+- [Photo publishing](https://business-api.tiktok.com/portal/docs?id=1803630424390658)
+- [Post settings](https://business-api.tiktok.com/portal/docs?id=1816387951979521)
+- [Publishing status](https://business-api.tiktok.com/portal/docs?id=1816387106635778)
 
 ## Fulfillment And Customer Self-Service
 

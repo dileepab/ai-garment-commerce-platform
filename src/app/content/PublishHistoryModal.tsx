@@ -1,7 +1,11 @@
 'use client';
 
 import React, { useMemo, useState, useTransition } from 'react';
-import { publishSocialPost, type ChannelPublishOutcome } from './actions';
+import {
+  publishSocialPost,
+  refreshTikTokPostPublishStatus,
+  type ChannelPublishOutcome,
+} from './actions';
 
 export interface PublishLogEntry {
   id: number;
@@ -61,6 +65,12 @@ const Ic = {
       <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
     </svg>
   ),
+  tt: (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 4v10.5a4.5 4.5 0 11-3.3-4.34" />
+      <path d="M14 4c1.2 2.2 2.8 3.4 5 3.7" />
+    </svg>
+  ),
   external: (
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
@@ -78,30 +88,45 @@ function formatDateTime(date: Date): string {
   });
 }
 
+function channelLabel(channel: string): string {
+  if (channel === 'instagram') return 'Instagram';
+  if (channel === 'tiktok') return 'TikTok';
+  return 'Facebook';
+}
+
+function channelTheme(channel: string) {
+  if (channel === 'instagram') return { background: '#FBE7F2', color: '#A8276E' };
+  if (channel === 'tiktok') return { background: '#E8FAFA', color: '#111111' };
+  return { background: '#E8F0FF', color: '#0866FF' };
+}
+
 function ChannelIcon({ channel }: { channel: string }) {
+  const theme = channelTheme(channel);
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       width: 22, height: 22, borderRadius: '50%',
-      background: channel === 'instagram' ? '#FBE7F2' : '#E8F0FF',
-      color: channel === 'instagram' ? '#A8276E' : '#0866FF',
+      background: theme.background,
+      color: theme.color,
       flexShrink: 0,
     }}>
-      {channel === 'instagram' ? Ic.ig : Ic.fb}
+      {channel === 'instagram' ? Ic.ig : channel === 'tiktok' ? Ic.tt : Ic.fb}
     </span>
   );
 }
 
-function OutcomeBadge({ ok }: { ok: boolean }) {
+function OutcomeBadge({ status }: { status: string }) {
+  const processing = status === 'processing';
+  const ok = status === 'published';
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-      background: ok ? 'var(--color-success-muted)' : 'var(--color-error-muted)',
-      color: ok ? '#1A5C3C' : 'var(--color-error)',
+      background: processing ? '#E8F0FF' : ok ? 'var(--color-success-muted)' : 'var(--color-error-muted)',
+      color: processing ? '#315B8A' : ok ? '#1A5C3C' : 'var(--color-error)',
     }}>
-      {ok ? Ic.check : Ic.x}
-      {ok ? 'Published' : 'Failed'}
+      {processing ? Ic.retry : ok ? Ic.check : Ic.x}
+      {processing ? 'Processing' : ok ? 'Published' : 'Failed'}
     </span>
   );
 }
@@ -115,6 +140,13 @@ function PublishedPostLink({
   channel: string;
   externalPostId: string;
 }) {
+  if (channel === 'tiktok') {
+    return (
+      <span style={{ color: 'var(--color-fg-3)', fontSize: 11 }}>
+        TikTok post reference: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{externalPostId}</code>
+      </span>
+    );
+  }
   const query = new URLSearchParams({ brand, channel, postId: externalPostId });
 
   return (
@@ -215,7 +247,7 @@ function ConfirmPublishPanel({
                 disabled={publishing}
               />
               <ChannelIcon channel={ch} />
-              {ch === 'instagram' ? 'Instagram' : 'Facebook'}
+              {channelLabel(ch)}
             </span>
             <span style={{ fontSize: 11, color: 'var(--color-fg-3)' }}>
               {selectedChannels.includes(ch) ? 'Will publish' : 'Skip this attempt'}
@@ -229,7 +261,7 @@ function ConfirmPublishPanel({
         {selectedChannels.map((ch) => (
           <span key={ch} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8 }}>
             <ChannelIcon channel={ch} />
-            <span style={{ fontWeight: 600 }}>{ch === 'instagram' ? 'Instagram' : 'Facebook'}</span>
+            <span style={{ fontWeight: 600 }}>{channelLabel(ch)}</span>
           </span>
         ))}
         {' '}using the saved caption and attached campaign images. This action cannot be undone.
@@ -264,6 +296,7 @@ export default function PublishHistoryModal({
   const [showConfirm, setShowConfirm] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [checkingTikTok, startCheckingTikTok] = useTransition();
 
   const latestLogByChannel = useMemo(() => {
     const sorted = [...logs].sort(
@@ -313,7 +346,7 @@ export default function PublishHistoryModal({
     const newEntries: PublishLogEntry[] = outcomes.map((o, i) => ({
       id: Date.now() + i,
       channel: o.channel,
-      status: o.ok ? 'published' : 'failed',
+      status: o.status,
       externalPostId: o.externalPostId ?? null,
       errorCode: o.errorCode ?? null,
       errorMessage: o.errorMessage ?? null,
@@ -326,6 +359,33 @@ export default function PublishHistoryModal({
     setSelectedChannels([]);
     setPublishError(null);
     onRetried();
+  }
+
+  function handleTikTokStatusRefresh() {
+    setPublishError(null);
+    startCheckingTikTok(async () => {
+      const result = await refreshTikTokPostPublishStatus(postId);
+      const outcome = result.outcomes?.find((item) => item.channel === 'tiktok');
+      if (!outcome || !result.publishStatus) {
+        setPublishError(result.error ?? 'TikTok status check failed. Please retry.');
+        return;
+      }
+
+      const pendingId = latestLogByChannel.get('tiktok')?.id;
+      setLogs((prev) => prev.map((log) => (
+        log.id === pendingId
+          ? {
+              ...log,
+              status: outcome.status,
+              externalPostId: outcome.externalPostId ?? log.externalPostId,
+              errorCode: outcome.errorCode ?? null,
+              errorMessage: outcome.errorMessage ?? null,
+            }
+          : log
+      )));
+      setCurrentPublishStatus(result.publishStatus);
+      onRetried();
+    });
   }
 
   // Group logs by attempt (most recent first based on createdAt)
@@ -366,7 +426,7 @@ export default function PublishHistoryModal({
               Publish History
             </div>
             <div style={{ fontSize: 12, color: 'var(--color-fg-3)', marginTop: 2 }}>
-              {brand} · {channels.map((c) => c === 'instagram' ? 'Instagram' : 'Facebook').join(', ')}
+              {brand} · {channels.map(channelLabel).join(', ')}
             </div>
           </div>
           <button
@@ -417,6 +477,23 @@ export default function PublishHistoryModal({
             </div>
           )}
 
+          {latestLogByChannel.get('tiktok')?.status === 'processing' && !showConfirm && (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                className="btn btn-secondary"
+                onClick={handleTikTokStatusRefresh}
+                disabled={checkingTikTok}
+                style={{ width: '100%' }}
+              >
+                {Ic.retry}
+                {checkingTikTok ? 'Checking TikTok…' : 'Check TikTok Publish Status'}
+              </button>
+              <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginTop: 6, textAlign: 'center' }}>
+                TikTok is still downloading or reviewing the photo post.
+              </div>
+            </div>
+          )}
+
           {showConfirm && (
             <ConfirmPublishPanel
               postId={postId}
@@ -450,6 +527,7 @@ export default function PublishHistoryModal({
             {channelSummaries.map((summary) => {
               const ok = summary.status === 'published';
               const failed = summary.status === 'failed';
+              const processing = summary.status === 'processing';
               return (
                 <div
                   key={summary.channel}
@@ -457,7 +535,7 @@ export default function PublishHistoryModal({
                     display: 'grid',
                     gap: 6,
                     background: 'var(--color-bg)',
-                    border: `1px solid ${ok ? 'var(--color-success-muted)' : failed ? 'var(--color-error-muted)' : 'var(--color-border)'}`,
+                    border: `1px solid ${ok ? 'var(--color-success-muted)' : failed ? 'var(--color-error-muted)' : processing ? '#C6D9F1' : 'var(--color-border)'}`,
                     borderRadius: 'var(--radius-md)',
                     padding: '10px 14px',
                   }}
@@ -466,7 +544,7 @@ export default function PublishHistoryModal({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <ChannelIcon channel={summary.channel} />
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
-                        {summary.channel === 'instagram' ? 'Instagram' : 'Facebook'}
+                        {channelLabel(summary.channel)}
                       </span>
                     </div>
                     {summary.status === 'not_published' ? (
@@ -482,7 +560,7 @@ export default function PublishHistoryModal({
                         Not published
                       </span>
                     ) : (
-                      <OutcomeBadge ok={ok} />
+                      <OutcomeBadge status={summary.status} />
                     )}
                   </div>
                   {summary.externalPostId && (
@@ -519,7 +597,7 @@ export default function PublishHistoryModal({
                   key={log.id}
                   style={{
                     background: 'var(--color-bg)',
-                    border: `1px solid ${log.status === 'published' ? 'var(--color-success-muted)' : 'var(--color-error-muted)'}`,
+                    border: `1px solid ${log.status === 'published' ? 'var(--color-success-muted)' : log.status === 'processing' ? '#C6D9F1' : 'var(--color-error-muted)'}`,
                     borderRadius: 'var(--radius-md)',
                     padding: '10px 14px',
                   }}
@@ -528,10 +606,10 @@ export default function PublishHistoryModal({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <ChannelIcon channel={log.channel} />
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-fg-1)' }}>
-                        {log.channel === 'instagram' ? 'Instagram' : 'Facebook'}
+                        {channelLabel(log.channel)}
                       </span>
                     </div>
-                    <OutcomeBadge ok={log.status === 'published'} />
+                    <OutcomeBadge status={log.status} />
                   </div>
 
                   <div style={{ fontSize: 11, color: 'var(--color-fg-3)', marginBottom: log.externalPostId || log.errorMessage ? 6 : 0 }}>

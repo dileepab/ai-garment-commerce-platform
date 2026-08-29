@@ -797,10 +797,10 @@ model SocialPostPublishLog {
   id             Int        @id @default(autoincrement())
   socialPostId   Int
   socialPost     SocialPost @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
-  channel        String // facebook | instagram
+  channel        String // facebook | instagram | tiktok
   brand          String
-  status         String // published | failed
-  externalPostId String? // Meta post ID returned on success
+  status         String // published | processing | failed
+  externalPostId String? // provider post ID, or TikTok share ID while processing
   errorCode      String?
   errorMessage   String?
   publishedBy    String? // user email
