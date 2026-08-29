@@ -35,6 +35,10 @@ import { appendItemDescriptions, buildItemDescription } from '@/lib/post-item-de
 import { brandsMatch } from '@/lib/brand-aliases';
 import { getBrandChannelConfigView } from '@/lib/brand-channel-config';
 import { appendWhatsAppOrderLine } from '@/lib/whatsapp-order-link';
+import {
+  publishPhotoPostToTikTok,
+  refreshTikTokPhotoPostStatus,
+} from '@/lib/tiktok-photo-publish';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -44,7 +48,7 @@ export interface SocialPostCreativeInput {
 
 export interface SocialPostInput {
   brand: string;
-  channels: string[]; // ['facebook'] | ['instagram'] | ['facebook','instagram']
+  channels: string[]; // facebook | instagram | tiktok
   caption: string;
   // Optional per-channel overrides. Anything omitted falls back to `caption`.
   captionsByChannel?: Record<string, string>;
@@ -1040,6 +1044,7 @@ export async function deleteGeneratedCreative(creativeId: number): Promise<{ suc
 export interface ChannelPublishOutcome {
   channel: string;
   ok: boolean;
+  status: 'published' | 'processing' | 'failed';
   externalPostId?: string;
   errorCode?: string;
   errorMessage?: string;
@@ -1056,6 +1061,22 @@ export interface PublishSocialPostResult {
 
 
 
+
+function aggregatePublishStatus(
+  channels: string[],
+  latestStatusByChannel: Map<string, string>,
+): 'published' | 'processing' | 'partial' | 'failed' {
+  const statuses = channels.map((channel) => latestStatusByChannel.get(channel));
+  if (statuses.every((status) => status === 'published')) return 'published';
+  if (statuses.every((status) => status === 'failed')) return 'failed';
+
+  const hasProcessing = statuses.includes('processing');
+  const hasFailed = statuses.includes('failed');
+  const allAttempted = statuses.every(Boolean);
+  if (hasProcessing && !hasFailed && allAttempted) return 'processing';
+  if (statuses.some((status) => status === 'published' || status === 'processing')) return 'partial';
+  return 'failed';
+}
 
 export async function publishSocialPost(
   postId: number,
@@ -1189,10 +1210,19 @@ export async function publishSocialPost(
         result = await publishToFacebook(post.brand, captionFor(channel), imageInputs);
       } else if (channel === 'instagram') {
         result = await publishToInstagram(post.brand, captionFor(channel), imageUrls);
+      } else if (channel === 'tiktok') {
+        const tiktokResult = await publishPhotoPostToTikTok({
+          brand: post.brand,
+          caption: captionFor(channel),
+          creativeIds: post.postCreatives.map((entry) => entry.creativeId),
+        });
+        outcomes.push({ channel, ...tiktokResult });
+        continue;
       } else {
         outcomes.push({
           channel,
           ok: false,
+          status: 'failed',
           errorCode: 'UNSUPPORTED_CHANNEL',
           errorMessage: `Channel "${channel}" is not supported for publishing.`,
         });
@@ -1202,6 +1232,7 @@ export async function publishSocialPost(
       outcomes.push({
         channel,
         ok: result.ok,
+        status: result.ok ? 'published' : 'failed',
         externalPostId: result.externalPostId,
         errorCode: result.errorCode,
         errorMessage: result.errorMessage,
@@ -1214,7 +1245,7 @@ export async function publishSocialPost(
         socialPostId: post.id,
         channel: o.channel,
         brand: post.brand,
-        status: o.ok ? 'published' : 'failed',
+        status: o.status,
         externalPostId: o.externalPostId ?? null,
         errorCode: o.errorCode ?? null,
         errorMessage: o.errorMessage ?? null,
@@ -1227,14 +1258,13 @@ export async function publishSocialPost(
       latestStatusByChannel.set(log.channel, log.status);
     }
     for (const outcome of outcomes) {
-      latestStatusByChannel.set(outcome.channel, outcome.ok ? 'published' : 'failed');
+      latestStatusByChannel.set(outcome.channel, outcome.status);
     }
 
-    const allOk = configuredChannels.every((channel) => latestStatusByChannel.get(channel) === 'published');
-    const anyOk = configuredChannels.some((channel) => latestStatusByChannel.get(channel) === 'published');
+    const publishStatus = aggregatePublishStatus(configuredChannels, latestStatusByChannel);
     const attemptAllOk = outcomes.every((o) => o.ok);
     const attemptAnyOk = outcomes.some((o) => o.ok);
-    const publishStatus = allOk ? 'published' : anyOk ? 'partial' : 'failed';
+    const attemptAnyPublished = outcomes.some((o) => o.status === 'published');
 
     const publishedAt = new Date();
 
@@ -1242,7 +1272,7 @@ export async function publishSocialPost(
       where: { id: post.id },
       data: {
         publishStatus,
-        publishedAt,
+        ...(attemptAnyPublished ? { publishedAt } : {}),
         publishedBy: scope.email ?? null,
       },
     });
@@ -1251,7 +1281,7 @@ export async function publishSocialPost(
     // garment, so adopt it as the product's customer-facing image. Only stamp
     // once — the first publish is when it reached customers, and re-publishing
     // should not reshuffle which creative wins.
-    if (attemptAnyOk) {
+    if (attemptAnyPublished) {
       const creativeIds = post.postCreatives.map((entry) => entry.creativeId);
       if (creativeIds.length > 0) {
         await prisma.generatedCreative.updateMany({
@@ -1273,5 +1303,111 @@ export async function publishSocialPost(
   } catch (error) {
     if (isAuthorizationError(error)) return accessDeniedResult(error) as PublishSocialPostResult;
     return { success: false, error: 'Publish failed. Please retry.' };
+  }
+}
+
+export async function refreshTikTokPostPublishStatus(
+  postId: number,
+): Promise<PublishSocialPostResult> {
+  try {
+    const scope = await requireActionPermission('content:write');
+    const post = await prisma.socialPost.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        brand: true,
+        channels: true,
+        publishLogs: {
+          select: {
+            id: true,
+            channel: true,
+            status: true,
+            externalPostId: true,
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        },
+        postCreatives: { select: { creativeId: true } },
+      },
+    });
+    if (!post) return { success: false, error: 'Post not found.' };
+    assertBrandAccess(scope, post.brand);
+
+    const latestTikTok = post.publishLogs.find((log) => log.channel === 'tiktok');
+    const pending = latestTikTok?.status === 'processing' ? latestTikTok : null;
+    if (!pending?.externalPostId) {
+      return { success: false, error: 'No TikTok publish is currently processing.' };
+    }
+
+    const refreshed = await refreshTikTokPhotoPostStatus({
+      brand: post.brand,
+      publishId: pending.externalPostId,
+    });
+    const outcome: ChannelPublishOutcome = { channel: 'tiktok', ...refreshed };
+
+    // A lookup error is not evidence that TikTok rejected an already accepted
+    // post. Only terminal provider statuses may close the processing log.
+    const terminal = outcome.status !== 'failed'
+      || outcome.errorCode === 'TIKTOK_PUBLISH_FAILED'
+      || outcome.errorCode === 'TIKTOK_UNEXPECTED_DRAFT';
+    if (!terminal) {
+      return { success: false, error: outcome.errorMessage ?? 'TikTok status check failed.' };
+    }
+
+    if (outcome.status !== 'processing') {
+      await prisma.socialPostPublishLog.update({
+        where: { id: pending.id },
+        data: {
+          status: outcome.status,
+          externalPostId: outcome.externalPostId ?? pending.externalPostId,
+          errorCode: outcome.errorCode ?? null,
+          errorMessage: outcome.errorMessage ?? null,
+        },
+      });
+    }
+
+    const latestStatusByChannel = new Map<string, string>();
+    for (const log of post.publishLogs) {
+      if (latestStatusByChannel.has(log.channel)) continue;
+      latestStatusByChannel.set(
+        log.channel,
+        log.id === pending.id ? outcome.status : log.status,
+      );
+    }
+    const configuredChannels = post.channels
+      .split(',')
+      .map((channel) => channel.trim())
+      .filter(Boolean);
+    const publishStatus = aggregatePublishStatus(configuredChannels, latestStatusByChannel);
+    const completedAt = new Date();
+    await prisma.socialPost.update({
+      where: { id: post.id },
+      data: {
+        publishStatus,
+        ...(outcome.status === 'published' ? { publishedAt: completedAt } : {}),
+        publishedBy: scope.email ?? null,
+      },
+    });
+
+    if (outcome.status === 'published') {
+      const creativeIds = post.postCreatives.map((entry) => entry.creativeId);
+      if (creativeIds.length > 0) {
+        await prisma.generatedCreative.updateMany({
+          where: { id: { in: creativeIds }, publishedAt: null },
+          data: { status: 'saved', publishedAt: completedAt },
+        });
+      }
+    }
+
+    revalidatePath('/content');
+    revalidatePath('/products');
+    return {
+      success: outcome.ok,
+      outcomes: [outcome],
+      publishStatus,
+      error: outcome.ok ? undefined : outcome.errorMessage,
+    };
+  } catch (error) {
+    if (isAuthorizationError(error)) return accessDeniedResult(error) as PublishSocialPostResult;
+    return { success: false, error: 'TikTok status check failed. Please retry.' };
   }
 }

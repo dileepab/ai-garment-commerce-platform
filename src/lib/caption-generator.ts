@@ -9,7 +9,7 @@ const MODEL_CHAIN = [
 
 export interface CaptionGenerationInput {
   brand: string;
-  channels: string[]; // 'facebook' | 'instagram'
+  channels: string[]; // 'facebook' | 'instagram' | 'tiktok'
   productContext?: string;
   // Either a base64 data URL or an http(s) URL of the campaign image.
   // Creatives stored in blob storage arrive as the latter.
@@ -85,6 +85,7 @@ function getErrorStatus(error: unknown): number | undefined {
 const CHANNEL_GUIDANCE: Record<string, string> = {
   instagram: 'punchy and visual, 1-2 short sentences, ends with 3-5 relevant hashtags',
   facebook: 'slightly longer and conversational, 2-3 sentences, no hashtags',
+  tiktok: 'short, energetic, creator-style copy with a clear hook and 3-5 discovery hashtags',
 };
 
 function channelLabel(channel: string): string {
@@ -94,10 +95,12 @@ function channelLabel(channel: string): string {
 function buildSystemPrompt(brand: string, channels: string[], hasImage: boolean): string {
   const forInstagram = channels.includes('instagram');
   const forFacebook = channels.includes('facebook');
+  const forTikTok = channels.includes('tiktok');
 
   const channelGuidance = [
     forInstagram && 'Instagram: punchy, visual, ends with 3-5 relevant hashtags.',
     forFacebook && 'Facebook: slightly longer, conversational, no hashtags needed.',
+    forTikTok && 'TikTok: short, energetic, creator-style, with a strong hook and 3-5 discovery hashtags.',
   ]
     .filter(Boolean)
     .join(' ');
@@ -120,6 +123,7 @@ Rules:
 - Use natural, conversational language. No corporate jargon.
 - Emojis are encouraged but not excessive (2-4 per caption).
 - If channels include Instagram, at least one caption should end with hashtags.
+- If channels include TikTok, keep the copy under 4,000 characters and include a strong opening hook.
 - Reference specific garment details (colour, pattern, fabric, length) — do NOT be generic.
 - Never mention competitors. Never make false claims about pricing or stock.
 - Output format: ["caption one", "caption two", "caption three"]`;}

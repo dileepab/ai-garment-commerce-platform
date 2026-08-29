@@ -34,7 +34,7 @@ const VIEW_ANGLES: { id: ViewAngle; label: string }[] = [
 ];
 
 const ASPECT_RATIOS: { id: CreativeAspectRatio; label: string; help: string }[] = [
-  { id: '4:5', label: 'Portrait 4:5', help: 'Instagram + Facebook feed. Most screen space.' },
+  { id: '4:5', label: 'Portrait 4:5', help: 'Instagram, Facebook and TikTok feed. Most screen space.' },
   { id: '1:1', label: 'Square 1:1', help: 'Safe everywhere, good for carousels.' },
   { id: '9:16', label: 'Story 9:16', help: 'Stories and Reels.' },
   { id: '4:3', label: 'Landscape 4:3', help: 'Wide crops and website banners.' },
@@ -146,6 +146,12 @@ const Ic = {
       <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
     </svg>
   ),
+  tt: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 4v10.5a4.5 4.5 0 11-3.3-4.34" />
+      <path d="M14 4c1.2 2.2 2.8 3.4 5 3.7" />
+    </svg>
+  ),
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -225,7 +231,7 @@ export default function CreatePostWizardModal({
 
   // Step 1 cont. — view angles + existing creatives (per linked product)
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
-  // Ticked by default: publishing to Facebook and Instagram is the moment a
+  // Ticked by default: publishing social content is the moment a
   // product goes live, and the WhatsApp catalog should not lag behind it.
   const [listInCatalog, setListInCatalog] = useState(true);
   const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('standard');
@@ -750,6 +756,11 @@ export default function CreatePostWizardModal({
       setFormError('Select at least one channel.');
       return;
     }
+    const tiktokCaption = channelCaptions.tiktok?.trim() || caption.trim();
+    if (channels.includes('tiktok') && tiktokCaption.length > 4_000) {
+      setFormError('TikTok captions cannot exceed 4,000 characters.');
+      return;
+    }
     setStep(4);
   }
 
@@ -1113,7 +1124,7 @@ export default function CreatePostWizardModal({
                 {/*
                   Only offered when a product is linked — there is nothing to list
                   otherwise. Ticked by default so the usual path keeps WhatsApp in
-                  step with Facebook and Instagram.
+                  step with social publishing.
                 */}
                 {selectedProduct && (
                   <label
@@ -2250,7 +2261,22 @@ interface Step3Props {
 const CHANNEL_LABEL: Record<string, string> = {
   facebook: 'Facebook',
   instagram: 'Instagram',
+  tiktok: 'TikTok',
 };
+
+const SOCIAL_CHANNELS = ['facebook', 'instagram', 'tiktok'] as const;
+
+function channelTheme(channel: string) {
+  if (channel === 'instagram') return { background: '#FBE7F2', color: '#A8276E', border: '#C13584' };
+  if (channel === 'tiktok') return { background: '#E8FAFA', color: '#111111', border: '#25F4EE' };
+  return { background: '#E8F0FF', color: '#0866FF', border: '#0866FF' };
+}
+
+function channelIcon(channel: string) {
+  if (channel === 'instagram') return Ic.ig;
+  if (channel === 'tiktok') return Ic.tt;
+  return Ic.fb;
+}
 
 function Step3CaptionReview(props: Step3Props) {
   return (
@@ -2259,8 +2285,9 @@ function Step3CaptionReview(props: Step3Props) {
       <div>
         <label style={labelStyle}>Channels</label>
         <div style={{ display: 'flex', gap: 10 }}>
-          {(['facebook', 'instagram'] as const).map((ch) => {
+          {SOCIAL_CHANNELS.map((ch) => {
             const checked = props.channels.includes(ch);
+            const theme = channelTheme(ch);
             return (
               <button
                 key={ch}
@@ -2272,20 +2299,20 @@ function Step3CaptionReview(props: Step3Props) {
                   padding: '7px 14px',
                   borderRadius: 'var(--radius-md)',
                   border: checked
-                    ? ch === 'instagram' ? '1.5px solid #C13584' : '1.5px solid #0866FF'
+                    ? `1.5px solid ${theme.border}`
                     : '1.5px solid var(--color-border)',
                   background: checked
-                    ? ch === 'instagram' ? '#FBE7F2' : '#E8F0FF'
+                    ? theme.background
                     : 'var(--color-bg)',
                   color: checked
-                    ? ch === 'instagram' ? '#A8276E' : '#0866FF'
+                    ? theme.color
                     : 'var(--color-fg-2)',
                   fontSize: 12, fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >
-                {ch === 'instagram' ? Ic.ig : Ic.fb}
-                {ch === 'instagram' ? 'Instagram' : 'Facebook'}
+                {channelIcon(ch)}
+                {CHANNEL_LABEL[ch]}
               </button>
             );
           })}
@@ -2434,7 +2461,7 @@ function Step3CaptionReview(props: Step3Props) {
         </div>
       </div>
 
-      {/* Per-channel copy — Instagram wants hashtags, Facebook wants prose */}
+      {/* Per-channel copy follows each network's native tone. */}
       {props.channels.length > 0 && (
         <div>
           <label style={labelStyle}>
@@ -2448,6 +2475,8 @@ function Step3CaptionReview(props: Step3Props) {
               const value = props.channelCaptions[channel] ?? '';
               const suggestions = props.suggestionsByChannel[channel] ?? [];
               const isInstagram = channel === 'instagram';
+              const isTikTok = channel === 'tiktok';
+              const theme = channelTheme(channel);
               return (
                 <div
                   key={channel}
@@ -2461,9 +2490,9 @@ function Step3CaptionReview(props: Step3Props) {
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7,
                     fontSize: 12, fontWeight: 700,
-                    color: isInstagram ? '#A8276E' : '#0866FF',
+                    color: theme.color,
                   }}>
-                    {isInstagram ? Ic.ig : Ic.fb}
+                    {channelIcon(channel)}
                     {CHANNEL_LABEL[channel] ?? channel}
                   </div>
 
@@ -2497,7 +2526,9 @@ function Step3CaptionReview(props: Step3Props) {
                     className="app-textarea"
                     placeholder={isInstagram
                       ? 'Punchy copy ending with 3-5 hashtags…'
-                      : 'Longer, conversational copy…'}
+                      : isTikTok
+                        ? 'Short hook, clear CTA and 3-5 discovery hashtags…'
+                        : 'Longer, conversational copy…'}
                     value={value}
                     onChange={(e) => props.setChannelCaption(channel, e.target.value)}
                     disabled={props.isLoading}
@@ -2551,7 +2582,7 @@ function Step4Publish(props: Step4Props) {
         Review your post before publishing. You can save as draft to edit later, or publish now to&nbsp;
         {props.channels.map((ch, i) => (
           <span key={ch}>
-            <strong>{ch === 'instagram' ? 'Instagram' : 'Facebook'}</strong>
+            <strong>{CHANNEL_LABEL[ch] ?? ch}</strong>
             {i < props.channels.length - 1 ? ', ' : ''}
           </span>
         ))}
@@ -2564,6 +2595,19 @@ function Step4Publish(props: Step4Props) {
         caption={props.caption}
         imageDataList={props.generatedImageDataList}
       />
+
+      {props.channels.includes('tiktok') && (
+        <div style={{
+          fontSize: 11,
+          color: 'var(--color-fg-2)',
+          padding: '8px 12px',
+          background: '#E8FAFA',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid #BDEDEC',
+        }}>
+          TikTok downloads and reviews photo posts asynchronously. Content Studio may show Processing briefly after you publish.
+        </div>
+      )}
 
       {props.imageDescription && (
         <div style={{
@@ -2668,21 +2712,24 @@ function PreviewCard({
             {brand || 'Brand Name'}
           </div>
           <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-            {channels.map((ch) => (
-              <span
-                key={ch}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                  padding: '1px 6px', borderRadius: 999,
-                  fontSize: 9, fontWeight: 700,
-                  background: ch === 'instagram' ? '#FBE7F2' : '#E8F0FF',
-                  color: ch === 'instagram' ? '#A8276E' : '#0866FF',
-                }}
-              >
-                {ch === 'instagram' ? Ic.ig : Ic.fb}
-                {ch === 'instagram' ? 'Instagram' : 'Facebook'}
-              </span>
-            ))}
+            {channels.map((ch) => {
+              const theme = channelTheme(ch);
+              return (
+                <span
+                  key={ch}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                    padding: '1px 6px', borderRadius: 999,
+                    fontSize: 9, fontWeight: 700,
+                    background: theme.background,
+                    color: theme.color,
+                  }}
+                >
+                  {channelIcon(ch)}
+                  {CHANNEL_LABEL[ch] ?? ch}
+                </span>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -3,6 +3,9 @@ import { test } from 'node:test';
 import {
   configureTikTokAccountWebhook,
   exchangeTikTokAccountAuthorizationCode,
+  getTikTokPostSettings,
+  getTikTokPublishStatus,
+  publishTikTokPhoto,
   refreshTikTokAccountAccessToken,
   sendTikTokCommentReply,
   sendTikTokDirectMessage,
@@ -143,6 +146,300 @@ test('sends a text DM to the exact TikTok conversation', async () => {
     text: { body: 'Yes, you can order it here.' },
   });
   assert.equal(result.ok, true);
+});
+
+test('publishes TikTok photos with the account token only in the header', async () => {
+  let requestUrl = '';
+  let requestInit: RequestInit | undefined;
+  const result = await publishTikTokPhoto({
+    accessToken: 'sensitive-token',
+    businessId: '_000business',
+    imageUrls: [
+      'https://assets.deez.lk/creatives/look-1.jpg',
+      'https://assets.deez.lk/creatives/look-2.webp',
+    ],
+    caption: 'Two ways to wear the new collection. #HappyBuy',
+    privacyLevel: 'PUBLIC_TO_EVERYONE',
+    disableComment: false,
+    isBrandOrganic: true,
+    isBrandedContent: false,
+    autoAddMusic: true,
+    fetchImpl: async (input, init) => {
+      requestUrl = String(input);
+      requestInit = init;
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'OK',
+        request_id: 'request-photo',
+        data: { share_id: 'p_pub_url~v1.2345123456789123456' },
+      }), { status: 200 });
+    },
+  });
+
+  assert.equal(requestUrl, 'https://business-api.tiktok.com/open_api/v1.3/business/photo/publish/');
+  assert.equal(requestUrl.includes('sensitive-token'), false);
+  assert.equal(requestInit?.method, 'POST');
+  assert.equal(new Headers(requestInit?.headers).get('Access-Token'), 'sensitive-token');
+  assert.equal(new Headers(requestInit?.headers).get('Content-Type'), 'application/json');
+  assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+    business_id: '_000business',
+    photo_images: [
+      'https://assets.deez.lk/creatives/look-1.jpg',
+      'https://assets.deez.lk/creatives/look-2.webp',
+    ],
+    post_info: {
+      privacy_level: 'PUBLIC_TO_EVERYONE',
+      caption: 'Two ways to wear the new collection. #HappyBuy',
+      disable_comment: false,
+      is_brand_organic: true,
+      is_branded_content: false,
+      auto_add_music: true,
+    },
+  });
+  assert.deepEqual(result, {
+    shareId: 'p_pub_url~v1.2345123456789123456',
+    requestId: 'request-photo',
+  });
+});
+
+test('gets the TikTok account post settings before publishing', async () => {
+  let requestUrl = '';
+  let requestInit: RequestInit | undefined;
+  const result = await getTikTokPostSettings({
+    accessToken: 'sensitive-token',
+    businessId: '_000business',
+    fetchImpl: async (input, init) => {
+      requestUrl = String(input);
+      requestInit = init;
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'OK',
+        request_id: 'request-settings',
+        data: {
+          privacy_level_options: ['PUBLIC_TO_EVERYONE', 'SELF_ONLY'],
+          comment_disabled: false,
+          duet_disabled: true,
+          stitch_disabled: true,
+          max_video_post_duration_sec: 600,
+        },
+      }), { status: 200 });
+    },
+  });
+
+  const url = new URL(requestUrl);
+  assert.equal(url.origin + url.pathname, 'https://business-api.tiktok.com/open_api/v1.3/business/video/settings/');
+  assert.equal(url.searchParams.get('business_id'), '_000business');
+  assert.equal(requestUrl.includes('sensitive-token'), false);
+  assert.equal(requestInit?.method, 'GET');
+  assert.equal(new Headers(requestInit?.headers).get('Access-Token'), 'sensitive-token');
+  assert.deepEqual(result, {
+    privacyLevelOptions: ['PUBLIC_TO_EVERYONE', 'SELF_ONLY'],
+    commentDisabled: false,
+    duetDisabled: true,
+    stitchDisabled: true,
+    maxVideoPostDurationSeconds: 600,
+    requestId: 'request-settings',
+  });
+});
+
+test('gets TikTok photo publishing status with IDs preserved as strings', async () => {
+  let requestUrl = '';
+  let requestInit: RequestInit | undefined;
+  const result = await getTikTokPublishStatus({
+    accessToken: 'sensitive-token',
+    businessId: '_000business',
+    publishId: 'p_pub_url~v1.2345123456789123456',
+    fetchImpl: async (input, init) => {
+      requestUrl = String(input);
+      requestInit = init;
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'OK',
+        request_id: 'request-status',
+        data: {
+          status: 'PUBLISH_COMPLETE',
+          post_ids: ['7461234567890123456'],
+        },
+      }), { status: 200 });
+    },
+  });
+
+  const url = new URL(requestUrl);
+  assert.equal(url.origin + url.pathname, 'https://business-api.tiktok.com/open_api/v1.3/business/publish/status/');
+  assert.equal(url.searchParams.get('business_id'), '_000business');
+  assert.equal(url.searchParams.get('publish_id'), 'p_pub_url~v1.2345123456789123456');
+  assert.equal(requestUrl.includes('sensitive-token'), false);
+  assert.equal(requestInit?.method, 'GET');
+  assert.equal(requestInit?.body, undefined);
+  assert.equal(new Headers(requestInit?.headers).get('Access-Token'), 'sensitive-token');
+  assert.deepEqual(result, {
+    status: 'PUBLISH_COMPLETE',
+    postIds: ['7461234567890123456'],
+    reason: null,
+    requestId: 'request-status',
+  });
+});
+
+test('parses a terminal TikTok photo publishing failure reason', async () => {
+  const result = await getTikTokPublishStatus({
+    accessToken: 'sensitive-token',
+    businessId: '_000business',
+    publishId: 'p_pub_url~v1.failed',
+    fetchImpl: async () => new Response(JSON.stringify({
+      code: 0,
+      message: 'OK',
+      request_id: 'request-failed-status',
+      data: {
+        status: 'FAILED',
+        reason: 'photo_pull_failed',
+      },
+    }), { status: 200 }),
+  });
+
+  assert.deepEqual(result, {
+    status: 'FAILED',
+    postIds: [],
+    reason: 'photo_pull_failed',
+    requestId: 'request-failed-status',
+  });
+});
+
+test('rejects missing IDs and unknown TikTok publishing statuses', async () => {
+  let fetchCalls = 0;
+  await assert.rejects(
+    getTikTokPublishStatus({
+      accessToken: 'sensitive-token',
+      businessId: '_000business',
+      publishId: '   ',
+      fetchImpl: async () => {
+        fetchCalls += 1;
+        return new Response(JSON.stringify({ code: 0, message: 'OK', data: {} }));
+      },
+    }),
+    /publish.*ID|required/i,
+  );
+  assert.equal(fetchCalls, 0);
+
+  await assert.rejects(
+    getTikTokPublishStatus({
+      accessToken: 'sensitive-token',
+      businessId: '_000business',
+      publishId: 'p_pub_url~v1.unknown',
+      fetchImpl: async () => new Response(JSON.stringify({
+        code: 0,
+        message: 'OK',
+        request_id: 'request-unknown-status',
+        data: { status: 'SOMETHING_NEW' },
+      }), { status: 200 }),
+    }),
+    /status/i,
+  );
+});
+
+test('rejects invalid TikTok photo inputs before calling the API', async () => {
+  let fetchCalls = 0;
+  const baseInput = {
+    accessToken: 'sensitive-token',
+    businessId: '_000business',
+    caption: 'New collection',
+    privacyLevel: 'PUBLIC_TO_EVERYONE' as const,
+    disableComment: false,
+    isBrandOrganic: true,
+    isBrandedContent: false,
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ code: 0, message: 'OK', data: {} }));
+    },
+  };
+
+  await assert.rejects(
+    publishTikTokPhoto({ ...baseInput, imageUrls: [] }),
+    /at least one/i,
+  );
+  await assert.rejects(
+    publishTikTokPhoto({
+      ...baseInput,
+      imageUrls: Array.from(
+        { length: 36 },
+        (_, index) => `https://assets.deez.lk/creatives/look-${index}.jpg`,
+      ),
+    }),
+    /35/,
+  );
+  await assert.rejects(
+    publishTikTokPhoto({
+      ...baseInput,
+      imageUrls: ['http://localhost:3000/api/content/creatives/1/image'],
+    }),
+    /https/i,
+  );
+  await assert.rejects(
+    publishTikTokPhoto({
+      ...baseInput,
+      imageUrls: ['https://user:password@assets.deez.lk/creatives/look-1.jpg'],
+    }),
+    /credentials/i,
+  );
+  await assert.rejects(
+    publishTikTokPhoto({
+      ...baseInput,
+      imageUrls: ['https://assets.deez.lk/creatives/look-1.jpg#private-fragment'],
+    }),
+    /fragment|hash/i,
+  );
+  await assert.rejects(
+    publishTikTokPhoto({
+      ...baseInput,
+      imageUrls: ['https://assets.deez.lk/creatives/look-1.jpg'],
+      caption: '   ',
+    }),
+    /caption/i,
+  );
+  await assert.rejects(
+    publishTikTokPhoto({
+      ...baseInput,
+      imageUrls: ['https://assets.deez.lk/creatives/look-1.jpg'],
+      caption: 'x'.repeat(4_001),
+    }),
+    /4,?000|caption/i,
+  );
+  await assert.rejects(
+    publishTikTokPhoto({
+      ...baseInput,
+      imageUrls: ['https://assets.deez.lk/creatives/look-1.jpg'],
+      caption: Array.from({ length: 31 }, (_, index) => `@person${index}`).join(' '),
+    }),
+    /30|mentions/i,
+  );
+  assert.equal(fetchCalls, 0);
+});
+
+test('returns sanitized TikTok photo publishing errors without echoing tokens', async () => {
+  const secret = 'very-sensitive-account-token';
+  await assert.rejects(
+    publishTikTokPhoto({
+      accessToken: secret,
+      businessId: '_000business',
+      imageUrls: ['https://assets.deez.lk/creatives/look-1.jpg'],
+      caption: 'New collection',
+      privacyLevel: 'PUBLIC_TO_EVERYONE',
+      disableComment: false,
+      isBrandOrganic: true,
+      isBrandedContent: false,
+      fetchImpl: async () => new Response(JSON.stringify({
+        code: 40001,
+        message: `${secret} is missing Photo Publish permission`,
+        request_id: 'request-photo-error',
+      }), { status: 403 }),
+    }),
+    (error: unknown) => {
+      assert.equal(error instanceof TikTokAccountApiError, true);
+      const message = error instanceof Error ? error.message : String(error);
+      assert.equal(message.includes(secret), false);
+      assert.match(message, /TikTok code 40001/);
+      return true;
+    },
+  );
 });
 
 test('configures app-level TikTok comment and DM webhooks without an account token', async () => {

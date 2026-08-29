@@ -54,6 +54,15 @@ export function creativeImagePath(creativeId: number, ttlSeconds?: number): stri
   return `/api/content/creatives/${creativeId}/image${query}`;
 }
 
+// TikTok rejects PNG files and any media URL that responds with a redirect.
+// This route streams a resized WebP from our verified app domain instead of
+// exposing the underlying Vercel Blob URL.
+export function tiktokCreativeImagePath(creativeId: number, ttlSeconds?: number): string | null {
+  const signed = signCreativeImageUrl(creativeId, ttlSeconds);
+  if (!signed) return null;
+  return `/api/content/creatives/${creativeId}/tiktok-image.webp?exp=${signed.exp}&token=${signed.token}`;
+}
+
 export function verifyCreativeImageToken(
   creativeId: number,
   exp: string | null,

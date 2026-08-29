@@ -152,7 +152,7 @@ export default async function TikTokSettingsPage({
     <main className="main">
       <PageHeader
         title="TikTok"
-        subtitle="Separate connections for paid advertising and organic comments/direct messages"
+        subtitle="Separate connections for paid advertising and organic account messaging/publishing"
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Link className="btn btn-secondary" href="/settings">Settings</Link>
@@ -228,9 +228,10 @@ export default async function TikTokSettingsPage({
         <section style={{ ...cardStyle, background: '#F7F6F2' }}>
           <strong style={{ fontSize: 13, color: 'var(--color-fg-1)' }}>Two separate TikTok authorizations</strong>
           <p className="app-muted" style={{ marginTop: 6, lineHeight: 1.55 }}>
-            TikTok Ads uses the long-term Marketing API token below. Organic comments and direct messages use a separate,
-            rotating Business Account token. Comments are intentionally routed to Support for a human reply; the existing
-            GarmentOS chatbot can answer DMs after Business Messaging and privacy-review approval are tested.
+            TikTok Ads uses the long-term Marketing API token below. Organic comments, direct messages, and Content Studio
+            photo posts use a separate rotating Business Account token. Comments are intentionally routed to Support for a
+            human reply; the existing GarmentOS chatbot can answer DMs after Business Messaging and privacy-review approval
+            are tested.
           </p>
           <form action={configureTikTokWebhooksAction} style={{ marginTop: 12 }}>
             <button
@@ -255,6 +256,7 @@ export default async function TikTokSettingsPage({
           const ready = view.connected && Boolean(view.advertiserId) && !view.lastError;
           const connectHref = `/api/integrations/tiktok/connect?brand=${encodeURIComponent(view.brand)}`;
           const accountConnectHref = `/api/integrations/tiktok/account/connect?brand=${encodeURIComponent(view.brand)}`;
+          const accountReconnectHref = `${accountConnectHref}&reauthorize=1`;
           const accountReady = accountView.connected && !accountView.lastError;
           const dmPermissionsReady = hasTikTokDmPermissions(accountView.grantedScopes);
 
@@ -360,7 +362,7 @@ export default async function TikTokSettingsPage({
                   <h2 style={{ fontSize: 17, margin: 0, color: 'var(--color-fg-1)' }}>{accountView.brand} · Business Account</h2>
                   <p className="app-muted" style={{ marginTop: 4 }}>
                     {accountView.connected
-                      ? 'Organic comments and DM authorization is stored separately from Ads.'
+                      ? 'Organic comments, DMs and Content Studio publishing use this account authorization.'
                       : 'Connect the brand TikTok account after Accounts and Messaging permissions are approved.'}
                   </p>
                 </div>
@@ -419,6 +421,11 @@ export default async function TikTokSettingsPage({
                     {accountConfigStatus.readyForAuthorization ? 'Connect Business Account' : 'Awaiting permissions'}
                   </button>
                 ) : null}
+                {accountView.connected && canManage && (
+                  <Link className="btn btn-secondary" href={accountReconnectHref}>
+                    Reconnect permissions
+                  </Link>
+                )}
                 {accountView.connected && (
                   <form action={setTikTokDmAutomationAction}>
                     <input type="hidden" name="brand" value={accountView.brand} />
@@ -456,6 +463,12 @@ export default async function TikTokSettingsPage({
               {accountView.connected && !dmPermissionsReady && (
                 <p className="app-muted" style={{ fontSize: 11, marginTop: 12 }}>
                   Reconnect after all approved Business Messaging permissions appear above before enabling the chatbot.
+                </p>
+              )}
+              {accountView.connected && (
+                <p className="app-muted" style={{ fontSize: 11, marginTop: 12 }}>
+                  Content Studio photo posts require approved Photo Publish and Video Publish permissions.
+                  Reconnect this Business Account after TikTok approves them so the refreshed token can use publishing.
                 </p>
               )}
             </section>
