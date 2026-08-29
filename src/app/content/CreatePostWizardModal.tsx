@@ -279,7 +279,7 @@ export default function CreatePostWizardModal({
   const singlePostProduct = postProducts.length === 1 ? postProducts[0] : null;
 
   // Step 3 — Caption & Review
-  const [channels, setChannels] = useState<string[]>(['facebook', 'instagram']);
+  const [channels, setChannels] = useState<string[]>(['facebook', 'instagram', 'tiktok']);
   const [generatedCaptions, setGeneratedCaptions] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
   // Per-channel copy. A blank entry means that channel publishes `caption`.
