@@ -8,9 +8,8 @@ export const config = {
      * - api/webhooks (Meta Messenger/Instagram webhooks)
      * - api/storefront (public storefront catalog)
      * - api/catalog/meta (public scheduled Meta catalog feeds)
-     * - api/content/creatives/.../image (public image URLs for Meta publishing/replies)
-     * - api/content/creatives/.../tiktok-image.webp (signed, direct image
-     *   bytes fetched by TikTok while publishing photo posts)
+     * - api/content/creatives (route-level signed/session checks for Meta and
+     *   TikTok images, plus TikTok's public URL-prefix verification file)
      * - api/cron (background CRON jobs)
      * - size-charts (public size chart images for chat/storefront)
      * - api/size-charts (per-product charts rendered for WhatsApp, which
@@ -28,6 +27,6 @@ export const config = {
      * - favicon.ico, sitemap.xml, robots.txt
      * - login page
      */
-    '/((?!api/auth|api/webhooks|api/storefront|api/catalog/meta|api/content/creatives/[^/]+/(?:image|tiktok-image\\.webp)|api/cron|api/size-charts|size-charts|personas|manifest\\.webmanifest|sw\\.js|icons|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|login).*)',
+    '/((?!api/auth|api/webhooks|api/storefront|api/catalog/meta|api/content/creatives|api/cron|api/size-charts|size-charts|personas|manifest\\.webmanifest|sw\\.js|icons|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|login).*)',
   ],
 };

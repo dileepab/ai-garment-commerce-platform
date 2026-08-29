@@ -8,7 +8,7 @@ import {
 
 test('keeps signed TikTok image pulls outside the authentication proxy', () => {
   const proxySource = readFileSync(new URL('../src/proxy.ts', import.meta.url), 'utf8');
-  assert.equal(proxySource.includes('(?:image|tiktok-image\\\\.webp)'), true);
+  assert.equal(proxySource.includes('|api/content/creatives|'), true);
 });
 
 test('builds a signed, direct WebP route for TikTok image pulls', () => {

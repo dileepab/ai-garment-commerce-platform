@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Fragment, type CSSProperties } from 'react';
 import { PageHeader } from '@/components/PageHeader';
+import prisma from '@/lib/prisma';
 import { canScope, describeScope } from '@/lib/access-control';
 import { getAvailableBrands } from '@/lib/available-brands';
 import { resolveSelectedBrand } from '@/lib/brand-context';
@@ -8,6 +9,7 @@ import { requirePagePermission } from '@/lib/authz';
 import { listTikTokAdvertisers, type TikTokAdvertiser } from '@/lib/tiktok-api';
 import { getTikTokConfigStatus, getTikTokServerConfig } from '@/lib/tiktok-config';
 import { getTikTokAccountConfigStatus } from '@/lib/tiktok-account-config';
+import { getPublicAssetUrl } from '@/lib/runtime-config';
 import {
   getTikTokConnectionView,
   resolveTikTokConnection,
@@ -28,6 +30,7 @@ import {
   selectTikTokAdvertiserAction,
   setTikTokDmAutomationAction,
   testTikTokConnectionAction,
+  verifyTikTokMediaUrlAction,
 } from './actions';
 import { TikTokDisconnectButton } from './TikTokDisconnectButton';
 
@@ -68,6 +71,9 @@ function statusMessage(status?: string, error?: string): { text: string; tone: '
   if (status === 'webhooks_configured') {
     return { text: 'TikTok comment and direct-message webhooks were configured.', tone: 'good' };
   }
+  if (status === 'media_url_verified') {
+    return { text: 'TikTok verified the Content Studio media URL. Photo publishing is ready.', tone: 'good' };
+  }
   if (status === 'select_advertiser') {
     return { text: 'Authorization succeeded. Select the advertiser account for this brand.', tone: 'warn' };
   }
@@ -82,6 +88,7 @@ function statusMessage(status?: string, error?: string): { text: string; tone: '
     account_authorization_cancelled: 'TikTok Business Account authorization was cancelled or expired.',
     account_authorization_failed: 'TikTok Business Account authorization could not be completed. Start it again.',
     webhook_configuration_failed: 'TikTok rejected the webhook configuration. Confirm app approval and the callback URL, then retry.',
+    media_url_verification_failed: 'TikTok media URL verification is not complete yet. Retry after confirming the verification file is public.',
   };
   return error ? { text: errors[error] || 'TikTok authorization could not be completed.', tone: 'bad' } : null;
 }
@@ -141,6 +148,10 @@ export default async function TikTokSettingsPage({
   const canManage = canScope(scope, 'settings:write');
   const configStatus = getTikTokConfigStatus();
   const accountConfigStatus = getTikTokAccountConfigStatus();
+  const mediaPropertyUrl = getPublicAssetUrl('/api/content/creatives/');
+  const mediaProperty = mediaPropertyUrl
+    ? await prisma.tikTokUrlProperty.findUnique({ where: { url: mediaPropertyUrl } })
+    : null;
   const [views, accountViews] = await Promise.all([
     Promise.all(brandNames.map(getTikTokConnectionView)),
     Promise.all(brandNames.map(getTikTokAccountConnectionView)),
@@ -223,6 +234,13 @@ export default async function TikTokSettingsPage({
             ready={Boolean(configStatus.redirectUri)}
             note={configStatus.redirectUri || 'Set the exact registered TIKTOK_REDIRECT_URI.'}
           />
+          <ReadinessCard
+            label="Content Studio media URL"
+            ready={mediaProperty?.status === 1}
+            note={mediaProperty?.status === 1
+              ? `${mediaProperty.url} is verified by TikTok.`
+              : 'TikTok must verify the signed image URL prefix before accepting photo posts.'}
+          />
         </section>
 
         <section style={{ ...cardStyle, background: '#F7F6F2' }}>
@@ -240,6 +258,15 @@ export default async function TikTokSettingsPage({
               disabled={!canManage || !accountConfigStatus.webhookReady}
             >
               Configure comment + DM webhooks
+            </button>
+          </form>
+          <form action={verifyTikTokMediaUrlAction} style={{ marginTop: 8 }}>
+            <button
+              className="btn btn-secondary"
+              type="submit"
+              disabled={!canManage || !accountConfigStatus.readyForAuthorization || !mediaPropertyUrl}
+            >
+              {mediaProperty?.status === 1 ? 'Recheck media URL verification' : 'Verify TikTok media URL'}
             </button>
           </form>
         </section>
