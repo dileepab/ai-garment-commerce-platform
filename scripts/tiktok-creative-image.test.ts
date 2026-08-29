@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   tiktokCreativeImagePath,
   verifyCreativeImageToken,
 } from '../src/lib/creative-image-token.ts';
+
+test('keeps signed TikTok image pulls outside the authentication proxy', () => {
+  const proxySource = readFileSync(new URL('../src/proxy.ts', import.meta.url), 'utf8');
+  assert.equal(proxySource.includes('(?:image|tiktok-image\\\\.webp)'), true);
+});
 
 test('builds a signed, direct WebP route for TikTok image pulls', () => {
   const previousCreativeSecret = process.env.CREATIVE_IMAGE_SECRET;
