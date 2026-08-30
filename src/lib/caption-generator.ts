@@ -162,7 +162,9 @@ Rules:
 - Reference specific garment details (colour, pattern, fabric, length) — do NOT be generic.
 - Treat the supplied product context as private source material. Weave useful facts naturally into the copy; never reproduce labels such as "Item Name", "Item Code", "Available Sizes", "Available Colors", or "Item Price".
 - Mention each product fact at most once. Do not append a catalogue, specification, or inventory block.
-- For TikTok specifically, use a strong first-line hook, 2-4 short lines, one clear call to action, and finish with 3-5 relevant discovery hashtags.
+- For TikTok specifically, use a strong first-line hook, 2-4 short lines, and finish with 3-5 relevant discovery hashtags.
+- Do not mention price or available sizes in TikTok copy; GarmentOS appends those verified product facts from the database.
+- Do not tell TikTok customers to visit the website, use the link in bio, or send a DM; GarmentOS appends the correct WhatsApp ordering call to action.
 - Never mention competitors. Never make false claims about pricing or stock.
 - Return ONLY this JSON object, no other text:
 {

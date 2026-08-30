@@ -254,7 +254,12 @@ export async function generateChannelCaptions(
     }
 
     if (captionsByChannel.tiktok) {
-      captionsByChannel.tiktok = captionsByChannel.tiktok.map(prepareTikTokCaption);
+      const contextDescription = params.productContext?.trim()
+        ? buildItemDescription({ productContext: params.productContext })
+        : '';
+      captionsByChannel.tiktok = captionsByChannel.tiktok.map((caption) =>
+        prepareTikTokCaption(caption, contextDescription ? [contextDescription] : [])
+      );
     }
 
     return { success: true, captionsByChannel };
@@ -1206,7 +1211,7 @@ export async function publishSocialPost(
     const channelCaptions = parseCaptionsByChannel(post.captionsByChannel);
     const baseCaptionFor = (channel: string) => channelCaptions[channel]?.trim() || post.caption;
     const captionFor = (channel: string) => channel === 'tiktok'
-      ? prepareTikTokCaption(baseCaptionFor(channel))
+      ? prepareTikTokCaption(baseCaptionFor(channel), itemDescriptions)
       : appendItemDescriptions(baseCaptionFor(channel), itemDescriptions);
 
     for (const channel of channels) {
