@@ -56,8 +56,8 @@ test('adds verified sizes and price before the WhatsApp CTA', () => {
   assert.equal(caption, [
     'Your summer dress is here 💙',
     '',
-    'Available sizes: S, M, L, XL',
-    'Price: Rs 1,990',
+    '📏 Available sizes: S, M, L, XL',
+    '💰 Price: Rs 1,990',
     '',
     'Order on WhatsApp: https://wa.me/94714123777',
     '',
@@ -73,8 +73,8 @@ test('replaces stale generated facts with current product values', () => {
 
   assert.equal(caption.match(/Available sizes:/g)?.length, 1);
   assert.equal(caption.match(/Price:/g)?.length, 1);
-  assert.match(caption, /Available sizes: S, M, L, XL/);
-  assert.match(caption, /Price: Rs 1,990/);
+  assert.match(caption, /📏 Available sizes: S, M, L, XL/);
+  assert.match(caption, /💰 Price: Rs 1,990/);
   assert.doesNotMatch(caption, /1,790/);
 });
 
@@ -85,7 +85,7 @@ test('lists size and price by item code for a multi-product TikTok post', () => 
     .replace('Rs 1,990', 'Rs 2,490');
   const caption = prepareTikTokCaption('Two new looks ✨\n\n#Happybuy', [PRODUCT_DESCRIPTION, second]);
 
-  assert.match(caption, /HAP-0002 — Sizes: S, M, L, XL · Price: Rs 1,990/);
-  assert.match(caption, /HAP-0003 — Sizes: M, L · Price: Rs 2,490/);
+  assert.match(caption, /HAP-0002 — 📏 Sizes: S, M, L, XL · 💰 Price: Rs 1,990/);
+  assert.match(caption, /HAP-0003 — 📏 Sizes: M, L · 💰 Price: Rs 2,490/);
   assert.match(caption, /#Happybuy$/);
 });

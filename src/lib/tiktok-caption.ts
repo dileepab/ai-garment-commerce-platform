@@ -47,15 +47,15 @@ function productFacts(descriptions: string[]): TikTokProductFact[] {
 function buildPublicFactsBlock(facts: TikTokProductFact[]): string {
   if (facts.length === 1) {
     return [
-      facts[0].sizes && `Available sizes: ${facts[0].sizes}`,
-      facts[0].price && `Price: ${facts[0].price}`,
+      facts[0].sizes && `📏 Available sizes: ${facts[0].sizes}`,
+      facts[0].price && `💰 Price: ${facts[0].price}`,
     ].filter(Boolean).join('\n');
   }
 
   return facts.map((fact) => {
     const details = [
-      fact.sizes && `Sizes: ${fact.sizes}`,
-      fact.price && `Price: ${fact.price}`,
+      fact.sizes && `📏 Sizes: ${fact.sizes}`,
+      fact.price && `💰 Price: ${fact.price}`,
     ].filter(Boolean).join(' · ');
     return fact.code ? `${fact.code} — ${details}` : details;
   }).join('\n');
@@ -68,9 +68,9 @@ function removeExistingPublicFacts(caption: string): string {
     .split('\n')
     .filter((line) => {
       const trimmed = line.trim();
-      if (/^Available sizes:\s*.+$/i.test(trimmed)) return false;
-      if (/^Price:\s*.+$/i.test(trimmed)) return false;
-      if (/^[A-Z0-9][A-Z0-9-]*\s+[—–-]\s+Sizes:\s*.+\s+·\s+Price:\s*.+$/i.test(trimmed)) return false;
+      if (/^(?:📏\s*)?Available sizes:\s*.+$/i.test(trimmed)) return false;
+      if (/^(?:💰\s*)?Price:\s*.+$/i.test(trimmed)) return false;
+      if (/^[A-Z0-9][A-Z0-9-]*\s+[—–-]\s+(?:📏\s*)?Sizes:\s*.+\s+·\s+(?:💰\s*)?Price:\s*.+$/i.test(trimmed)) return false;
       return true;
     })
     .join('\n');
