@@ -85,7 +85,7 @@ function getErrorStatus(error: unknown): number | undefined {
 const CHANNEL_GUIDANCE: Record<string, string> = {
   instagram: 'punchy and visual, 1-2 short sentences, ends with 3-5 relevant hashtags',
   facebook: 'slightly longer and conversational, 2-3 sentences, no hashtags',
-  tiktok: 'short, energetic, creator-style copy with a clear hook and 3-5 discovery hashtags',
+  tiktok: 'short, energetic creator-style copy: a strong hook, 2-4 short lines, one clear call to action, then 3-5 discovery hashtags',
 };
 
 function channelLabel(channel: string): string {
@@ -100,7 +100,7 @@ function buildSystemPrompt(brand: string, channels: string[], hasImage: boolean)
   const channelGuidance = [
     forInstagram && 'Instagram: punchy, visual, ends with 3-5 relevant hashtags.',
     forFacebook && 'Facebook: slightly longer, conversational, no hashtags needed.',
-    forTikTok && 'TikTok: short, energetic, creator-style, with a strong hook and 3-5 discovery hashtags.',
+    forTikTok && 'TikTok: short, energetic creator-style copy with a strong hook, 2-4 short lines, one call to action, and 3-5 discovery hashtags.',
   ]
     .filter(Boolean)
     .join(' ');
@@ -125,6 +125,8 @@ Rules:
 - If channels include Instagram, at least one caption should end with hashtags.
 - If channels include TikTok, keep the copy under 4,000 characters and include a strong opening hook.
 - Reference specific garment details (colour, pattern, fabric, length) — do NOT be generic.
+- Treat the supplied product context as private source material. Weave useful facts naturally into the copy; never reproduce labels such as "Item Name", "Item Code", "Available Sizes", "Available Colors", or "Item Price".
+- Mention each product fact at most once. Do not append a catalogue, specification, or inventory block.
 - Never mention competitors. Never make false claims about pricing or stock.
 - Output format: ["caption one", "caption two", "caption three"]`;}
 
@@ -158,6 +160,9 @@ Rules:
 - Use natural, conversational language. No corporate jargon.
 - Emojis are encouraged but not excessive (2-4 per caption).
 - Reference specific garment details (colour, pattern, fabric, length) — do NOT be generic.
+- Treat the supplied product context as private source material. Weave useful facts naturally into the copy; never reproduce labels such as "Item Name", "Item Code", "Available Sizes", "Available Colors", or "Item Price".
+- Mention each product fact at most once. Do not append a catalogue, specification, or inventory block.
+- For TikTok specifically, use a strong first-line hook, 2-4 short lines, one clear call to action, and finish with 3-5 relevant discovery hashtags.
 - Never mention competitors. Never make false claims about pricing or stock.
 - Return ONLY this JSON object, no other text:
 {

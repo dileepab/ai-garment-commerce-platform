@@ -39,6 +39,7 @@ import {
   publishPhotoPostToTikTok,
   refreshTikTokPhotoPostStatus,
 } from '@/lib/tiktok-photo-publish';
+import { prepareTikTokCaption } from '@/lib/tiktok-caption';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -250,6 +251,10 @@ export async function generateChannelCaptions(
       captionsByChannel[channel] = captionsByChannel[channel].map((caption) =>
         appendWhatsAppOrderLine(caption, linkOptions)
       );
+    }
+
+    if (captionsByChannel.tiktok) {
+      captionsByChannel.tiktok = captionsByChannel.tiktok.map(prepareTikTokCaption);
     }
 
     return { success: true, captionsByChannel };
@@ -1199,10 +1204,10 @@ export async function publishSocialPost(
     // Each channel gets its own copy when one was written; otherwise the shared
     // caption stands in, so posts created before per-channel copy still publish.
     const channelCaptions = parseCaptionsByChannel(post.captionsByChannel);
-    const captionFor = (channel: string) => appendItemDescriptions(
-      channelCaptions[channel]?.trim() || post.caption,
-      itemDescriptions,
-    );
+    const baseCaptionFor = (channel: string) => channelCaptions[channel]?.trim() || post.caption;
+    const captionFor = (channel: string) => channel === 'tiktok'
+      ? prepareTikTokCaption(baseCaptionFor(channel))
+      : appendItemDescriptions(baseCaptionFor(channel), itemDescriptions);
 
     for (const channel of channels) {
       let result;
