@@ -1,7 +1,7 @@
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { logDebug, logError } from '@/lib/app-log';
+import { logDebug, logError, logInfo, logWarn } from './app-log';
 
 // ── Brand style system ───────────────────────────────────────────────────────
 
@@ -9,7 +9,7 @@ import { getBrandStyle, type BrandStyle } from './brand-style';
 
 // ── Persona system ───────────────────────────────────────────────────────────
 
-import { PERSONAS_BY_BRAND, type PersonaId, type PersonaDef } from './persona-data';
+import { findPersonaForBrand, type PersonaId, type PersonaDef } from './persona-data';
 export type { PersonaId };
 
 import { resolveScene, sceneClause } from './creative-scene';
@@ -24,12 +24,15 @@ import {
   detectGarmentTraits,
   openingGuardLine,
   patternFidelityLine,
+  silhouetteFidelityLine,
   type GarmentTraits,
 } from './garment-traits';
-
-function getPersona(brand: string, personaId: string): PersonaDef | undefined {
-  return PERSONAS_BY_BRAND[brand]?.find(p => p.id === personaId);
-}
+import { createPersonaIdentityReference } from './persona-reference';
+import {
+  buildFidelityRetryCorrection,
+  fidelityFingerprint,
+  reviewCreativeFidelity,
+} from './creative-fidelity';
 
 /**
  * The persona photograph, as bytes ready to attach.
@@ -212,21 +215,31 @@ function resolveReferences(input: CreativeGenerationInput): ResolvedReferences {
 }
 
 // Camera + composition guidance per view angle.
-function viewAngleClause(angle: ViewAngle | undefined): string {
+function viewAngleClause(angle: ViewAngle | undefined, traits: GarmentTraits): string {
+  const fullBottomFrame = traits.isBottom
+    ? ' Frame the entire model from the top of the head through both feet. Keep both hems and both feet fully visible, with small headroom and visible floor below the feet; zoom out as needed and never crop the garment or feet.'
+    : '';
+
   switch (angle) {
     case 'side':
-      return 'Camera angle: side/profile view of the model, approximately 80-100 degrees. The model may be standing, mid-step, or lightly turning, but the side silhouette must remain clear. Keep any front floral/graphic artwork anchored on the garment front panel near the model-facing/front edge. Do not center the artwork on the side seam, underarm, or side torso.';
+      return 'Camera angle: side/profile view of the model, approximately 80-100 degrees. The side silhouette must remain clear. Keep any front floral/graphic artwork anchored on the garment front panel near the model-facing/front edge. Do not center the artwork on the side seam, underarm, or side torso.' + fullBottomFrame;
     case 'back':
+      if (traits.isBottom) {
+        return 'Camera angle: straight rear view of the model facing away from camera, approximately 170-180 degrees. Use a stable standing pose with both legs extended so the full back waistband, seat, two leg lines, hem widths and length remain unobstructed. Match the exact back elastic, seams, pockets or absence of pockets, and belt loops or absence of loops shown by the back reference.' + fullBottomFrame;
+      }
       return 'Camera angle: rear view of the model facing mostly away from camera, approximately 160-180 degrees. The model may glance slightly over shoulder or shift weight, but the back of the garment must remain the hero. Showcase the back neckline, sleeve shape, stripe continuation, and hemline. Keep the back plain if the source garment appears plain: no added vertical seam lines, black contour lines, darts, piping, or panels.';
     case 'closeup':
       return 'Camera angle: tight close-up on the garment fabric, print, buttons, stitching, and construction details. Half-body crop, sharp focus on the exact source garment texture.';
     case 'front':
     default:
+      if (traits.isBottom) {
+        return 'Camera angle: straight front-facing full-body fashion shot. Use a stable standing pose with both legs extended and uncrossed so the complete waistband, pockets, pleats, two leg lines, hem widths and length remain visible and directly comparable to the front reference.' + fullBottomFrame;
+      }
       return 'Camera angle: front-facing or slight three-quarter full-body shot of the model. The model may walk toward camera, shift weight, place one hand at waist, lightly raise one hand, or hold a relaxed natural fashion pose, but the garment front must remain fully visible and match the source image exactly.';
   }
 }
 
-function poseVariationClause(angle: ViewAngle | undefined, poseInstruction?: string): string {
+function poseVariationClause(angle: ViewAngle | undefined, poseInstruction: string | undefined, traits: GarmentTraits): string {
   const defaultByAngle: Record<ViewAngle, string[]> = {
     front: [
       'model walking slowly toward camera with relaxed arms',
@@ -253,12 +266,32 @@ function poseVariationClause(angle: ViewAngle | undefined, poseInstruction?: str
       'editorial close-up focused on print, texture, and construction',
     ],
   };
-  const options = defaultByAngle[angle ?? 'front'];
+  const bottomByAngle: Record<ViewAngle, string[]> = {
+    front: [
+      'model standing straight with both legs extended and feet naturally apart',
+      'model in a relaxed symmetrical stance with both trouser legs fully visible',
+      'model standing with a slight weight shift that does not bend, cross or hide either leg',
+    ],
+    side: [
+      'model standing in a clean side profile with both feet on the ground',
+      'model holding a relaxed static side-profile pose that keeps the full hem visible',
+    ],
+    back: [
+      'model standing straight facing away with both legs extended and feet naturally apart',
+      'model in a relaxed symmetrical rear stance with the full waistband and both hems visible',
+    ],
+    closeup: defaultByAngle.closeup,
+  };
+  const options = traits.isBottom ? bottomByAngle[angle ?? 'front'] : defaultByAngle[angle ?? 'front'];
   const selected = poseInstruction?.trim() || options[Math.floor(Math.random() * options.length)];
+  const bottomGuard = traits.isBottom && angle !== 'closeup'
+    ? '- Do not use a walking, crossed-leg, seated, crouched or sharply bent-knee pose; it hides and distorts the leg width, hem and true garment length.\n'
+    : '';
 
   return (
     `MODEL POSE VARIATION:\n` +
     `- Use this natural pose direction: ${selected}.\n` +
+    bottomGuard +
     `- Keep the requested camera/view angle accurate. Pose variation must never hide, crop away, distort, recolor, or redesign the garment.\n` +
     `- Avoid repeating the exact same stiff catalog stance across generated images; make the pose feel like a real fashion shoot.`
   );
@@ -278,10 +311,11 @@ function groundedAccuracyClause(viewAngle: ViewAngle | undefined, hasSupporting:
     `GARMENT FIDELITY - HIGHEST PRIORITY:\n` +
     `- Image B is a real photograph of the ${angle} of the exact garment to render. Reproduce what it shows; do not redesign, recolour, or re-interpret it.\n` +
     `${constructionFidelityLine(traits)}\n` +
+    `${silhouetteFidelityLine(traits)}\n` +
     `${patternFidelityLine(traits)}\n` +
     `${openingGuardLine(traits)}\n` +
     supportingLine +
-    `- Preserve the exact base colour and hue under realistic lighting. Brand palette, golden-hour sunlight, shadows, and colour grading must never shift the garment into a different colour family.\n` +
+    `- Preserve the exact base colour, lightness, saturation and hue under realistic lighting. White-balance the garment against Image B: scene light, shadows and colour grading must never warm, darken, yellow or shift it into a different colour family.\n` +
     `- Fit the garment onto the model naturally with realistic drape, folds, and shadows. Only the model pose, background, and companion clothing may change.`
   );
 }
@@ -307,9 +341,10 @@ function inferredAccuracyClause(viewAngle: ViewAngle | undefined, traits: Garmen
     `- Treat Image B as a product reference that must be duplicated, not re-designed or re-colored.\n` +
     `- The output garment must be the same SKU/product as Image B. A different color, darker/lighter color family, alternate neckline, different sleeve roll, different hem, changed button line, or moved floral/graphic placement is a failed result.\n` +
     `${constructionFidelityLine(traits)}\n` +
+    `${silhouetteFidelityLine(traits)}\n` +
     `${patternFidelityLine(traits)}\n` +
     `${openingGuardLine(traits)}\n` +
-    `- Preserve the exact base colour and hue from Image B under realistic lighting. Brand palette, warm sunlight, shadows and colour grading must never shift the garment into another colour family.\n` +
+    `- Preserve the exact base colour, lightness, saturation and hue from Image B under realistic lighting. White-balance the garment against Image B: scene light, shadows and colour grading must never warm, darken, yellow or shift it into another colour family.\n` +
     `- Do not add, remove, mirror, relocate, resize, recolour, or simplify any seam, fastening, trim, or decoration.\n` +
     angleSpecific +
     `- Fit the exact garment onto the model naturally; only the model pose, background, and companion clothing may change.`
@@ -337,8 +372,10 @@ function hardRejectClause(garmentFitNotes: string | undefined, grounded: boolean
       noSideSlit +
       `- Compare the rendered garment against Image B point by point:\n` +
       `${constructionFidelityLine(traits)}\n` +
+      `${silhouetteFidelityLine(traits)}\n` +
       `${patternFidelityLine(traits)}\n` +
       `${openingGuardLine(traits)}\n` +
+      `- Re-check every explicit product rule above, especially any required presence or absence of zips, flies, buttons, plackets, belt loops, pockets, elastic, pleats, seams and panels.\n` +
       `- Remove any seam, panel line, band, or trim you added that no reference image shows.\n` +
       `If anything differs from Image B, fix it before returning the image.`
     );
@@ -356,12 +393,23 @@ function hardRejectClause(garmentFitNotes: string | undefined, grounded: boolean
   );
 }
 
+function productSpecificRulesClause(garmentFitNotes: string | undefined): string {
+  const notes = garmentFitNotes?.trim();
+  if (!notes) return '';
+  return (
+    `PRODUCT-SPECIFIC CONSTRUCTION AND FIT RULES - HIGHEST PRIORITY:\n` +
+    `${notes}\n` +
+    `- Treat every explicit presence or absence as mandatory. Generic fashion conventions must never add a fly, ` +
+    `zipper, button, placket, belt loop, pocket, dart, pleat, seam or panel that these rules or the references do not show.\n`
+  );
+}
+
 function fitCalibrationClause(persona: PersonaDef | undefined, garmentFitNotes: string | undefined): string {
   const modelHeight = persona?.height
     ? `- Model height reference: ${persona.height}. Use this to scale garment length and sleeve length on the body.\n`
     : '';
   const fitNotes = garmentFitNotes?.trim()
-    ? `- Garment fit/measurement reference: ${garmentFitNotes.trim()}.\n`
+    ? '- Apply the product-specific construction, fit and measurement rules above exactly.\n'
     : '- If no exact garment measurement is provided, estimate the garment length and sleeve length from Image B and preserve those proportions on the model.\n';
 
   return (
@@ -409,6 +457,7 @@ interface PromptOptions {
   grounded: boolean;
   hasSupporting: boolean;
   hasPersonaImage?: boolean;
+  hasPersonaIdentityImage?: boolean;
   // Companion clothing and location, already resolved so every angle matches.
   scene: string;
 }
@@ -431,10 +480,23 @@ function referenceManifest(
   primaryAngle: ViewAngle,
   supportingAngles: ViewAngle[],
   hasPersonaImage: boolean,
+  hasPersonaIdentityImage: boolean,
 ): string {
   const lines: string[] = [];
-  if (hasPersonaImage) {
-    lines.push(`[IMAGE A — THE MODEL]: photo of the model. Use her EXACT face, skin tone, hair, and body.`);
+  if (hasPersonaImage && hasPersonaIdentityImage) {
+    lines.push(
+      `[IMAGE A1 — MODEL IDENTITY CLOSE-UP]: tight face and hair reference for the exact campaign model. ` +
+      `Use this person's exact facial geometry, features, skin tone, and hair. Ignore all visible clothing and accessories.`,
+    );
+    lines.push(
+      `[IMAGE A2 — MODEL FULL-BODY REFERENCE]: the same campaign model. Use her exact body proportions and build. ` +
+      `Ignore her clothing, shoes, and accessories; no product design may come from this image.`,
+    );
+  } else if (hasPersonaImage) {
+    lines.push(
+      `[IMAGE A — THE MODEL]: photo of the model. Use her EXACT face, skin tone, hair, and body. ` +
+      `Ignore her clothing, shoes, and accessories; all product design comes only from garment references.`,
+    );
   }
   lines.push(
     `[IMAGE B — THE GARMENT, ${ANGLE_NOUN[primaryAngle]} VIEW]: the garment to render, photographed from the angle you must produce. ` +
@@ -456,23 +518,31 @@ function buildTryOnPrompt(o: PromptOptions, supportingAngles: ViewAngle[]): stri
   } = o;
   const traits = detectGarmentTraits(`${productContext} ${garmentFitNotes ?? ''}`);
   const correctionLine = correctionClause(corrections);
-  const persona = getPersona(brand, personaId);
+  const persona = findPersonaForBrand(brand, personaId);
   const primaryAngle = viewAngle ?? 'front';
 
   // If we have a persona image, we use a multi-image workflow with explicit labels
   if (persona && persona.id !== 'none' && o.hasPersonaImage) {
+    const modelReference = o.hasPersonaIdentityImage ? 'Images A1 and A2' : 'Image A';
     return (
       `You are a world-class fashion photographer creating a virtual try-on. ` +
       `I am providing these reference images:\n` +
-      `${referenceManifest(primaryAngle, supportingAngles, true)}\n\n` +
-      `YOUR TASK: Generate a brand-new, high-quality fashion photograph of the MODEL from Image A wearing the GARMENT from Image B.\n\n` +
+      `${referenceManifest(primaryAngle, supportingAngles, true, Boolean(o.hasPersonaIdentityImage))}\n\n` +
+      `YOUR TASK: Perform a constrained wardrobe-and-scene edit using the exact MODEL from ${modelReference} wearing the GARMENT from Image B. ` +
+      `Treat the model's identity as immutable, as if only her wardrobe and photoshoot setting changed; do not regenerate a new or similar person.\n\n` +
       `CRITICAL — MODEL IDENTITY:\n` +
-      `- The person in the output MUST be the model from Image A. Same face, same hair, same skin tone (${persona.skinTone}).\n` +
+      `- Identity is a hard constraint, not a suggestion. The output MUST show the same individual from ${modelReference}; ` +
+      `do not substitute, average, beautify, age, or invent a similar-looking person.\n` +
+      `- Copy the model's facial geometry, eye shape and spacing, eyebrows, nose, lips, jawline, smile, skin tone ` +
+      `(${persona.skinTone}), hairline, hair texture, hair length, and parting exactly.\n` +
+      `- Ignore and replace every garment, shoe, and accessory visible in ${modelReference}. They identify the person only; ` +
+      `the trousers and all product construction, colour, fabric, and trim must come exclusively from Image B and its supporting garment references.\n` +
       `- If Image B shows a different person wearing the garment, IGNORE that person completely. Only use Image B for the garment design.\n` +
       `- Model height: ${persona.height}. Body type: ${persona.bodyShape}.\n\n` +
       `${garmentAccuracyClause(viewAngle, grounded, hasSupporting, traits)}\n` +
+      `${productSpecificRulesClause(garmentFitNotes)}\n` +
       `${fitCalibrationClause(persona, garmentFitNotes)}\n` +
-      `${poseVariationClause(viewAngle, poseInstruction)}\n` +
+      `${poseVariationClause(viewAngle, poseInstruction, traits)}\n` +
       `- The garment must drape naturally on the model's body with realistic folds and shadows.\n` +
       (productContext.trim() ? `- Garment details: ${productContext.trim()}.\n` : '') +
       `\n${scene}\n` +
@@ -483,7 +553,7 @@ function buildTryOnPrompt(o: PromptOptions, supportingAngles: ViewAngle[]): stri
       `- Aesthetic: ${style.aesthetic}. Keep the location and light exactly as specified above.\n` +
       `- Realistic catch-lights in the model's eyes. Colour-grade the skin and scene only. The garment keeps the hue it has in Image B: warm light must not push a cool or muted colour toward golden, tan, or orange.\n` +
       `- Subtle film grain for an authentic editorial feel. NOT overly smooth or airbrushed.\n` +
-      `- ${viewAngleClause(viewAngle)}\n` +
+      `- ${viewAngleClause(viewAngle, traits)}\n` +
       `- Style: Premium ${brand} brand campaign. ${style.mood}.\n` +
       `${hardRejectClause(garmentFitNotes, grounded, traits)}\n` +
       `- Absolutely NO text, logos, or watermarks.` +
@@ -497,10 +567,11 @@ function buildTryOnPrompt(o: PromptOptions, supportingAngles: ViewAngle[]): stri
 
   return (
     `Generate a professional fashion marketing photo showing the exact source garment in a premium setting.\n\n` +
-    `${referenceManifest(primaryAngle, supportingAngles, false)}\n\n` +
+    `${referenceManifest(primaryAngle, supportingAngles, false, false)}\n\n` +
     `${garmentAccuracyClause(viewAngle, grounded, hasSupporting, traits)}\n\n` +
+    `${productSpecificRulesClause(garmentFitNotes)}\n` +
     `${fitCalibrationClause(persona, garmentFitNotes)}\n\n` +
-    `${poseVariationClause(viewAngle, poseInstruction)}\n\n` +
+    `${poseVariationClause(viewAngle, poseInstruction, traits)}\n\n` +
     `${scene}\n` +
     `${contextNote} ` +
     `Brand: ${brand}. Visual style: ${style.aesthetic}. Mood: ${style.mood}. ` +
@@ -517,7 +588,7 @@ function buildTextToImagePrompt(o: PromptOptions): string {
     garmentFitNotes, poseInstruction, corrections, grounded,
   } = o;
   const correctionLine = correctionClause(corrections);
-  const persona = getPersona(brand, personaId);
+  const persona = findPersonaForBrand(brand, personaId);
   const garment = productContext.trim() || 'a fashion garment';
   const traits = detectGarmentTraits(`${productContext} ${garmentFitNotes ?? ''}`);
 
@@ -533,10 +604,11 @@ function buildTextToImagePrompt(o: PromptOptions): string {
     `Professional fashion marketing photograph for ${brand}, a Sri Lankan women's fashion brand. ` +
     `Subject: ${subjectClause}. ` +
     `${physicalAttributes}` +
+    `${productSpecificRulesClause(garmentFitNotes)} ` +
     `${fitCalibrationClause(persona, garmentFitNotes)} ` +
-    `${poseVariationClause(viewAngle, poseInstruction)} ` +
+    `${poseVariationClause(viewAngle, poseInstruction, traits)} ` +
     `Visual aesthetic: ${style.aesthetic}. Color palette: ${style.colorPalette}. Mood: ${style.mood}. ` +
-    `${viewAngleClause(viewAngle)} The garment is the hero — all key design details clearly visible. ` +
+    `${viewAngleClause(viewAngle, traits)} The garment is the hero — all key design details clearly visible. ` +
     `Professional studio or natural fashion lighting. Sharp focus on the outfit. ` +
     `${hardRejectClause(garmentFitNotes, grounded, traits)} ` +
     `Post-ready social media marketing composition. No text, logos, or watermarks.` +
@@ -564,21 +636,50 @@ export async function generateCreative(
   // of a model wearing exactly that garment.
 
   if (primary) {
-    const selectedPersona = getPersona(input.brand, input.personaId);
+    const selectedPersona = findPersonaForBrand(input.brand, input.personaId);
+    if (input.personaId !== 'none' && !selectedPersona) {
+      throw new Error(
+        `The selected model "${input.personaId}" is not available for brand "${input.brand}". ` +
+        `No creative was generated because substituting another person would be misleading.`,
+      );
+    }
 
     // Loaded before the prompt is written, not after. The prompt describes the
     // images it is sent with, so it must not be able to promise a model
     // reference that never arrives.
     const personaImage = await loadPersonaImage(selectedPersona);
+    if (selectedPersona && !personaImage) {
+      throw new Error(
+        `The reference photo for model "${selectedPersona.label}" could not be loaded. ` +
+        `No creative was generated because the selected model could not be preserved.`,
+      );
+    }
     const hasPersonaImage = !!personaImage;
+    const personaIdentityImage = personaImage
+      ? await createPersonaIdentityReference(personaImage)
+      : null;
+    const hasPersonaIdentityImage = !!personaIdentityImage;
+    if (personaImage && !personaIdentityImage) {
+      if (input.quality === 'high_accuracy') {
+        throw new Error(
+          `The identity close-up for model "${input.personaId}" could not be prepared. ` +
+          `No creative was generated because High Accuracy identity verification could not run.`,
+        );
+      }
+      logWarn(
+        'CreativeGen',
+        `Could not create the identity close-up for persona "${input.personaId}"; using only the full-body reference.`,
+      );
+    }
 
     const scene = resolveScene(
       input.sceneKey?.trim() || input.productContext,
       `${input.productContext} ${input.garmentFitNotes ?? ''}`,
     );
     const imageModel = input.quality === 'high_accuracy' ? HIGH_ACCURACY_IMAGE_MODEL : IMAGE_EDIT_MODEL;
+    const outputImageSize = input.quality === 'high_accuracy' ? '2K' : '1K';
     const supportingAngles = supporting.map(ref => ref.angle);
-    const prompt = buildTryOnPrompt({
+    const basePrompt = buildTryOnPrompt({
       brand: input.brand,
       personaId: input.personaId,
       productContext: input.productContext,
@@ -590,8 +691,28 @@ export async function generateCreative(
       grounded,
       hasSupporting: supporting.length > 0,
       hasPersonaImage,
+      hasPersonaIdentityImage,
       scene: sceneClause(scene),
     }, supportingAngles);
+
+    logInfo('CreativeGen', 'Starting try-on generation.', {
+      model: imageModel,
+      brand: input.brand,
+      personaId: input.personaId,
+      personaReferenceAttached: hasPersonaImage,
+      identityCloseupAttached: hasPersonaIdentityImage,
+      viewAngle: input.viewAngle ?? 'front',
+      grounded,
+      supportingReferenceCount: supporting.length,
+      referenceAngles: [primary.angle, ...supportingAngles],
+      primaryReferenceFingerprint: fidelityFingerprint(primary.base64),
+      personaReferenceFingerprint: personaImage ? fidelityFingerprint(personaImage.base64) : null,
+      authoritativeRulesFingerprint: fidelityFingerprint(input.garmentFitNotes ?? ''),
+      quality: input.quality ?? 'standard',
+      outputImageSize,
+      fidelityReviewEnabled: input.quality === 'high_accuracy',
+      maxGenerationAttempts: input.quality === 'high_accuracy' ? 2 : 1,
+    });
 
     logDebug(
       'CreativeGen',
@@ -600,42 +721,51 @@ export async function generateCreative(
       `${supporting.length} supporting reference(s).`,
     );
 
-    // Parts order: [prompt] -> [Image A: persona/model] -> [Image B: primary
-    // garment reference] -> [Image C..: same garment, other angles].
+    // Parts order: [prompt] -> [Image A1/A2: persona identity + body] ->
+    // [Image B: primary garment reference] -> [Image C..: other angles].
     // Persona goes FIRST so the AI anchors on the model's identity before seeing the garment.
-    const parts: GeminiContentPart[] = [
-      { text: prompt },
-    ];
+    const referenceParts: GeminiContentPart[] = [];
 
-    // Image A — MODEL (persona reference) — goes first to anchor identity.
+    // Image A/A1/A2 — MODEL references — go first to anchor identity.
     // Already loaded, and the prompt above was written knowing whether it
     // exists, so the labels here cannot drift out of step with the prompt.
     if (personaImage) {
-      parts.push({
-        text: 'IMAGE A - MODEL REFERENCE. Use only this person for face, body, hair, and skin tone.',
-      });
-      parts.push({
+      if (personaIdentityImage) {
+        referenceParts.push({
+          text: 'IMAGE A1 - MODEL IDENTITY CLOSE-UP. Copy this exact face, skin tone, hairline, hair texture, and hairstyle. Ignore visible clothing and accessories.',
+        });
+        referenceParts.push({
+          inlineData: { data: personaIdentityImage.base64, mimeType: personaIdentityImage.mimeType },
+        });
+        referenceParts.push({
+          text: 'IMAGE A2 - SAME MODEL, FULL BODY. Copy this exact person and her body proportions. Ignore all clothing, shoes, and accessories.',
+        });
+      } else {
+        referenceParts.push({
+          text: 'IMAGE A - MODEL REFERENCE. Use only this person for face, body, hair, and skin tone. Ignore all clothing, shoes, and accessories.',
+        });
+      }
+      referenceParts.push({
         inlineData: { data: personaImage.base64, mimeType: personaImage.mimeType },
       });
-      logDebug('CreativeGen', `[Image A — MODEL] persona "${input.personaId}" attached`);
-    } else if (selectedPersona?.imageUrl) {
-      logError(
+      logDebug(
         'CreativeGen',
-        `Persona "${input.personaId}" has image ${selectedPersona.imageUrl} but it could not be loaded — ` +
-        `generating with the persona's written description only.`,
+        `[Image A — MODEL] persona "${input.personaId}" attached` +
+        (personaIdentityImage ? ' with identity close-up' : ''),
       );
     }
 
     // Image B — GARMENT, photographed from the angle being generated
     const primaryAngleNoun = ANGLE_NOUN[primary.angle];
-    parts.push({
+    const modelReference = personaIdentityImage ? 'Images A1/A2 model' : 'Image A model';
+    referenceParts.push({
       // Keyed off the bytes, not the URL. Referring to "the Image A model" when
       // no Image A was attached is what set the model adrift.
       text: personaImage
-        ? `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Duplicate this garment exactly on the Image A model.`
+        ? `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Duplicate this garment exactly on the ${modelReference}.`
         : `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Generate this exact garment/product without changing design or color.`,
     });
-    parts.push({
+    referenceParts.push({
       inlineData: { data: primary.base64, mimeType: primary.mimeType },
     });
 
@@ -643,11 +773,11 @@ export async function generateCreative(
     // construction details the primary photo cannot show, so the model no
     // longer has to invent a back or side it has never seen.
     supporting.forEach((ref, index) => {
-      parts.push({
+      referenceParts.push({
         text: `IMAGE ${String.fromCharCode(67 + index)} - SAME GARMENT, ${ANGLE_NOUN[ref.angle]} VIEW. ` +
           `Use for construction, colour, and trim consistency only. Do not reproduce this camera angle.`,
       });
-      parts.push({
+      referenceParts.push({
         inlineData: { data: ref.base64, mimeType: ref.mimeType },
       });
     });
@@ -657,38 +787,104 @@ export async function generateCreative(
       `${supporting.map(ref => ref.angle).join(', ') || 'none'}.`,
     );
 
-    const response = await ai.models.generateContent({
-      model: imageModel,
-      contents: [{
-        role: 'user',
-        parts,
-      }],
-      config: {
-        responseModalities: [Modality.IMAGE, Modality.TEXT],
-        imageConfig: { aspectRatio, imageSize: '1K' },
-      },
-    });
+    const maxGenerationAttempts = input.quality === 'high_accuracy' ? 2 : 1;
+    const traits = detectGarmentTraits(`${input.productContext} ${input.garmentFitNotes ?? ''}`);
+    let attemptPrompt = basePrompt;
 
-    const candidates = response.candidates ?? [];
-    for (const candidate of candidates) {
-      for (const part of candidate.content?.parts ?? []) {
-        if (part.inlineData?.data && part.inlineData?.mimeType) {
-          const mimeType = part.inlineData.mimeType;
-          const imageData = `data:${mimeType};base64,${part.inlineData.data}`;
-          logDebug('CreativeGen', 'Try-on creative generated successfully.');
-          return { imageData, mimeType, prompt, grounded };
+    for (let generationAttempt = 1; generationAttempt <= maxGenerationAttempts; generationAttempt += 1) {
+      logInfo('CreativeGen', 'Requesting try-on candidate.', {
+        model: imageModel,
+        generationAttempt,
+        maxGenerationAttempts,
+        viewAngle: input.viewAngle ?? 'front',
+      });
+      const parts: GeminiContentPart[] = [{ text: attemptPrompt }, ...referenceParts];
+      const response = await ai.models.generateContent({
+        model: imageModel,
+        contents: [{
+          role: 'user',
+          parts,
+        }],
+        config: {
+          responseModalities: [Modality.IMAGE, Modality.TEXT],
+          imageConfig: {
+            aspectRatio,
+            imageSize: outputImageSize,
+          },
+        },
+      });
+
+      const candidates = response.candidates ?? [];
+      let generated: { base64: string; mimeType: string } | null = null;
+      for (const candidate of candidates) {
+        for (const part of candidate.content?.parts ?? []) {
+          if (part.inlineData?.data && part.inlineData?.mimeType) {
+            generated = { base64: part.inlineData.data, mimeType: part.inlineData.mimeType };
+            break;
+          }
         }
+        if (generated) break;
       }
+
+      if (!generated) {
+        // If the model returned text instead of an image (e.g. safety refusal), surface it.
+        const textPart = candidates[0]?.content?.parts?.find(p => p.text);
+        const reason = textPart?.text ?? candidates[0]?.finishReason ?? 'unknown';
+        logError('CreativeGen', `${imageModel} returned no image.`, { reason, generationAttempt });
+        throw new Error(
+          `Image generation was blocked or returned no output. Reason: ${reason}. ` +
+          `Try rephrasing the product description or using a different product image.`,
+        );
+      }
+
+      if (input.quality !== 'high_accuracy') {
+        const imageData = `data:${generated.mimeType};base64,${generated.base64}`;
+        logDebug('CreativeGen', 'Standard try-on creative generated successfully.');
+        return { imageData, mimeType: generated.mimeType, prompt: attemptPrompt, grounded };
+      }
+
+      const fidelityDecision = await reviewCreativeFidelity({
+        ai,
+        personaId: input.personaId,
+        personaIdentity: personaIdentityImage,
+        personaFullBody: personaImage,
+        primaryReference: primary,
+        candidate: generated,
+        viewAngle: input.viewAngle ?? 'front',
+        traits,
+        productContext: input.productContext,
+        authoritativeRules: input.garmentFitNotes,
+        generationAttempt,
+      });
+
+      if (fidelityDecision.pass) {
+        const imageData = `data:${generated.mimeType};base64,${generated.base64}`;
+        logInfo('CreativeGen', 'High Accuracy candidate passed visual verification.', {
+          generationAttempt,
+          validatorModel: fidelityDecision.validatorModel,
+          viewAngle: input.viewAngle ?? 'front',
+        });
+        return { imageData, mimeType: generated.mimeType, prompt: attemptPrompt, grounded };
+      }
+
+      logWarn('CreativeGen', 'High Accuracy candidate rejected by visual verification.', {
+        generationAttempt,
+        maxGenerationAttempts,
+        failedChecks: fidelityDecision.failedChecks,
+        viewAngle: input.viewAngle ?? 'front',
+      });
+      if (generationAttempt < maxGenerationAttempts) {
+        attemptPrompt = `${basePrompt}\n\n${buildFidelityRetryCorrection(fidelityDecision.failedChecks)}`;
+        continue;
+      }
+
+      throw new Error(
+        `High Accuracy rejected the generated image because it did not match the selected model or product ` +
+        `(${fidelityDecision.failedChecks.join(', ')}). No image was saved. Please retry.`,
+      );
     }
 
-    // If the model returned text instead of an image (e.g. safety refusal), surface it
-    const textPart = candidates[0]?.content?.parts?.find(p => p.text);
-    const reason = textPart?.text ?? candidates[0]?.finishReason ?? 'unknown';
-    logError('CreativeGen', `${imageModel} returned no image.`, { reason });
-    throw new Error(
-      `Image generation was blocked or returned no output. Reason: ${reason}. ` +
-      `Try rephrasing the product description or using a different product image.`,
-    );
+    throw new Error('High Accuracy generation ended without a verified image. No image was saved.');
   }
 
   // ── Path B: text-to-image (no source photo) ──────────────────────────────

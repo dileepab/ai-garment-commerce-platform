@@ -170,7 +170,7 @@ export default function CreativeStudioModal({
   const [colorViewAngles, setColorViewAngles] = useState<Record<string, ViewAngle[]>>({});
 
   const [viewAngles, setViewAngles] = useState<ViewAngle[]>(['front']);
-  const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('standard');
+  const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('high_accuracy');
   const [aspectRatio, setAspectRatio] = useState<CreativeAspectRatio>('4:5');
 
   const [drafts, setDrafts] = useState<DraftResult[]>([]);
@@ -599,7 +599,7 @@ export default function CreativeStudioModal({
               <label style={labelStyle}>
                 Garment Reference Photos{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-                  (upload the angles you want generated — front is the minimum)
+                  (all uploaded views are used together as references — front is the minimum)
                 </span>
               </label>
               <ReferenceImagePicker
@@ -614,11 +614,11 @@ export default function CreativeStudioModal({
           {/* View angles */}
           <div>
             <label style={labelStyle}>
-              {colorsWithReferences.length > 0 ? 'Default View Angles' : 'View Angles'}{' '}
+              {colorsWithReferences.length > 0 ? 'Default Output Angles' : 'Output Angles'}{' '}
               <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
                 {colorsWithReferences.length > 0
-                  ? '(used as the starting selection for linked colour images)'
-                  : '(one image per selected angle — each costs a generation)'}
+                  ? '(starting selection used when linked colour variants are set up)'
+                  : '(one generated image per selected angle)'}
               </span>
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -644,14 +644,20 @@ export default function CreativeStudioModal({
                 );
               })}
             </div>
+            {colorsWithReferences.length > 0 && (
+              <div style={{ marginTop: 6, fontSize: 10, color: 'var(--color-fg-3)', lineHeight: 1.5 }}>
+                Output angles choose which images to generate. Every available Front, Side, Back,
+                and Detail photo for each colour is still sent together as reference material.
+              </div>
+            )}
           </div>
 
           {colorsWithReferences.length > 0 && (
             <div>
               <label style={labelStyle}>
-                Colour Variant Angles{' '}
+                Output Angles by Colour{' '}
                 <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-                  ({plannedGenerationCount} generation{plannedGenerationCount !== 1 ? 's' : ''})
+                  ({plannedGenerationCount} generated image{plannedGenerationCount !== 1 ? 's' : ''})
                 </span>
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -798,7 +804,7 @@ export default function CreativeStudioModal({
             <div className="grid-2-mobile1" style={{ gap: 8 }}>
               {([
                 { id: 'standard', label: 'Standard', help: 'Faster and cheaper for normal posts.' },
-                { id: 'high_accuracy', label: 'High accuracy', help: 'Better for exact colour, stripes, hems, slits, and print placement.' },
+                { id: 'high_accuracy', label: 'High Accuracy', help: 'Default. Visually verifies the model and garment, with one automatic retry when needed.' },
               ] as Array<{ id: CreativeGenerationQuality; label: string; help: string }>).map(option => {
                 const active = generationQuality === option.id;
                 return (

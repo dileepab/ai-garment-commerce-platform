@@ -234,7 +234,7 @@ export default function CreatePostWizardModal({
   // Ticked by default: publishing social content is the moment a
   // product goes live, and the WhatsApp catalog should not lag behind it.
   const [listInCatalog, setListInCatalog] = useState(true);
-  const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('standard');
+  const [generationQuality, setGenerationQuality] = useState<CreativeGenerationQuality>('high_accuracy');
   const [aspectRatio, setAspectRatio] = useState<CreativeAspectRatio>('4:5');
   const [colorViewAngles, setColorViewAngles] = useState<Record<string, ViewAngle[]>>({});
   const [existingCreatives, setExistingCreatives] = useState<ExistingCreative[]>([]);
@@ -1411,7 +1411,7 @@ function Step1Setup(props: Step1Props) {
           <label style={labelStyle}>
             Garment Reference Photos{' '}
             <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-              (upload the angles you want generated — front is the minimum)
+              (all uploaded views are used together as references — front is the minimum)
             </span>
           </label>
           <ReferenceImagePicker
@@ -1443,11 +1443,11 @@ function Step1Setup(props: Step1Props) {
       {/* View angles */}
       <div>
         <label style={labelStyle}>
-          {colorsWithReferences.length > 0 ? 'Default View Angles' : 'View Angles'}{' '}
+          {colorsWithReferences.length > 0 ? 'Default Output Angles' : 'Output Angles'}{' '}
           <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
             {colorsWithReferences.length > 0
-              ? '(used as the starting selection for linked colour images)'
-              : '(one image per selected angle — each costs a generation)'}
+              ? '(starting selection used when linked colour variants are set up)'
+              : '(one generated image per selected angle)'}
           </span>
         </label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -1473,14 +1473,20 @@ function Step1Setup(props: Step1Props) {
             );
           })}
         </div>
+        {colorsWithReferences.length > 0 && (
+          <div style={{ marginTop: 6, fontSize: 10, color: 'var(--color-fg-3)', lineHeight: 1.5 }}>
+            Output angles choose which images to generate. Every available Front, Side, Back,
+            and Detail photo for each colour is still sent together as reference material.
+          </div>
+        )}
       </div>
 
       {colorsWithReferences.length > 0 && (
         <div>
           <label style={labelStyle}>
-            Colour Variant Angles{' '}
+            Output Angles by Colour{' '}
             <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 10 }}>
-              ({props.plannedGenerationCount} generation{props.plannedGenerationCount !== 1 ? 's' : ''})
+              ({props.plannedGenerationCount} generated image{props.plannedGenerationCount !== 1 ? 's' : ''})
             </span>
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1635,7 +1641,7 @@ function Step1Setup(props: Step1Props) {
         <div className="grid-2-mobile1" style={{ gap: 8 }}>
           {([
             { id: 'standard', label: 'Standard', help: 'Faster and cheaper for normal posts.' },
-            { id: 'high_accuracy', label: 'High accuracy', help: 'Better for exact colour, stripes, hems, slits, and print placement.' },
+            { id: 'high_accuracy', label: 'High Accuracy', help: 'Default. Visually verifies the model and garment, with one automatic retry when needed.' },
           ] as Array<{ id: CreativeGenerationQuality; label: string; help: string }>).map(option => {
             const active = props.generationQuality === option.id;
             return (

@@ -31,3 +31,14 @@ export const PERSONAS_BY_BRAND: Record<string, PersonaDef[]> = {
 };
 
 export type PersonaId = string;
+
+/** Resolve a persona without making brand casing or surrounding spaces significant. */
+export function findPersonaForBrand(brand: string, personaId: string): PersonaDef | undefined {
+  const normalizedBrand = brand.trim().toLowerCase();
+  const brandKey = Object.keys(PERSONAS_BY_BRAND)
+    .find(key => key.toLowerCase() === normalizedBrand);
+
+  return brandKey
+    ? PERSONAS_BY_BRAND[brandKey].find(persona => persona.id === personaId)
+    : undefined;
+}

@@ -21,6 +21,10 @@ export type PatternKind = 'check' | 'stripe' | 'floral' | 'plain' | 'unknown';
 export interface GarmentTraits {
   /** A wrap opening that must be preserved, not sealed shut. */
   isWrap: boolean;
+  /** Whether the garment is worn below the waist. */
+  isBottom: boolean;
+  /** Whether trouser-specific rise, leg and hem rules apply. */
+  isTrousers: boolean;
   /** Whether sleeve, cuff and neckline language applies at all. */
   hasSleeves: boolean;
   patternKind: PatternKind;
@@ -35,6 +39,7 @@ export function detectGarmentTraits(text: string): GarmentTraits {
   // Bottoms have no sleeves to get wrong, and neither does anything explicitly
   // sleeveless. Naming cuffs on a skort invites the model to invent them.
   const isBottom = /\b(skort|skirt|pants|trousers|shorts|jeans|leggings|culottes)\b/.test(t);
+  const isTrousers = /\b(pants|trousers|jeans|leggings|culottes)\b/.test(t);
   const saysSleeveless = /\b(sleeveless|strapless|tie-?strap|spaghetti strap|tank)\b/.test(t);
   const hasSleeves = !isBottom && !saysSleeveless;
 
@@ -45,7 +50,7 @@ export function detectGarmentTraits(text: string): GarmentTraits {
     : /\b(solid|plain|unpatterned)\b/.test(t) ? 'plain'
     : 'unknown';
 
-  return { isWrap, hasSleeves, patternKind };
+  return { isWrap, isBottom, isTrousers, hasSleeves, patternKind };
 }
 
 /**
@@ -86,11 +91,42 @@ export function patternFidelityLine(traits: GarmentTraits): string {
 
 /** The construction details worth naming for this garment, and only those. */
 export function constructionFidelityLine(traits: GarmentTraits): string {
+  if (traits.isTrousers) {
+    return (
+      '- TROUSER CONSTRUCTION AND WAISTBAND TOPOLOGY: copy the waistband, exact presence or absence of a ' +
+      'fly/zip/button/hook/tab/placket, front-only versus back belt loops, pocket opening shape and placement, ' +
+      'pleat position and depth, rise, seams, and hem exactly as photographed. If the front reference shows one ' +
+      'continuous, uninterrupted waistband, preserve it as one unbroken band across the centre front: never split ' +
+      'it into left and right halves and never add a centre-front join, overlap, opening, fly shield, zipper seam, ' +
+      'button, hook, tab or placket. The natural crotch seam must stop below that uninterrupted waistband instead ' +
+      'of extending upward like a fly. A generic trouser shape is not permission to invent a conventional closure. ' +
+      'Do not add, remove or relocate belt loops, pockets, pleats, darts, panels, pressed creases or closures.'
+    );
+  }
+
   const parts = traits.hasSleeves
     ? ['neckline', 'sleeve length and cuffs', 'button line or placket', 'seams', 'hem shape']
-    : ['waistband', 'closure and zip placement', 'seams', 'hem shape and curve'];
+    : ['waistband', 'fastenings or their visible absence', 'pockets', 'seams', 'hem shape and curve'];
 
   return `- Copy the ${parts.join(', ')}, and the fabric colour, exactly as photographed.`;
+}
+
+/** Preserve lower-garment proportions instead of normalising them into generic trousers. */
+export function silhouetteFidelityLine(traits: GarmentTraits): string {
+  if (traits.isTrousers) {
+    return (
+      '- TROUSER SILHOUETTE AND LENGTH: preserve the exact rise, waist-to-hip ease, thigh width, leg line, ' +
+      'hem opening and total length shown in the reference. Wide-leg trousers must remain wide and nearly ' +
+      'straight from upper thigh through the hem; never turn them into slim, tailored, tapered, ankle-length ' +
+      'or cropped trousers.'
+    );
+  }
+
+  if (traits.isBottom) {
+    return '- BOTTOM SILHOUETTE AND LENGTH: preserve the exact waist, hip ease, outline, hem width and worn length shown in the reference.';
+  }
+
+  return '- SILHOUETTE AND LENGTH: preserve the exact fitted and relaxed areas, outline and worn length shown in the reference.';
 }
 
 /**

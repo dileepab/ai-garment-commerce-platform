@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import sharp from 'sharp';
 import {
   isUsableImageResponse,
   personaAssetOrigin,
   personaAssetUrl,
   sniffImageMimeType,
 } from '../src/lib/persona-asset.ts';
+import { createPersonaIdentityReference } from '../src/lib/persona-reference.ts';
+import { findPersonaForBrand } from '../src/lib/persona-data.ts';
 
 /**
  * The response that got through: /personas/... sits behind NextAuth, a
@@ -89,4 +93,25 @@ test('non-image data sniffs to null', () => {
   assert.equal(sniffImageMimeType(html), null);
   assert.equal(sniffImageMimeType(new Uint8Array([])), null);
   assert.equal(sniffImageMimeType(new Uint8Array([0xff, 0xd8])), null);
+});
+
+test('a full-body persona gets a separate high-resolution identity crop', async () => {
+  const source = await readFile('public/personas/happybuy_model_1.png');
+  const identity = await createPersonaIdentityReference({
+    base64: source.toString('base64'),
+    mimeType: 'image/jpeg',
+  });
+
+  assert.ok(identity);
+  assert.equal(identity.mimeType, 'image/jpeg');
+  const metadata = await sharp(Buffer.from(identity.base64, 'base64')).metadata();
+  assert.equal(metadata.width, 768);
+  assert.equal(metadata.height, 768);
+  assert.equal(metadata.format, 'jpeg');
+});
+
+test('persona lookup tolerates brand casing and surrounding spaces', () => {
+  assert.equal(findPersonaForBrand(' happyBUY ', 'happybuy-1')?.label, 'Youthful & Bright');
+  assert.equal(findPersonaForBrand('Happybuy', 'deez-1'), undefined);
+  assert.equal(findPersonaForBrand('Unknown', 'happybuy-1'), undefined);
 });
