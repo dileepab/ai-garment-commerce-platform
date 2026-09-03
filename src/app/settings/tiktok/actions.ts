@@ -27,6 +27,12 @@ import {
   resolveTikTokAccountConnection,
   TIKTOK_ACCOUNT_REVOCATION_PENDING_MESSAGE,
 } from '@/lib/tiktok-account-connection';
+import { getPublicAssetUrl } from '@/lib/runtime-config';
+import {
+  addTikTokUrlPrefix,
+  listTikTokUrlProperties,
+  verifyTikTokUrlPrefix,
+} from '@/lib/tiktok-url-property';
 
 function readRequiredText(formData: FormData, key: string, label: string): string {
   const value = formData.get(key);
@@ -366,6 +372,85 @@ export async function configureTikTokWebhooksAction(): Promise<void> {
   }
   revalidatePath('/settings/tiktok');
   redirect(`/settings/tiktok?${configured ? 'status=webhooks_configured' : 'error=webhook_configuration_failed'}`);
+}
+
+export async function verifyTikTokMediaUrlAction(): Promise<void> {
+  const scope = await requireActionPermission('settings:write');
+  const propertyUrl = getPublicAssetUrl('/api/content/creatives/');
+  if (!propertyUrl) throw new Error('APP_BASE_URL is required for TikTok media verification.');
+
+  let verified = false;
+  try {
+    const config = getTikTokAccountRuntimeConfig();
+    const credentials = {
+      appId: config.clientId,
+      appSecret: config.clientSecret,
+      apiBaseUrl: config.apiBaseUrl,
+    };
+    const existing = (await listTikTokUrlProperties(credentials))
+      .find((property) => property.url === propertyUrl);
+    const prepared = existing ?? await addTikTokUrlPrefix(credentials, propertyUrl);
+
+    await prisma.tikTokUrlProperty.upsert({
+      where: { url: propertyUrl },
+      create: {
+        url: propertyUrl,
+        propertyType: prepared.propertyType,
+        status: prepared.status,
+        signature: prepared.signature,
+        fileName: prepared.fileName,
+        requestId: prepared.requestId,
+        verifiedAt: prepared.status === 1 ? new Date() : null,
+      },
+      update: {
+        propertyType: prepared.propertyType,
+        status: prepared.status,
+        signature: prepared.signature,
+        fileName: prepared.fileName,
+        requestId: prepared.requestId,
+        verifiedAt: prepared.status === 1 ? new Date() : null,
+      },
+    });
+
+    const checked = prepared.status === 1
+      ? prepared
+      : await verifyTikTokUrlPrefix(credentials, propertyUrl);
+    verified = checked.status === 1;
+    await prisma.tikTokUrlProperty.update({
+      where: { url: propertyUrl },
+      data: {
+        status: checked.status,
+        signature: checked.signature ?? prepared.signature,
+        fileName: checked.fileName ?? prepared.fileName,
+        requestId: checked.requestId,
+        verifiedAt: verified ? new Date() : null,
+      },
+    });
+
+    await logAdminAudit({
+      action: verified ? 'tiktok_media_url_verified' : 'tiktok_media_url_verification_pending',
+      entityType: 'tiktok_app',
+      entityId: null,
+      actorEmail: scope.email ?? null,
+      summary: `${verified ? 'Verified' : 'Prepared'} TikTok Content Studio media URL ownership.`,
+      metadata: { propertyUrl, propertyType: 2, status: checked.status },
+    });
+  } catch (error) {
+    await logAdminAudit({
+      action: 'tiktok_media_url_verification_failed',
+      entityType: 'tiktok_app',
+      entityId: null,
+      actorEmail: scope.email ?? null,
+      summary: 'Could not verify TikTok Content Studio media URL ownership.',
+      metadata: {
+        propertyUrl,
+        error: error instanceof Error ? error.message.slice(0, 500) : 'Unknown error',
+      },
+    });
+  }
+
+  revalidatePath('/settings/tiktok');
+  redirect(`/settings/tiktok?${verified ? 'status=media_url_verified' : 'error=media_url_verification_failed'}`);
 }
 
 export async function setTikTokDmAutomationAction(formData: FormData): Promise<void> {

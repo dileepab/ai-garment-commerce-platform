@@ -6,6 +6,10 @@ import { requirePagePermission } from '@/lib/authz';
 import ContentPageClient from './ContentPageClient';
 
 export const dynamic = 'force-dynamic';
+// High Accuracy may perform one visual review and one bounded image retry.
+// Keep the content server action alive long enough to fail closed instead of
+// timing out after the first candidate.
+export const maxDuration = 300;
 
 export default async function ContentPage({
   searchParams,

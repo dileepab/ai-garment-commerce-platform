@@ -39,6 +39,7 @@ import {
   publishPhotoPostToTikTok,
   refreshTikTokPhotoPostStatus,
 } from '@/lib/tiktok-photo-publish';
+import { prepareTikTokCaption } from '@/lib/tiktok-caption';
 
 export interface SocialPostCreativeInput {
   creativeId: number;
@@ -249,6 +250,15 @@ export async function generateChannelCaptions(
     for (const channel of Object.keys(captionsByChannel)) {
       captionsByChannel[channel] = captionsByChannel[channel].map((caption) =>
         appendWhatsAppOrderLine(caption, linkOptions)
+      );
+    }
+
+    if (captionsByChannel.tiktok) {
+      const contextDescription = params.productContext?.trim()
+        ? buildItemDescription({ productContext: params.productContext })
+        : '';
+      captionsByChannel.tiktok = captionsByChannel.tiktok.map((caption) =>
+        prepareTikTokCaption(caption, contextDescription ? [contextDescription] : [])
       );
     }
 
@@ -498,6 +508,12 @@ function parseStoredCorrections(raw: string | null): string[] {
   }
 }
 
+function extractStoredManualFitNotes(productContext: string): string {
+  const marker = 'Fit measurements: ';
+  const index = productContext.lastIndexOf(marker);
+  return index >= 0 ? productContext.slice(index + marker.length).trim() : '';
+}
+
 export interface GenerateCreativeResult {
   success: boolean;
   imageData?: string;
@@ -555,15 +571,21 @@ export async function generateCreativeAction(
     if (linkedProduct) assertBrandAccess(scope, linkedProduct.brand);
 
     const manualFitNotes = params.garmentFitNotes?.trim() || '';
-    const structuredSpecs =
-      linkedProduct && !manualFitNotes.includes('Structured garment specs from product record')
-        ? buildGarmentSpecsForAi(linkedProduct)
-        : '';
+    const structuredSpecs = linkedProduct ? buildGarmentSpecsForAi(linkedProduct) : '';
+    // The product picker pre-fills garmentFitNotes with the same structured
+    // block. Keep catalogue specs out of productContext so the stored creative
+    // never carries a stale lower-priority copy after the product is edited.
+    const manualNotesOnly = manualFitNotes.includes('Structured garment specs from product record')
+      ? ''
+      : manualFitNotes;
+    const authoritativeGarmentRules = [
+      structuredSpecs,
+      manualNotesOnly,
+    ].filter(Boolean).join('\n');
     const combinedProductContext = [
       params.productContext?.trim(),
       params.sourceColor?.trim() ? `Selected colour variant: ${params.sourceColor.trim()}. Use the source image for this exact colour.` : '',
-      structuredSpecs,
-      manualFitNotes ? `Fit measurements: ${manualFitNotes}` : '',
+      !linkedProduct && manualFitNotes ? `Fit measurements: ${manualFitNotes}` : '',
     ].filter(Boolean).join(' ');
 
     const aspectRatio = params.aspectRatio ?? DEFAULT_ASPECT_RATIO;
@@ -571,7 +593,7 @@ export async function generateCreativeAction(
       brand: params.brand,
       personaId: params.personaId,
       productContext: combinedProductContext,
-      garmentFitNotes: params.garmentFitNotes,
+      garmentFitNotes: authoritativeGarmentRules || undefined,
       referenceImages,
       viewAngle: params.viewAngle,
       quality: params.quality,
@@ -755,24 +777,27 @@ export async function regenerateCreativeAction(
         })
       : null;
     const originalProductContext = original.productContext ?? '';
-    const structuredSpecs =
-      linkedProduct && !originalProductContext.includes('Structured garment specs from product record')
-        ? buildGarmentSpecsForAi(linkedProduct)
-        : '';
-    const regeneratedProductContext = [
-      originalProductContext,
-      structuredSpecs,
-    ].filter(Boolean).join('\n\n');
+    // Regeneration must re-read the current product record and pass its specs
+    // through the same highest-priority channel as a first generation. Older
+    // drafts may already contain a stale copy in productContext; keeping the
+    // latest copy in garmentFitNotes makes the current catalogue truth win.
+    const latestStructuredSpecs = linkedProduct
+      ? buildGarmentSpecsForAi(linkedProduct)
+      : '';
+    const regeneratedGarmentRules =
+      latestStructuredSpecs || extractStoredManualFitNotes(originalProductContext);
 
     const result = await generateCreativeLib({
       brand: original.brand,
       personaId: (original.personaStyle ?? 'none') as PersonaId,
-      productContext: regeneratedProductContext,
+      productContext: originalProductContext,
+      garmentFitNotes: regeneratedGarmentRules || undefined,
       referenceImages,
       viewAngle: (original.viewAngle ?? undefined) as ViewAngle | undefined,
       quality,
       aspectRatio: (original.aspectRatio ?? DEFAULT_ASPECT_RATIO) as CreativeAspectRatio,
       corrections: allCorrections,
+      sceneKey: original.productId ? `product:${original.productId}` : undefined,
     });
 
     // Replace in place — keep the same id so the UI tile slot stays consistent.
@@ -1199,10 +1224,10 @@ export async function publishSocialPost(
     // Each channel gets its own copy when one was written; otherwise the shared
     // caption stands in, so posts created before per-channel copy still publish.
     const channelCaptions = parseCaptionsByChannel(post.captionsByChannel);
-    const captionFor = (channel: string) => appendItemDescriptions(
-      channelCaptions[channel]?.trim() || post.caption,
-      itemDescriptions,
-    );
+    const baseCaptionFor = (channel: string) => channelCaptions[channel]?.trim() || post.caption;
+    const captionFor = (channel: string) => channel === 'tiktok'
+      ? prepareTikTokCaption(baseCaptionFor(channel), itemDescriptions)
+      : appendItemDescriptions(baseCaptionFor(channel), itemDescriptions);
 
     for (const channel of channels) {
       let result;

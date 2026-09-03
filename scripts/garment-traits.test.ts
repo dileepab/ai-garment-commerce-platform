@@ -5,6 +5,7 @@ import {
   detectGarmentTraits,
   openingGuardLine,
   patternFidelityLine,
+  silhouetteFidelityLine,
 } from '../src/lib/garment-traits.ts';
 
 const SKORT =
@@ -28,6 +29,13 @@ test('a tie-strap floral sundress is read as sleeveless and floral', () => {
 
 test('a shirt keeps its sleeves', () => {
   assert.equal(detectGarmentTraits('Office Shirt — Blue, long sleeve').hasSleeves, true);
+});
+
+test('wide-leg linen pants are classified as trousers and bottoms', () => {
+  const t = detectGarmentTraits('Linen Wide-Leg Pants — Olive Green');
+  assert.equal(t.isBottom, true);
+  assert.equal(t.isTrousers, true);
+  assert.equal(t.hasSleeves, false);
 });
 
 /**
@@ -63,6 +71,24 @@ test('a sleeved garment still gets the sleeve checklist', () => {
   const line = constructionFidelityLine(detectGarmentTraits('Office Shirt — Blue, long sleeve'));
   assert.match(line, /sleeve length and cuffs/);
   assert.match(line, /neckline/);
+});
+
+test('trouser construction forbids inventing a conventional fly and moving belt loops', () => {
+  const line = constructionFidelityLine(detectGarmentTraits('Linen Wide-Leg Pants'));
+  assert.match(line, /presence or absence of a fly\/zip\/button\/hook\/tab\/placket/);
+  assert.match(line, /front-only versus back belt loops/);
+  assert.match(line, /continuous, uninterrupted waistband/);
+  assert.match(line, /never split it into left and right halves/);
+  assert.match(line, /centre-front join/);
+  assert.match(line, /crotch seam must stop below/);
+  assert.match(line, /not permission to invent a conventional closure/);
+});
+
+test('wide-leg trousers may not be normalised into tapered or cropped pants', () => {
+  const line = silhouetteFidelityLine(detectGarmentTraits('Linen Wide-Leg Pants'));
+  assert.match(line, /remain wide and nearly straight/);
+  assert.match(line, /tapered/);
+  assert.match(line, /cropped/);
 });
 
 /**

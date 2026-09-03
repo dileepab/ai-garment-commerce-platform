@@ -687,6 +687,22 @@ model TikTokAccountConnection {
   updatedAt             DateTime  @updatedAt
 }
 
+// TikTok must verify the public URL prefix used to fetch Content Studio images
+// before it accepts photo-publish requests. The signature is intentionally
+// stored server-side and exposed only at TikTok's issued verification filename.
+model TikTokUrlProperty {
+  id           Int       @id @default(autoincrement())
+  url          String    @unique
+  propertyType Int       @default(2)
+  status       Int       @default(0)
+  signature    String?
+  fileName     String?
+  requestId    String?
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 // Provider-specific delivery context for a Support Inbox thread. TikTok DM
 // threads use the conversation ID as senderId; comment threads use the root
 // comment ID, preventing one commenter across multiple videos from collapsing
