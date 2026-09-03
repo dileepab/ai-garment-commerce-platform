@@ -2,15 +2,12 @@ import { GoogleGenAI } from '@google/genai';
 import { SizeChartCategory } from '@/lib/size-charts';
 import { AiRoutedAction, RouterInput, RoutedActionType, ROUTED_ACTIONS, PRODUCT_TYPES, PRODUCT_QUESTION_TYPES, PAYMENT_METHODS, ModelError } from './ai-router/types';
 import { ROUTER_JSON_SCHEMA } from './ai-router/schema';
+import { ACTION_ROUTER_MODEL_CHAIN } from '@/lib/gemini-models';
 import { buildRouterPrompt } from './ai-router/prompt';
 import { buildHeuristicAction, findProductByMessage } from './ai-router/heuristics';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/app-log';
 
-const MODEL_CHAIN = [
-  'gemini-3.5-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash',
-];
+const MODEL_CHAIN = ACTION_ROUTER_MODEL_CHAIN;
 
 export type { AiRoutedAction, RoutedActionType };
 

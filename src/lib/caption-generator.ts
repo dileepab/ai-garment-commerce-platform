@@ -1,11 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 import { logDebug, logError } from '@/lib/app-log';
+import { CAPTION_MODEL_CHAIN } from '@/lib/gemini-models';
 
-const MODEL_CHAIN = [
-  'gemini-3.5-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash',
-];
+const MODEL_CHAIN = CAPTION_MODEL_CHAIN;
 
 export interface CaptionGenerationInput {
   brand: string;

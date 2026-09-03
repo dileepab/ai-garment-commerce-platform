@@ -33,6 +33,7 @@ import {
   fidelityFingerprint,
   reviewCreativeFidelity,
 } from './creative-fidelity';
+import { TEXT_TO_IMAGE_MODEL, highAccuracyImageModel, imageEditModel } from './gemini-models';
 
 /**
  * The persona photograph, as bytes ready to attach.
@@ -119,16 +120,12 @@ async function loadPersonaImage(
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
-// Accepts image input AND generates image output via generateContent.
-// This enables the virtual try-on path (product photo → model wearing it).
-// Google now labels gemini-2.5-flash-image legacy; override to move off it
-// without a code change once the cost/quality trade-off has been checked.
-const IMAGE_EDIT_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
-const HIGH_ACCURACY_IMAGE_MODEL =
-  process.env.GEMINI_HIGH_ACCURACY_IMAGE_MODEL || 'gemini-3-pro-image';
-
-// Text-to-image only — used when no source image is provided.
-const TEXT_TO_IMAGE_MODEL = 'gemini-3.1-flash-image';
+// Accepts image input AND generates image output via generateContent. This
+// enables the virtual try-on path (product photo → model wearing it). Both
+// stay overridable so a cost or quality trade-off can be changed without a
+// deploy; the ids themselves live in gemini-models.
+const IMAGE_EDIT_MODEL = imageEditModel();
+const HIGH_ACCURACY_IMAGE_MODEL = highAccuracyImageModel();
 
 // ── Interfaces ───────────────────────────────────────────────────────────────
 
