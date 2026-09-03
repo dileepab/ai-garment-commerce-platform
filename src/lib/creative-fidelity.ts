@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { ThinkingLevel, type GoogleGenAI } from '@google/genai';
 import { logInfo, logWarn } from './app-log.ts';
 import type { GarmentTraits } from './garment-traits.ts';
+import { fidelityValidatorModels } from './gemini-models.ts';
 
 export type CreativeViewAngle = 'front' | 'side' | 'back' | 'closeup';
 
@@ -101,24 +102,6 @@ export const FIDELITY_RESPONSE_SCHEMA = {
     },
   },
 } as const;
-
-export function fidelityValidatorModels(configuredModel?: string): string[] {
-  // gemini-2.5-flash is no longer provisioned for new Gemini API users. Keep
-  // the explicit stable 3.x endpoints here instead of a "latest" alias so a
-  // model migration cannot silently change the verifier underneath production.
-  return [
-    configuredModel?.trim(),
-    'gemini-3.6-flash',
-    'gemini-3.7-flash',
-    // Last resort, and the only id here the rest of the codebase already
-    // calls in production (caption-generator). High Accuracy is the default
-    // quality and fails closed, so if the newer ids are not provisioned for
-    // this key, every generation would be refused rather than degraded.
-    'gemini-3.5-flash',
-  ].filter((model, index, models): model is string =>
-    Boolean(model) && models.indexOf(model) === index
-  );
-}
 
 const VALIDATOR_MODELS = fidelityValidatorModels(
   process.env.GEMINI_FIDELITY_VALIDATOR_MODEL,

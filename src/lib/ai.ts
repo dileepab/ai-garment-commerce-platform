@@ -13,13 +13,9 @@ import {
 import { buildHumanSupportReply, buildSupportContactLineFromConfig } from '@/lib/customer-support';
 import { logDebug, logError } from '@/lib/app-log';
 import { getMerchantSettings, logRuntimeWarnings } from '@/lib/runtime-config';
+import { CHAT_MODEL_CHAIN, REPLY_REVIEW_MODEL } from '@/lib/gemini-models';
 
-const MODEL_CHAIN = [
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-flash',
-  'gemini-3.5-flash',
-];
+const MODEL_CHAIN = CHAT_MODEL_CHAIN;
 
 const MAX_HISTORY = 20;
 
@@ -381,7 +377,7 @@ IMPORTANT:
     if (isHighRisk(customerMessage)) {
       logDebug('AI Reviewer', `Risk detected in message: "${customerMessage.slice(0, 60)}". Running parallel reviewers.`);
       try {
-        const reviewModel = 'gemini-3.1-flash-lite';
+        const reviewModel = REPLY_REVIEW_MODEL;
         const [salesReview, opsReview, toneReview] = await Promise.all([
           ai.models.generateContent({
             model: reviewModel,

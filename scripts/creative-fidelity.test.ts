@@ -6,7 +6,6 @@ import {
   buildFidelityValidatorPrompt,
   evaluateFidelityAssessment,
   fidelityFingerprint,
-  fidelityValidatorModels,
   parseFidelityAssessment,
   requiredFidelityChecks,
   type FidelityAssessment,
@@ -14,6 +13,7 @@ import {
   type FidelityCheckStatus,
 } from '../src/lib/creative-fidelity.ts';
 import { detectGarmentTraits } from '../src/lib/garment-traits.ts';
+import { fidelityValidatorModels } from '../src/lib/gemini-models.ts';
 
 function assessmentWith(
   statuses: Partial<Record<FidelityCheckId, FidelityCheckStatus>> = {},

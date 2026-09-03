@@ -16,8 +16,9 @@ import {
   findUngroundedClaims,
   type GroundedProductFacts,
 } from '@/lib/chat/grounded-answer';
+import { GROUNDED_ANSWER_MODEL_CHAIN } from '@/lib/gemini-models';
 
-const TEXT_MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+const TEXT_MODEL_CHAIN = GROUNDED_ANSWER_MODEL_CHAIN;
 
 /** Off unless switched on, so the template path stays the default. */
 export function groundedAnswersEnabled(): boolean {
