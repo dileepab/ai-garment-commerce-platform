@@ -63,6 +63,31 @@ test('the fidelity chain ends on a model the platform already calls', () => {
   );
 });
 
+test('no text chain still reaches for a 2.x model', () => {
+  // 2.5-flash is no longer provisioned for new API keys, so an entry here
+  // buys a failed call before the chain falls through to something that works.
+  const textChains = {
+    CHAT_MODEL_CHAIN,
+    CAPTION_MODEL_CHAIN,
+    ACTION_ROUTER_MODEL_CHAIN,
+    LANGUAGE_MODEL_CHAIN,
+    GROUNDED_ANSWER_MODEL_CHAIN,
+    FIDELITY_VALIDATOR_CHAIN,
+  };
+
+  for (const [name, chain] of Object.entries(textChains)) {
+    for (const model of chain) {
+      assert.ok(model.startsWith('gemini-3'), `${name} still names ${model}`);
+    }
+  }
+});
+
+test('every chain keeps a fallback, so one bad model is not an outage', () => {
+  for (const [name, chain] of Object.entries(ALL_CHAINS)) {
+    assert.ok(chain.length >= 2, `${name} has no fallback`);
+  }
+});
+
 test('chain order is preserved per call site, because it encodes cost', () => {
   // Chat and language start on the cheapest lite model; captions start on the
   // stronger one because caption quality is what the customer reads.

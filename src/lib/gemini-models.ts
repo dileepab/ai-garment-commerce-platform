@@ -9,7 +9,13 @@
  *
  * Chains are ordered deliberately — cheapest capable model first, and the
  * order carries cost decisions made per call site, so it is preserved here
- * exactly rather than unified.
+ * rather than unified.
+ *
+ * The text chains are 3.x only. The 2.x entries they used to end on were
+ * dead weight at best: this file's own note recorded that gemini-2.5-flash is
+ * no longer provisioned for new API keys, so reaching one cost a failed call
+ * before the chain moved on. Grounded answers were the worst of it, starting
+ * on 2.5 and falling back to 2.0.
  *
  * Kept free of path aliases so it can be tested.
  */
@@ -23,11 +29,16 @@
 export const GEMINI_MODEL_IDS = {
   flash35: 'gemini-3.5-flash',
   flash31Lite: 'gemini-3.1-flash-lite',
-  flash25: 'gemini-2.5-flash',
-  flash25Lite: 'gemini-2.5-flash-lite',
-  flash20: 'gemini-2.0-flash',
   fidelity36: 'gemini-3.6-flash',
   fidelity37: 'gemini-3.7-flash',
+  /**
+   * The last 2.x id in the platform, and the default for Standard creatives.
+   *
+   * Unlike the text chains this one is not a fallback — it does the work, so
+   * moving it changes what generated images look like rather than only which
+   * endpoint is called. Try GEMINI_IMAGE_MODEL=gemini-3.1-flash-image and
+   * compare output before making it the default.
+   */
   imageEdit25: 'gemini-2.5-flash-image',
   imagePro3: 'gemini-3-pro-image',
   imageFlash31: 'gemini-3.1-flash-image',
@@ -53,8 +64,6 @@ export function chainWithOverride(configured: string | undefined, chain: readonl
 /** Support chat replies. */
 export const CHAT_MODEL_CHAIN: GeminiModelId[] = [
   M.flash31Lite,
-  M.flash25Lite,
-  M.flash25,
   M.flash35,
 ];
 
@@ -62,28 +71,24 @@ export const CHAT_MODEL_CHAIN: GeminiModelId[] = [
 export const CAPTION_MODEL_CHAIN: GeminiModelId[] = [
   M.flash35,
   M.flash31Lite,
-  M.flash25,
 ];
 
 /** Deciding which action a customer message asks for. */
 export const ACTION_ROUTER_MODEL_CHAIN: GeminiModelId[] = [
   M.flash35,
   M.flash31Lite,
-  M.flash25,
 ];
 
 /** Detecting and translating the customer's language. */
 export const LANGUAGE_MODEL_CHAIN: GeminiModelId[] = [
   M.flash31Lite,
-  M.flash25Lite,
-  M.flash25,
   M.flash35,
 ];
 
 /** Answering from catalogue text rather than a template. */
 export const GROUNDED_ANSWER_MODEL_CHAIN: GeminiModelId[] = [
-  M.flash25,
-  M.flash20,
+  M.flash31Lite,
+  M.flash35,
 ];
 
 /** The parallel reviewers run on a risky inbound message. */
