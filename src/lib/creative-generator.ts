@@ -30,6 +30,8 @@ import {
 import { createPersonaIdentityReference } from './persona-reference';
 import {
   buildFidelityRetryCorrection,
+  describeFailedChecks,
+  describeFidelityRejection,
   fidelityFingerprint,
   reviewCreativeFidelity,
 } from './creative-fidelity';
@@ -867,7 +869,9 @@ export async function generateCreative(
       logWarn('CreativeGen', 'High Accuracy candidate rejected by visual verification.', {
         generationAttempt,
         maxGenerationAttempts,
-        failedChecks: fidelityDecision.failedChecks,
+        mismatchedChecks: fidelityDecision.mismatchedChecks,
+        unreadableChecks: fidelityDecision.unreadableChecks,
+        checks: describeFailedChecks(fidelityDecision),
         viewAngle: input.viewAngle ?? 'front',
       });
       if (generationAttempt < maxGenerationAttempts) {
@@ -875,10 +879,7 @@ export async function generateCreative(
         continue;
       }
 
-      throw new Error(
-        `High Accuracy rejected the generated image because it did not match the selected model or product ` +
-        `(${fidelityDecision.failedChecks.join(', ')}). No image was saved. Please retry.`,
-      );
+      throw new Error(describeFidelityRejection(fidelityDecision));
     }
 
     throw new Error('High Accuracy generation ended without a verified image. No image was saved.');
