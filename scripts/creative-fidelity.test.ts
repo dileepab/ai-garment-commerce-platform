@@ -4,6 +4,8 @@ import {
   FIDELITY_CHECK_IDS,
   buildFidelityRetryCorrection,
   buildFidelityValidatorPrompt,
+  describeFailedChecks,
+  describeFidelityRejection,
   evaluateFidelityAssessment,
   fidelityFingerprint,
   parseFidelityAssessment,
@@ -160,4 +162,57 @@ test('visual QA uses current stable Gemini 3 models and never the retired 2.5 fa
     ['custom-review-model', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash'],
   );
   assert.equal(fidelityValidatorModels().includes('gemini-2.5-flash'), false);
+});
+
+test('an unreadable reference is not reported as a mismatched image', () => {
+  const decision = evaluateFidelityAssessment(
+    assessmentWith({ construction: 'not_assessable', same_product: 'fail' }),
+    ['same_product', 'construction'],
+  );
+
+  assert.deepEqual(decision.mismatchedChecks, ['same_product']);
+  assert.deepEqual(decision.unreadableChecks, ['construction']);
+  // Both still block saving: an unverified image is not a verified one.
+  assert.equal(decision.pass, false);
+  assert.deepEqual(decision.failedChecks, ['same_product', 'construction']);
+
+  const message = describeFidelityRejection(decision);
+  assert.match(message, /did not match the product or model \(same_product\)/);
+  assert.match(message, /could not be verified against the reference photo \(construction\)/);
+  assert.match(message, /No image was saved/);
+});
+
+test('a rejection with nothing readable does not claim a mismatch', () => {
+  const decision = evaluateFidelityAssessment(
+    assessmentWith({ construction: 'not_assessable' }),
+    ['construction'],
+  );
+
+  const message = describeFidelityRejection(decision);
+  assert.equal(decision.mismatchedChecks.length, 0);
+  // The old message said "did not match" for this case, which sent people
+  // looking for a defect that was never established.
+  assert.doesNotMatch(message, /did not match/);
+  assert.match(message, /could not be verified/);
+});
+
+test('the validator keeps its own words, so a rejection can be read back', () => {
+  const assessment = assessmentWith({ color: 'fail' });
+  assessment.checks.color.evidence = ['candidate is lighter and more saturated than Image B'];
+
+  const decision = evaluateFidelityAssessment(assessment, ['color']);
+
+  assert.deepEqual(
+    describeFailedChecks(decision),
+    ['color=fail: candidate is lighter and more saturated than Image B'],
+  );
+});
+
+test('not_applicable is not a failure', () => {
+  const decision = evaluateFidelityAssessment(
+    assessmentWith({ waistband_and_front_opening: 'not_applicable' }),
+    ['same_product'],
+  );
+  assert.equal(decision.pass, true);
+  assert.deepEqual(decision.failedChecks, []);
 });

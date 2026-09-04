@@ -39,7 +39,18 @@ export interface FidelityAssessment {
 export interface FidelityDecision {
   pass: boolean;
   requiredChecks: FidelityCheckId[];
+  /** Everything that was not a pass, in the order the checks are required. */
   failedChecks: FidelityCheckId[];
+  /** Checks the validator judged wrong. The image really does differ. */
+  mismatchedChecks: FidelityCheckId[];
+  /**
+   * Checks the validator could not read — cropped, blurred or ambiguous
+   * pixels. These block saving exactly as a mismatch does, but they say
+   * something quite different: not "this is wrong", but "I cannot tell".
+   * Reporting them as a mismatch sends someone hunting a defect that may not
+   * be in the image at all.
+   */
+  unreadableChecks: FidelityCheckId[];
   assessment: FidelityAssessment;
   validatorModel: string;
 }
@@ -190,9 +201,51 @@ export function evaluateFidelityAssessment(
     pass: failedChecks.length === 0,
     requiredChecks,
     failedChecks,
+    mismatchedChecks: failedChecks.filter(id => assessment.checks[id].status === 'fail'),
+    unreadableChecks: failedChecks.filter(id => assessment.checks[id].status === 'not_assessable'),
     assessment,
     validatorModel,
   };
+}
+
+/**
+ * The validator's verdict on everything it would not pass, in its own words.
+ *
+ * Kept to one short line per check so a rejection is readable in a log
+ * without becoming the log.
+ */
+export function describeFailedChecks(decision: FidelityDecision): string[] {
+  return decision.failedChecks.map(id => {
+    const check = decision.assessment.checks[id];
+    const evidence = check.evidence.join('; ').slice(0, 200);
+    return `${id}=${check.status}${evidence ? `: ${evidence}` : ''}`;
+  });
+}
+
+/**
+ * What to tell the person who pressed Generate.
+ *
+ * "Did not match" was said for both verdicts, so a reference the validator
+ * simply could not read looked like a defective image, and the useful next
+ * step — reshoot or crop the reference — was never suggested.
+ */
+export function describeFidelityRejection(decision: FidelityDecision): string {
+  const mismatched = decision.mismatchedChecks.join(', ');
+  const unreadable = decision.unreadableChecks.join(', ');
+
+  const reasons: string[] = [];
+  if (mismatched) reasons.push(`did not match the product or model (${mismatched})`);
+  if (unreadable) {
+    reasons.push(
+      `could not be verified against the reference photo (${unreadable}) — the reference may be ` +
+      `cropped, blurred or too different in lighting to compare`
+    );
+  }
+
+  return (
+    `High Accuracy rejected the generated image: it ${reasons.join('; and it ')}. ` +
+    `No image was saved. Please retry.`
+  );
 }
 
 export function fidelityFingerprint(value: string): string {
@@ -324,7 +377,12 @@ export async function reviewCreativeFidelity(
         viewAngle: input.viewAngle,
         personaId: input.personaId,
         pass: decision.pass,
-        failedChecks: decision.failedChecks,
+        mismatchedChecks: decision.mismatchedChecks,
+        unreadableChecks: decision.unreadableChecks,
+        // Without the per-check verdict and the validator's own words there is
+        // no way to tell a real defect from an unreadable reference, which is
+        // the first thing anyone needs when an image is refused.
+        checks: describeFailedChecks(decision),
       });
       return decision;
     } catch (error) {
