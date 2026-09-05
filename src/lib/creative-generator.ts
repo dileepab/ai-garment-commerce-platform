@@ -764,8 +764,10 @@ export async function generateCreative(
       // Keyed off the bytes, not the URL. Referring to "the Image A model" when
       // no Image A was attached is what set the model adrift.
       text: personaImage
-        ? `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Duplicate this garment exactly on the ${modelReference}.`
-        : `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Generate this exact garment/product without changing design or color.`,
+        ? `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Duplicate this garment exactly on the ${modelReference}. ` +
+          `This image is the sole authority on colour: match its hue, lightness and saturation, and ignore any other photo that disagrees.`
+        : `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Generate this exact garment/product without changing design or color. ` +
+          `This image is the sole authority on colour: match its hue, lightness and saturation, and ignore any other photo that disagrees.`,
     });
     referenceParts.push({
       inlineData: { data: primary.base64, mimeType: primary.mimeType },
@@ -804,8 +806,14 @@ export async function generateCreative(
     // longer has to invent a back or side it has never seen.
     supporting.forEach((ref, index) => {
       referenceParts.push({
+        // Construction and trim only — deliberately not colour. Supporting
+        // photos are often shot in a different session or light, and one
+        // stale angle given equal colour authority pulls every output toward
+        // a shade the garment no longer is. Image B is the only colour
+        // authority, and the prompt says so above.
         text: `IMAGE ${String.fromCharCode(67 + index)} - SAME GARMENT, ${ANGLE_NOUN[ref.angle]} VIEW. ` +
-          `Use for construction, colour, and trim consistency only. Do not reproduce this camera angle.`,
+          `Use for construction and trim only. Take colour from IMAGE B, not from this photo, ` +
+          `even if this photo looks different. Do not reproduce this camera angle.`,
       });
       referenceParts.push({
         inlineData: { data: ref.base64, mimeType: ref.mimeType },
