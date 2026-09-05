@@ -584,7 +584,13 @@ export async function generateCreativeAction(
     ].filter(Boolean).join('\n');
     const combinedProductContext = [
       params.productContext?.trim(),
-      params.sourceColor?.trim() ? `Selected colour variant: ${params.sourceColor.trim()}. Use the source image for this exact colour.` : '',
+      // Named, because the colourway has to be identifiable, but explicitly
+      // demoted to a label. A catalogue name like "Pastel Pink" is a strong
+      // colour token to an image model and will beat a single photograph of a
+      // garment that is actually coral.
+      params.sourceColor?.trim()
+        ? `Selected colour variant: ${params.sourceColor.trim()} (catalogue label only — the reference photograph, not this name, is the colour).`
+        : '',
       !linkedProduct && manualFitNotes ? `Fit measurements: ${manualFitNotes}` : '',
     ].filter(Boolean).join(' ');
 
