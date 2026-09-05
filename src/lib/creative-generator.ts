@@ -28,6 +28,7 @@ import {
   type GarmentTraits,
 } from './garment-traits';
 import { createPersonaIdentityReference } from './persona-reference';
+import { createWaistbandReference } from './garment-region-reference';
 import {
   buildFidelityRetryCorrection,
   describeFailedChecks,
@@ -720,6 +721,8 @@ export async function generateCreative(
       `${supporting.length} supporting reference(s).`,
     );
 
+    const traits = detectGarmentTraits(`${input.productContext} ${input.garmentFitNotes ?? ''}`);
+
     // Parts order: [prompt] -> [Image A1/A2: persona identity + body] ->
     // [Image B: primary garment reference] -> [Image C..: other angles].
     // Persona goes FIRST so the AI anchors on the model's identity before seeing the garment.
@@ -768,6 +771,34 @@ export async function generateCreative(
       inlineData: { data: primary.base64, mimeType: primary.mimeType },
     });
 
+    // IMAGE BW — the waistband of Image B, enlarged.
+    //
+    // Only for a front trouser shot, because that is the one comparison the
+    // verifier kept rejecting: the model added a fly and a closure tab to a
+    // garment that has neither, three attempts running, after being told not
+    // to in three separate places. At full-length scale the flat band is a
+    // sliver of the frame and loses to the model's prior. This puts it in
+    // front of the model at a size it cannot misread.
+    const waistbandReference =
+      traits.isTrousers && (input.viewAngle ?? 'front') === 'front'
+        ? await createWaistbandReference(primary)
+        : null;
+
+    if (waistbandReference) {
+      referenceParts.push({
+        text:
+          'IMAGE BW - WAISTBAND OF IMAGE B, ENLARGED. This is the authority on the front ' +
+          'waistband and centre front. Reproduce exactly what is visible here: if the band ' +
+          'is one continuous unbroken piece across the centre front, keep it unbroken and add ' +
+          'no fly seam, zip, button, hook, tab, placket or overlap. Copy belt loops, pleats ' +
+          'and pocket openings exactly as shown, including their absence. Do not reproduce ' +
+          'this crop as the camera angle.',
+      });
+      referenceParts.push({
+        inlineData: { data: waistbandReference.base64, mimeType: waistbandReference.mimeType },
+      });
+    }
+
     // Image C onward — the same garment from other angles. These resolve
     // construction details the primary photo cannot show, so the model no
     // longer has to invent a back or side it has never seen.
@@ -787,8 +818,8 @@ export async function generateCreative(
     );
 
     const maxGenerationAttempts = input.quality === 'high_accuracy' ? 2 : 1;
-    const traits = detectGarmentTraits(`${input.productContext} ${input.garmentFitNotes ?? ''}`);
     let attemptPrompt = basePrompt;
+    let rejectedCandidate: { base64: string; mimeType: string } | null = null;
 
     for (let generationAttempt = 1; generationAttempt <= maxGenerationAttempts; generationAttempt += 1) {
       logInfo('CreativeGen', 'Requesting try-on candidate.', {
@@ -798,6 +829,23 @@ export async function generateCreative(
         viewAngle: input.viewAngle ?? 'front',
       });
       const parts: GeminiContentPart[] = [{ text: attemptPrompt }, ...referenceParts];
+
+      // On a retry, show the model its own rejected image. Regenerating from
+      // scratch with extra instructions repeats the roll of the dice against
+      // the same prior — three attempts produced the identical invented fly.
+      // Correcting a specific defect in an image it can see is an edit, which
+      // these models do far more reliably than "generate, but different".
+      if (rejectedCandidate) {
+        parts.push({
+          text:
+            'IMAGE R - YOUR PREVIOUS ATTEMPT, REJECTED. It is correct except for the faults ' +
+            'listed above. Rebuild it with those faults corrected and change nothing else: ' +
+            'keep the same person, pose, framing, background, lighting and garment colour.',
+        });
+        parts.push({
+          inlineData: { data: rejectedCandidate.base64, mimeType: rejectedCandidate.mimeType },
+        });
+      }
       const response = await ai.models.generateContent({
         model: imageModel,
         contents: [{
@@ -876,6 +924,7 @@ export async function generateCreative(
       });
       if (generationAttempt < maxGenerationAttempts) {
         attemptPrompt = `${basePrompt}\n\n${buildFidelityRetryCorrection(fidelityDecision.failedChecks)}`;
+        rejectedCandidate = generated;
         continue;
       }
 

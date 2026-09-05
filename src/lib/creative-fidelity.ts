@@ -427,9 +427,13 @@ const RETRY_CORRECTIONS: Record<FidelityCheckId, string> = {
 export function buildFidelityRetryCorrection(failedChecks: FidelityCheckId[]): string {
   const unique = failedChecks.filter((id, index) => failedChecks.indexOf(id) === index);
   const numbered = unique.map((id, index) => `${index + 1}. ${RETRY_CORRECTIONS[id]}`);
+  // Phrased as an edit because the retry now attaches the rejected image.
+  // Telling the model to discard that candidate and start again is what made
+  // the second attempt another roll of the same dice.
   return (
-    `VISUAL QA RETRY — the previous candidate was rejected. Regenerate from the authoritative persona and product references; ` +
-    `do not preserve the failed candidate's person or garment construction.\nMANDATORY CORRECTIONS:\n` +
+    `VISUAL QA RETRY — your previous attempt is attached as IMAGE R and was rejected. Correct only the faults ` +
+    `listed here, against the authoritative persona and product references. Everything else in IMAGE R is ` +
+    `acceptable and must be preserved.\nMANDATORY CORRECTIONS:\n` +
     numbered.join('\n') +
     `\nBefore returning, inspect every corrected region at high magnification. If a failed detail remains, correct it before output.`
   );
