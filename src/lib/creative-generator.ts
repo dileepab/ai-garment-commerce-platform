@@ -712,12 +712,19 @@ export async function generateCreative(
       scene: sceneClause(scene),
     }, supportingAngles);
 
+    const promptTraits = detectGarmentTraits(`${input.productContext} ${input.garmentFitNotes ?? ''}`);
+    const waistbandReference =
+      promptTraits.isTrousers && (input.viewAngle ?? 'front') === 'front'
+        ? await createWaistbandReference(primary)
+        : null;
+
     logInfo('CreativeGen', 'Starting try-on generation.', {
       model: imageModel,
       brand: input.brand,
       personaId: input.personaId,
       personaReferenceAttached: hasPersonaImage,
       identityCloseupAttached: hasPersonaIdentityImage,
+      waistbandReferenceAttached: Boolean(waistbandReference),
       viewAngle: input.viewAngle ?? 'front',
       grounded,
       supportingReferenceCount: supporting.length,
@@ -738,7 +745,7 @@ export async function generateCreative(
       `${supporting.length} supporting reference(s).`,
     );
 
-    const traits = detectGarmentTraits(`${input.productContext} ${input.garmentFitNotes ?? ''}`);
+    const traits = promptTraits;
 
     // Parts order: [prompt] -> [Image A1/A2: persona identity + body] ->
     // [Image B: primary garment reference] -> [Image C..: other angles].
@@ -800,11 +807,6 @@ export async function generateCreative(
     // to in three separate places. At full-length scale the flat band is a
     // sliver of the frame and loses to the model's prior. This puts it in
     // front of the model at a size it cannot misread.
-    const waistbandReference =
-      traits.isTrousers && (input.viewAngle ?? 'front') === 'front'
-        ? await createWaistbandReference(primary)
-        : null;
-
     if (waistbandReference) {
       referenceParts.push({
         text:
@@ -846,7 +848,6 @@ export async function generateCreative(
 
     const maxGenerationAttempts = input.quality === 'high_accuracy' ? 2 : 1;
     let attemptPrompt = basePrompt;
-    let rejectedCandidate: { base64: string; mimeType: string } | null = null;
 
     for (let generationAttempt = 1; generationAttempt <= maxGenerationAttempts; generationAttempt += 1) {
       logInfo('CreativeGen', 'Requesting try-on candidate.', {
@@ -857,22 +858,15 @@ export async function generateCreative(
       });
       const parts: GeminiContentPart[] = [{ text: attemptPrompt }, ...referenceParts];
 
-      // On a retry, show the model its own rejected image. Regenerating from
-      // scratch with extra instructions repeats the roll of the dice against
-      // the same prior — three attempts produced the identical invented fly.
-      // Correcting a specific defect in an image it can see is an edit, which
-      // these models do far more reliably than "generate, but different".
-      if (rejectedCandidate) {
-        parts.push({
-          text:
-            'IMAGE R - YOUR PREVIOUS ATTEMPT, REJECTED. It is correct except for the faults ' +
-            'listed above. Rebuild it with those faults corrected and change nothing else: ' +
-            'keep the same person, pose, framing, background, lighting and garment colour.',
-        });
-        parts.push({
-          inlineData: { data: rejectedCandidate.base64, mimeType: rejectedCandidate.mimeType },
-        });
-      }
+      // The rejected candidate is deliberately NOT attached.
+      //
+      // It was, briefly. The idea was that correcting a visible defect is an
+      // edit, which these models do better than "generate, but different".
+      // The logs said otherwise: attempt one failed three checks, and the
+      // attempt that could see its predecessor failed five — it kept the fly
+      // it was asked to remove and additionally lost the model's face and
+      // pushed the colour from watermelon to vivid red. Anchoring on a flawed
+      // image inherited its flaws while re-rendering everything else.
       const response = await ai.models.generateContent({
         model: imageModel,
         contents: [{
@@ -951,7 +945,6 @@ export async function generateCreative(
       });
       if (generationAttempt < maxGenerationAttempts) {
         attemptPrompt = `${basePrompt}\n\n${buildFidelityRetryCorrection(fidelityDecision.failedChecks)}`;
-        rejectedCandidate = generated;
         continue;
       }
 
