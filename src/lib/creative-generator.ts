@@ -765,9 +765,11 @@ export async function generateCreative(
       // no Image A was attached is what set the model adrift.
       text: personaImage
         ? `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Duplicate this garment exactly on the ${modelReference}. ` +
-          `This image is the sole authority on colour: match its hue, lightness and saturation, and ignore any other photo that disagrees.`
+          `This image is the sole authority on colour: match its hue, lightness and saturation. Ignore any other photo that disagrees, ` +
+          `and ignore colour words in the product name or description — they are catalogue labels and are often inaccurate.`
         : `IMAGE B - GARMENT PRODUCT REFERENCE (${primaryAngleNoun} VIEW). Generate this exact garment/product without changing design or color. ` +
-          `This image is the sole authority on colour: match its hue, lightness and saturation, and ignore any other photo that disagrees.`,
+          `This image is the sole authority on colour: match its hue, lightness and saturation. Ignore any other photo that disagrees, ` +
+          `and ignore colour words in the product name or description — they are catalogue labels and are often inaccurate.`,
     });
     referenceParts.push({
       inlineData: { data: primary.base64, mimeType: primary.mimeType },
