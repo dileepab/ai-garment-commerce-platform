@@ -514,6 +514,27 @@ function extractStoredManualFitNotes(productContext: string): string {
   return index >= 0 ? productContext.slice(index + marker.length).trim() : '';
 }
 
+/**
+ * The colour names to keep out of an image prompt.
+ *
+ * The product's catalogue list plus the selected variant, because the variant
+ * chosen in the wizard is not always one of the stored names.
+ */
+function catalogueColourNames(
+  product: { colors?: string | null } | null,
+  sourceColor?: string | null,
+): string[] {
+  const fromProduct = (product?.colors ?? '')
+    .split(',')
+    .map(name => name.trim())
+    .filter(Boolean);
+  const selected = sourceColor?.trim();
+  const all = selected ? [...fromProduct, selected] : fromProduct;
+
+  return [...new Set(all.map(name => name.toLowerCase()))]
+    .map(lower => all.find(name => name.toLowerCase() === lower) as string);
+}
+
 export interface GenerateCreativeResult {
   success: boolean;
   imageData?: string;
@@ -565,6 +586,7 @@ export async function generateCreativeAction(
             referenceModelHeightCm: true,
             wornLengthNote: true,
             aiFidelityNotes: true,
+            colors: true,
           },
         })
       : null;
@@ -599,6 +621,7 @@ export async function generateCreativeAction(
       brand: params.brand,
       personaId: params.personaId,
       productContext: combinedProductContext,
+      colourNames: catalogueColourNames(linkedProduct, params.sourceColor),
       garmentFitNotes: authoritativeGarmentRules || undefined,
       referenceImages,
       viewAngle: params.viewAngle,
@@ -779,6 +802,7 @@ export async function regenerateCreativeAction(
             referenceModelHeightCm: true,
             wornLengthNote: true,
             aiFidelityNotes: true,
+            colors: true,
           },
         })
       : null;
@@ -797,6 +821,7 @@ export async function regenerateCreativeAction(
       brand: original.brand,
       personaId: (original.personaStyle ?? 'none') as PersonaId,
       productContext: originalProductContext,
+      colourNames: catalogueColourNames(linkedProduct),
       garmentFitNotes: regeneratedGarmentRules || undefined,
       referenceImages,
       viewAngle: (original.viewAngle ?? undefined) as ViewAngle | undefined,
