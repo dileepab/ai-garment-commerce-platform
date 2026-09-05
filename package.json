@@ -54,6 +54,7 @@
     "test:creative-scene": "node --test --experimental-strip-types --no-warnings scripts/creative-scene.test.ts",
     "test:creative-fidelity": "node --test --experimental-strip-types --no-warnings scripts/creative-fidelity.test.ts",
     "test:garment-region": "node --test --experimental-strip-types --no-warnings scripts/garment-region-reference.test.ts",
+    "test:colour-redaction": "node --test --experimental-strip-types --no-warnings scripts/colour-redaction.test.ts",
     "test:gemini-models": "node --test --experimental-strip-types --no-warnings scripts/gemini-models.test.ts",
     "test:garment-traits": "node --test --experimental-strip-types --no-warnings scripts/garment-traits.test.ts",
     "test:persona-asset": "node --test --experimental-strip-types --no-warnings scripts/persona-asset.test.ts",

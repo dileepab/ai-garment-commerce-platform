@@ -29,6 +29,7 @@ import {
 } from './garment-traits';
 import { createPersonaIdentityReference } from './persona-reference';
 import { createWaistbandReference } from './garment-region-reference';
+import { redactColourNames } from './colour-redaction';
 import {
   buildFidelityRetryCorrection,
   describeFailedChecks,
@@ -152,6 +153,12 @@ export interface CreativeGenerationInput {
   brand: string;
   personaId: PersonaId;
   productContext: string;
+  /**
+   * The catalogue's colour names for this product, removed from the text sent
+   * to the image model when a photograph of the colourway is attached. A name
+   * is a guess about a colour; the photograph is the colour.
+   */
+  colourNames?: string[];
   garmentFitNotes?: string;
   referenceImages?: ReferenceImage[];
   // Legacy single-image entry point — treated as a front reference.
@@ -679,13 +686,23 @@ export async function generateCreative(
     const imageModel = input.quality === 'high_accuracy' ? HIGH_ACCURACY_IMAGE_MODEL : IMAGE_EDIT_MODEL;
     const outputImageSize = input.quality === 'high_accuracy' ? '2K' : '1K';
     const supportingAngles = supporting.map(ref => ref.angle);
+    // With a photograph of the colourway attached, the catalogue's colour name
+    // is removed rather than argued with. "Pastel Pink" is a strong token and
+    // three mentions of it beat one picture of a watermelon-coloured garment.
+    // Without a photograph the name is all there is, so it stays.
+    const promptProductContext = grounded
+      ? redactColourNames(input.productContext, input.colourNames ?? [])
+      : input.productContext;
+
     const basePrompt = buildTryOnPrompt({
       brand: input.brand,
       personaId: input.personaId,
-      productContext: input.productContext,
+      productContext: promptProductContext,
       style,
       viewAngle: input.viewAngle,
-      garmentFitNotes: input.garmentFitNotes,
+      garmentFitNotes: grounded
+        ? redactColourNames(input.garmentFitNotes ?? '', input.colourNames ?? []) || undefined
+        : input.garmentFitNotes,
       poseInstruction: input.poseInstruction,
       corrections: input.corrections,
       grounded,
